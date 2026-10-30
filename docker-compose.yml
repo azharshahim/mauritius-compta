@@ -1,0 +1,23 @@
+# Local PostgreSQL for development.
+# The application is NOT deployed by this repository (see docs/deployment.md).
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: mauritius-compta-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mc_user
+      POSTGRES_PASSWORD: change_me_in_env
+      POSTGRES_DB: mauritius_compta
+    ports:
+      - '5432:5432'
+    volumes:
+      - mc_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U mc_user -d mauritius_compta']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mc_pgdata:
