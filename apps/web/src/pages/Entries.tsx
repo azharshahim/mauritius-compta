@@ -14,7 +14,7 @@ import {
   Pagination,
   Spinner,
 } from '../components/ui';
-import { addAmounts, date, money, sameAmount, toScaled4, today } from '../format';
+import { addAmounts, date, defaultEntryDate, money, sameAmount, toScaled4 } from '../format';
 
 interface Journal {
   id: string;
@@ -29,6 +29,13 @@ interface Account {
   code: string;
   name: string;
   is_active: boolean;
+}
+
+interface Period {
+  id: string;
+  start_date: string;
+  end_date: string;
+  status: 'open' | 'closed';
 }
 
 interface EntryListItem {
@@ -111,14 +118,23 @@ export default function EntriesPage() {
     [company?.id, status, journalId, search, from, to, offset],
   );
 
-  const { data: meta } = useAsync<{ journals: Journal[]; accounts: Account[] } | null>(
+  const { data: meta } = useAsync<{
+    journals: Journal[];
+    accounts: Account[];
+    periods: Period[];
+  } | null>(
     async () => {
       if (!company) return null;
-      const [journals, accounts] = await Promise.all([
+      const [journals, accounts, detail] = await Promise.all([
         api.get<{ journals: Journal[] }>(`/companies/${company.id}/journals`),
         api.get<{ accounts: Account[] }>(`/companies/${company.id}/accounts`),
+        api.get<{ periods: Period[] }>(`/companies/${company.id}`),
       ]);
-      return { journals: journals.journals, accounts: accounts.accounts };
+      return {
+        journals: journals.journals,
+        accounts: accounts.accounts,
+        periods: detail.periods,
+      };
     },
     [company?.id],
   );
@@ -131,7 +147,7 @@ export default function EntriesPage() {
   const [formError, setFormError] = useState<string | null>(null);
 
   const [journal, setJournal] = useState('');
-  const [entryDate, setEntryDate] = useState(today());
+  const [entryDate, setEntryDate] = useState(defaultEntryDate([]));
   const [reference, setReference] = useState('');
   const [description, setDescription] = useState('');
   const [currency, setCurrency] = useState(company?.functional_currency ?? 'MUR');
@@ -174,7 +190,7 @@ export default function EntriesPage() {
     } else {
       setEditingId(null);
       setJournal(journals[0]?.id ?? '');
-      setEntryDate(today());
+      setEntryDate(defaultEntryDate(meta?.periods ?? []));
       setReference('');
       setDescription('');
       setCurrency(functional);

@@ -1,0 +1,76 @@
+name: Demo (GitHub Pages)
+
+# Publishes the *demonstration* build of the web app on GitHub Pages.
+# It runs from the active development branch, never from `main`, and does not
+# touch the API: the page is a 100 % client-side simulation (fictional data in
+# the browser, no database, no secrets).
+
+on:
+  push:
+    branches:
+      - arena/b0b62798-mauritius-compta
+    paths:
+      - 'apps/web/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build demo bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck web
+        run: npm run typecheck -w @mc/web
+
+      - name: Web tests (demo backend + screens, jsdom)
+        run: npm run test -w @mc/web
+
+      - name: Build demo (base=/mauritius-compta/)
+        run: npm run build:demo
+        env:
+          VITE_DEMO_MODE: 'true'
+
+      - name: Check bundle references the project base path
+        run: |
+          set -euo pipefail
+          grep -q 'src="/mauritius-compta/assets/' apps/web/dist/index.html
+          grep -q 'MODE DÉMONSTRATION' apps/web/dist/assets/*.js
+          test -f apps/web/dist/404.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

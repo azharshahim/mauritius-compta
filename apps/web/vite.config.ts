@@ -1,7 +1,11 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+const demoMode = process.env.VITE_DEMO_MODE === 'true';
+
 export default defineConfig({
+  // GitHub Pages serves the project under /<repository>/ ; the API build keeps '/'.
+  base: demoMode ? '/mauritius-compta/' : '/',
   plugins: [react()],
   server: {
     host: '0.0.0.0',

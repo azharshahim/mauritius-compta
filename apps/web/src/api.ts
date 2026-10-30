@@ -1,16 +1,15 @@
-/** Typed-ish API client. Cookies are HTTP-only; we never store tokens in JS. */
-export class ApiError extends Error {
-  code: string;
-  status: number;
-  details?: unknown;
+import { demoCsv, demoEnabled, demoRequest } from './demo';
+import { ApiError } from './errors';
 
-  constructor(status: number, code: string, message: string, details?: unknown) {
-    super(message);
-    this.status = status;
-    this.code = code;
-    this.details = details;
-  }
-}
+export { ApiError };
+
+/**
+ * Typed-ish API client. Cookies are HTTP-only; we never store tokens in JS.
+ *
+ * In demo mode (GitHub Pages) the very same calls are served by `./demo`, an
+ * in-browser backend: no request leaves the page, no database is involved and
+ * every record lives in localStorage only.
+ */
 
 let locale: 'fr' | 'en' = (localStorage.getItem('mc.locale') as 'fr' | 'en') ?? 'fr';
 export function setApiLocale(l: 'fr' | 'en') {
@@ -18,6 +17,13 @@ export function setApiLocale(l: 'fr' | 'en') {
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  if (demoEnabled) {
+    if (body instanceof FormData) {
+      throw new ApiError(501, 'DEMO_UNSUPPORTED', 'Upload indisponible en démonstration');
+    }
+    return demoRequest<T>(method as 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE', path, body);
+  }
+
   let res: Response;
   try {
     res = await fetch(`/api${path}`, {
@@ -65,6 +71,25 @@ export const api = {
 
 /** Opens a report/export in a new tab (PDF inline) or downloads CSV. */
 export async function downloadExport(path: string, filename: string, format: 'csv' | 'pdf') {
+  if (demoEnabled) {
+    // The browser demo can compute CSV exactly. A real PDF is produced by the
+    // server (PDFKit), so in demo mode the button opens the print dialog and the
+    // user can "Save as PDF" — this fact is stated in the demo banner.
+    const { text, mode } = demoCsv(path, format);
+    if (mode === 'print' || !text) {
+      window.print();
+      return;
+    }
+    const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    return;
+  }
+
   const res = await fetch(`/api${path}${path.includes('?') ? '&' : '?'}format=${format}`, {
     credentials: 'include',
     headers: { 'x-locale': locale },

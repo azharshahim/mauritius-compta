@@ -109,6 +109,24 @@ export function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/**
+ * Suggests an entry date the server will accept: today when an open period
+ * covers it, otherwise the end of the latest open period. Without this, a user
+ * opening the editor outside the financial year gets a PERIOD_CLOSED error.
+ */
+export function defaultEntryDate(
+  periods: { start_date: string; end_date: string; status: string }[],
+): string {
+  const iso = today();
+  const open = periods
+    .filter((p) => p.status === 'open')
+    .map((p) => ({ start: p.start_date.slice(0, 10), end: p.end_date.slice(0, 10) }))
+    .sort((a, b) => a.end.localeCompare(b.end));
+  if (open.length === 0) return iso;
+  if (open.some((p) => iso >= p.start && iso <= p.end)) return iso;
+  return open[open.length - 1]!.end;
+}
+
 export function yearStart(year: number): string {
   return `${year}-01-01`;
 }

@@ -18,11 +18,12 @@
     "build": "npm run build -w @mc/web && npm run build -w @mc/api",
     "start": "npm run start -w @mc/api",
     "typecheck": "npm run typecheck -w @mc/api && npm run typecheck -w @mc/web",
-    "test": "npm run test -w @mc/api",
+    "test": "npm run test -w @mc/api && npm run test -w @mc/web",
     "db:migrate": "npm run db:migrate -w @mc/api",
     "db:seed": "npm run db:seed -w @mc/api",
     "verify": "npm run typecheck && npm test && npm run build",
-    "test:e2e": "npm run test:e2e -w @mc/web"
+    "test:e2e": "npm run test:e2e -w @mc/web",
+    "build:demo": "npm run build:demo -w @mc/web"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

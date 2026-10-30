@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { useI18n } from '../i18n';
 import { errorMessage, useSession } from '../store';
 import { Button, ErrorBanner } from '../components/ui';
+import { DEMO_EMAIL, DEMO_PASSWORD, demoEnabled } from '../demo';
 
 export default function LoginPage() {
   const { t } = useI18n();
   const { login, register } = useSession();
   const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState(demoEnabled ? DEMO_EMAIL : '');
+  const [password, setPassword] = useState(demoEnabled ? DEMO_PASSWORD : '');
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice] = useState<string | null>(() => {
@@ -72,6 +73,7 @@ export default function LoginPage() {
               <p className="page-sub" style={{ marginTop: 0 }}>
                 {t('login.subtitle')}
               </p>
+              {demoEnabled && <div className="banner banner-info">{t('demo.loginHint')}</div>}
               <ErrorBanner message={error} />
               {notice && <div className="banner banner-info">{t(notice)}</div>}
         <form onSubmit={submit}>

@@ -12,6 +12,7 @@ import TrialBalancePage from './pages/TrialBalance';
 import StatementsPage from './pages/Statements';
 import SettingsPage from './pages/Settings';
 import { Spinner } from './components/ui';
+import { DemoBanner } from './components/DemoBanner';
 
 const NAV = [
   { to: '/', key: 'nav.dashboard', icon: '▦', end: true },
@@ -30,21 +31,8 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
 
-  if (!initialized) {
-    return <Spinner label={t('common.loading')} />;
-  }
-
-  if (!user) {
-    return (
-      <Routes>
-        <Route path="*" element={<LoginPage />} />
-      </Routes>
-    );
-  }
-
-  const closeMenu = () => setMenuOpen(false);
-
-  // The drawer must not stay open after a navigation or when Escape is pressed.
+  // Hooks must run before any early return: the drawer is closed on navigation
+  // and with the Escape key.
   useEffect(() => {
     setMenuOpen(false);
   }, [location.pathname]);
@@ -57,6 +45,23 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [menuOpen]);
+
+  if (!initialized) {
+    return <Spinner label={t('common.loading')} />;
+  }
+
+  if (!user) {
+    return (
+      <>
+        <Routes>
+          <Route path="*" element={<LoginPage />} />
+        </Routes>
+        <DemoBanner />
+      </>
+    );
+  }
+
+  const closeMenu = () => setMenuOpen(false);
 
   return (
     <div className="app-shell">
@@ -148,6 +153,7 @@ export default function App() {
           </Routes>
         </main>
       </div>
+      <DemoBanner />
     </div>
   );
 }
