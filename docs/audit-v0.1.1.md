@@ -21,7 +21,7 @@ systématique. Aucune anomalie n'est déclarée corrigée sans test ou preuve d'
 | Anomalies comptables | 6 | 0 |
 | Anomalies de sécurité / intégrité | 9 | 0 |
 | Défauts d'interface | 4 | 0 |
-| Tests automatisés | 54 | **77** (73 exécutés + 4 PostgreSQL) |
+| Tests automatisés | 54 | **77** (73 sur PGlite + 4 concurrence ; **77/77 en CI sur PostgreSQL**) |
 | Tests de non-régression dédiés | 0 | **17** (`tests/regressions.test.ts`) |
 | Tests de concurrence | 0 | **4** (`tests/concurrency.test.ts`, PostgreSQL réel) |
 | Tâches CI | 2 | **3** |
@@ -176,10 +176,24 @@ Détail : `docs/test-report.md`.
 
 ---
 
-## 8. Reconstruction depuis GitHub
+## 8. Reconstruction depuis GitHub — vérifiée
 
-Voir `docs/github-project-integrity.md` §7 pour la procédure et les résultats constatés
-(clone vierge, `npm ci`, migrations, seed, typecheck, tests, build, démarrage).
+Clone vierge du dépôt public, branche `arena/b0b62798-mauritius-compta`, commit `93a7b90` :
+
+```text
+git clone → 100 fichiers suivis, aucun .env, aucun node_modules
+npm ci                         ✅
+npm run db:migrate             ✅ 0001, 0002, 0003 appliquées
+npm run db:seed                ✅ Lagon Bleu Trading Ltd (DEMO)
+npm run typecheck              ✅
+npm test                       ✅ 73 réussis / 4 ignorés (concurrence, PGlite)
+npm run build                  ✅
+démarrage API depuis le clone  ✅ /api/health = ok, version 0.1.1, connexion HTTP 200
+```
+
+CI du même commit : 3 tâches vertes, dont la suite complète **77/77 sur PostgreSQL 16**.
+
+Détail : `docs/github-project-integrity.md` §7.
 
 ---
 

@@ -158,18 +158,26 @@ npm run db:seed
 npm run typecheck && npm test && npm run build
 ```
 
-Résultats détaillés (sorties réelles) : `docs/audit-v0.1.1.md`, §« Reconstruction ».
-
-Résumé :
+Résultats réels (30 octobre 2026, commit `93a7b90`) :
 
 | Étape | Attendu | Constaté |
 |---|---|---|
-| `git clone` | dépôt complet, aucun fichier ignoré indispensable | ✅ 92 fichiers suivi, `.env` absent |
-| `npm ci` | installation sans erreur | ✅ |
-| `db:migrate` | 3 migrations appliquées | ✅ |
-| `db:seed` | société fictive + écritures | ✅ |
-| `typecheck` / `test` / `build` | vert | ✅ |
-| `npm run dev` | interface + API joignables | ✅ |
+| `git clone --branch arena/b0b62798-mauritius-compta` | dépôt complet | ✅ 100 fichiers suivis, aucun `.env`, aucun `node_modules` |
+| `npm ci` | installation reproductible | ✅ |
+| `npm run db:migrate` | 3 migrations appliquées | ✅ `0001_core.sql`, `0002_controls.sql`, `0003_hardening.sql` |
+| `npm run db:seed` | société fictive + écritures | ✅ société `Lagon Bleu Trading Ltd (DEMO)` |
+| `npm run typecheck` | TypeScript strict | ✅ |
+| `npm test` | suite complète | ✅ **73 réussis, 4 ignorés** (concurrence PGlite) |
+| `npm run build` | build API + interface | ✅ |
+| démarrage de l'API depuis le clone | serveur opérationnel | ✅ `/api/health` → `{"status":"ok","version":"0.1.1"}`, connexion de démonstration HTTP 200 |
+
+Note de terrain : `PGLITE_DIR` est relatif au répertoire courant. En passant par les scripts npm
+(`npm run db:seed`, `npm run dev`, `npm start`), le répertoire est toujours `apps/api`. Le chemin
+absolu réel de la base est désormais affiché au démarrage (`[db] PGlite data directory: …`).
+
+État CI du commit `93a7b90` : **3 tâches vertes** — `Typecheck, tests and build` (34 s),
+`API tests against real PostgreSQL` (30 s, 77/77 dont les 4 tests de concurrence),
+`Migrations against real PostgreSQL` (27 s).
 
 > **Limite honnête** : les tests navigateur Chromium fournis n'ont pas été exécutés dans
 > l'environnement d'audit (aucun binaire de navigateur téléchargeable). Voir

@@ -147,7 +147,16 @@ export async function createPgDb(connectionString: string, opts: { ssl?: boolean
 export async function createPgliteDb(dataDir?: string): Promise<Db> {
   const { PGlite } = await import('@electric-sql/pglite');
   const options = { parsers: { 1082: (v: string) => v, 1184: (v: string) => v } };
-  if (dataDir) await mkdir(path.dirname(path.resolve(dataDir)), { recursive: true });
+  if (dataDir) {
+    const absolute = path.resolve(dataDir);
+    // Relative paths are resolved from the working directory: print the real
+    // location so two commands started from different folders cannot silently
+    // open two different databases.
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`[db] PGlite data directory: ${absolute}`);
+    }
+    await mkdir(path.dirname(absolute), { recursive: true });
+  }
   const lite = dataDir ? new PGlite(dataDir, options) : new PGlite(options);
   await lite.waitReady;
 

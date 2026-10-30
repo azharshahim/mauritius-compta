@@ -40,7 +40,8 @@ Deux tâches CI complètent ce dispositif :
 
 Durée observée : ~12 s (PGlite), sur un environnement de CI standard.
 
-Sur PostgreSQL réel : **77/77**, dont les 4 tests de concurrence.
+Sur PostgreSQL réel (tâche CI `API tests against real PostgreSQL`, commit `93a7b90`) :
+**77/77**, dont les 4 tests de concurrence — tâche verte en 30 s.
 
 ## 3. Couverture des priorités du cahier des charges
 
