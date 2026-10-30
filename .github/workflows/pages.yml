@@ -55,8 +55,6 @@ jobs:
           grep -q 'MODE DÉMONSTRATION' apps/web/dist/assets/*.js
           test -f apps/web/dist/404.html
 
-      - uses: actions/configure-pages@v5
-
       - uses: actions/upload-pages-artifact@v3
         with:
           path: apps/web/dist
@@ -72,5 +70,11 @@ jobs:
       pages: write
       id-token: write
     steps:
+      # `enablement: true` creates the Pages site on the first run when the
+      # repository does not have it yet (source: GitHub Actions).
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
       - id: deployment
         uses: actions/deploy-pages@v4
