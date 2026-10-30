@@ -1,0 +1,149 @@
+# Préparation du déploiement — VPS Ubuntu + Nginx
+
+> ⚠️ **Aucun déploiement n'a été effectué dans le cadre de la mission V0.1.0.**
+> Ce document prépare une installation future ; le propriétaire garde le contrôle total des
+> fusions et des déploiements.
+
+## 1. Prérequis serveur
+
+- Ubuntu 22.04/24.04 LTS, accès SSH par clé, utilisateur non-root avec `sudo`.
+- Node.js 20+ (LTS), npm 10+.
+- PostgreSQL 14+ (16 recommandé).
+- Nginx, certificat TLS (Let's Encrypt), pare-feu (ufw) : 22/80/443.
+
+## 2. Base de données
+
+```bash
+sudo -u postgres psql <<'SQL'
+CREATE ROLE mc_app LOGIN PASSWORD 'REMPLACER_PAR_UN_SECRET_FORT';
+CREATE DATABASE mauritius_compta OWNER mc_app;
+\c mauritius_compta
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+GRANT USAGE, CREATE ON SCHEMA public TO mc_app;
+SQL
+```
+
+- Écouter uniquement en local (`listen_addresses = 'localhost'`).
+- Sauvegardes chiffrées quotidiennes (`pg_dump` + GPG) hors du serveur, avec test de
+  restauration.
+
+## 3. Application
+
+```bash
+sudo useradd -r -m -d /opt/mauritius-compta mcapp
+sudo -u mcapp git clone <dépôt> /opt/mauritius-compta
+cd /opt/mauritius-compta
+sudo -u mcapp npm ci
+sudo -u mcapp npm run build
+```
+
+`/opt/mauritius-compta/.env` (chmod 600, propriétaire `mcapp`) :
+
+```dotenv
+NODE_ENV=production
+PORT=3000
+HOST=127.0.0.1
+APP_URL=https://compta.example.mu
+DATABASE_URL=postgresql://mc_app:...@127.0.0.1:5432/mauritius_compta
+DATABASE_SSL=false
+SESSION_COOKIE_NAME=mc_session
+SESSION_TTL_HOURS=168
+COOKIE_SECURE=true
+PASSWORD_MIN_LENGTH=12
+LOGIN_MAX_ATTEMPTS=8
+ALLOW_REGISTRATION=false
+STORAGE_DIR=/var/lib/mauritius-compta/storage
+MAX_UPLOAD_BYTES=10485760
+DEFAULT_LOCALE=fr
+```
+
+Migrations puis démarrage :
+
+```bash
+sudo -u mcapp npm run db:migrate
+sudo -u mcapp npm run start      # node apps/api/dist/index.js
+```
+
+L'API sert aussi le front compilé (`apps/web/dist`) avec repli SPA.
+
+## 4. service systemd
+
+`/etc/systemd/system/mauritius-compta.service` :
+
+```ini
+[Unit]
+Description=Mauritius Compta
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=mcapp
+WorkingDirectory=/opt/mauritius-compta
+EnvironmentFile=/opt/mauritius-compta/.env
+ExecStart=/usr/bin/node apps/api/dist/index.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/mauritius-compta
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl enable --now mauritius-compta
+```
+
+## 5. Nginx (reverse proxy + TLS)
+
+```nginx
+server {
+    listen 80;
+    server_name compta.example.mu;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name compta.example.mu;
+
+    ssl_certificate     /etc/letsencrypt/live/compta.example.mu/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/compta.example.mu/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    client_max_body_size 12m;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+}
+```
+
+> `COOKIE_SECURE=true` est obligatoire derrière HTTPS. `APP_URL` doit correspondre à l'origine
+> publique (contrôle CSRF).
+
+## 6. Checklist avant mise en production
+
+- [ ] Autorisation explicite du propriétaire pour le déploiement.
+- [ ] `COOKIE_SECURE=true`, HTTPS valide, HSTS actif.
+- [ ] `ALLOW_REGISTRATION=false` et comptes créés manuellement.
+- [ ] Mot de passe de démonstration supprimé / compte de démo supprimé.
+- [ ] Données de démonstration purgées de la base de production.
+- [ ] Sauvegardes chiffrées + restauration testée.
+- [ ] Journalisation centralisée et rétention définie.
+- [ ] Politique de conservation des données validée (DPO).
+- [ ] Registre de conformité à jour (`docs/mauritius-regulations/compliance-register.md`).
+- [ ] Supervision (systemd + monitoring HTTP `/api/health`).
+- [ ] Test de montée en charge minimal et revue de sécurité.
