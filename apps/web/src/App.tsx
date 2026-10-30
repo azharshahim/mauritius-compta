@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useI18n } from './i18n';
 import { useSession } from './store';
@@ -44,6 +44,20 @@ export default function App() {
 
   const closeMenu = () => setMenuOpen(false);
 
+  // The drawer must not stay open after a navigation or when Escape is pressed.
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menuOpen]);
+
   return (
     <div className="app-shell">
       <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
@@ -71,12 +85,15 @@ export default function App() {
         </div>
       </aside>
 
+      {menuOpen && <div className="drawer-backdrop" onClick={closeMenu} aria-hidden="true" />}
+
       <div className="main">
         <header className="topbar">
           <button
             className="btn btn-ghost mobile-only"
             onClick={() => setMenuOpen((v) => !v)}
             aria-label={t('nav.menu')}
+            aria-expanded={menuOpen}
           >
             ☰
           </button>

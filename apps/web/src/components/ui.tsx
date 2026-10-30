@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useI18n } from '../i18n';
 
@@ -126,10 +127,30 @@ export function Modal({
   children: ReactNode;
   wide?: boolean;
 }) {
+  const { t } = useI18n();
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Escape closes the dialog and focus returns to the triggering element.
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    dialogRef.current?.focus();
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      previous?.focus?.();
+    };
+  }, [open, onClose]);
+
   if (!open) return null;
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         className={`modal ${wide ? 'modal-wide' : ''}`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
@@ -138,7 +159,7 @@ export function Modal({
       >
         <header className="modal-head">
           <h2>{title}</h2>
-          <button className="icon-btn" onClick={onClose} aria-label="close">
+          <button className="icon-btn" onClick={onClose} aria-label={t('common.close')}>
             ×
           </button>
         </header>

@@ -126,6 +126,11 @@ const fr: Dict = {
     'Plan de comptes de démonstration — non officiel. Adaptez-le à votre activité.',
   'entries.title': 'Écritures comptables',
   'entries.new': 'Nouvelle écriture',
+  'entries.edit': 'Modifier le brouillon',
+  'entries.editHint':
+    'Seuls les brouillons sont modifiables ; une écriture validée se corrige par une écriture de contrepassation.',
+  'settings.passwordChanged':
+    'Mot de passe modifié. Toutes les sessions ont été fermées, veuillez vous reconnecter.',
   'entries.journal': 'Journal',
   'entries.entryNo': 'N° écriture',
   'entries.status': 'Statut',
@@ -239,6 +244,13 @@ const fr: Dict = {
   'error.PERIOD_CLOSED': 'La période comptable est clôturée.',
   'error.EXCHANGE_RATE_REQUIRED': 'Un taux de change est requis pour cette écriture.',
   'error.INVALID_CREDENTIALS': 'Identifiants incorrects.',
+  'error.REFERENCE_TAKEN': 'Cette référence est déjà utilisée dans la société.',
+  'error.AMOUNT_TOO_SMALL':
+    'Montant trop petit après conversion dans la devise fonctionnelle.',
+  'error.INVALID_CURRENCY': 'Devise non supportée (MUR, EUR, USD, GBP).',
+  'error.PERIOD_OVERLAP': 'Cette période chevauche une période existante.',
+  'error.FORBIDDEN': "Vous n'avez pas les droits nécessaires pour cette opération.",
+  'error.VALIDATION_ERROR': 'Certaines données sont invalides.',
 };
 
 const en: Dict = {
@@ -359,6 +371,11 @@ const en: Dict = {
   'accounts.demoNotice': 'Demonstration chart of accounts — not official. Adapt it to your business.',
   'entries.title': 'Journal Entries',
   'entries.new': 'New entry',
+  'entries.edit': 'Edit draft',
+  'entries.editHint':
+    'Only drafts can be edited; a posted entry is corrected with a reversal entry.',
+  'settings.passwordChanged':
+    'Password changed. All sessions were closed, please sign in again.',
   'entries.journal': 'Journal',
   'entries.entryNo': 'Entry no.',
   'entries.status': 'Status',
@@ -470,6 +487,13 @@ const en: Dict = {
   'error.PERIOD_CLOSED': 'The accounting period is closed.',
   'error.EXCHANGE_RATE_REQUIRED': 'An exchange rate is required for this entry.',
   'error.INVALID_CREDENTIALS': 'Incorrect credentials.',
+  'error.REFERENCE_TAKEN': 'This reference is already used in the company.',
+  'error.AMOUNT_TOO_SMALL':
+    'Amount is too small once converted to the functional currency.',
+  'error.INVALID_CURRENCY': 'Unsupported currency (MUR, EUR, USD, GBP).',
+  'error.PERIOD_OVERLAP': 'This period overlaps an existing period.',
+  'error.FORBIDDEN': 'You do not have permission for this operation.',
+  'error.VALIDATION_ERROR': 'Some data is invalid.',
 };
 
 const dictionaries: Record<Locale, Dict> = { fr, en };

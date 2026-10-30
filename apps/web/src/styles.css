@@ -261,6 +261,31 @@ tr.total-row td { font-weight: 700; background: #f2f6fb; border-top: 2px solid v
   .card { box-shadow: none; border: none; }
 }
 
+/* -------------------------------------------------------------- notices */
+.alert {
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  margin-bottom: 12px;
+  border: 1px solid transparent;
+}
+.alert-error { background: #fdecec; border-color: #f5c2c2; color: #8a1f1f; }
+.banner {
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  margin-bottom: 14px;
+}
+.banner-info { background: #e8f1fb; border: 1px solid #bcd6f0; color: #17456f; }
+
+/* Off-canvas drawer overlay (mobile only). */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 37, 69, 0.45);
+  z-index: 40;
+}
+
 /* ------------------------------------------------------------------ mobile */
 @media (max-width: 900px) {
   .auth-wrap { grid-template-columns: 1fr; }
@@ -269,8 +294,13 @@ tr.total-row td { font-weight: 700; background: #f2f6fb; border-top: 2px solid v
     position: fixed; inset: 0 auto 0 0; z-index: 50; transform: translateX(-100%);
     transition: transform 0.22s ease; width: 264px; height: 100%;
   }
-  .sidebar.open { transform: translateX(0); box-shadow: 0 0 0 100vmax rgba(11, 37, 69, 0.45); }
+  .sidebar.open { transform: translateX(0); }
   .mobile-only { display: inline-flex; }
+  /* Comfortable touch targets on Android phones. */
+  .btn, .nav a, .topbar select, .icon-btn { min-height: 40px; }
+  .nav a { padding: 11px 12px; }
+  .form-row > * { flex: 1 1 140px; }
+  .modal-body, .modal { max-height: 88vh; }
   .page { padding: 14px; }
   .topbar { padding: 8px 12px; gap: 8px; }
   .topbar select { max-width: 150px; }

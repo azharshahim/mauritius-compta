@@ -120,7 +120,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const updateUser = useCallback(
     async (patch: { fullName?: string; locale?: Locale; currentPassword?: string; newPassword?: string }) => {
-      const res = await api.patch<{ user: User }>('/auth/me', patch);
+      const res = await api.patch<{ user: User; sessionsInvalidated?: boolean }>('/auth/me', patch);
+      if (res.sessionsInvalidated) {
+        // The server dropped every session (password change): show the login
+        // screen with an explanatory notice instead of a silent 401.
+        sessionStorage.setItem('mc.notice', 'settings.passwordChanged');
+        setUser(null);
+        setCompanies([]);
+        setCompanyId(null);
+        localStorage.removeItem('mc.companyId');
+        return;
+      }
       setUser(res.user);
       if (patch.locale) setLocale(patch.locale);
     },

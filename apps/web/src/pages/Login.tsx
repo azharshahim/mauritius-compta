@@ -11,6 +11,11 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [notice] = useState<string | null>(() => {
+    const value = sessionStorage.getItem('mc.notice');
+    if (value) sessionStorage.removeItem('mc.notice');
+    return value;
+  });
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
@@ -68,7 +73,8 @@ export default function LoginPage() {
                 {t('login.subtitle')}
               </p>
               <ErrorBanner message={error} />
-              <form onSubmit={submit}>
+              {notice && <div className="banner banner-info">{t(notice)}</div>}
+        <form onSubmit={submit}>
                 {mode === 'register' && (
                   <label className="field">
                     <span className="field-label">{t('login.fullName')}</span>

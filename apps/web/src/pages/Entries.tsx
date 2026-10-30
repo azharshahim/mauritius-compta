@@ -14,7 +14,7 @@ import {
   Pagination,
   Spinner,
 } from '../components/ui';
-import { date, money, today } from '../format';
+import { addAmounts, date, money, sameAmount, toScaled4, today } from '../format';
 
 interface Journal {
   id: string;
@@ -124,6 +124,7 @@ export default function EntriesPage() {
   );
 
   const [editorOpen, setEditorOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [detail, setDetail] = useState<EntryDetail | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -142,20 +143,44 @@ export default function EntriesPage() {
   const functional = company?.functional_currency ?? 'MUR';
   const isForeign = currency !== functional;
 
+  // Exact decimal arithmetic: the balance indicator never relies on floats.
   const totals = useMemo(() => {
-    const debit = lines.reduce((a, l) => a + (Number(l.debit) || 0), 0);
-    const credit = lines.reduce((a, l) => a + (Number(l.credit) || 0), 0);
-    return { debit, credit, balanced: Math.abs(debit - credit) < 0.00005 && debit > 0 };
+    const debit = addAmounts(lines.map((l) => l.debit));
+    const credit = addAmounts(lines.map((l) => l.credit));
+    return { debit, credit, balanced: (toScaled4(debit) ?? 0n) > 0n && sameAmount(debit, credit) };
   }, [lines]);
 
-  const openEditor = () => {
-    setJournal(journals[0]?.id ?? '');
-    setEntryDate(today());
-    setReference('');
-    setDescription('');
-    setCurrency(functional);
-    setRate('1');
-    setLines([newLine(), newLine()]);
+  const openEditor = (source?: EntryDetail) => {
+    if (source) {
+      const entry = source.entry;
+      setEditingId(entry.id);
+      setJournal(entry.entry_no ? journals.find((j) => j.code === entry.journal_code)?.id ?? '' : '');
+      setEntryDate(entry.entry_date.slice(0, 10));
+      setReference(entry.reference ?? '');
+      setDescription(entry.description);
+      setCurrency(entry.currency);
+      setRate(entry.exchange_rate ?? '1');
+      setLines(
+        source.lines.length > 0
+          ? source.lines.map((l) => ({
+              key: l.id,
+              accountId: l.account_id,
+              description: l.description ?? '',
+              debit: toScaled4(l.debit) ? l.debit : '',
+              credit: toScaled4(l.credit) ? l.credit : '',
+            }))
+          : [newLine(), newLine()],
+      );
+    } else {
+      setEditingId(null);
+      setJournal(journals[0]?.id ?? '');
+      setEntryDate(today());
+      setReference('');
+      setDescription('');
+      setCurrency(functional);
+      setRate('1');
+      setLines([newLine(), newLine()]);
+    }
     setFormError(null);
     setEditorOpen(true);
   };
@@ -175,25 +200,32 @@ export default function EntriesPage() {
     if (!company) return;
     setBusy(true);
     setFormError(null);
+    const body = {
+      journalId: journal,
+      entryDate,
+      reference: reference || null,
+      description,
+      currency,
+      exchangeRate: isForeign ? rate : undefined,
+      status: mode,
+      lines: lines
+        .filter((l) => l.accountId && (l.debit || l.credit))
+        .map((l) => ({
+          accountId: l.accountId,
+          description: l.description || null,
+          debit: l.debit || undefined,
+          credit: l.credit || undefined,
+        })),
+    };
     try {
-      await api.post(`/companies/${company.id}/entries`, {
-        journalId: journal,
-        entryDate,
-        reference: reference || null,
-        description,
-        currency,
-        exchangeRate: isForeign ? rate : undefined,
-        status: mode,
-        lines: lines
-          .filter((l) => l.accountId && (l.debit || l.credit))
-          .map((l) => ({
-            accountId: l.accountId,
-            description: l.description || null,
-            debit: l.debit || undefined,
-            credit: l.credit || undefined,
-          })),
-      });
+      if (editingId) {
+        await api.patch(`/companies/${company.id}/entries/${editingId}`, body);
+      } else {
+        await api.post(`/companies/${company.id}/entries`, body);
+      }
       setEditorOpen(false);
+      setEditingId(null);
+      setDetailOpen(false);
       await reload();
     } catch (err) {
       setFormError(errorMessage(err, t('common.error')).message);
@@ -261,7 +293,7 @@ export default function EntriesPage() {
             {data?.total ?? 0} {t('entries.title').toLowerCase()} · {functional}
           </div>
         </div>
-        <Button variant="primary" onClick={openEditor} disabled={journals.length === 0}>
+        <Button variant="primary" onClick={() => openEditor()} disabled={journals.length === 0}>
           + {t('entries.new')}
         </Button>
       </div>
@@ -338,7 +370,15 @@ export default function EntriesPage() {
       </Card>
 
       {/* ------------------------------------------------------- editor */}
-      <Modal open={editorOpen} title={t('entries.new')} onClose={() => setEditorOpen(false)} wide>
+      <Modal
+        open={editorOpen}
+        title={editingId ? t('entries.edit') : t('entries.new')}
+        onClose={() => {
+          setEditorOpen(false);
+          setEditingId(null);
+        }}
+        wide
+      >
         <ErrorBanner message={formError} />
         <div className="form-grid">
           <Field label={t('entries.journal')}>
@@ -476,7 +516,14 @@ export default function EntriesPage() {
         </div>
 
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-          <Button onClick={() => setEditorOpen(false)}>{t('common.cancel')}</Button>
+          <Button
+            onClick={() => {
+              setEditorOpen(false);
+              setEditingId(null);
+            }}
+          >
+            {t('common.cancel')}
+          </Button>
           <Button disabled={busy} onClick={() => void save('draft')}>
             {t('entries.saveDraft')}
           </Button>
@@ -497,7 +544,7 @@ export default function EntriesPage() {
               <span className="page-sub">
                 {detail.entry.journal_code} · {date(detail.entry.entry_date, locale)} ·{' '}
                 {detail.entry.currency}
-                {Number(detail.entry.exchange_rate) !== 1 && ` @ ${detail.entry.exchange_rate}`}
+                {!sameAmount(detail.entry.exchange_rate, '1') && ` @ ${detail.entry.exchange_rate}`}
               </span>
               {detail.entry.reversal_of_entry_id && (
                 <Badge kind="info">
@@ -579,6 +626,14 @@ export default function EntriesPage() {
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18, flexWrap: 'wrap' }}>
               {detail.entry.status === 'draft' && (
                 <>
+                  <Button
+                    onClick={() => {
+                      setDetailOpen(false);
+                      openEditor(detail);
+                    }}
+                  >
+                    {t('entries.edit')}
+                  </Button>
                   <Button variant="danger" onClick={() => void deleteEntry(detail.entry.id)}>
                     {t('common.delete')}
                   </Button>
