@@ -20,10 +20,19 @@ export function clientIp(req: FastifyRequest): string | null {
   return req.ip ?? null;
 }
 
+/**
+ * CSV cell escaping. Besides quotes/separators, formula-leading strings are
+ * neutralised (CSV injection): Excel/LibreOffice would otherwise execute
+ * user-controlled descriptions such as "=HYPERLINK(...)".
+ */
 export function toCsv(rows: (string | number | null | undefined)[][]): string {
   const escape = (v: string | number | null | undefined): string => {
     if (v === null || v === undefined) return '';
-    const s = String(v);
+    let s = String(v);
+    const isNumeric = /^-?\d+(\.\d+)?$/.test(s);
+    if (!isNumeric && /^[=+\-@\t\r]/.test(s)) {
+      s = `'${s}`;
+    }
     return /[",;\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   // Semicolon separator + UTF-8 BOM: opens cleanly in Excel (FR/EN).

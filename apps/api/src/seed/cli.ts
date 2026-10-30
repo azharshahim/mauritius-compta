@@ -1,4 +1,4 @@
-import { loadConfig } from '../config.js';
+import { demoSeedAllowed, loadConfig } from '../config.js';
 import { createPgDb, createPgliteDb, migrate } from '../db/index.js';
 import { seedDemo } from './demo.js';
 
@@ -12,6 +12,14 @@ for (const candidate of ['.env', '../../.env']) {
 }
 
 const config = loadConfig();
+
+if (!demoSeedAllowed(config)) {
+  console.error(
+    'Refusing to load demonstration data with NODE_ENV=production.\n' +
+      'Set ALLOW_DEMO_SEED=true only on a dedicated, non-production demo instance.',
+  );
+  process.exit(1);
+}
 const db = config.DATABASE_URL
   ? await createPgDb(config.DATABASE_URL, { ssl: config.DATABASE_SSL, max: config.DATABASE_POOL_MAX })
   : await createPgliteDb(process.env.PGLITE_DIR ?? './.data/pglite');

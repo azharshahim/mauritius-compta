@@ -1,8 +1,13 @@
 import type { Db } from '../../db/index.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
-import { formatAmount, multiply, parseAmount } from '../../lib/money.js';
-import { isValidRate } from '../../lib/money.js';
-import type { JournalRow } from '../../types.js';
+import {
+  decimalPlaces,
+  formatAmount,
+  multiply,
+  parseAmount,
+  isValidRate,
+} from '../../lib/money.js';
+import { SUPPORTED_CURRENCIES, type JournalRow } from '../../types.js';
 
 export interface LineInput {
   accountId: string;
@@ -53,6 +58,9 @@ export function prepareEntry(
   activeAccountIds: Set<string>,
 ): PreparedEntry {
   const currency = (input.currency ?? functionalCurrency).toUpperCase();
+  if (!(SUPPORTED_CURRENCIES as readonly string[]).includes(currency)) {
+    throw badRequest('INVALID_CURRENCY', `Unsupported currency: ${currency}`, { currency });
+  }
   const isForeign = currency !== functionalCurrency;
 
   let fxRate = '1';
@@ -98,6 +106,15 @@ export function prepareEntry(
       ]);
     }
 
+    const rawAmount = hasDebit ? line.debit : line.credit;
+    if (decimalPlaces(rawAmount) > 4) {
+      throw badRequest(
+        'VALIDATION_ERROR',
+        'Amounts are limited to 4 decimal places',
+        [{ path: `lines.${index}`, message: 'Too many decimals (max 4)' }],
+      );
+    }
+
     let debit = 0n;
     let credit = 0n;
     try {
@@ -122,6 +139,14 @@ export function prepareEntry(
     const txnAmount = debit > 0n ? debit : credit;
     const functionalDebit = debit > 0n ? multiply(debit, fxRate) : 0n;
     const functionalCredit = credit > 0n ? multiply(credit, fxRate) : 0n;
+
+    if (functionalDebit === 0n && functionalCredit === 0n) {
+      throw badRequest(
+        'VALIDATION_ERROR',
+        'Amount is too small once converted to the functional currency',
+        [{ path: `lines.${index}`, message: 'Converted amount rounds to zero' }],
+      );
+    }
 
     return {
       accountId: line.accountId,

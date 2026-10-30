@@ -28,6 +28,8 @@ export type ErrorCode =
   | 'ENTRY_POSTED_IMMUTABLE'
   | 'ENTRY_NOT_DRAFT'
   | 'ENTRY_ALREADY_REVERSED'
+  | 'REFERENCE_TAKEN'
+  | 'AMOUNT_TOO_SMALL'
   | 'PERIOD_CLOSED'
   | 'PERIOD_OVERLAP'
   | 'EXCHANGE_RATE_REQUIRED'
@@ -64,7 +66,14 @@ export function mapDatabaseError(err: unknown): AppError | null {
   const e = err as { code?: string; message?: string; constraint?: string } | undefined;
   if (!e) return null;
 
-  if (e.code === '23505' || e.code === '23505') {
+  if (e.code === '23505') {
+    // Name the business rule that was violated when the constraint is known.
+    if (e.constraint === 'journal_entries_reference_unique_idx') {
+      return conflict('REFERENCE_TAKEN', 'This reference is already used in the company');
+    }
+    if (e.constraint === 'journal_entries_one_reversal_idx') {
+      return conflict('ENTRY_ALREADY_REVERSED', 'This entry has already been reversed');
+    }
     return conflict('CONFLICT', 'Duplicate value');
   }
   if (e.code === '23503') {
@@ -83,6 +92,12 @@ export function mapDatabaseError(err: unknown): AppError | null {
     }
     if (msg.includes('CROSS_COMPANY_REFERENCE')) {
       return forbidden('Cross-company reference is not allowed');
+    }
+    if (msg.includes('AUDIT_LOG_APPEND_ONLY')) {
+      return forbidden('The audit log is append-only');
+    }
+    if (msg.includes('INVALID_REVERSAL')) {
+      return badRequest('ENTRY_NOT_DRAFT', 'Only a posted entry can be reversed');
     }
     if (msg.includes('ENTRY_TOO_FEW_LINES')) {
       return badRequest('ENTRY_TOO_FEW_LINES', 'At least two lines are required');

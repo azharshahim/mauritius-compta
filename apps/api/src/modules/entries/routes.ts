@@ -1,6 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { unlink } from 'node:fs/promises';
+import path from 'node:path';
 import type { Db } from '../../db/index.js';
+import type { Config } from '../../config.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { clientIp, parse } from '../../lib/http.js';
 import { writeAudit } from '../../lib/audit.js';
@@ -46,6 +49,31 @@ async function assertAccounts(tx: Db, companyId: string, lines: { accountId: str
   return { all, active };
 }
 
+/**
+ * Business rule: a manually recorded reference must be unique within a company
+ * (reversal entries are excluded, they inherit the original reference).
+ * The same rule is enforced by a partial unique index in the database.
+ */
+async function assertReferenceAvailable(
+  tx: Db,
+  companyId: string,
+  reference: string | null | undefined,
+  excludeEntryId?: string,
+): Promise<void> {
+  const value = reference?.trim();
+  if (!value) return;
+  const res = await tx.query(
+    `SELECT 1 FROM journal_entries
+      WHERE company_id = $1 AND lower(btrim(reference)) = lower($2)
+        AND source = 'manual' AND ($3::uuid IS NULL OR id <> $3::uuid)
+      LIMIT 1`,
+    [companyId, value, excludeEntryId ?? null],
+  );
+  if (res.rowCount > 0) {
+    throw conflict('REFERENCE_TAKEN', `Reference "${value}" is already used in this company`);
+  }
+}
+
 async function loadEntryDetail(db: Db, companyId: string, entryId: string) {
   const res = await db.query(
     `SELECT e.*, j.code AS journal_code, j.name AS journal_name, j.type AS journal_type,
@@ -74,7 +102,7 @@ async function loadEntryDetail(db: Db, companyId: string, entryId: string) {
   return { entry, lines: lines.rows, attachments: attachments.rows };
 }
 
-export function entryRoutes(app: FastifyInstance, db: Db) {
+export function entryRoutes(app: FastifyInstance, db: Db, config: Config) {
   // -------------------------------------------------------------------------
   // List & read
   // -------------------------------------------------------------------------
@@ -168,6 +196,8 @@ export function entryRoutes(app: FastifyInstance, db: Db) {
         active,
       );
 
+      await assertReferenceAvailable(tx, companyId, body.reference);
+
       if (status === 'posted') {
         if (!prepared.balanced) {
           throw badRequest('ENTRY_UNBALANCED', 'Debit and credit totals must be equal', {
@@ -248,26 +278,60 @@ export function entryRoutes(app: FastifyInstance, db: Db) {
         ? await loadJournal(tx, companyId, body.journalId)
         : await loadJournal(tx, companyId, current.journal_id);
 
+      if (body.reference !== undefined) {
+        await assertReferenceAvailable(tx, companyId, body.reference, entryId);
+      }
+
+      // A currency change must come with its own dated rate: reusing the
+      // previous rate (often 1) would silently distort the functional amount.
+      const nextCurrency = (body.currency ?? current.currency).toUpperCase();
+      const currencyChanged = nextCurrency !== current.currency.toUpperCase();
+      const targetIsForeign = nextCurrency !== ctx.company.functional_currency.toUpperCase();
+      const effectiveRate = currencyChanged
+        ? (body.exchangeRate ?? undefined)
+        : (body.exchangeRate ?? current.exchange_rate);
+
       let prepared = null;
       if (body.lines) {
+        if (currencyChanged && targetIsForeign && (body.exchangeRate === undefined || body.exchangeRate === null)) {
+          throw badRequest(
+            'EXCHANGE_RATE_REQUIRED',
+            `An exchange rate is required when switching the entry to ${nextCurrency}`,
+          );
+        }
         const { all, active } = await assertAccounts(tx, companyId, body.lines);
         prepared = prepareEntry(
           {
             journalId: journal.id,
             entryDate,
             description: body.description ?? current.description,
-            currency: body.currency ?? current.currency,
-            exchangeRate: body.exchangeRate ?? current.exchange_rate,
+            currency: nextCurrency,
+            exchangeRate: effectiveRate,
             lines: body.lines,
           },
           ctx.company.functional_currency,
           all,
           active,
         );
+      } else if (body.currency && currencyChanged && targetIsForeign) {
+        throw badRequest(
+          'EXCHANGE_RATE_REQUIRED',
+          'Changing the currency requires resubmitting the entry lines with a dated rate',
+        );
       }
+
+      // Moving a draft to another journal or financial year must renumber it:
+      // the entry number encodes journal code and year.
+      const yearChanged = entryDate.slice(0, 4) !== current.entry_date.slice(0, 4);
+      const journalChanged = journal.id !== current.journal_id;
+      const newEntryNo =
+        yearChanged || journalChanged
+          ? await nextEntryNo(tx, companyId, journal, entryDate)
+          : current.entry_no;
 
       await tx.query(
         `UPDATE journal_entries SET
+           entry_no = $9,
            journal_id = $2, entry_date = $3,
            reference = CASE WHEN $4::boolean THEN $5::text ELSE reference END,
            description = COALESCE($6, description),
@@ -284,6 +348,7 @@ export function entryRoutes(app: FastifyInstance, db: Db) {
           body.description?.trim() ?? null,
           prepared?.currency ?? null,
           prepared?.fxRate ?? null,
+          newEntryNo,
         ],
       );
 
@@ -328,7 +393,21 @@ export function entryRoutes(app: FastifyInstance, db: Db) {
       if (reversed.rowCount > 0) {
         throw conflict('ENTRY_POSTED_IMMUTABLE', 'This entry has been reversed and cannot be deleted');
       }
+      const files = await tx.query<{ stored_name: string }>(
+        'SELECT stored_name FROM attachments WHERE entry_id = $1 AND company_id = $2',
+        [entryId, companyId],
+      );
+      await tx.query('DELETE FROM attachments WHERE entry_id = $1 AND company_id = $2', [
+        entryId,
+        companyId,
+      ]);
       await tx.query('DELETE FROM journal_entries WHERE id = $1', [entryId]);
+
+      // Remove the corresponding files from storage (best effort).
+      for (const file of files.rows) {
+        await unlink(path.resolve(config.STORAGE_DIR, companyId, file.stored_name)).catch(() => {});
+      }
+
       await writeAudit(tx, {
         companyId,
         userId: user.id,
@@ -366,6 +445,20 @@ export function entryRoutes(app: FastifyInstance, db: Db) {
       ]);
       if (lines.rows.length < 2) {
         throw badRequest('ENTRY_TOO_FEW_LINES', 'An entry must have at least two lines');
+      }
+
+      // Accounts may have been deactivated since the draft was written.
+      const usable = await tx.query<{ count: string }>(
+        `SELECT count(*)::text AS count
+           FROM journal_lines l JOIN accounts a ON a.id = l.account_id
+          WHERE l.entry_id = $1 AND a.company_id = $2 AND a.is_active = true`,
+        [entryId, companyId],
+      );
+      if (Number(usable.rows[0]?.count ?? '0') !== lines.rows.length) {
+        throw badRequest(
+          'VALIDATION_ERROR',
+          'The entry references an account that is inactive or from another company',
+        );
       }
       const debit = lines.rows.reduce((a, l) => a + parseAmount(l.debit), 0n);
       const credit = lines.rows.reduce((a, l) => a + parseAmount(l.credit), 0n);

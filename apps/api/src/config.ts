@@ -19,7 +19,9 @@ const EnvSchema = z.object({
   COOKIE_SECURE: bool(false),
   PASSWORD_MIN_LENGTH: z.coerce.number().int().min(8).default(10),
   LOGIN_MAX_ATTEMPTS: z.coerce.number().int().positive().default(10),
+  LOGIN_MAX_ATTEMPTS_PER_IP: z.coerce.number().int().positive().default(30),
   LOGIN_WINDOW_MINUTES: z.coerce.number().int().positive().default(15),
+  SESSION_PURGE_ON_LOGIN: bool(true),
   ALLOW_REGISTRATION: bool(true),
   STORAGE_DIR: z.string().default('./storage'),
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
@@ -34,7 +36,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     const issues = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
     throw new Error(`Invalid environment configuration: ${issues}`);
   }
-  return parsed.data;
+  const config = parsed.data;
+
+  // Safe defaults for production: never open self-registration unless the
+  // operator explicitly opts in, and never serve the demo seed by accident.
+  if (env.ALLOW_REGISTRATION === undefined && config.NODE_ENV === 'production') {
+    config.ALLOW_REGISTRATION = false;
+  }
+  return config;
 }
 
-export const APP_VERSION = '0.1.0';
+/** Demo seeding is refused in production unless explicitly allowed. */
+export function demoSeedAllowed(config: Config, env: NodeJS.ProcessEnv = process.env): boolean {
+  if (config.NODE_ENV !== 'production') return true;
+  return env.ALLOW_DEMO_SEED === 'true';
+}
+
+export const APP_VERSION = '0.1.1';

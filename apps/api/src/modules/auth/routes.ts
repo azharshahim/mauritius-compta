@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import type { Db } from '../../db/index.js';
 import type { Config } from '../../config.js';
@@ -32,6 +32,12 @@ const passwordSchema = (min: number) =>
     .refine((v) => /[A-Za-z]/.test(v) && /[0-9]/.test(v), {
       message: 'Password must contain letters and digits',
     });
+
+/**
+ * Hash used to keep the login timing identical when the e-mail is unknown.
+ * Generated once per process from random bytes: it can never match a password.
+ */
+const DUMMY_HASH = await hashPassword(randomBytes(32).toString('hex'));
 
 export function buildAuthGuards(deps: AuthDeps) {
   const { db, config } = deps;
@@ -68,14 +74,38 @@ export function buildAuthGuards(deps: AuthDeps) {
     });
   }
 
-  async function tooManyFailures(email: string): Promise<boolean> {
+  async function tooManyFailures(email: string, ip: string | null): Promise<boolean> {
     const since = new Date(Date.now() - config.LOGIN_WINDOW_MINUTES * 60_000);
     const res = await db.query<{ count: string }>(
       `SELECT count(*)::text AS count FROM login_attempts
         WHERE lower(email) = lower($1) AND successful = false AND created_at > $2`,
       [email, since],
     );
-    return Number(res.rows[0]?.count ?? '0') >= config.LOGIN_MAX_ATTEMPTS;
+    if (Number(res.rows[0]?.count ?? '0') >= config.LOGIN_MAX_ATTEMPTS) return true;
+
+    // Additional throttle per source address: prevents password spraying across
+    // many e-mail addresses from a single client.
+    if (!ip) return false;
+    const byIp = await db.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM login_attempts
+        WHERE ip = $1 AND successful = false AND created_at > $2`,
+      [ip, since],
+    );
+    return Number(byIp.rows[0]?.count ?? '0') >= config.LOGIN_MAX_ATTEMPTS_PER_IP;
+  }
+
+  /** Housekeeping: expired sessions and old login attempts are pruned. */
+  async function purgeStaleSecurityRows(userId?: string) {
+    if (!config.SESSION_PURGE_ON_LOGIN) return;
+    await db.query('DELETE FROM sessions WHERE expires_at <= now()');
+    if (userId) {
+      await db.query(
+        `DELETE FROM sessions WHERE user_id = $1 AND id NOT IN (
+           SELECT id FROM sessions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20)`,
+        [userId],
+      );
+    }
+    await db.query("DELETE FROM login_attempts WHERE created_at < now() - interval '30 days'");
   }
 
   async function recordAttempt(email: string, ip: string | null, successful: boolean) {
@@ -134,7 +164,7 @@ export function buildAuthGuards(deps: AuthDeps) {
       );
       const ip = clientIp(req);
 
-      if (await tooManyFailures(body.email)) {
+      if (await tooManyFailures(body.email, ip)) {
         throw new AppError('LAST_LOGIN_TOO_MANY', 429, 'Too many failed attempts');
       }
 
@@ -143,7 +173,9 @@ export function buildAuthGuards(deps: AuthDeps) {
         [body.email.trim()],
       );
       const user = found.rows[0];
-      const ok = user ? await verifyPassword(body.password, user.password_hash) : false;
+      // Always run a hash comparison, even for an unknown address, so that the
+      // response time does not reveal whether an account exists.
+      const ok = await verifyPassword(body.password, user?.password_hash ?? DUMMY_HASH);
 
       if (!user || !ok || !user.is_active) {
         await recordAttempt(body.email, ip, false);
@@ -166,6 +198,7 @@ export function buildAuthGuards(deps: AuthDeps) {
         user.locale = body.locale;
       }
       await createSession(req, reply, user.id);
+      await purgeStaleSecurityRows(user.id);
       await writeAudit(db, {
         userId: user.id,
         action: 'user.login',
@@ -234,7 +267,9 @@ export function buildAuthGuards(deps: AuthDeps) {
         details: { passwordChanged: Boolean(passwordHash) },
         ip: clientIp(req),
       });
-      return { user: toPublicUser(updated.rows[0]!) };
+      // A password change invalidates every session (including the current one):
+      // the client must sign in again.
+      return { user: toPublicUser(updated.rows[0]!), sessionsInvalidated: Boolean(passwordHash) };
     });
 
     app.get('/auth/sessions', async (req) => {

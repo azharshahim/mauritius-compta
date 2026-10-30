@@ -44,6 +44,39 @@ export function formatAmount(value: bigint): string {
   return `${negative ? '-' : ''}${int}.${dec}`;
 }
 
+/** Formats a BigInt scaled by 10^scale as a plain decimal string. */
+export function formatScaled(value: bigint, scale: number): string {
+  const factor = 10n ** BigInt(scale);
+  const negative = value < 0n;
+  const abs = negative ? -value : value;
+  const int = (abs / factor).toString();
+  const dec = (abs % factor).toString().padStart(scale, '0');
+  return `${negative ? '-' : ''}${int}${scale > 0 ? `.${dec}` : ''}`;
+}
+
+/** Number of decimal places in a user-supplied amount (no rounding applied). */
+export function decimalPlaces(input: unknown): number {
+  if (typeof input === 'number') input = input.toString();
+  const raw = String(input ?? '').trim().replace(/\s/g, '').replace(',', '.');
+  const decimals = raw.split('.')[1];
+  return decimals ? decimals.length : 0;
+}
+
+/**
+ * Reciprocal of a rate with a fixed number of decimals, computed with integer
+ * arithmetic (never with floating point).
+ * Example: reciprocal('48.5000') -> '0.02061856'
+ */
+export function reciprocal(rate: string, scale = 8): string {
+  const scaled = parseRate(rate); // scale 8
+  if (scaled <= 0n) throw new MoneyError('Rate must be positive');
+  const numerator = 10n ** BigInt(RATE_SCALE + scale);
+  const quotient = numerator / scaled;
+  const remainder = numerator % scaled;
+  const rounded = remainder * 2n >= scaled ? quotient + 1n : quotient;
+  return formatScaled(rounded, scale);
+}
+
 export const zero = 0n;
 export const add = (a: bigint, b: bigint) => a + b;
 export const sub = (a: bigint, b: bigint) => a - b;

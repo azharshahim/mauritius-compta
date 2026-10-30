@@ -272,8 +272,8 @@ export function trialBalancePdf(
         { label: `${t(locale, 'pdf.opening')} C`, width: width * 0.11, align: 'right' as const },
         { label: `${t(locale, 'pdf.debit')}`, width: width * 0.11, align: 'right' as const },
         { label: `${t(locale, 'pdf.credit')}`, width: width * 0.11, align: 'right' as const },
-        { label: 'Solde D', width: width * 0.11, align: 'right' as const },
-        { label: 'Solde C', width: width * 0.11, align: 'right' as const },
+        { label: `${t(locale, 'pdf.balance')} D`, width: width * 0.11, align: 'right' as const },
+        { label: `${t(locale, 'pdf.balance')} C`, width: width * 0.11, align: 'right' as const },
       ];
       tableHeader(doc, cols, x);
       for (const r of tb.rows) {

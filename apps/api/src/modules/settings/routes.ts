@@ -1,13 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Db } from '../../db/index.js';
-import { conflict, notFound } from '../../lib/errors.js';
+import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { clientIp, parse } from '../../lib/http.js';
 import { writeAudit } from '../../lib/audit.js';
 import { requireCompany } from '../../lib/tenant.js';
 import { parseIsoDate } from '../../lib/dates.js';
 import { SUPPORTED_CURRENCIES } from '../../types.js';
-import { isValidRate } from '../../lib/money.js';
+import { isValidRate, reciprocal } from '../../lib/money.js';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
 
@@ -82,7 +82,7 @@ export function settingsRoutes(app: FastifyInstance, db: Db) {
     const start = parseIsoDate(body.startDate, 'startDate');
     const end = parseIsoDate(body.endDate, 'endDate');
     if (end < start) {
-      throw conflict('INVALID_DATE_RANGE', 'Period end date must be on or after start date');
+      throw badRequest('INVALID_DATE_RANGE', 'Period end date must be on or after start date');
     }
 
     const overlap = await db.query(
@@ -204,10 +204,10 @@ export function settingsRoutes(app: FastifyInstance, db: Db) {
     );
     const rate = String(body.rate).trim().replace(',', '.');
     if (!isValidRate(rate)) {
-      throw conflict('VALIDATION_ERROR', 'Rate must be a positive number');
+      throw badRequest('VALIDATION_ERROR', 'Rate must be a positive number with at most 8 decimals');
     }
     if (body.fromCurrency === body.toCurrency) {
-      throw conflict('VALIDATION_ERROR', 'Currencies must differ');
+      throw badRequest('VALIDATION_ERROR', 'Currencies must differ');
     }
     const date = parseIsoDate(body.rateDate, 'rateDate');
 
@@ -231,7 +231,8 @@ export function settingsRoutes(app: FastifyInstance, db: Db) {
 
     // A rate given as X->functional yields the reverse rate for convenience.
     if (body.toCurrency === ctx.company.functional_currency) {
-      const reverse = (1 / Number(rate)).toFixed(8);
+      // Derived reverse rate computed with integer arithmetic (no floats).
+      const reverse = reciprocal(rate);
       await db.query(
         `INSERT INTO exchange_rates
            (company_id, from_currency, to_currency, rate_date, rate, source, created_by)

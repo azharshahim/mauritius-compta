@@ -119,25 +119,21 @@ export async function computeLedger(
   const accountFilter = range.accountId ? 'AND a.id = $2' : '';
   const lineFilter = range.accountId ? 'AND l.account_id = $4' : '';
 
+  // All accounts are fetched: an account that was deactivated after being used
+  // must still appear in the ledger (otherwise balances would silently vanish).
+  // The account list is narrowed afterwards (movements, or includeInactive).
   const accountsRes = await db.query<{
     id: string;
     code: string;
     name: string;
     type: string;
     fs_mapping: string | null;
+    is_active: boolean;
   }>(
-    `SELECT a.id, a.code, a.name, a.type, a.fs_mapping
+    `SELECT a.id, a.code, a.name, a.type, a.fs_mapping, a.is_active
        FROM accounts a
       WHERE a.company_id = $1
-        ${range.includeInactive ? '' : 'AND a.is_active = true'}
         ${accountFilter}
-        AND (
-          a.id IN (
-            SELECT l.account_id FROM journal_lines l
-              JOIN journal_entries e ON e.id = l.entry_id
-             WHERE e.company_id = $1 AND e.status = 'posted'
-          ) OR a.is_active = true
-        )
       ORDER BY a.code`,
     accountParams,
   );
@@ -239,13 +235,16 @@ export async function computeLedger(
     return account;
   });
 
+  const hasActivity = (a: LedgerAccountDto) =>
+    a.lines.length > 0 || parseAmount(a.opening) !== 0n || parseAmount(a.closing) !== 0n;
+  const visible = range.includeInactive ? result : result.filter(hasActivity);
   const filtered = search
-    ? result.filter(
+    ? visible.filter(
         (a) =>
-          a.lines.length > 0 &&
+          hasActivity(a) &&
           (a.code.toLowerCase().includes(search) || a.name.toLowerCase().includes(search)),
       )
-    : result.filter((a) => a.lines.length > 0 || parseAmount(a.opening) !== 0n);
+    : visible;
 
   return {
     from: range.from,
@@ -420,6 +419,9 @@ export async function computeStatements(
     [companyId, range.from, range.to],
   );
 
+  let cumulativeRevenue = 0n;
+  let cumulativeExpenses = 0n;
+
   const plLines: Record<'revenue' | 'expenses', StatementLineDto[]> = {
     revenue: [],
     expenses: [],
@@ -437,6 +439,7 @@ export async function computeStatements(
 
     if (r.type === 'revenue') {
       // Credits increase revenue -> present as positive income.
+      cumulativeRevenue += -cumulativeNet;
       if (periodNet !== 0n) {
         plLines.revenue.push({
           accountId: r.id,
@@ -446,6 +449,7 @@ export async function computeStatements(
         });
       }
     } else if (r.type === 'expense') {
+      cumulativeExpenses += cumulativeNet;
       if (periodNet !== 0n) {
         plLines.expenses.push({
           accountId: r.id,
@@ -472,11 +476,15 @@ export async function computeStatements(
     }
   }
 
+  // Index the movement rows once: statement grouping used to scan the whole
+  // result set for every line (O(n²) on large charts of accounts).
+  const rowsById = new Map(movementRows.rows.map((r) => [r.id, r]));
+
   const groupPL = (bucket: 'revenue' | 'expenses'): StatementGroupDto => {
     const lines = plLines[bucket];
     const out = new Map<string, StatementLineDto[]>();
     for (const line of lines) {
-      const row = movementRows.rows.find((r) => r.id === line.accountId);
+      const row = rowsById.get(line.accountId);
       const key = PL_GROUP_LABELS[row?.fs_mapping ?? 'unmapped'] ?? 'Unmapped';
       if (!out.has(key)) out.set(key, []);
       out.get(key)!.push(line);
@@ -499,11 +507,18 @@ export async function computeStatements(
   const expenseGroup = groupPL('expenses');
   const profit = parseAmount(revenueGroup.total) - parseAmount(expenseGroup.total);
 
+  // No year-end closing entries are generated yet: revenue and expense accounts
+  // keep their cumulative balance. The statement of financial position must
+  // therefore include the result accumulated SINCE INCEPTION (not only the
+  // result of the selected period), otherwise it cannot balance when the
+  // reporting period starts after the first transactions.
+  const cumulativeResult = cumulativeRevenue - cumulativeExpenses;
+
   const groupBS = (bucket: 'assets' | 'liabilities' | 'equity'): StatementGroupDto => {
     const lines = bsLines[bucket];
     const out = new Map<string, StatementLineDto[]>();
     for (const line of lines) {
-      const row = movementRows.rows.find((r) => r.id === line.accountId);
+      const row = rowsById.get(line.accountId);
       const prefix = (row?.fs_mapping ?? 'unmapped').split('.').slice(0, 2).join('.');
       const key = BS_PREFIX_LABELS[prefix] ?? 'Other';
       if (!out.has(key)) out.set(key, []);
@@ -523,7 +538,7 @@ export async function computeStatements(
 
   const totalAssets = parseAmount(assets.total);
   const totalLiabilitiesAndEquity =
-    parseAmount(liabilities.total) + parseAmount(equity.total) + profit;
+    parseAmount(liabilities.total) + parseAmount(equity.total) + cumulativeResult;
 
   return {
     from: range.from,
@@ -535,7 +550,7 @@ export async function computeStatements(
       assets,
       liabilities,
       equity,
-      unappropriatedResult: formatAmount(profit),
+      unappropriatedResult: formatAmount(cumulativeResult),
       totalAssets: formatAmount(totalAssets),
       totalLiabilitiesAndEquity: formatAmount(totalLiabilitiesAndEquity),
       balanced: totalAssets === totalLiabilitiesAndEquity,

@@ -128,9 +128,11 @@ export function companyRoutes(app: FastifyInstance, db: Db) {
         'INSERT INTO company_members (company_id, user_id, role) VALUES ($1, $2, $3)',
         [row.id, user.id, 'owner'],
       );
-      if (body.withDefaultChart !== false) {
-        await provisionCompanyDefaults(tx, row, locale);
-      }
+      // The first accounting period is always opened (independently of the
+      // optional demonstration chart), otherwise no entry could ever be posted.
+      await provisionCompanyDefaults(tx, row, locale, {
+        withChart: body.withDefaultChart !== false,
+      });
       await writeAudit(tx, {
         companyId: row.id,
         userId: user.id,

@@ -11,8 +11,11 @@ export async function provisionCompanyDefaults(
   tx: Db,
   company: Pick<CompanyRow, 'id' | 'financial_year_start' | 'financial_year_end' | 'functional_currency' | 'name'>,
   locale: Locale = 'fr',
+  options: { withChart?: boolean } = {},
 ): Promise<{ accounts: number; journals: number }> {
-  for (const acc of DEMO_CHART_OF_ACCOUNTS) {
+  const withChart = options.withChart !== false;
+
+  for (const acc of withChart ? DEMO_CHART_OF_ACCOUNTS : []) {
     await tx.query(
       `INSERT INTO accounts (company_id, code, name, type, currency, fs_mapping, description)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
@@ -46,7 +49,10 @@ export async function provisionCompanyDefaults(
     ],
   );
 
-  return { accounts: DEMO_CHART_OF_ACCOUNTS.length, journals: DEFAULT_JOURNALS.length };
+  return {
+    accounts: withChart ? DEMO_CHART_OF_ACCOUNTS.length : 0,
+    journals: DEFAULT_JOURNALS.length,
+  };
 }
 
 /** Creates an open accounting period covering the given range. */

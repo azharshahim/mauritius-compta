@@ -17,6 +17,33 @@ const EXT: Record<string, string> = {
   'image/png': '.png',
 };
 
+/**
+ * The browser-supplied MIME type is not trustworthy: the file signature is
+ * verified and must match the declared type before anything is written.
+ */
+function detectSignature(buffer: Buffer): 'application/pdf' | 'image/jpeg' | 'image/png' | null {
+  if (buffer.length >= 5 && buffer.subarray(0, 5).toString('latin1') === '%PDF-') {
+    return 'application/pdf';
+  }
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  ) {
+    return 'image/png';
+  }
+  return null;
+}
+
 export function attachmentRoutes(app: FastifyInstance, db: Db, config: Config) {
   app.post('/companies/:companyId/entries/:entryId/attachments', async (req, reply) => {
     const user = req.user!;
@@ -39,6 +66,16 @@ export function attachmentRoutes(app: FastifyInstance, db: Db, config: Config) {
     const buffer = await file.toBuffer();
     if (buffer.byteLength > config.MAX_UPLOAD_BYTES) {
       throw badRequest('ATTACHMENT_TOO_LARGE', 'File is too large');
+    }
+    if (buffer.byteLength === 0) {
+      throw badRequest('VALIDATION_ERROR', 'The uploaded file is empty');
+    }
+    const signature = detectSignature(buffer);
+    if (!signature || signature !== mime) {
+      throw badRequest(
+        'ATTACHMENT_TYPE_NOT_ALLOWED',
+        'The file content does not match an allowed format (PDF, JPEG, PNG)',
+      );
     }
     const sha256 = createHash('sha256').update(buffer).digest('hex');
     const storedName = `${randomUUID()}${EXT[mime] ?? ''}`;

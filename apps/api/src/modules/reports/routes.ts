@@ -5,7 +5,7 @@ import { parseIsoDate } from '../../lib/dates.js';
 import { toCsv } from '../../lib/http.js';
 import { badRequest } from '../../lib/errors.js';
 import { formatMoney, parseAmount } from '../../lib/money.js';
-import type { Locale } from '../../i18n/index.js';
+import { t, type Locale } from '../../i18n/index.js';
 import { computeLedger, computeStatements, computeTrialBalance, type ReportRange } from './service.js';
 import { ledgerPdf, statementsPdf, trialBalancePdf } from './pdf.js';
 
@@ -41,12 +41,22 @@ export function reportRoutes(app: FastifyInstance, db: Db) {
     const query = req.query as Record<string, string | undefined>;
     const range = parseRange(query, ctx.company);
     const format = query.format ?? 'json';
+    const csvLocale = pickLocale(query, user.locale);
 
     const ledger = await computeLedger(db, companyId, ctx.company.functional_currency, range);
 
     if (format === 'csv') {
       const rows: (string | number)[][] = [
-        ['Account', 'Date', 'Journal', 'Entry no', 'Reference', 'Description', 'Debit', 'Credit'],
+        [
+          t(csvLocale, 'pdf.account'),
+          t(csvLocale, 'pdf.date'),
+          t(csvLocale, 'pdf.journal'),
+          t(csvLocale, 'csv.entryNo'),
+          t(csvLocale, 'pdf.reference'),
+          t(csvLocale, 'pdf.description'),
+          t(csvLocale, 'pdf.debit'),
+          t(csvLocale, 'pdf.credit'),
+        ],
       ];
       for (const account of ledger.accounts) {
         for (const l of account.lines) {
@@ -63,7 +73,7 @@ export function reportRoutes(app: FastifyInstance, db: Db) {
         }
       }
       rows.push([]);
-      rows.push(['DEMONSTRATION EXPORT — not a regulatory document / EXPORT DE DÉMONSTRATION']);
+      rows.push([t(csvLocale, 'csv.demoNote')]);
       reply
         .header('content-type', 'text/csv; charset=utf-8')
         .header(
@@ -104,7 +114,16 @@ export function reportRoutes(app: FastifyInstance, db: Db) {
 
     if (format === 'csv') {
       const rows: (string | number)[][] = [
-        ['Code', 'Account', 'Opening debit', 'Opening credit', 'Movement debit', 'Movement credit', 'Closing debit', 'Closing credit'],
+        [
+          t(locale, 'csv.code'),
+          t(locale, 'pdf.account'),
+          t(locale, 'csv.openingDebit'),
+          t(locale, 'csv.openingCredit'),
+          t(locale, 'csv.movementDebit'),
+          t(locale, 'csv.movementCredit'),
+          t(locale, 'csv.closingDebit'),
+          t(locale, 'csv.closingCredit'),
+        ],
       ];
       for (const r of tb.rows) {
         rows.push([
@@ -120,7 +139,7 @@ export function reportRoutes(app: FastifyInstance, db: Db) {
       }
       rows.push([
         '',
-        'TOTAL',
+        t(locale, 'csv.total'),
         tb.totals.openingDebit,
         tb.totals.openingCredit,
         tb.totals.movementDebit,
@@ -129,7 +148,7 @@ export function reportRoutes(app: FastifyInstance, db: Db) {
         tb.totals.closingCredit,
       ]);
       rows.push([]);
-      rows.push(['DEMONSTRATION EXPORT — not a regulatory document / EXPORT DE DÉMONSTRATION']);
+      rows.push([t(locale, 'csv.demoNote')]);
       reply
         .header('content-type', 'text/csv; charset=utf-8')
         .header('content-disposition', `attachment; filename="trial-balance-${range.from}_${range.to}.csv"`);
@@ -162,35 +181,57 @@ export function reportRoutes(app: FastifyInstance, db: Db) {
     const statements = await computeStatements(db, companyId, currency, range);
 
     if (format === 'csv') {
-      const rows: (string | number)[][] = [['Section', 'Code', 'Account', 'Amount']];
+      const rows: (string | number)[][] = [
+        [
+          t(locale, 'csv.section'),
+          t(locale, 'csv.code'),
+          t(locale, 'pdf.account'),
+          t(locale, 'csv.amount'),
+        ],
+      ];
       for (const l of statements.financialPosition.assets.lines)
-        rows.push(['Assets', l.code, l.name, l.amount]);
-      rows.push(['Assets', '', 'TOTAL ASSETS', statements.financialPosition.totalAssets]);
-      for (const l of statements.financialPosition.liabilities.lines)
-        rows.push(['Liabilities', l.code, l.name, l.amount]);
-      for (const l of statements.financialPosition.equity.lines)
-        rows.push(['Equity', l.code, l.name, l.amount]);
+        rows.push([t(locale, 'csv.assets'), l.code, l.name, l.amount]);
       rows.push([
-        'Equity',
+        t(locale, 'csv.assets'),
         '',
-        'Result not yet appropriated',
+        t(locale, 'csv.totalAssets'),
+        statements.financialPosition.totalAssets,
+      ]);
+      for (const l of statements.financialPosition.liabilities.lines)
+        rows.push([t(locale, 'csv.liabilities'), l.code, l.name, l.amount]);
+      for (const l of statements.financialPosition.equity.lines)
+        rows.push([t(locale, 'csv.equity'), l.code, l.name, l.amount]);
+      rows.push([
+        t(locale, 'csv.equity'),
+        '',
+        t(locale, 'csv.result'),
         statements.financialPosition.unappropriatedResult,
       ]);
       rows.push([
-        'Equity',
+        t(locale, 'csv.equity'),
         '',
-        'TOTAL LIABILITIES AND EQUITY',
+        t(locale, 'csv.totalLiabilitiesEquity'),
         statements.financialPosition.totalLiabilitiesAndEquity,
       ]);
       for (const l of statements.profitAndLoss.revenue.lines)
-        rows.push(['Revenue', l.code, l.name, l.amount]);
-      rows.push(['Revenue', '', 'TOTAL REVENUE', statements.profitAndLoss.revenue.total]);
+        rows.push([t(locale, 'csv.revenue'), l.code, l.name, l.amount]);
+      rows.push([
+        t(locale, 'csv.revenue'),
+        '',
+        t(locale, 'csv.totalRevenue'),
+        statements.profitAndLoss.revenue.total,
+      ]);
       for (const l of statements.profitAndLoss.expenses.lines)
-        rows.push(['Expenses', l.code, l.name, l.amount]);
-      rows.push(['Expenses', '', 'TOTAL EXPENSES', statements.profitAndLoss.expenses.total]);
-      rows.push(['Profit', '', 'PROFIT FOR THE PERIOD', statements.profitAndLoss.profit]);
+        rows.push([t(locale, 'csv.expenses'), l.code, l.name, l.amount]);
+      rows.push([
+        t(locale, 'csv.expenses'),
+        '',
+        t(locale, 'csv.totalExpenses'),
+        statements.profitAndLoss.expenses.total,
+      ]);
+      rows.push(['', '', t(locale, 'csv.profitForPeriod'), statements.profitAndLoss.profit]);
       rows.push([]);
-      rows.push(['DEMONSTRATION EXPORT — not IFRS compliant / EXPORT DE DÉMONSTRATION']);
+      rows.push([t(locale, 'csv.demoNote')]);
       reply
         .header('content-type', 'text/csv; charset=utf-8')
         .header('content-disposition', `attachment; filename="statements-${range.from}_${range.to}.csv"`);

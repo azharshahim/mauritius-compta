@@ -165,7 +165,7 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
       companyRoutes(secured, db);
       accountRoutes(secured, db);
       journalRoutes(secured, db);
-      entryRoutes(secured, db);
+      entryRoutes(secured, db, config);
       settingsRoutes(secured, db);
       reportRoutes(secured, db);
       attachmentRoutes(secured, db, config);
