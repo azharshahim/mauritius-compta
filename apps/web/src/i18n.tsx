@@ -68,6 +68,8 @@ const fr: Dict = {
   'demo.badge': 'MODE DÉMONSTRATION',
   'demo.text':
     'Données fictives, stockées uniquement dans ce navigateur. Les écritures sont simulées : rien n’est enregistré sur un serveur et aucune base PostgreSQL n’est utilisée.',
+  'demo.volatile':
+    'Stockage local indisponible : vos saisies seront perdues à la fermeture de l’onglet.',
   'demo.reset': 'Réinitialiser la démo',
   'demo.resetConfirm':
     'Réinitialiser les données de démonstration ? Vos saisies locales seront effacées.',
@@ -325,6 +327,8 @@ const en: Dict = {
   'demo.badge': 'DEMONSTRATION MODE',
   'demo.text':
     'Fictional data stored only in this browser. Entries are simulated: nothing is saved on a server and no PostgreSQL database is used.',
+  'demo.volatile':
+    'Local storage unavailable: your entries will be lost when the tab is closed.',
   'demo.reset': 'Reset demo',
   'demo.resetConfirm': 'Reset the demonstration data? Your local entries will be erased.',
   'demo.loginHint':

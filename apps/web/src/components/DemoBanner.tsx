@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useI18n } from '../i18n';
-import { demoEnabled, resetDemo } from '../demo';
+import { demoEnabled, isDemoVolatile, resetDemo } from '../demo';
 
 /**
  * Permanent, non-dismissible notice: the GitHub Pages build is a simulation.
@@ -22,7 +22,10 @@ export function DemoBanner() {
   return (
     <aside className="demo-banner" role="status" aria-live="polite">
       <strong className="demo-badge">{t('demo.badge')}</strong>
-      <span className="demo-text">{t('demo.text')}</span>
+      <span className="demo-text">
+        {t('demo.text')}
+        {isDemoVolatile() && <strong> {t('demo.volatile')}</strong>}
+      </span>
       <button type="button" className="demo-reset" onClick={reset} disabled={busy}>
         {t('demo.reset')}
       </button>
