@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  decimalPlaces,
   formatAmount,
   formatMoney,
+  formatScaled,
   isValidRate,
   multiply,
   parseAmount,
+  reciprocal,
 } from '../src/lib/money.js';
 import { isValidIsoDate, parseIsoDate } from '../src/lib/dates.js';
 
@@ -46,5 +49,21 @@ describe('exact money arithmetic', () => {
     expect(isValidIsoDate('2025-02-31')).toBe(false);
     expect(isValidIsoDate('2025-02-28')).toBe(true);
     expect(() => parseIsoDate('31/12/2025')).toThrow();
+  });
+
+  it('computes reciprocal rates with integer arithmetic', () => {
+    expect(reciprocal('48.5000')).toBe('0.02061856');
+    expect(reciprocal('3')).toBe('0.33333333');
+    expect(reciprocal('0.00000003')).toBe('33333333.33333333');
+    expect(reciprocal('1')).toBe('1.00000000');
+    expect(() => reciprocal('0')).toThrow();
+    expect(formatScaled(123456789n, 4)).toBe('12345.6789');
+  });
+
+  it('counts decimals without rounding the input', () => {
+    expect(decimalPlaces('10.1234')).toBe(4);
+    expect(decimalPlaces('10.12345')).toBe(5);
+    expect(decimalPlaces(10.5)).toBe(1);
+    expect(decimalPlaces(' 1 ')).toBe(0);
   });
 });

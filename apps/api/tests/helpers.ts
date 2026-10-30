@@ -1,7 +1,23 @@
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
 import { loadConfig, type Config } from '../src/config.js';
-import { createPgliteDb, migrate, type Db } from '../src/db/index.js';
+import { createPgDb, createPgliteDb, migrate, type Db } from '../src/db/index.js';
+
+/**
+ * The suite runs on the embedded PGlite build by default. When
+ * TEST_DATABASE_URL points at a real PostgreSQL server the very same tests run
+ * against it (used by the `postgres-tests` CI job), which keeps the two
+ * engines honest without duplicating the suite.
+ */
+export const usingRealPostgres = Boolean(process.env.TEST_DATABASE_URL);
+
+async function truncateAll(db: Db): Promise<void> {
+  const tables = await db.query<{ tablename: string }>(
+    `SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> 'schema_migrations'`,
+  );
+  const list = tables.rows.map((r) => `"${r.tablename}"`).join(', ');
+  if (list) await db.exec(`TRUNCATE ${list} RESTART IDENTITY CASCADE`);
+}
 
 export interface TestContext {
   app: FastifyInstance;
@@ -10,8 +26,11 @@ export interface TestContext {
 }
 
 export async function createTestApp(overrides: Record<string, string> = {}): Promise<TestContext> {
-  const db = await createPgliteDb();
+  const db = process.env.TEST_DATABASE_URL
+    ? await createPgDb(process.env.TEST_DATABASE_URL, { max: 8 })
+    : await createPgliteDb();
   await migrate(db);
+  await truncateAll(db);
   const config = loadConfig({
     NODE_ENV: 'test',
     SESSION_COOKIE_NAME: 'mc_session',

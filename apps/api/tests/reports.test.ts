@@ -191,7 +191,9 @@ describe('general ledger, trial balance and financial statements', () => {
     );
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toContain('text/csv');
-    expect(res.body).toContain('DEMONSTRATION EXPORT');
+    // The export is localised from the user's locale (French by default) and
+    // always carries the demonstration notice.
+    expect(res.body).toMatch(/DÉMONSTRATION|DEMONSTRATION/);
     expect(res.body).toContain('TOTAL');
   });
 
