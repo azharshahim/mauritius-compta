@@ -39,6 +39,39 @@ jobs:
             echo "::error::Key material must never be committed"; exit 1
           fi
 
+  postgres-tests:
+    name: API tests against real PostgreSQL
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mc_user
+          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_DB: mauritius_compta_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      TEST_DATABASE_URL: postgresql://mc_user:ci_only_password@127.0.0.1:5432/mauritius_compta_test
+      DATABASE_SSL: 'false'
+      COOKIE_SECURE: 'false'
+      ALLOW_REGISTRATION: 'true'
+      STORAGE_DIR: ./storage-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Vitest suite on PostgreSQL (includes concurrency tests)
+        run: npm test
+
   postgres-migrations:
     name: Migrations against real PostgreSQL
     runs-on: ubuntu-latest

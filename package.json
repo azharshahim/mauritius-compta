@@ -1,6 +1,6 @@
 {
   "name": "mauritius-compta",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Mauritius Compta - bilingue FR/EN accounting software for Mauritian businesses",
   "license": "UNLICENSED",
@@ -20,7 +20,9 @@
     "typecheck": "npm run typecheck -w @mc/api && npm run typecheck -w @mc/web",
     "test": "npm run test -w @mc/api",
     "db:migrate": "npm run db:migrate -w @mc/api",
-    "db:seed": "npm run db:seed -w @mc/api"
+    "db:seed": "npm run db:seed -w @mc/api",
+    "verify": "npm run typecheck && npm test && npm run build",
+    "test:e2e": "npm run test:e2e -w @mc/web"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
