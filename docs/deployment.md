@@ -164,7 +164,10 @@ server {
   npm run build:demo` → vérification que le bundle référence `/mauritius-compta/assets/…` →
   `actions/upload-pages-artifact`.
 - Job `deploy` : `actions/configure-pages` + `actions/deploy-pages`, permissions
-  `pages: write` / `id-token: write`.
+  `pages: write` / `id-token: write`, puis **smoke test HTTPS exécuté depuis le runner**
+  (page 200, bundle JS, `404.html`, lien profond). Pas de bloc `environment:` : la démo part
+  de la branche de développement, alors que l'environnement `github-pages` n'autorise que
+  les branches protégées.
 - URL : `https://azharshahim.github.io/mauritius-compta/`.
 
 ### Base d'URL et routage
@@ -186,7 +189,11 @@ chaque `push`.
 - `apps/api/**`, `.env*`, `apps/api/.data/**` (base PGlite), `node_modules`, secrets.
 - Le dossier publié est exactement `apps/web/dist` (HTML + JS + CSS + `404.html`).
 
-### Vérification
+### Vérification (résultat du 31/10/2026)
+
+`index 200` · `assets/index-NWilYo3Y.js 200 (397 702 octets)` · `404.html 200` ·
+lien profond `/entries` → 404 servi par notre page de redirection `#/entries`.
+Job `Verify the published HTTPS URL` : succès (run 41146643105).
 
 ```bash
 curl -sI https://azharshahim.github.io/mauritius-compta/            # 200 text/html

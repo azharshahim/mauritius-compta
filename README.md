@@ -239,6 +239,9 @@ développement (`arena/b0b62798-mauritius-compta`), sans fusion de la PR ni modi
 https://azharshahim.github.io/mauritius-compta/
 ```
 
+> En ligne et vérifiée le 31/10/2026 : page 200, bundle JS 200, repli `404.html` actif
+> (voir [`docs/mission-3-report.md`](docs/mission-3-report.md)).
+
 ```text
 E-mail       : demo@mauritius-compta.test   (pré-rempli)
 Mot de passe : DemoPassw0rd2026             (pré-rempli)

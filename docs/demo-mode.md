@@ -11,6 +11,7 @@
 |---|---|
 | URL | `https://azharshahim.github.io/mauritius-compta/` |
 | Source | branche `arena/b0b62798-mauritius-compta`, workflow `.github/workflows/pages.yml` |
+| État | ✅ en ligne, vérifié le 31/10/2026 (page 200, bundle JS 200, fallback 404 actif) |
 | Identifiant | `demo@mauritius-compta.test` (pré-rempli) |
 | Mot de passe | `DemoPassw0rd2026` (pré-rempli) |
 
@@ -101,3 +102,9 @@ GitHub Pages doit être activé **une fois** par le propriétaire du dépôt :
 Le jeton d'automatisation utilisé par l'assistant ne dispose pas des droits
 d'administration nécessaires pour créer le site Pages (`403 Resource not accessible by
 integration`) ; cette étape est donc manuelle et sans effet sur le code.
+
+> **Branche de déploiement.** L'environnement `github-pages` du dépôt n'autorise par défaut
+> que les branches protégées. Pour publier depuis la branche de développement sans toucher à
+> `main`, le job `deploy` ne déclare pas `environment: github-pages` et utilise uniquement les
+> permissions `pages: write` / `id-token: write`. Alternative équivalente : ajouter la branche
+> dans `Settings` → `Environments` → `github-pages` → `Deployment branches and tags`.
