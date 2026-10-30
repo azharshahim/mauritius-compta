@@ -1,5 +1,35 @@
 # Journal des versions
 
+## Mode démonstration — 31 octobre 2026 (GitHub Pages, sans serveur)
+
+> Ajout fonctionnel sans changement de version applicative : le backend et l'API restent en
+> 0.1.1, le mode démonstration est un build distinct de la même interface.
+
+### Ajouté
+
+- **Démonstration publique hébergée sur GitHub Pages** depuis la branche de développement,
+  sans fusion de la PR ni modification de `main`.
+- **Backend simulé dans le navigateur** (`apps/web/src/demo/runtime.ts`) : mêmes appels que
+  l'API (auth, sociétés, comptes, journaux, écritures, périodes, taux, rapports, membres,
+  audit), servis depuis `localStorage` avec une arithmétique décimale exacte (`BigInt`).
+- **Jeu de données fictif reproductible** : société `Lagon Bleu Trading Ltd (DEMO)`,
+  35 comptes, 5 journaux, 9 écritures (brouillon + contrepassation incluses).
+- **Bandeau permanent « MODE DÉMONSTRATION »** + réinitialisation des données locales, et
+  identifiants de démonstration pré-remplis sur la page de connexion.
+- **Routage par hash** et base `/mauritius-compta/` en mode démo, `404.html` pour les liens
+  profonds.
+- **Exports CSV** calculés localement (BOM UTF-8, `;`, neutralisation des formules) ; le PDF
+  ouvre l'impression du navigateur.
+- **Tests web jsdom** (19) : moteur comptable, parcours React complets, formatage.
+- Workflow `.github/workflows/pages.yml` (build + tests + déploiement Pages).
+
+### Corrigé
+
+- **Règles des hooks React** : `App` déclarait des `useEffect` après des retours anticipés ;
+  le routeur plantait au changement d'état de session (détecté par les tests jsdom).
+- **Date d'écriture proposée** : la modale propose désormais une date couverte par une
+  période ouverte, au lieu de la date du jour hors exercice (`PERIOD_CLOSED` évitable).
+
 ## 0.1.1 — 30 octobre 2026 (audit, fiabilisation)
 
 ### Corrigé — comptabilité

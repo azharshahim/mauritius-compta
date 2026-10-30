@@ -229,6 +229,35 @@ Exercice     : 2025-07-01 → 2026-06-30
 > par défaut et `npm run db:seed` refuse de s'exécuter (sauf `ALLOW_DEMO_SEED=true`
 > explicitement, réservé à une instance de démonstration dédiée).
 
+### Démonstration publique — GitHub Pages (aucun serveur)
+
+Une démonstration **100 % navigateur** est publiée sur GitHub Pages depuis la branche de
+développement (`arena/b0b62798-mauritius-compta`), sans fusion de la PR ni modification de
+`main` :
+
+```text
+https://azharshahim.github.io/mauritius-compta/
+```
+
+```text
+E-mail       : demo@mauritius-compta.test   (pré-rempli)
+Mot de passe : DemoPassw0rd2026             (pré-rempli)
+```
+
+| Élément | Comportement |
+|---|---|
+| Backend simulé | `apps/web/src/demo/runtime.ts` — mêmes appels que l'API, exécutés dans la page |
+| Stockage | `localStorage` du navigateur (clé `mc.demo.state.v1`), jamais un serveur |
+| Données | Fictives, réinitialisables via le bouton « Réinitialiser la démo » |
+| Bandeau | « MODE DÉMONSTRATION » permanent : rien n'est enregistré côté serveur |
+| Réseau | Aucun appel à `/api`, aucune base PostgreSQL, aucun secret |
+| PDF | Impression du navigateur (le PDF officiel est généré par l'API) |
+
+Fonctionne sans aucune opération simulée présentée comme enregistrée : les écritures créées
+dans la démo existent uniquement dans le navigateur de l'utilisateur. Voir
+[`docs/deployment.md`](docs/deployment.md#démonstration-github-pages) et
+[`docs/demo-mode.md`](docs/demo-mode.md).
+
 ## 8. Démarrage frontend + backend
 
 | Commande | Effet |

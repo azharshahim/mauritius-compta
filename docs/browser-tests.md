@@ -105,3 +105,21 @@ Tant que ces tests n'ont pas tourné, les points suivants ne sont **pas** valid�
 - comportement du tiroir de navigation sur un écran tactile ;
 - téléchargement des exports CSV/PDF depuis un navigateur Windows ;
 - accessibilité clavier des modales.
+
+## 6. Suite jsdom exécutée en local et en CI (mode démonstration)
+
+Chromium n'est pas installable dans l'environnement de l'assistant (`cdn.playwright.dev`
+inaccessible) : les tests Playwright restent donc **non exécutés**. En remplacement, une
+suite **jsdom** (Vitest) exécute réellement le bundle de démonstration, sans réseau :
+
+| Fichier | Couverture |
+|---|---|
+| `apps/web/tests/demo-engine.test.ts` (10) | connexion, absence d'appel réseau, jeu de données équilibré, numérotation, refus d'écriture déséquilibrée, immutabilité, contrepassation unique, référence unique, devise + taux, période fermée, isolation des sociétés, CSV anti-formule, cohérence des indicateurs, audit local |
+| `apps/web/tests/demo-app.test.tsx` (5) | bandeau permanent, identifiants pré-remplis, connexion, navigation par hash (`#/entries`, `#/trial-balance`, `#/statements`), saisie d'une écriture via la modale, bascule FR/EN, tiroir mobile, création d'une société |
+| `apps/web/tests/format.test.ts` (4) | date d'écriture proposée dans une période ouverte, arithmétique décimale exacte |
+
+Résultat : **19/19** (`npm run test -w @mc/web`), exécuté aussi par la CI.
+
+> jsdom ne rend pas la mise en page : **le rendu visuel, le tactile et le comportement réel
+> de Chrome sur Android/Windows ne sont pas validés par cette suite**. Ils doivent être
+> vérifiés sur l'URL GitHub Pages depuis les appareils du propriétaire.

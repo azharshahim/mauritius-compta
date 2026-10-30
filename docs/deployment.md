@@ -147,3 +147,49 @@ server {
 - [ ] Registre de conformité à jour (`docs/mauritius-regulations/compliance-register.md`).
 - [ ] Supervision (systemd + monitoring HTTP `/api/health`).
 - [ ] Test de montée en charge minimal et revue de sécurité.
+
+---
+
+## Démonstration GitHub Pages
+
+> Déploiement **automatique, sans serveur applicatif** : seul un bundle statique est publié.
+> Aucune base de données, aucun secret, aucun accès PostgreSQL. Le propriétaire conserve le
+> contrôle : le workflow part de la branche de développement et ne touche ni `main` ni la PR.
+
+### Principe
+
+- `.github/workflows/pages.yml` (déclencheur : `push` sur
+  `arena/b0b62798-mauritius-compta`, ou `workflow_dispatch`).
+- Job `build` : `npm ci` → `typecheck` web → **tests web (jsdom)** → `VITE_DEMO_MODE=true
+  npm run build:demo` → vérification que le bundle référence `/mauritius-compta/assets/…` →
+  `actions/upload-pages-artifact`.
+- Job `deploy` : `actions/configure-pages` + `actions/deploy-pages`, permissions
+  `pages: write` / `id-token: write`.
+- URL : `https://azharshahim.github.io/mauritius-compta/`.
+
+### Base d'URL et routage
+
+- `vite.config.ts` : `base = '/mauritius-compta/'` **uniquement** si `VITE_DEMO_MODE=true`.
+- `HashRouter` en démo (`#/entries`), `BrowserRouter` en production.
+- `apps/web/public/404.html` redirige `/mauritius-compta/<chemin>` vers
+  `/mauritius-compta/#/<chemin>` (GitHub Pages ne réécrit pas les URL).
+
+### Activation initiale (une seule fois, par le propriétaire)
+
+`Settings` → `Pages` → `Source: GitHub Actions`. Sans cette activation, le job `deploy`
+échoue avec `Resource not accessible by integration` (le jeton d'automatisation n'a pas les
+droits d'administration). Aucune autre action n'est requise : le workflow reprend ensuite à
+chaque `push`.
+
+### Ce qui n'est jamais publié
+
+- `apps/api/**`, `.env*`, `apps/api/.data/**` (base PGlite), `node_modules`, secrets.
+- Le dossier publié est exactement `apps/web/dist` (HTML + JS + CSS + `404.html`).
+
+### Vérification
+
+```bash
+curl -sI https://azharshahim.github.io/mauritius-compta/            # 200 text/html
+curl -s  https://azharshahim.github.io/mauritius-compta/ | grep -o '/mauritius-compta/assets/[^"]*'
+curl -sI https://azharshahim.github.io/mauritius-compta/<asset>     # 200 application/javascript
+```
