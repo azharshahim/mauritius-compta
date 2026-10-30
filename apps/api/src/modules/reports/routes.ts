@@ -1,0 +1,291 @@
+import type { FastifyInstance } from 'fastify';
+import type { Db } from '../../db/index.js';
+import { requireCompany } from '../../lib/tenant.js';
+import { parseIsoDate } from '../../lib/dates.js';
+import { toCsv } from '../../lib/http.js';
+import { badRequest } from '../../lib/errors.js';
+import { formatMoney, parseAmount } from '../../lib/money.js';
+import type { Locale } from '../../i18n/index.js';
+import { computeLedger, computeStatements, computeTrialBalance, type ReportRange } from './service.js';
+import { ledgerPdf, statementsPdf, trialBalancePdf } from './pdf.js';
+
+function parseRange(
+  query: Record<string, string | undefined>,
+  company: { financial_year_start: string; financial_year_end: string },
+): ReportRange {
+  const from = query.from ? parseIsoDate(query.from, 'from') : company.financial_year_start;
+  const to = query.to ? parseIsoDate(query.to, 'to') : company.financial_year_end;
+  if (from > to) throw badRequest('INVALID_DATE_RANGE', 'The start date must be before the end date');
+  return {
+    from,
+    to,
+    accountId: query.accountId || undefined,
+    search: query.search || undefined,
+    includeInactive: query.includeInactive === 'true',
+  };
+}
+
+function pickLocale(query: Record<string, string | undefined>, fallback: Locale): Locale {
+  const l = query.lang ?? query.locale;
+  return l === 'en' ? 'en' : l === 'fr' ? 'fr' : fallback;
+}
+
+export function reportRoutes(app: FastifyInstance, db: Db) {
+  // -------------------------------------------------------------------------
+  // General ledger
+  // -------------------------------------------------------------------------
+  app.get('/companies/:companyId/reports/ledger', async (req, reply) => {
+    const user = req.user!;
+    const { companyId } = req.params as { companyId: string };
+    const ctx = await requireCompany(db, user.id, companyId, 'viewer');
+    const query = req.query as Record<string, string | undefined>;
+    const range = parseRange(query, ctx.company);
+    const format = query.format ?? 'json';
+
+    const ledger = await computeLedger(db, companyId, ctx.company.functional_currency, range);
+
+    if (format === 'csv') {
+      const rows: (string | number)[][] = [
+        ['Account', 'Date', 'Journal', 'Entry no', 'Reference', 'Description', 'Debit', 'Credit'],
+      ];
+      for (const account of ledger.accounts) {
+        for (const l of account.lines) {
+          rows.push([
+            `${account.code} ${account.name}`,
+            l.date,
+            l.journal,
+            l.entryNo,
+            l.reference ?? '',
+            l.description,
+            l.debit,
+            l.credit,
+          ]);
+        }
+      }
+      rows.push([]);
+      rows.push(['DEMONSTRATION EXPORT — not a regulatory document / EXPORT DE DÉMONSTRATION']);
+      reply
+        .header('content-type', 'text/csv; charset=utf-8')
+        .header(
+          'content-disposition',
+          `attachment; filename="ledger-${ctx.company.name.replace(/[^\w-]+/g, '_')}-${range.from}_${range.to}.csv"`,
+        );
+      return reply.send(toCsv(rows));
+    }
+
+    if (format === 'pdf') {
+      const locale = pickLocale(query, user.locale);
+      const buffer = await ledgerPdf(ctx.company, ledger, locale);
+      reply.header('content-type', 'application/pdf');
+      reply.header(
+        'content-disposition',
+        `inline; filename="general-ledger-${range.from}_${range.to}.pdf"`,
+      );
+      return reply.send(buffer);
+    }
+
+    return { ...ledger, company: ctx.company };
+  });
+
+  // -------------------------------------------------------------------------
+  // Trial balance
+  // -------------------------------------------------------------------------
+  app.get('/companies/:companyId/reports/trial-balance', async (req, reply) => {
+    const user = req.user!;
+    const { companyId } = req.params as { companyId: string };
+    const ctx = await requireCompany(db, user.id, companyId, 'viewer');
+    const query = req.query as Record<string, string | undefined>;
+    const range = parseRange(query, ctx.company);
+    const format = query.format ?? 'json';
+    const locale = pickLocale(query, user.locale);
+    const currency = ctx.company.functional_currency;
+
+    const tb = await computeTrialBalance(db, companyId, currency, range);
+
+    if (format === 'csv') {
+      const rows: (string | number)[][] = [
+        ['Code', 'Account', 'Opening debit', 'Opening credit', 'Movement debit', 'Movement credit', 'Closing debit', 'Closing credit'],
+      ];
+      for (const r of tb.rows) {
+        rows.push([
+          r.code,
+          r.name,
+          r.openingDebit,
+          r.openingCredit,
+          r.movementDebit,
+          r.movementCredit,
+          r.closingDebit,
+          r.closingCredit,
+        ]);
+      }
+      rows.push([
+        '',
+        'TOTAL',
+        tb.totals.openingDebit,
+        tb.totals.openingCredit,
+        tb.totals.movementDebit,
+        tb.totals.movementCredit,
+        tb.totals.closingDebit,
+        tb.totals.closingCredit,
+      ]);
+      rows.push([]);
+      rows.push(['DEMONSTRATION EXPORT — not a regulatory document / EXPORT DE DÉMONSTRATION']);
+      reply
+        .header('content-type', 'text/csv; charset=utf-8')
+        .header('content-disposition', `attachment; filename="trial-balance-${range.from}_${range.to}.csv"`);
+      return reply.send(toCsv(rows));
+    }
+
+    if (format === 'pdf') {
+      const buffer = await trialBalancePdf(ctx.company, tb, locale);
+      reply.header('content-type', 'application/pdf');
+      reply.header('content-disposition', `inline; filename="trial-balance-${range.from}_${range.to}.pdf"`);
+      return reply.send(buffer);
+    }
+
+    return { ...tb, company: ctx.company };
+  });
+
+  // -------------------------------------------------------------------------
+  // Financial statements
+  // -------------------------------------------------------------------------
+  app.get('/companies/:companyId/reports/statements', async (req, reply) => {
+    const user = req.user!;
+    const { companyId } = req.params as { companyId: string };
+    const ctx = await requireCompany(db, user.id, companyId, 'viewer');
+    const query = req.query as Record<string, string | undefined>;
+    const range = parseRange(query, ctx.company);
+    const format = query.format ?? 'json';
+    const locale = pickLocale(query, user.locale);
+    const currency = ctx.company.presentation_currency || ctx.company.functional_currency;
+
+    const statements = await computeStatements(db, companyId, currency, range);
+
+    if (format === 'csv') {
+      const rows: (string | number)[][] = [['Section', 'Code', 'Account', 'Amount']];
+      for (const l of statements.financialPosition.assets.lines)
+        rows.push(['Assets', l.code, l.name, l.amount]);
+      rows.push(['Assets', '', 'TOTAL ASSETS', statements.financialPosition.totalAssets]);
+      for (const l of statements.financialPosition.liabilities.lines)
+        rows.push(['Liabilities', l.code, l.name, l.amount]);
+      for (const l of statements.financialPosition.equity.lines)
+        rows.push(['Equity', l.code, l.name, l.amount]);
+      rows.push([
+        'Equity',
+        '',
+        'Result not yet appropriated',
+        statements.financialPosition.unappropriatedResult,
+      ]);
+      rows.push([
+        'Equity',
+        '',
+        'TOTAL LIABILITIES AND EQUITY',
+        statements.financialPosition.totalLiabilitiesAndEquity,
+      ]);
+      for (const l of statements.profitAndLoss.revenue.lines)
+        rows.push(['Revenue', l.code, l.name, l.amount]);
+      rows.push(['Revenue', '', 'TOTAL REVENUE', statements.profitAndLoss.revenue.total]);
+      for (const l of statements.profitAndLoss.expenses.lines)
+        rows.push(['Expenses', l.code, l.name, l.amount]);
+      rows.push(['Expenses', '', 'TOTAL EXPENSES', statements.profitAndLoss.expenses.total]);
+      rows.push(['Profit', '', 'PROFIT FOR THE PERIOD', statements.profitAndLoss.profit]);
+      rows.push([]);
+      rows.push(['DEMONSTRATION EXPORT — not IFRS compliant / EXPORT DE DÉMONSTRATION']);
+      reply
+        .header('content-type', 'text/csv; charset=utf-8')
+        .header('content-disposition', `attachment; filename="statements-${range.from}_${range.to}.csv"`);
+      return reply.send(toCsv(rows));
+    }
+
+    if (format === 'pdf') {
+      const buffer = await statementsPdf(ctx.company, statements, locale);
+      reply.header('content-type', 'application/pdf');
+      reply.header('content-disposition', `inline; filename="statements-${range.from}_${range.to}.pdf"`);
+      return reply.send(buffer);
+    }
+
+    return { ...statements, company: ctx.company };
+  });
+
+  // -------------------------------------------------------------------------
+  // Dashboard summary
+  // -------------------------------------------------------------------------
+  app.get('/companies/:companyId/dashboard', async (req) => {
+    const user = req.user!;
+    const { companyId } = req.params as { companyId: string };
+    const ctx = await requireCompany(db, user.id, companyId, 'viewer');
+    const query = req.query as { from?: string; to?: string };
+    const range = parseRange(query, ctx.company);
+
+    const counts = await db.query<{
+      accounts: string;
+      journals: string;
+      drafts: string;
+      posted: string;
+    }>(
+      `SELECT
+         (SELECT count(*)::text FROM accounts WHERE company_id = $1 AND is_active) AS accounts,
+         (SELECT count(*)::text FROM journals WHERE company_id = $1) AS journals,
+         (SELECT count(*)::text FROM journal_entries WHERE company_id = $1 AND status = 'draft') AS drafts,
+         (SELECT count(*)::text FROM journal_entries WHERE company_id = $1 AND status = 'posted') AS posted`,
+      [companyId],
+    );
+
+    const statements = await computeStatements(
+      db,
+      companyId,
+      ctx.company.functional_currency,
+      range,
+    );
+
+    const recent = await db.query(
+      `SELECT e.id, e.entry_no, e.entry_date::text, e.description, e.status, j.code AS journal_code,
+              COALESCE(SUM(l.debit),0)::text AS total_debit
+         FROM journal_entries e
+         JOIN journals j ON j.id = e.journal_id
+         LEFT JOIN journal_lines l ON l.entry_id = e.id
+        WHERE e.company_id = $1
+        GROUP BY e.id, j.code
+        ORDER BY e.entry_date DESC, e.created_at DESC
+        LIMIT 6`,
+      [companyId],
+    );
+
+    const openPeriods = await db.query(
+      `SELECT id, name, start_date::text, end_date::text, status
+         FROM accounting_periods WHERE company_id = $1 ORDER BY start_date DESC LIMIT 3`,
+      [companyId],
+    );
+
+    const row = counts.rows[0]!;
+    return {
+      company: ctx.company,
+      role: ctx.role,
+      range,
+      kpis: {
+        accounts: Number(row.accounts),
+        journals: Number(row.journals),
+        draftEntries: Number(row.drafts),
+        postedEntries: Number(row.posted),
+        revenue: statements.profitAndLoss.revenue.total,
+        expenses: statements.profitAndLoss.expenses.total,
+        profit: statements.profitAndLoss.profit,
+        revenueFormatted: formatMoney(statements.profitAndLoss.revenue.total, user.locale, ctx.company.functional_currency),
+        expensesFormatted: formatMoney(statements.profitAndLoss.expenses.total, user.locale, ctx.company.functional_currency),
+        profitFormatted: formatMoney(statements.profitAndLoss.profit, user.locale, ctx.company.functional_currency),
+        balancedSheet: statements.financialPosition.balanced,
+        currency: ctx.company.functional_currency,
+        totalAssets: statements.financialPosition.totalAssets,
+      },
+      recentEntries: recent.rows,
+      periods: openPeriods.rows,
+      totalsCheck: {
+        difference: formatMoney(
+          parseAmount(statements.financialPosition.totalAssets) -
+            parseAmount(statements.financialPosition.totalLiabilitiesAndEquity),
+          user.locale,
+        ),
+      },
+    };
+  });
+}
