@@ -78,3 +78,29 @@ jobs:
 
       - id: deployment
         uses: actions/deploy-pages@v4
+
+      # End-to-end proof, executed from GitHub's network (the assistant sandbox
+      # cannot reach *.github.io): the published page, its JS bundle and the SPA
+      # fallback are fetched over HTTPS.
+      - name: Verify the published HTTPS URL
+        run: |
+          set -euo pipefail
+          BASE="https://azharshahim.github.io/mauritius-compta"
+          code=""
+          for i in $(seq 1 20); do
+            code=$(curl -s -o /tmp/index.html -w '%{http_code}' "$BASE/" || true)
+            [ "$code" = "200" ] && break
+            sleep 6
+          done
+          echo "index: $code"
+          test "$code" = "200"
+          grep -q 'src="/mauritius-compta/assets/' /tmp/index.html
+          asset=$(grep -o '/mauritius-compta/assets/[^"]*\.js' /tmp/index.html | head -1)
+          curl -fsS -o /tmp/app.js "https://azharshahim.github.io$asset"
+          echo "asset: $asset ($(wc -c < /tmp/app.js) octets)"
+          grep -q 'MODE DÉMONSTRATION' /tmp/app.js
+          grep -q 'mc.demo.state.v1' /tmp/app.js
+          curl -s -o /tmp/404.html -w '404.html: %{http_code}\n' "$BASE/404.html"
+          curl -s -o /tmp/deep.html -w 'lien profond /entries: %{http_code}\n' "$BASE/entries"
+          grep -q 'Redirection vers la demonstration\|Redirection vers la démonstration' /tmp/deep.html
+          echo "OK: page 200, bundle JS charge, mode demo embarque, fallback 404 actif"
