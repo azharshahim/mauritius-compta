@@ -63,9 +63,9 @@ jobs:
     name: Deploy to GitHub Pages
     needs: build
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    # No `environment:` block: the repository's `github-pages` environment only
+    # allows protected branches, and this demo must deploy from the development
+    # branch without touching `main`. Permissions below are what deploy-pages needs.
     permissions:
       pages: write
       id-token: write
