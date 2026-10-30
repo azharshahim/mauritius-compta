@@ -2,6 +2,22 @@
 
 _État au 30 octobre 2026 (version 0.1.0)._
 
+## 0. État après la mission 2 (V0.1.1)
+
+Livré : audit du moteur comptable, isolation multi-société renforcée en base, durcissement
+sécurité, 17 tests de non-régression, 4 tests de concurrence, CI à 3 tâches, documentation de
+reconstruction.
+
+Reste ouvert (par ordre de priorité) :
+
+1. **Exécuter réellement les tests navigateur Chromium** (desktop + Android) et les intégrer à la
+   CI — les scénarios existent, ils n'ont pas tourné.
+2. **Écritures de clôture et report à nouveau** : le bilan affiche aujourd'hui un « résultat non
+   affecté » cumulé au lieu d'un transfert en réserves.
+3. Sauvegardes automatisées + supervision (hors code applicatif).
+4. Export XLSX et import de relevés bancaires.
+5. Double authentification et réinitialisation de mot de passe.
+
 ## 1. Dette technique et finitions de la V0.1
 
 | # | Élément | Priorité | Notes |

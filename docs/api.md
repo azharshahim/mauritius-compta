@@ -166,7 +166,37 @@ UTF-8 avec BOM et séparateur `;` (ouverture directe dans Excel FR/EN).
 
 | Méthode | Route | Réponse |
 |---|---|---|
-| GET | `/health` (hors `/api` en production : `/api/health`) | `{ status: "ok", version: "0.1.0" }` |
+| GET | `/health` (hors `/api` en production : `/api/health`) | `{ status: "ok", version: "0.1.1" }` |
+
+## Règles métier ajoutées en V0.1.1
+
+| Règle | Comportement API |
+|---|---|
+| Devises autorisées | `MUR`, `EUR`, `USD`, `GBP` uniquement → `400 INVALID_CURRENCY` |
+| Précision des montants | 4 décimales maximum ; au-delà → `400 VALIDATION_ERROR` (aucun arrondi silencieux) |
+| Conversion à zéro | un montant étranger qui s'arrondit à `0.0000` en devise fonctionnelle → `400 VALIDATION_ERROR` |
+| Changement de devise d'un brouillon | exige un `exchangeRate` explicite si la devise cible est étrangère → sinon `400 EXCHANGE_RATE_REQUIRED` |
+| Référence | unique par société (insensible à la casse) pour les écritures manuelles → `409 REFERENCE_TAKEN` |
+| Numérotation | recalculée si un brouillon change de journal ou d'exercice |
+| Validation d'un brouillon | les comptes sont revérifiés (société + activation) → `400 VALIDATION_ERROR` |
+| Contrepassation | une seule par écriture → `409 ENTRY_ALREADY_REVERSED` (garanti aussi par un index unique) |
+| Pièces jointes | signature binaire contrôlée → `400 ATTACHMENT_TYPE_NOT_ALLOWED` ; fichier vide refusé |
+| Taux de change invalide | `400 VALIDATION_ERROR` (auparavant 409) ; taux inverse calculé en arithmétique entière |
+| Changement de mot de passe | `{ user, sessionsInvalidated: true }` : toutes les sessions sont supprimées |
+| Journal d'audit | append-only : toute modification directe en base échoue |
+| Inscription | fermée par défaut lorsque `NODE_ENV=production` (`403 REGISTRATION_DISABLED`) |
+| Connexion | limitation par compte **et** par adresse IP (`429 LAST_LOGIN_TOO_MANY`) |
+
+### Codes d'erreur ajoutés
+
+| Code | HTTP | Sens |
+|---|---|---|
+| `REFERENCE_TAKEN` | 409 | référence déjà utilisée dans la société |
+| `INVALID_CURRENCY` | 400 | devise hors liste blanche |
+| `ATTACHMENT_TYPE_NOT_ALLOWED` | 400 | type MIME ou signature binaire non autorisé |
+| `ENTRY_ALREADY_REVERSED` | 409 | écriture déjà contrepassée |
+| `PERIOD_CLOSED` | 409 | aucune période ouverte pour la date demandée |
+| `REGISTRATION_DISABLED` | 403 | inscription fermée sur cette instance |
 
 ## Exemple complet (curl)
 

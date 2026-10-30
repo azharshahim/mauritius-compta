@@ -11,7 +11,12 @@ apps/web/.vite/
 .vitest-cache/
 apps/api/storage/
 
+# Playwright (browser tests)
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/blob-report/
+
 # Local embedded database (PGlite) and test artefacts
 .data/
 apps/api/.data/
-apps/api/.test-storage/
+apps/api/.test-storage*/

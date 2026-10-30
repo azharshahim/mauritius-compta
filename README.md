@@ -1,151 +1,364 @@
 # Mauritius Compta
 
-**Logiciel de comptabilité mauricienne bilingue (FR/EN)** — version **0.1.0** (fondations et
-cœur comptable).
+**Logiciel de comptabilité mauricienne bilingue (FR/EN)** — version **0.1.1**
+(fondations, cœur comptable, audit et fiabilisation).
 
-> ⚠️ **Version de démonstration.** L'application n'est **pas** conforme aux exigences
-> réglementaires mauriciennes en l'état : aucune règle fiscale (TVA, impôt, paie) n'est
-> implémentée et aucun taux n'est codé en dur. Tous les états et exports portent la mention
-> « DOCUMENT DE DÉMONSTRATION ». Voir
+> ⚠️ **Version de démonstration.** L'application **n'est pas** conforme, en l'état, aux
+> obligations réglementaires mauriciennes : aucune règle fiscale (TVA, impôt sur les
+> sociétés, paie) n'est implémentée et **aucun taux n'est codé en dur**. Tous les états et
+> exports portent la mention « DOCUMENT DE DÉMONSTRATION ». Voir
 > [`docs/mauritius-regulations/`](docs/mauritius-regulations/) et le
 > [registre de conformité](docs/mauritius-regulations/compliance-register.md).
 
+> 🧪 **Aucune donnée réelle.** Société, BRN, numéro de TVA, adresses et montants du jeu de
+> démonstration sont inventés. Le dépôt ne contient ni `.env`, ni secret, ni base de données,
+> ni sauvegarde, ni `node_modules`.
+
 ---
 
-## 1. Ce qui fonctionne en V0.1.0
+## Sommaire
+
+1. [Ce qui fonctionne en V0.1.1](#1-ce-qui-fonctionne-en-v011)
+2. [Architecture et pile technique](#2-architecture-et-pile-technique)
+3. [Prérequis](#3-prérequis)
+4. [Installation sous Windows](#4-installation-sous-windows)
+5. [Installation sous Linux / macOS](#5-installation-sous-linux--macos)
+6. [Configuration PostgreSQL](#6-configuration-postgresql)
+7. [Mode démonstration (sans PostgreSQL)](#7-mode-démonstration-sans-postgresql)
+8. [Démarrage frontend + backend](#8-démarrage-frontend--backend)
+9. [Tests](#9-tests)
+10. [Reconstruction complète depuis GitHub](#10-reconstruction-complète-depuis-github)
+11. [Documentation](#11-documentation)
+12. [Sécurité et secrets](#12-sécurité-et-secrets)
+13. [Limites réglementaires et fonctionnelles](#13-limites-réglementaires-et-fonctionnelles)
+14. [Dépannage](#14-dépannage)
+15. [Indépendance et licence](#15-indépendance-et-licence)
+
+---
+
+## 1. Ce qui fonctionne en V0.1.1
 
 | Domaine | Fonctionnalités |
 |---|---|
-| **Sociétés** | Multi-société, BRN, n° TVA, adresse, activité, exercice, devise fonctionnelle et de présentation, norme comptable, statut ; membres et rôles (owner/admin/accountant/viewer) |
-| **Plan comptable** | Comptes hiérarchiques (code, nom, type, parent, devise, actif/inactif, mapping états financiers) ; plan de **démonstration** non officiel ; suppression interdite si le compte est utilisé |
+| **Sociétés** | Multi-société, BRN, n° TVA, adresse, activité, exercice comptable, devise fonctionnelle et de présentation, norme comptable, statut ; membres et rôles (owner/admin/accountant/viewer) ; période comptable ouverte dès la création |
+| **Plan comptable** | Comptes hiérarchiques (code, nom, type, parent, devise, actif/inactif, mapping états financiers) ; plan de **démonstration** non officiel ; suppression interdite si le compte est utilisé ; comptes désactivés conservés dans le grand livre |
 | **Journaux** | Ventes, Achats, Banque, Caisse, Opérations diverses (création possible) |
-| **Écritures** | Saisie multi-lignes, brouillon/validée, numérotation automatique `JRN-AAAA-0001`, justificatifs PDF/JPEG/PNG, validation, contrepassation tracée, verrouillage des écritures validées (API **et** PostgreSQL) |
-| **Contrôles** | Σ débits = Σ crédits, période clôturée, comptes inactifs, isolation stricte entre sociétés, dates valides, montants exacts (`numeric(20,4)` + BigInt) |
-| **Multidevise** | MUR, EUR, USD, GBP ; taux **daté saisi par l'utilisateur** (jamais inventé) ; conservation du montant d'origine et de la contre-valeur fonctionnelle |
+| **Écritures** | Saisie multi-lignes, brouillon/validée, numérotation `JRN-AAAA-0001`, **renumérotation automatique** si un brouillon change de journal ou d'exercice, justificatifs PDF/JPEG/PNG, validation, contrepassation tracée et unique, verrouillage des écritures validées (API **et** PostgreSQL), **références uniques par société** |
+| **Contrôles** | Σ débits = Σ crédits, période clôturée, comptes inactifs au moment de la validation, isolation stricte entre sociétés (API **et** triggers SQL), dates valides, montants exacts (`numeric(20,4)` + BigInt), précision limitée à 4 décimales, rejet des montants qui s'arrondissent à zéro |
+| **Multidevise** | MUR, EUR, USD, GBP ; taux **daté saisi par l'utilisateur** (jamais inventé) ; changement de devise d'un brouillon exigeant un nouveau taux ; taux inverse calculé en arithmétique entière |
 | **Grand livre** | Par compte, filtres période/recherche, solde initial, mouvements, solde progressif, totaux, export CSV/PDF |
 | **Balance** | Colonnes solde initial / mouvements / solde final (D et C), contrôle d'équilibre, export CSV/PDF |
-| **États financiers** | Statement of Financial Position et Statement of Profit or Loss provisoires, contrôle d'équilibre, export CSV/PDF |
-| **Interface** | React responsive (utilisable sur Android et Windows), FR/EN commutable, tableau de bord avec indicateurs |
-| **Sécurité** | Sessions cookie HttpOnly, scrypt, rôles serveur, requêtes SQL paramétrées, validation Zod, CSRF, CSP, anti-bruteforce, journal d'audit |
-| **Exploitation** | Migrations versionnées avec checksums, CI GitHub Actions, documentation technique et réglementaire |
+| **États financiers** | Statement of Financial Position et Statement of Profit or Loss provisoires ; le bilan intègre **le résultat cumulé depuis l'origine** (pas seulement la période) et reste équilibré même si la période analysée commence après les premières écritures ; export CSV/PDF |
+| **Interface** | React responsive (Android et Windows), FR/EN commutable, tableau de bord avec indicateurs, tiroir de navigation mobile (fermeture par Échap, clic extérieur, navigation), modales accessibles |
+| **Sécurité** | Sessions cookie HttpOnly + SameSite, scrypt, rôles serveur, requêtes SQL paramétrées, validation Zod, contrôle CSRF/Origin, CSP, anti-bruteforce **par compte et par adresse IP**, purge des sessions expirées, journal d'audit **append-only**, vérification de la signature réelle des fichiers envoyés |
+| **Exploitation** | Migrations versionnées avec checksums, CI GitHub Actions (3 tâches), documentation technique et réglementaire |
 
-## 2. Stack
+## 2. Architecture et pile technique
 
-- **Backend** : Node.js 20+, TypeScript, Fastify 5, PostgreSQL 14+ (migrations SQL maison).
-- **Frontend** : React 19, Vite 6, React Router 7, CSS responsive (sans framework lourd).
-- **Exports** : CSV (UTF-8 BOM, séparateur `;`) et PDF (PDFKit).
-- **Tests** : Vitest + PGlite (**véritable moteur PostgreSQL en WASM**, aucun service externe).
+```text
+apps/api   API REST Fastify 5 + TypeScript strict, migrations SQL, seed, tests Vitest
+apps/web   SPA React 19 + Vite 6 + React Router 7 (aucun framework CSS lourd)
+docs/      documentation technique, audit, procédures, veille réglementaire
+```
 
-## 3. Démarrage rapide (sans PostgreSQL installé)
+- **Base de données** : PostgreSQL 14+ en production ; **PGlite** (PostgreSQL compilé en
+  WASM) pour la démonstration locale et les tests sans serveur.
+- **Montants** : `numeric(20,4)` en base, **BigInt** dans le code (aucun flottant pour les
+  calculs monétaires), chaînes décimales à 4 décimales dans l'API et dans l'interface.
+- **Exports** : CSV (UTF-8 BOM, séparateur `;`, protection contre l'injection de formules) et
+  PDF (PDFKit, bandeau « DÉMONSTRATION »).
+- **Tests** : 77 tests (73 exécutés sur PGlite, 4 tests de concurrence sur PostgreSQL réel).
 
-```bash
-git clone <dépôt> mauritius-compta && cd mauritius-compta
-npm install
+## 3. Prérequis
 
-# configuration locale (facultatif : des valeurs par défaut sûres s'appliquent)
-cp .env.example .env
+| Outil | Version minimale | Remarque |
+|---|---|---|
+| Node.js | **20 LTS** (22 recommandé) | `node -v` ; le dépôt contient `.nvmrc` (`22`) |
+| npm | 9+ (livré avec Node) | `npm -v` |
+| Git | 2.30+ | `git --version` |
+| PostgreSQL | 14+ (16 recommandé) | **facultatif** : PGlite suffit pour la démonstration |
+| Docker | 20+ | **facultatif** : `docker compose up -d db` fournit PostgreSQL 16 |
 
-# base de données + jeu de démonstration (données 100 % fictives)
-npm run db:seed
+Aucun service payant, aucune clé d'API, aucun compte tiers n'est nécessaire.
 
-# lancer l'API (:3000) et l'interface (:5173)
+## 4. Installation sous Windows
+
+Testé avec Windows 10/11 et PowerShell 7 (ou `cmd.exe`).
+
+```powershell
+# 1. Installer Node.js 20+ (https://nodejs.org) et Git pour Windows (https://git-scm.com)
+node -v
+npm -v
+
+# 2. Récupérer le dépôt
+git clone https://github.com/azharshahim/mauritius-compta.git
+cd mauritius-compta
+
+# 3. Installer les dépendances (reproductible : utilise package-lock.json)
+npm ci
+
+# 4. Configuration locale (facultative : valeurs par défaut sûres)
+Copy-Item .env.example .env
+notepad .env      # renseigner DATABASE_URL si PostgreSQL est utilisé
+
+# 5. Base de données + jeu de démonstration fictif
+npm run db:seed   # crée .data\pglite et les données fictives
+
+# 6. Démarrer API (:3000) + interface (:5173)
 npm run dev
 ```
 
 Ouvrir <http://localhost:5173>.
 
-**Compte de démonstration (fictif) :**
+**PostgreSQL sous Windows** (deux options) :
 
-```text
-E-mail   : demo@mauritius-compta.test
-Mot de passe : DemoPassw0rd2026
-Société  : Lagon Bleu Trading Ltd (DEMO)
+```powershell
+# Option A - Docker Desktop
+docker compose up -d db
+
+# Option B - PostgreSQL installé par l'installateur EDB
+# 1) ajouter C:\Program Files\PostgreSQL\16\bin au PATH
+# 2) créer la base :
+createdb -U postgres mauritius_compta
+# 3) renseigner dans .env :
+#    DATABASE_URL=postgresql://postgres:motdepasse@localhost:5432/mauritius_compta
+npm run db:migrate
 ```
 
-> Sans `DATABASE_URL`, l'API utilise **PGlite** (PostgreSQL embarqué, stockage local dans
-> `.data/pglite`). Pratique pour essayer, **déconseillé en production** : utiliser PostgreSQL.
+> **PowerShell** : si `npm` est bloqué par la stratégie d'exécution, lancer
+> `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+> Les chemins contenant des espaces ou des accents ne posent pas de problème, mais évitez
+> les dossiers synchronisés (OneDrive) pour `.data\` et `storage\`.
 
-## 4. Démarrage avec PostgreSQL (recommandé)
+## 5. Installation sous Linux / macOS
 
 ```bash
-docker compose up -d db            # PostgreSQL 16 sur le port 5432
-cp .env.example .env               # renseigner DATABASE_URL
-npm run db:migrate                 # applique sql/migrations/*.sql
-npm run db:seed                    # données fictives (optionnel)
+git clone https://github.com/azharshahim/mauritius-compta.git
+cd mauritius-compta
+npm ci
+cp .env.example .env      # facultatif
+npm run db:seed           # démonstration PGlite (fictive)
 npm run dev
 ```
 
-`.env` minimal :
+PostgreSQL local :
+
+```bash
+# Debian / Ubuntu
+sudo apt install postgresql postgresql-client
+sudo -u postgres createuser --pwprompt mc_user
+sudo -u postgres createdb -O mc_user mauritius_compta
+# ou, plus simple, avec Docker :
+docker compose up -d db
+
+# dans .env
+DATABASE_URL=postgresql://mc_user:motdepasse@localhost:5432/mauritius_compta
+npm run db:migrate
+```
+
+macOS (Homebrew) : `brew install postgresql@16 && brew services start postgresql@16`.
+
+## 6. Configuration PostgreSQL
+
+`.env` à la racine du dépôt (jamais commité) :
 
 ```dotenv
-DATABASE_URL=postgresql://mc_user:change_me@localhost:5432/mauritius_compta
+NODE_ENV=development
+PORT=3000
+HOST=0.0.0.0
+APP_URL=http://localhost:5173
+
+DATABASE_URL=postgresql://mc_user:motdepasse@localhost:5432/mauritius_compta
+DATABASE_SSL=false          # true chez un hébergeur qui impose TLS
+DATABASE_POOL_MAX=10
+
+SESSION_COOKIE_NAME=mc_session
+SESSION_TTL_HOURS=168
+COOKIE_SECURE=false         # OBLIGATOIREMENT true en production (HTTPS)
+
+PASSWORD_MIN_LENGTH=10
+LOGIN_MAX_ATTEMPTS=10            # par compte, fenêtre LOGIN_WINDOW_MINUTES
+LOGIN_MAX_ATTEMPTS_PER_IP=30     # par adresse IP (anti-pulvérisation de mots de passe)
+LOGIN_WINDOW_MINUTES=15
+ALLOW_REGISTRATION=true          # forcé à false par défaut si NODE_ENV=production
+SESSION_PURGE_ON_LOGIN=true
+
+STORAGE_DIR=./storage
+MAX_UPLOAD_BYTES=10485760
+
+DEFAULT_LOCALE=fr
 ```
 
-Production (build unique, API + front servi sur un port) :
+Commandes utiles :
 
 ```bash
-npm run build
-NODE_ENV=production COOKIE_SECURE=true npm start
+npm run db:migrate      # applique les migrations manquantes (checksums vérifiés)
+npm run db:seed         # jeu de démonstration fictif (refusé en production)
+npm run db:seed -- --force   # recrée la société de démonstration
 ```
 
-Voir [`docs/deployment.md`](docs/deployment.md) pour le VPS Ubuntu + Nginx + systemd.
-
-## 5. Tests
+Sauvegarde / restauration (à la charge de l'exploitation) :
 
 ```bash
-npm test          # 54 tests API (Vitest + PostgreSQL/PGlite)
-npm run typecheck # TypeScript strict (API + front)
-npm run build     # Build API + front
+pg_dump -Fc mauritius_compta > sauvegarde.dump
+pg_restore -d mauritius_compta --clean --if-exists sauvegarde.dump
 ```
 
-Les tests couvrent les priorités du cahier des charges : création de société fictive,
-isolation entre sociétés, comptes, écriture équilibrée, rejet d'écriture déséquilibrée,
-protection des écritures validées, grand livre, balance, contrôle débit/crédit, changement de
-langue, accès non autorisés et migrations PostgreSQL.
-Détail : [`docs/test-report.md`](docs/test-report.md).
+## 7. Mode démonstration (sans PostgreSQL)
 
-## 6. Documentation
+Sans `DATABASE_URL`, l'API ouvre **PGlite** (PostgreSQL embarqué) dans
+`apps/api/.data/pglite`. Aucune installation de PostgreSQL n'est nécessaire.
+
+```bash
+npm run db:seed
+npm run dev
+```
+
+**Identifiants de démonstration (fictifs, locaux uniquement) :**
+
+```text
+E-mail       : demo@mauritius-compta.test
+Mot de passe : DemoPassw0rd2026
+Société      : Lagon Bleu Trading Ltd (DEMO)
+BRN / TVA    : DEMO-BRN-0001 / DEMO-VAT-0001
+Exercice     : 2025-07-01 → 2026-06-30
+```
+
+> Ces identifiants sont publics et documentés : ils ne doivent **jamais** être utilisés sur
+> une instance accessible depuis Internet. En production, `ALLOW_REGISTRATION` vaut `false`
+> par défaut et `npm run db:seed` refuse de s'exécuter (sauf `ALLOW_DEMO_SEED=true`
+> explicitement, réservé à une instance de démonstration dédiée).
+
+## 8. Démarrage frontend + backend
+
+| Commande | Effet |
+|---|---|
+| `npm run dev` | API `http://localhost:3000` + interface `http://localhost:5173` (proxy `/api`) |
+| `npm run dev:api` | API seule |
+| `npm run dev:web` | Interface seule (nécessite l'API) |
+| `npm run build` | Build de production (interface dans `apps/web/dist`, API dans `apps/api/dist`) |
+| `npm start` | API de production ; elle sert aussi l'interface compilée |
+
+Vérification rapide :
+
+```bash
+curl http://localhost:3000/api/health      # {"status":"ok","version":"0.1.1"}
+```
+
+Sous Windows, les mêmes commandes fonctionnent (PowerShell ou `cmd.exe`).
+
+## 9. Tests
+
+```bash
+npm run typecheck   # TypeScript strict, API + interface
+npm test            # 77 tests Vitest (73 exécutés sur PGlite + 4 tests PostgreSQL)
+npm run build       # build de production
+npm run verify      # les trois ci-dessus, dans l'ordre
+```
+
+- **PostgreSQL réel** : `TEST_DATABASE_URL=postgresql://… npm test` exécute la même suite
+  **et** les 4 tests de concurrence (numérotation parallèle, double contrepassation,
+  référence concurrente, équilibre de la balance).
+- **Navigateur (Chromium)** : `npm run test:e2e:install -w @mc/web` puis
+  `npm run test:e2e -w @mc/web` (voir [`docs/browser-tests.md`](docs/browser-tests.md)).
+  Ces tests **n'ont pas pu être exécutés dans l'environnement d'audit** (aucun binaire
+  Chromium disponible) : ne pas les considérer comme validés tant qu'ils n'ont pas tourné.
+- Détail des scénarios et des résultats : [`docs/test-report.md`](docs/test-report.md).
+
+## 10. Reconstruction complète depuis GitHub
+
+Procédure vérifiée (voir [`docs/github-project-integrity.md`](docs/github-project-integrity.md)) :
+
+```bash
+git clone https://github.com/azharshahim/mauritius-compta.git reconstruction
+cd reconstruction
+git switch arena/b0b62798-mauritius-compta   # branche de travail auditée
+npm ci
+npm run db:migrate
+npm run db:seed
+npm run typecheck && npm test && npm run build
+npm run dev
+```
+
+Le dépôt contient **tout le nécessaire** : code API et interface, migrations SQL, tests,
+scripts, configuration d'exemple, CI, documentation technique et réglementaire, données de
+démonstration fictives. Il ne contient **ni** `node_modules`, **ni** `.env`, **ni** base de
+données, **ni** secret, **ni** donnée réelle.
+
+## 11. Documentation
 
 | Document | Contenu |
 |---|---|
 | [`docs/architecture.md`](docs/architecture.md) | Architecture, modèle de données, triggers, sécurité, multidevise, i18n |
 | [`docs/api.md`](docs/api.md) | Référence de l'API (routes, corps, erreurs, exemples curl) |
-| [`docs/audit-existing-apps.md`](docs/audit-existing-apps.md) | Audit des applications existantes du propriétaire |
-| [`docs/deployment.md`](docs/deployment.md) | Préparation VPS Ubuntu + Nginx (non déployé) |
-| [`docs/roadmap.md`](docs/roadmap.md) | Fonctionnalités restant à développer, mission 2 |
+| [`docs/audit-v0.1.1.md`](docs/audit-v0.1.1.md) | Audit V0.1.1 : anomalies, corrections, preuves |
+| [`docs/github-project-integrity.md`](docs/github-project-integrity.md) | Inventaire du dépôt et reconstruction complète |
+| [`docs/browser-tests.md`](docs/browser-tests.md) | Tests navigateur : limites de l'environnement et procédure reproductible |
 | [`docs/test-report.md`](docs/test-report.md) | Rapport de tests détaillé |
-| [`docs/mauritius-regulations/`](docs/mauritius-regulations/) | Veille réglementaire (comptabilité, TVA, IS, paie, données, sources, registre) |
+| [`docs/deployment.md`](docs/deployment.md) | Préparation VPS Ubuntu + Nginx (aucun déploiement effectué) |
+| [`docs/roadmap.md`](docs/roadmap.md) | Suite du produit (mission 3 et au-delà) |
+| [`docs/audit-existing-apps.md`](docs/audit-existing-apps.md) | Audit des applications existantes du propriétaire (aucune modification) |
+| [`docs/mauritius-regulations/`](docs/mauritius-regulations/) | Veille réglementaire : comptabilité, TVA, IS, paie, données, sources, registre |
 
-## 7. Structure
-
-```text
-apps/api      API Fastify, migrations SQL, seeds, tests
-apps/web      SPA React bilingue
-docs/         documentation technique et réglementaire
-```
-
-## 8. Sécurité et secrets
+## 12. Sécurité et secrets
 
 - `.env` est ignoré par Git ; `.env.example` ne contient **aucun secret réel**.
-- Aucune clé API, aucun mot de passe de production, aucune donnée client dans le dépôt.
-- Toutes les données de démonstration sont **fictives** (société, BRN, TVA, montants).
+- Un contrôle CI échoue si un `.env` ou un fichier de clé (`.pem`, `.key`, `.p12`) est commité.
+- Aucune clé d'API, aucun mot de passe de production, aucune donnée client dans le dépôt.
+- Toutes les données de démonstration sont **fictives**.
 - Signaler toute vulnérabilité au propriétaire du dépôt, sans ouvrir d'issue publique.
+- En production : `COOKIE_SECURE=true`, HTTPS obligatoire, `ALLOW_REGISTRATION=false`,
+  ne jamais exécuter `db:seed`.
 
-## 9. Indépendance
+## 13. Limites réglementaires et fonctionnelles
+
+**Réglementaire** (aucune conformité n'est revendiquée) :
+
+- Aucun calcul de TVA/GST, aucune déclaration MRA, aucune facturation électronique.
+- Aucun impôt sur les sociétés, aucune paie, aucun taux légal codé en dur.
+- États financiers **provisoires**, non certifiés IFRS, sans notes annexes ni écritures de
+  clôture/report à nouveau.
+- Plan comptable de **démonstration** : il ne remplace pas un plan validé par un expert-comptable.
+- Toutes les règles listées dans [`docs/mauritius-regulations/compliance-register.md`](docs/mauritius-regulations/compliance-register.md)
+  restent marquées **À VÉRIFIER** ou **NON IMPLÉMENTÉ**.
+
+**Fonctionnel** :
+
+- Export Excel au format CSV uniquement (XLSX non implémenté).
+- Pas d'authentification à deux facteurs, pas de réinitialisation de mot de passe par e-mail.
+- Pas de sauvegarde automatisée intégrée (à organiser côté exploitation).
+- Tests navigateur fournis mais **non exécutés** dans l'environnement d'audit.
+- Pas d'immutabilité légale horodatée (pas de scellement cryptographique de type piste
+  d'audit infalsifiable) : le journal d'audit applicatif n'est pas un dispositif certifié.
+
+## 14. Dépannage
+
+| Symptôme | Cause probable | Solution |
+|---|---|---|
+| `EADDRINUSE :3000` / `:5173` | Port déjà utilisé | `PORT=3001 npm run dev:api`, ou arrêter le processus (`npx kill-port 3000`) |
+| `Invalid environment configuration: …` | `.env` incomplet ou invalide | comparer avec `.env.example`, corriger la valeur signalée |
+| `password authentication failed for user "mc_user"` | `DATABASE_URL` incorrecte | vérifier utilisateur/mot de passe/port ; tester `psql "$DATABASE_URL"` |
+| `ECONNREFUSED 127.0.0.1:5432` | PostgreSQL arrêté | `docker compose up -d db` ou `sudo systemctl start postgresql` |
+| `relation "…" does not exist` | migrations non appliquées | `npm run db:migrate` |
+| `Migration … was modified after being applied` | migration éditée après coup | créer une nouvelle migration au lieu de modifier l'ancienne |
+| `Refusing to load demonstration data with NODE_ENV=production` | `db:seed` en production | normal : ne jamais charger la démo en production |
+| Écran blanc après build | interface non compilée | `npm run build` puis `npm start` (l'API sert `apps/web/dist`) |
+| 401 systématique / déconnexion immédiate | `COOKIE_SECURE=true` sans HTTPS | mettre `COOKIE_SECURE=false` en local |
+| `403 Origin not allowed` | appel API depuis un autre domaine | utiliser le proxy `/api` de Vite, ou renseigner `APP_URL` |
+| Mot de passe oublié (démo) | — | recréer les données : `npm run db:seed -- --force` |
+| `.data/pglite` verrouillé | deux instances API sur le même dossier | arrêter l'autre instance ou changer `PGLITE_DIR` |
+| Tests navigateur : `Executable doesn't exist` | Chromium non installé | `npm run test:e2e:install -w @mc/web` (téléchargement réseau requis) |
+| Windows : `npm` non reconnu | Node.js absent du PATH | réinstaller Node.js, rouvrir le terminal |
+| Windows : erreur `EPERM` sur `.data` | dossier OneDrive/antivirus | déplacer le dépôt hors OneDrive, exclure le dossier de l'antivirus |
+
+Journaux : l'API écrit en JSON structuré (`pino`) sur la sortie standard ; en développement,
+`npm run dev:api` affiche chaque requête.
+
+## 15. Indépendance et licence
 
 Ce logiciel est **juridiquement et techniquement indépendant** des applications françaises du
 propriétaire (paie, comptabilité, facturation) : code, schéma, base et documentation propres.
 Aucune règle fiscale française n'a été copiée ni transposée. Aucun dépôt tiers n'a été modifié.
 
-## 10. Licence
-
-Projet privé — **tous droits réservés** au propriétaire. Aucune licence de réutilisation n'est
-accordée par ce dépôt (`UNLICENSED` dans `package.json`).
-
-## 11. Limites connues
-
-- États financiers **provisoires**, non IFRS, sans notes annexes ni écritures de clôture.
-- Aucun module TVA, impôt, paie, facturation, déclaration MRA (prévus mission 2+).
-- Export Excel **CSV** uniquement (XLSX prévu).
-- Pas d'authentification à deux facteurs, pas de réinitialisation de mot de passe par e-mail.
-- Pas de sauvegarde automatisée intégrée (à mettre en place côté exploitation).
+Projet privé — **tous droits réservés** au propriétaire (`UNLICENSED`). Aucune licence de
+réutilisation n'est accordée par ce dépôt.

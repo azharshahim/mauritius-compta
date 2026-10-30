@@ -174,7 +174,30 @@ POST /api/companies/:id/entries/:id/reverse
 - PDF : libellés FR/EN, `?lang=en|fr`.
 - Données : chaque société a une langue de création du plan comptable de démonstration.
 
-## 8. Performances et limites connues (V0.1.0)
+## 7 bis. Durcissement V0.1.1
+
+Trois couches de défense, du plus tôt au plus tard :
+
+1. **Validation applicative (Zod + métier)** dans les routes : devises autorisées, 4 décimales,
+   taux obligatoire lors d'un changement de devise, références uniques, comptes actifs à la
+   validation, réponses d'erreur typées.
+2. **Transactions** : chaque opération métier s'exécute dans `db.transaction` ; l'équilibre
+   débit/crédit est contrôlé par des triggers **différés** (l'insertion ligne à ligne reste
+   possible).
+3. **Base de données** (`0003_hardening.sql`) : index unique de contrepassation, index unique de
+   référence, triggers de cohérence société (journal, contrepassation, pièce jointe, compte
+   parent), journal d'audit append-only, index de reporting.
+
+Chaîne monétaire : saisie `string` → `parseAmount` (BigInt ×10⁴) → conversion par
+`multiply(amount, rate)` (taux ×10⁸, arrondi demi-supérieur une seule fois) → stockage
+`numeric(20,4)` → API en chaîne à 4 décimales → affichage en BigInt côté React. **Aucun flottant
+n'intervient** dans un calcul monétaire.
+
+Nouvelles variables d'environnement : `LOGIN_MAX_ATTEMPTS_PER_IP`, `SESSION_PURGE_ON_LOGIN`,
+`ALLOW_DEMO_SEED` (démonstration uniquement). En production, `ALLOW_REGISTRATION` vaut `false`
+par défaut et `db:seed` refuse de s'exécuter.
+
+## 8. Performances et limites connues (V0.1.1)
 
 - Pagination des écritures (max 200) ; grand livre limité par période (pas de pagination par
   compte).

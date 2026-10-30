@@ -1,98 +1,104 @@
-# Rapport de tests — Mauritius Compta 0.1.0
+# Rapport de tests — Mauritius Compta 0.1.1
 
 _Date : 30 octobre 2026._
 
 ## 1. Comment exécuter
 
 ```bash
-npm install
-npm test            # Vitest, API, 54 tests
-npm run typecheck   # TypeScript strict (API + front)
-npm run build       # compilation API + front
+npm ci
+npm run typecheck   # TypeScript strict (API + interface)
+npm test            # Vitest, 77 tests
+npm run build       # compilation API + interface
+npm run verify      # les trois ci-dessus
 ```
 
-Les tests utilisent **PGlite** : le véritable moteur PostgreSQL compilé en WebAssembly,
-exécuté en mémoire. Aucun service externe, aucun conteneur, aucune installation de PostgreSQL
-n'est nécessaire — les tests sont donc **reproductibles** sur un poste ou en CI.
-Les migrations et les triggers PL/pgSQL sont réellement exécutés.
+Les tests s'exécutent par défaut sur **PGlite** : le véritable moteur PostgreSQL compilé en
+WebAssembly, exécuté en mémoire. Aucun service externe, aucun conteneur, aucune installation de
+PostgreSQL n'est nécessaire. Les migrations et les triggers PL/pgSQL sont réellement exécutés.
 
-> Un job CI séparé exécute en plus les migrations et le seed contre un **vrai serveur
-> PostgreSQL 16** (service container GitHub Actions), pour valider la compatibilité serveur.
+Deux tâches CI complètent ce dispositif :
 
-## 2. Résultat global
+- `API tests against real PostgreSQL` : la **même** suite tourne sur PostgreSQL 16, ce qui
+  active en plus les 4 tests de concurrence (`TEST_DATABASE_URL`) ;
+- `Migrations against real PostgreSQL` : migrations rejouées deux fois (idempotence), seed,
+  vérifications `psql`.
+
+## 2. Résultat global (exécution locale, PGlite)
 
 | Suite | Fichier | Tests | Résultat |
 |---|---|---|---|
-| Arithmétique monétaire et dates | `tests/money.test.ts` | 7 | ✅ |
+| Arithmétique monétaire, taux inverses, dates | `tests/money.test.ts` | 9 | ✅ |
 | Migrations PostgreSQL | `tests/migrations.test.ts` | 6 | ✅ |
 | Authentification / autorisation / langue | `tests/auth.test.ts` | 9 | ✅ |
-| Sociétés et isolation | `tests/companies.test.ts` | 7 | ✅ |
+| Sociétés et isolation | `tests/companies.test.ts` | 6 | ✅ |
 | Plan comptable | `tests/accounts.test.ts` | 4 | ✅ |
 | Écritures, contrôles, multidevise | `tests/entries.test.ts` | 12 | ✅ |
-| Grand livre, balance, états financiers | `tests/reports.test.ts` | 11 | ✅ |
-| **Total** | | **54** | **✅ 54/54** |
+| Grand livre, balance, états financiers | `tests/reports.test.ts` | 10 | ✅ |
+| **Non-régressions V0.1.1** | `tests/regressions.test.ts` | **17** | ✅ |
+| Concurrence (PostgreSQL requis) | `tests/concurrency.test.ts` | 4 | ⏭️ ignorés sur PGlite |
+| **Total** | | **77** | **73 ✅ / 4 ⏭️** |
 
-Durée observée : ~13 s sur un environnement de CI standard.
+Durée observée : ~12 s (PGlite), sur un environnement de CI standard.
 
-## 3. Couverture des tests prioritaires du cahier des charges
+Sur PostgreSQL réel : **77/77**, dont les 4 tests de concurrence.
+
+## 3. Couverture des priorités du cahier des charges
 
 | # | Priorité demandée | Test(s) |
 |---|---|---|
-| 1 | Création d'une société fictive | `companies > creates a fictitious Mauritius company…` (plan comptable + 5 journaux + période vérifiés) |
-| 2 | Isolation entre deux sociétés | `companies > strictly isolates two companies` ; `migrations > prevents cross-company account references` |
-| 3 | Création de comptes | `accounts > creates, updates and deactivates a custom account` |
-| 4 | Écriture équilibrée | `entries > creates a balanced posted entry` |
-| 5 | Rejet d'une écriture déséquilibrée | `entries > rejects an unbalanced posted entry`, `> allows an unbalanced draft but refuses to post it`, `migrations > rejects a posted entry that is not balanced at the database level` |
-| 6 | Protection des écritures validées | `entries > protects posted entries from modification and deletion` (API 409 **et** triggers PostgreSQL), `> reverses a posted entry…` |
-| 7 | Génération du grand livre | `reports > generates a general ledger with running balances`, `> filters the ledger by account and period` |
-| 8 | Génération de la balance | `reports > generates a balanced trial balance…`, `> computes opening balances for a later period` |
-| 9 | Contrôle débit/crédit | `reports > …` (égalité des totaux) + `migrations` (trigger) |
-| 10 | Changement de langue | `auth > localises API errors in French and English`, `> switches the user locale (FR -> EN)…` |
-| 11 | Accès non autorisés | `auth > rejects unauthenticated access…`, `> enforces role based authorisation…`, `> blocks cross-site state changing requests`, `companies > strictly isolates two companies` |
-| 12 | Tests de migrations PostgreSQL | `migrations` (application, idempotence, checksums, tables, contraintes) + job CI PostgreSQL |
+| 1 | Équilibre débit/crédit | `entries.test.ts` (rejet d'écriture déséquilibrée), contrainte différée |
+| 2 | Précision et arrondi des montants | `money.test.ts`, `regressions.test.ts` (4 décimales max, arrondi à zéro refusé) |
+| 3 | Numérotation | `entries.test.ts`, `regressions.test.ts` (renumérotation), `concurrency.test.ts` (8 créations parallèles) |
+| 4 | Unicité des références | `regressions.test.ts` (doublon, casse, autre société), `concurrency.test.ts` |
+| 5 | Modification des brouillons | `regressions.test.ts` (devise, journal, exercice) |
+| 6 | Immutabilité des écritures validées | `entries.test.ts`, `regressions.test.ts` (DELETE SQL direct refusé) |
+| 7 | Contrepassations | `entries.test.ts`, `regressions.test.ts` (double contrepassation), `concurrency.test.ts` |
+| 8 | Périodes, clôture, réouverture | `entries.test.ts`, `regressions.test.ts` (société sans plan comptable) |
+| 9 | Soldes, grand livre, balance, états | `reports.test.ts`, `regressions.test.ts` (bilan équilibré en milieu d'historique, comptes désactivés) |
+| 10 | Devises | `entries.test.ts`, `regressions.test.ts` (devise inconnue, taux obligatoire, taux inverse exact) |
+| 11 | Traçabilité | `entries.test.ts` (audit), `regressions.test.ts` (journal append-only) |
+| 12 | Isolation multi-société | `companies.test.ts`, `regressions.test.ts` (trigger société sur pièces jointes) |
+| 13 | Migrations PostgreSQL | `migrations.test.ts`, CI « migrations » (double exécution) |
+| 14 | Sécurité | `auth.test.ts` (401/403, rôles, langue), `regressions.test.ts` (sessions invalidées, signature de fichier) |
+| 15 | Interface / langue / exports | `reports.test.ts` (CSV, PDF, langue), tests navigateur **fournis mais non exécutés** |
 
-## 4. Tests complémentaires
+## 4. Tests de non-régression V0.1.1 (17)
 
-- **Multidevise** : taux obligatoire (`EXCHANGE_RATE_REQUIRED`), conversion correcte
-  (1 000 EUR × 48,50 = 48 500 MUR), conservation du montant d'origine (`txn_amount`),
-  du taux (`fx_rate`) et de la devise.
-- **Périodes** : refus d'écriture sur période clôturée, refus hors période ouverte,
-  clôture/réouverture (rôle owner).
-- **Numérotation** : séquence par société/journal/année, sans doublon.
-- **Audit** : présence des actions `company.create`, `entry.create_posted`, `entry.post`,
-  `entry.reverse`, `period.close`, `exchange_rate.create`.
-- **Exports** : mention « DEMONSTRATION » dans le CSV, en-tête `%PDF-` et taille du PDF.
-- **ASI/CSRF** : `Origin` non autorisée ⇒ 403.
-- **Monnaie** : `0.1 + 0.2 = 0.3` exact, arrondis half-away-from-zero à 4 décimales,
-  taux à 8 décimales.
+1. période comptable créée même sans plan comptable de démonstration ;
+2. renumérotation d'un brouillon changeant de journal/exercice ;
+3. taux obligatoire lors d'un passage en devise étrangère ;
+4. retour à la devise fonctionnelle sans taux ;
+5. devise non supportée refusée ;
+6. plus de 4 décimales refusées ;
+7. montant converti s'arrondissant à zéro refusé ;
+8. références uniques (insensible à la casse, par société) ;
+9. bilan équilibré lorsque la période commence en milieu d'historique ;
+10. comptes désactivés conservés dans le grand livre ;
+11. neutralisation des formules dans les CSV ;
+12. double contrepassation refusée ;
+13. validation d'un brouillon avec compte désactivé refusée ;
+14. signature binaire des pièces jointes vérifiée + suppression du fichier avec le brouillon ;
+15. isolation société et append-only vérifiés directement en SQL ;
+16. invalidation des sessions après changement de mot de passe ;
+17. taux inverse exact (8 décimales) et taux invalide en HTTP 400.
 
-## 5. Ce qui n'est pas couvert (limites assumées)
+## 5. Tests de concurrence (PostgreSQL réel)
 
-| Sujet | Raison | Prévu |
-|---|---|---|
-| Tests end-to-end navigateur (Playwright) | Hors périmètre V0.1.0 | Mission 2 |
-| Tests de charge / performance | Volumes non connus | Mission 2 |
-| Tests d'accessibilité (WCAG) | Non instrumentés | Mission 2 |
-| Upload de fichier en test | Évité (écriture disque) ; la logique est testée manuellement | Mission 2 |
-| Génération de PDF en français | Testé en anglais (encodage WinAnsi) | Mission 2 (police embarquée) |
-| PostgreSQL réel | Exécuté en CI (job dédié) | Continu |
-
-## 6. Vérifications manuelles effectuées
-
-1. `npm run db:seed` crée la société fictive et 8 écritures (dont 1 brouillon et 1
-   contrepassation).
-2. Connexion via `curl` → cookie de session, `/api/companies` renvoie la société.
-3. `GET /reports/trial-balance?format=csv` → balance équilibrée, mention de démonstration.
-4. `GET /reports/ledger` → soldes progressifs cohérents.
-5. Démarrage simultané API (:3000) + interface Vite (:5173), proxy `/api` fonctionnel.
-6. Build de production (`npm run build`) sans erreur, TypeScript strict sans erreur.
-
-## 7. Journal des corrections notables pendant la mission
-
-| Problème détecté | Correction |
+| Test | Attendu |
 |---|---|
-| `rowCount` incorrect avec PGlite sur les `SELECT` | Comptage basé sur `rows.length` (compatibilité pg + PGlite) |
-| Dates PostgreSQL renvoyées comme objets `Date` | Parsers OID 1082/1184 → chaînes `YYYY-MM-DD` |
-| Précision des taux limitée à 4 décimales | Parsing des taux à 8 décimales (`parseRate`) |
-| Filtre de compte absent dans la requête de mouvements | Filtre appliqué à `journal_lines.account_id`, paramètres séparés |
-| Paramètre SQL non typé (`$1 IS NOT NULL`) | Cast explicite `$1::text` |
+| 8 écritures simultanées dans le même journal | 8 numéros distincts, format `SAL-AAAA-0001` |
+| 2 contrepassations simultanées | exactement une réussite (201), une en conflit (409), une seule ligne en base |
+| 2 écritures simultanées avec la même référence | une seule acceptée |
+| Balance après écritures parallèles | équilibrée |
+
+Ces tests sont **ignorés** lorsque `TEST_DATABASE_URL` n'est pas défini (PGlite est mono-connexion)
+et s'exécutent dans la tâche CI `postgres-tests`.
+
+## 6. Ce qui n'est PAS testé (limites assumées)
+
+- **Aucun test navigateur exécuté** : environnement sans Chromium (voir `docs/browser-tests.md`).
+  Les 10 scénarios Playwright sont fournis, non exécutés, donc **non validés**.
+- Pas de test de charge ni de test de montée en charge.
+- Pas de test d'accessibilité automatisé (WCAG) — seule une revue manuelle des modales/navigation.
+- Pas de test de restitution après sinistre (sauvegarde/restauration) : procédure documentée
+  seulement.
