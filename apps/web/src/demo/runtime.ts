@@ -36,7 +36,7 @@ import { handleDemoBank, seedDemoBank } from './bank';
 import { handleDemoPurchases, seedDemoPurchases } from './purchases';
 import { handleDemoLettering, seedDemoLettering } from './lettering';
 import { handleDemoFx, seedDemoFx } from './fx';
-import { handleDemoPayroll, payrollCsv, payrollReturnCsv, demoDeclarationCsv, seedDemoPayroll } from './payroll';
+import { handleDemoPayroll, payrollCsv, payrollReturnCsv, demoDeclarationCsv, demoAccountingTransferCsv, seedDemoPayroll } from './payroll';
 import {
   IMPORT_FIELDS,
   IMPORT_KIND_LABELS,
@@ -1174,10 +1174,15 @@ function seedState(): DemoState {
   const minimalChart: [string, string, DemoAccount['type']][] = [
     ['1010', 'Banque (MUR)', 'asset'],
     ['2010', 'Fournisseurs', 'liability'],
+    ['2210', 'Salaires nets à payer (démo)', 'liability'],
+    ['2220', 'PAYE à payer (démo)', 'liability'],
+    ['2230', 'CSG, NSF et levy à payer (démo)', 'liability'],
     ['3010', 'Capital social', 'equity'],
     ['4000', 'Ventes', 'revenue'],
     ['5000', 'Achats', 'expense'],
     ['6010', 'Charges externes', 'expense'],
+    ['6020', 'Charges de personnel (démo)', 'expense'],
+    ['6030', 'Charges sociales patronales (démo)', 'expense'],
   ];
 
   const extraCompanies: DemoCompany[] = [];
@@ -1845,7 +1850,7 @@ function seedState(): DemoState {
   });
 
   const seeded: DemoState = {
-    schema: 11,
+    schema: 12,
     users: [demoUser, ...collaborators],
     session: null,
     companies: [company, ...extraCompanies],
@@ -1956,7 +1961,7 @@ export function loadState(): DemoState {
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as DemoState;
-        if (parsed && parsed.schema === 11) {
+        if (parsed && parsed.schema === 12) {
           state = parsed;
           return state;
         }
@@ -8277,6 +8282,29 @@ export function demoCsv(path: string, format: 'csv' | 'pdf'): { text?: string; m
     );
     if (!declaration) throw new Error('PAYROLL_DECLARATION_NOT_FOUND');
     return { text: demoDeclarationCsv(declaration), mode: 'download' };
+  }
+  const transferMatch = /^\/companies\/([0-9a-f-]{36})\/payroll\/accounting-transfers\/([0-9a-f-]{36})\/csv$/.exec(base ?? '');
+  if (transferMatch) {
+    const state = loadState();
+    if (!user) throw new Error('UNAUTHORIZED');
+    const companyId = transferMatch[1]!;
+    if (!state.members.some((member) => member.user_id === user.id && member.company_id === companyId)) {
+      throw new Error('FORBIDDEN');
+    }
+    const transfer = ((state as any).payroll?.accountingTransfers ?? []).find(
+      (t: any) => t.id === transferMatch[2] && t.company_id === companyId,
+    );
+    if (!transfer) throw new Error('PAYROLL_TRANSFER_NOT_FOUND');
+    return {
+      text: demoAccountingTransferCsv({
+        ...transfer, periodId: transfer.period_id, mappingVersion: transfer.mapping_version,
+        sourceFingerprint: transfer.source_fingerprint, calculationIds: transfer.calculation_ids,
+        createdAt: transfer.created_at, createdByName: transfer.created_by_name,
+        decisionNote: transfer.decision_note, rejectionReason: transfer.rejection_reason,
+        postedEntryId: transfer.posted_entry_id,
+      }),
+      mode: 'download',
+    };
   }
   return { text: exportCsv(base ?? '', query, user?.locale ?? 'fr'), mode: 'download' };
 }

@@ -124,6 +124,44 @@ describe('paie & RH (interface démonstration)', () => {
     expect(await screen.findByText('DEMO-ERN-0016')).toBeTruthy();
   });
 
+  it('prépare un transfert comptable équilibré, l’approuve pour test et n’affiche aucun bouton de comptabilisation actif', async () => {
+    await login();
+    const companySelect = screen.getByRole('combobox', { name: /Société/i }) as HTMLSelectElement;
+    const option = [...companySelect.options].find((item) => /Mauritius Demo Services/i.test(item.textContent ?? ''));
+    fireEvent.change(companySelect, { target: { value: option!.value } });
+    window.location.hash = '#/payroll/transfer';
+    await screen.findByRole('heading', { name: /Paie & RH/i });
+    expect(await screen.findByText(/Proposition comptable préparée depuis/i)).toBeTruthy();
+    expect((await screen.findAllByText(/6020 — Charges de personnel/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/32[\s\u00a0\u202f]756,325 MUR/)).length).toBeGreaterThan(0);
+    expect(await screen.findByText(/Le débit est exactement égal au crédit/)).toBeTruthy();
+    const generate = screen.getByRole('button', { name: /Générer une proposition/i }) as HTMLButtonElement;
+    expect(generate.disabled).toBe(false);
+    fireEvent.click(generate);
+    expect(await screen.findByText(/Proposition générée/i)).toBeTruthy();
+    expect(await screen.findByText('v1')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Détail/i }));
+    expect(await screen.findByText(/Aucune écriture n’est créée par cette interface/i)).toBeTruthy();
+    expect(screen.getAllByText(/Comptabilisation définitive bloquée/i).length).toBeGreaterThan(0);
+    const post = screen.getByRole('button', { name: /Comptabiliser/i }) as HTMLButtonElement;
+    expect(post.disabled).toBe(true);
+    const approve = await screen.findByRole('button', { name: /Approuver pour test/i }) as HTMLButtonElement;
+    expect(approve.disabled).toBe(false);
+    fireEvent.click(approve);
+    const note = await screen.findByLabelText(/Note de décision/i);
+    const confirm = screen.getByLabelText(/Je confirme cette décision humaine/i);
+    fireEvent.change(note, { target: { value: 'Vérification fictive des totaux et des comptes.' } });
+    fireEvent.click(confirm);
+    const send = screen.getByRole('button', { name: /^Confirmer$/i }) as HTMLButtonElement;
+    expect(send.disabled).toBe(false);
+    fireEvent.click(send);
+    expect(await screen.findByText(/Proposition approuvée pour test\. Aucune écriture comptable/i)).toBeTruthy();
+    expect((await screen.findAllByText('Approuvé pour test')).length).toBeGreaterThan(0);
+    const exportButton = screen.getByRole('button', { name: /Exporter le CSV interne/i });
+    expect((exportButton as HTMLButtonElement).disabled).toBe(false);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('conserve des tableaux contenus et une mise en page mobile sans débordement horizontal', () => {
     const css = readFileSync(resolve(__dirname, '../src/styles.css'), 'utf8');
     expect(css).toMatch(/\.table-wrap[^}]*overflow-x: auto/s);

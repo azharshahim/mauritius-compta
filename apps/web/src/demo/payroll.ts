@@ -131,6 +131,39 @@ interface DemoPayslip {
   payslip_no: string; status: 'simulation'; version: number; snapshot: any; generated_at: string;
 }
 
+interface DemoPayrollMapping {
+  id: string; company_id: string; version: number; status: 'VALIDATED' | 'SUPERSEDED';
+  journal_id: string;
+  wages_expense_account_id: string;
+  employer_csg_expense_account_id: string;
+  employer_nsf_expense_account_id: string;
+  training_levy_expense_account_id: string;
+  paye_payable_account_id: string;
+  csg_employee_payable_account_id: string;
+  csg_employer_payable_account_id: string;
+  nsf_employee_payable_account_id: string;
+  nsf_employer_payable_account_id: string;
+  training_levy_payable_account_id: string;
+  net_payable_account_id: string;
+  other_deductions_payable_account_id: string | null;
+  reimbursements_account_id: string | null;
+  note: string | null; validated_at: string; validated_by_name: string | null;
+  superseded_at: string | null;
+}
+
+interface DemoAccountingTransfer {
+  id: string; company_id: string; period_id: string; version: number;
+  status: 'DRAFT' | 'BLOCKED' | 'REVIEW_REQUIRED' | 'APPROVED_FOR_TEST' | 'REJECTED' | 'POSTED';
+  mapping_id: string | null; mapping_version: number | null; journal_id: string | null;
+  currency: string; calculation_ids: string[]; source_fingerprint: string;
+  source_rules: any[]; totals: any; lines: any[]; checks: any[]; blockers: any[];
+  warnings: any[]; posting_blockers: any[]; can_post: boolean; note: string | null;
+  created_at: string; created_by_name: string | null;
+  decided_at: string | null; decided_by_name: string | null;
+  decision_note: string | null; rejection_reason: string | null;
+  posted_entry_id: string | null; posted_at: string | null;
+}
+
 interface DemoPayrollState {
   employees: DemoEmployee[];
   contracts: DemoContract[];
@@ -149,6 +182,8 @@ interface DemoPayrollState {
   sequences: Record<string, number>;
   edfDeclarations?: DemoEdf[];
   mraDeclarations?: DemoMraDeclaration[];
+  accountMappings?: DemoPayrollMapping[];
+  accountingTransfers?: DemoAccountingTransfer[];
 }
 
 const people: [string, string, string, string][] = [
@@ -296,13 +331,18 @@ export function seedDemoPayroll(state: DemoState): void {
   }];
   const demo: DemoPayrollState = {
     employees, contracts, events: [], payItems, assignments, time, holidays: [], absences, leaveRules: [],
-    rules, periods: [period], variables, calculations: [], payslips: [], sequences: {}, mraDeclarations: [],
+    rules, periods: [period], variables, calculations: [], payslips: [], sequences: {},
+    mraDeclarations: [], accountMappings: [], accountingTransfers: [],
   };
   demo.calculations = calculate(demo, companyId, period);
   demo.payslips = [payslipFor(demo, demo.calculations.find((c) => c.employee_number === 'A001')!, company)];
   demo.periods[0]!.status = demo.calculations.some((c) => c.status === 'rules_incomplete') ? 'blocked' : 'calculated';
   demo.edfDeclarations = [];
   (state as any).payroll = demo;
+  seedDemoPayrollAccounting(state, companyId, {
+    wages: '6000', employer: '6010', paye: '2300', social: '2400',
+    net: '2100', other: '2100', reimbursements: '1150',
+  });
   seedMission16Payroll(state);
 }
 
@@ -435,6 +475,16 @@ export function seedMission16Payroll(state: DemoState): void {
   const daniel = calculated.find((c) => c.employee_number === 'MDS001');
   if (daniel) payroll.payslips.push(payslipFor(payroll, daniel, company));
   period.status = calculated.some((c) => c.status === 'rules_incomplete') ? 'blocked' : 'calculated';
+  if (!state.periods.some((p) => p.company_id === company.id && p.start_date <= '2026-10-31' && p.end_date >= '2026-10-31')) {
+    state.periods.push({
+      id: uid(), company_id: company.id, name: 'FY 2026/2027 (fictif)',
+      start_date: '2026-07-01', end_date: '2027-06-30', status: 'open',
+    });
+  }
+  seedDemoPayrollAccounting(state, company.id, {
+    wages: '6020', employer: '6030', paye: '2220', social: '2230',
+    net: '2210', other: '2210', reimbursements: '6020',
+  });
 }
 
 function periodBounds(year: number, month: number) {
@@ -679,6 +729,495 @@ function payslipFor(payroll: DemoPayrollState, calculation: DemoCalculation, com
   };
 }
 
+const mappingFields = [
+  { key: 'wagesExpense', field: 'wages_expense_account_id', input: 'wagesExpenseAccountId', required: true },
+  { key: 'employerCsgExpense', field: 'employer_csg_expense_account_id', input: 'employerCsgExpenseAccountId', required: true },
+  { key: 'employerNsfExpense', field: 'employer_nsf_expense_account_id', input: 'employerNsfExpenseAccountId', required: true },
+  { key: 'trainingLevyExpense', field: 'training_levy_expense_account_id', input: 'trainingLevyExpenseAccountId', required: true },
+  { key: 'payePayable', field: 'paye_payable_account_id', input: 'payePayableAccountId', required: true },
+  { key: 'csgEmployeePayable', field: 'csg_employee_payable_account_id', input: 'csgEmployeePayableAccountId', required: true },
+  { key: 'csgEmployerPayable', field: 'csg_employer_payable_account_id', input: 'csgEmployerPayableAccountId', required: true },
+  { key: 'nsfEmployeePayable', field: 'nsf_employee_payable_account_id', input: 'nsfEmployeePayableAccountId', required: true },
+  { key: 'nsfEmployerPayable', field: 'nsf_employer_payable_account_id', input: 'nsfEmployerPayableAccountId', required: true },
+  { key: 'trainingLevyPayable', field: 'training_levy_payable_account_id', input: 'trainingLevyPayableAccountId', required: true },
+  { key: 'netPayable', field: 'net_payable_account_id', input: 'netPayableAccountId', required: true },
+  { key: 'otherDeductionsPayable', field: 'other_deductions_payable_account_id', input: 'otherDeductionsPayableAccountId', required: false },
+  { key: 'reimbursements', field: 'reimbursements_account_id', input: 'reimbursementsAccountId', required: false },
+] as const;
+
+const mappingLabels = [
+  ['wagesExpense', 'Gross remuneration expense', 'Charge de rémunérations brutes'],
+  ['employerCsgExpense', 'Employer CSG expense', 'Charge patronale CSG'],
+  ['employerNsfExpense', 'Employer NSF expense', 'Charge patronale NSF'],
+  ['trainingLevyExpense', 'Training Levy expense', 'Charge Training Levy'],
+  ['payePayable', 'PAYE payable', 'PAYE à payer'],
+  ['csgEmployeePayable', 'Employee CSG payable', 'CSG salarié à payer'],
+  ['csgEmployerPayable', 'Employer CSG payable', 'CSG employeur à payer'],
+  ['nsfEmployeePayable', 'Employee NSF payable', 'NSF salarié à payer'],
+  ['nsfEmployerPayable', 'Employer NSF payable', 'NSF employeur à payer'],
+  ['trainingLevyPayable', 'Training Levy payable', 'Training Levy à payer'],
+  ['netPayable', 'Net wages payable', 'Salaires nets à payer'],
+  ['otherDeductionsPayable', 'Other deductions payable', 'Autres retenues à payer'],
+  ['reimbursements', 'Reimbursements', 'Remboursements'],
+] as const;
+
+const demoFingerprint = (value: string): string => {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x01000193;
+  for (let i = 0; i < value.length; i += 1) {
+    const c = value.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 0x01000193) >>> 0;
+    h2 = Math.imul(h2 ^ c, 0x85ebca6b) >>> 0;
+  }
+  return `${h1.toString(16).padStart(8, '0')}${h2.toString(16).padStart(8, '0')}`;
+};
+
+const demoAccountView = (state: DemoState, companyId: string, id: string | null) => {
+  if (!id) return null;
+  const account = state.accounts.find((a) => a.id === id && a.company_id === companyId);
+  return account
+    ? { id: account.id, code: account.code, name: account.name, type: account.type, isActive: account.is_active }
+    : null;
+};
+
+function seedDemoPayrollAccounting(
+  state: DemoState,
+  companyId: string,
+  codes: { wages: string; employer: string; paye: string; social: string; net: string; other: string; reimbursements: string },
+) {
+  const payroll = (state as any).payroll as DemoPayrollState | undefined;
+  if (!payroll) return;
+  if ((payroll.accountMappings ?? []).some((mapping) => mapping.company_id === companyId)) return;
+  const byCode = (code: string) => state.accounts.find((a) => a.company_id === companyId && a.code === code)?.id;
+  const journal = state.journals.find((j) => j.company_id === companyId && j.code === 'OD')
+    ?? state.journals.find((j) => j.company_id === companyId);
+  const accounts = {
+    wages: byCode(codes.wages), employer: byCode(codes.employer), paye: byCode(codes.paye),
+    social: byCode(codes.social), net: byCode(codes.net), other: byCode(codes.other),
+    reimbursements: byCode(codes.reimbursements),
+  };
+  if (!journal || Object.values(accounts).some((id) => !id)) return;
+  payroll.accountMappings ??= [];
+  payroll.accountingTransfers ??= [];
+  payroll.accountMappings.push({
+    id: uid(), company_id: companyId, version: 1, status: 'VALIDATED', journal_id: journal.id,
+    wages_expense_account_id: accounts.wages!,
+    employer_csg_expense_account_id: accounts.employer!,
+    employer_nsf_expense_account_id: accounts.employer!,
+    training_levy_expense_account_id: accounts.employer!,
+    paye_payable_account_id: accounts.paye!,
+    csg_employee_payable_account_id: accounts.social!,
+    csg_employer_payable_account_id: accounts.social!,
+    nsf_employee_payable_account_id: accounts.social!,
+    nsf_employer_payable_account_id: accounts.social!,
+    training_levy_payable_account_id: accounts.social!,
+    net_payable_account_id: accounts.net!,
+    other_deductions_payable_account_id: accounts.other!,
+    reimbursements_account_id: accounts.reimbursements!,
+    note: 'Correspondances fictives de démonstration, validées pour test.',
+    validated_at: now(), validated_by_name: state.users[0]?.full_name ?? 'Démonstration',
+    superseded_at: null,
+  });
+}
+
+function demoMappingView(state: DemoState, companyId: string, mapping: DemoPayrollMapping | null) {
+  if (!mapping) return null;
+  const journal = state.journals.find((j) => j.id === mapping.journal_id && j.company_id === companyId);
+  return {
+    id: mapping.id, version: mapping.version, status: mapping.status,
+    journalId: mapping.journal_id,
+    journal: journal ? { id: journal.id, code: journal.code, name: journal.name, isActive: journal.is_active } : null,
+    accounts: Object.fromEntries(mappingFields.map((field) => [
+      field.key, demoAccountView(state, companyId, (mapping as any)[field.field] ?? null),
+    ])),
+    note: mapping.note, validatedAt: mapping.validated_at,
+    validatedByName: mapping.validated_by_name, supersededAt: mapping.superseded_at,
+  };
+}
+
+function demoMappingConfig(state: DemoState, companyId: string) {
+  const payroll = asState(state, companyId);
+  const mappings = payroll.accountMappings ?? [];
+  const current = mappings.find((mapping) => mapping.company_id === companyId && mapping.status === 'VALIDATED') ?? null;
+  return {
+    mapping: demoMappingView(state, companyId, current),
+    mappingHistory: mappings.filter((mapping) => mapping.company_id === companyId)
+      .sort((a, b) => b.version - a.version)
+      .map((mapping) => ({
+        id: mapping.id, version: mapping.version, status: mapping.status,
+        validated_at: mapping.validated_at, superseded_at: mapping.superseded_at,
+        validated_by_name: mapping.validated_by_name,
+      })),
+    accounts: state.accounts.filter((account) => account.company_id === companyId)
+      .map((account) => ({
+        id: account.id, code: account.code, name: account.name, type: account.type,
+        isActive: account.is_active,
+      })),
+    journals: state.journals.filter((journal) => journal.company_id === companyId)
+      .map((journal) => ({ id: journal.id, code: journal.code, name: journal.name, isActive: journal.is_active })),
+    requiredFields: mappingLabels.map(([key, labelEn, labelFr]) => ({
+      key, labelEn, labelFr, required: !['otherDeductionsPayable', 'reimbursements'].includes(key),
+    })),
+    notice: 'Les comptes proviennent du plan comptable de la société. Aucun numéro de compte obligatoire n’est imposé.',
+    noticeEn: 'Accounts come from the company chart of accounts. No mandatory account number is imposed.',
+  };
+}
+
+function demoSaveMapping(state: DemoState, companyId: string, payload: any) {
+  if (payload.confirm !== true) throw new ApiError(400, 'PAYROLL_MAPPING_CONFIRMATION_REQUIRED', 'Confirmation explicite requise');
+  const payroll = asState(state, companyId);
+  const ids: string[] = [];
+  for (const field of mappingFields) {
+    const value = payload[field.input];
+    if (field.required && !value) {
+      throw new ApiError(400, 'PAYROLL_MAPPING_INCOMPLETE', `Compte manquant : ${field.key}`);
+    }
+    if (value) ids.push(String(value));
+  }
+  const accounts = state.accounts.filter((account) =>
+    account.company_id === companyId && ids.includes(account.id));
+  if (accounts.length !== new Set(ids).size) {
+    throw new ApiError(404, 'ACCOUNT_NOT_FOUND', 'Un compte n’appartient pas à cette société');
+  }
+  if (accounts.some((account) => !account.is_active)) {
+    throw new ApiError(400, 'PAYROLL_MAPPING_ACCOUNT_INACTIVE', 'Un compte inactif ne peut pas être mappé');
+  }
+  const journal = state.journals.find((j) => j.id === payload.journalId && j.company_id === companyId);
+  if (!journal) throw new ApiError(404, 'JOURNAL_NOT_FOUND', 'Journal introuvable');
+  if (!journal.is_active) throw new ApiError(400, 'PAYROLL_MAPPING_JOURNAL_INACTIVE', 'Journal inactif');
+  payroll.accountMappings ??= [];
+  for (const mapping of payroll.accountMappings) {
+    if (mapping.company_id === companyId && mapping.status === 'VALIDATED') {
+      mapping.status = 'SUPERSEDED';
+      mapping.superseded_at = now();
+    }
+  }
+  const version = Math.max(0, ...payroll.accountMappings.filter((m) => m.company_id === companyId).map((m) => m.version)) + 1;
+  const mapping: DemoPayrollMapping = {
+    id: uid(), company_id: companyId, version, status: 'VALIDATED', journal_id: journal.id,
+    wages_expense_account_id: payload.wagesExpenseAccountId,
+    employer_csg_expense_account_id: payload.employerCsgExpenseAccountId,
+    employer_nsf_expense_account_id: payload.employerNsfExpenseAccountId,
+    training_levy_expense_account_id: payload.trainingLevyExpenseAccountId,
+    paye_payable_account_id: payload.payePayableAccountId,
+    csg_employee_payable_account_id: payload.csgEmployeePayableAccountId,
+    csg_employer_payable_account_id: payload.csgEmployerPayableAccountId,
+    nsf_employee_payable_account_id: payload.nsfEmployeePayableAccountId,
+    nsf_employer_payable_account_id: payload.nsfEmployerPayableAccountId,
+    training_levy_payable_account_id: payload.trainingLevyPayableAccountId,
+    net_payable_account_id: payload.netPayableAccountId,
+    other_deductions_payable_account_id: payload.otherDeductionsPayableAccountId ?? null,
+    reimbursements_account_id: payload.reimbursementsAccountId ?? null,
+    note: payload.note ?? null, validated_at: now(),
+    validated_by_name: state.users[0]?.full_name ?? 'Démonstration', superseded_at: null,
+  };
+  payroll.accountMappings.push(mapping);
+  return demoMappingView(state, companyId, mapping);
+}
+
+const transferLineCategories = [
+  { category: 'grossWages', mapping: 'wagesExpense', side: 'debit', amount: 'gross', labelEn: 'Gross remuneration', labelFr: 'Rémunérations brutes' },
+  { category: 'reimbursements', mapping: 'reimbursements', side: 'debit', amount: 'reimbursements', labelEn: 'Reimbursements', labelFr: 'Remboursements' },
+  { category: 'employerCsg', mapping: 'employerCsgExpense', side: 'debit', amount: 'csgEmployer', labelEn: 'Employer CSG', labelFr: 'CSG employeur' },
+  { category: 'employerNsf', mapping: 'employerNsfExpense', side: 'debit', amount: 'nsfEmployer', labelEn: 'Employer NSF', labelFr: 'NSF employeur' },
+  { category: 'trainingLevyExpense', mapping: 'trainingLevyExpense', side: 'debit', amount: 'trainingLevy', labelEn: 'Training Levy expense', labelFr: 'Charge Training Levy' },
+  { category: 'payePayable', mapping: 'payePayable', side: 'credit', amount: 'paye', labelEn: 'PAYE withheld', labelFr: 'PAYE retenu' },
+  { category: 'csgEmployeePayable', mapping: 'csgEmployeePayable', side: 'credit', amount: 'csgEmployee', labelEn: 'Employee CSG withheld', labelFr: 'CSG salarié retenue' },
+  { category: 'csgEmployerPayable', mapping: 'csgEmployerPayable', side: 'credit', amount: 'csgEmployer', labelEn: 'Employer CSG payable', labelFr: 'CSG employeur à payer' },
+  { category: 'nsfEmployeePayable', mapping: 'nsfEmployeePayable', side: 'credit', amount: 'nsfEmployee', labelEn: 'Employee NSF withheld', labelFr: 'NSF salarié retenue' },
+  { category: 'nsfEmployerPayable', mapping: 'nsfEmployerPayable', side: 'credit', amount: 'nsfEmployer', labelEn: 'Employer NSF payable', labelFr: 'NSF employeur à payer' },
+  { category: 'trainingLevyPayable', mapping: 'trainingLevyPayable', side: 'credit', amount: 'trainingLevy', labelEn: 'Training Levy payable', labelFr: 'Training Levy à payer' },
+  { category: 'otherDeductions', mapping: 'otherDeductionsPayable', side: 'credit', amount: 'otherDeductions', labelEn: 'Other deductions payable', labelFr: 'Autres retenues à payer' },
+  { category: 'netPayable', mapping: 'netPayable', side: 'credit', amount: 'netAfterStatutory', labelEn: 'Net wages payable', labelFr: 'Salaires nets à payer' },
+] as const;
+
+function demoAccountingPreview(state: DemoState, companyId: string, periodId: string) {
+  const payroll = asState(state, companyId);
+  const company = state.companies.find((c) => c.id === companyId);
+  if (!company) throw new ApiError(404, 'COMPANY_NOT_FOUND', 'Société introuvable');
+  const period = payroll.periods.find((p) => p.id === periodId && p.company_id === companyId);
+  if (!period) throw new ApiError(404, 'PAYROLL_PERIOD_NOT_FOUND', 'Période introuvable');
+  const latest = new Map<string, DemoCalculation>();
+  for (const calculation of payroll.calculations.filter((c) => c.period_id === period.id && c.company_id === companyId)) {
+    const current = latest.get(calculation.employee_id);
+    if (!current || calculation.version > current.version) latest.set(calculation.employee_id, calculation);
+  }
+  const calculations = [...latest.values()].sort((a, b) => a.employee_number.localeCompare(b.employee_number));
+  const mappings = payroll.accountMappings ?? [];
+  const mappingRow = mappings.find((m) => m.company_id === companyId && m.status === 'VALIDATED') ?? null;
+  const mapping = demoMappingView(state, companyId, mappingRow);
+  const accounts = (mapping?.accounts ?? {}) as Record<string, any>;
+  const rows = calculations.map((calc) => {
+    const gross = money(calc.gross);
+    const deductions = money(calc.deductions);
+    const net = money(calc.net_arithmetic);
+    return { calc, gross, deductions, net, reimbursements: net - gross + deductions };
+  });
+  const sum = (values: bigint[]) => values.reduce((total, value) => total + value, 0n);
+  const sumNullable = (values: (bigint | null)[]) =>
+    values.some((v) => v === null) ? null : sum(values as bigint[]);
+  const gross = sum(rows.map((row) => row.gross));
+  const otherDeductions = sum(rows.map((row) => row.deductions));
+  const reimbursements = sum(rows.map((row) => row.reimbursements));
+  const netArithmetic = sum(rows.map((row) => row.net));
+  const paye = sumNullable(calculations.map((c) => c.paye === null ? null : money(c.paye)));
+  const csgEmployee = sumNullable(calculations.map((c) => c.csg_employee === null || c.csg_employee === undefined ? null : money(c.csg_employee)));
+  const csgEmployer = sumNullable(calculations.map((c) => c.csg_employer === null || c.csg_employer === undefined ? null : money(c.csg_employer)));
+  const nsfEmployee = sumNullable(calculations.map((c) => c.nsf_employee === null || c.nsf_employee === undefined ? null : money(c.nsf_employee)));
+  const nsfEmployer = sumNullable(calculations.map((c) => c.nsf_employer === null || c.nsf_employer === undefined ? null : money(c.nsf_employer)));
+  const trainingLevy = sumNullable(calculations.map((c) => c.training_levy === null || c.training_levy === undefined ? null : money(c.training_levy)));
+  const employeeStatutory = sumNullable([paye, csgEmployee, nsfEmployee]);
+  const employerContributions = sumNullable([csgEmployer, nsfEmployer, trainingLevy]);
+  const netAfterStatutory = employeeStatutory === null ? null : netArithmetic - employeeStatutory;
+  const employerCost = employerContributions === null ? null : gross + reimbursements + employerContributions;
+  const blocked = calculations.filter((c) => c.status === 'rules_incomplete' || (c.missing_rules?.length ?? 0) > 0);
+  const nullStatutory = calculations.filter((c) =>
+    [c.paye, c.csg_employee, c.csg_employer, c.nsf_employee, c.nsf_employer, c.training_levy]
+      .some((value) => value === null || value === undefined));
+  const accountingPeriod = state.periods.find((p) =>
+    p.company_id === companyId && p.status === 'open' &&
+    p.start_date <= (period.payment_date ?? period.end_date) && p.end_date >= (period.payment_date ?? period.end_date));
+  const journal = mapping?.journal;
+  const mappingMissing = !mapping;
+  const inactive = mapping
+    ? mappingFields.flatMap((field) => {
+        const account = accounts[field.key];
+        if (!account) return field.required ? [field.key] : [];
+        return account.isActive ? [] : [field.key];
+      })
+    : [];
+  const needsOther = otherDeductions > 0n;
+  const needsReimb = reimbursements > 0n;
+  const checks: any[] = [
+    { code: 'COMPANY_ISOLATION', severity: 'ok', scope: 'internal', messageEn: 'All rows are restricted to this company.', messageFr: 'Toutes les lignes sont limitées à cette société.' },
+    calculations.length > 0
+      ? { code: 'CALCULATIONS_PRESENT', severity: 'ok', scope: 'internal', messageEn: `${calculations.length} latest calculation(s) loaded.`, messageFr: `${calculations.length} dernier(s) calcul(s) chargé(s).` }
+      : { code: 'CALCULATIONS_MISSING', severity: 'block', scope: 'internal', messageEn: 'No payroll calculation exists for this period.', messageFr: 'Aucun calcul de paie n’existe pour cette période.' },
+    calculations.every((c) => c.currency === 'MUR') && company.functional_currency === 'MUR'
+      ? { code: 'CURRENCY_MUR', severity: 'ok', scope: 'internal', messageEn: 'Every calculation and the company use MUR.', messageFr: 'Chaque calcul et la société sont en MUR.' }
+      : { code: 'CURRENCY_NOT_MUR', severity: 'block', scope: 'internal', messageEn: 'The transfer requires MUR.', messageFr: 'Le transfert exige le MUR.' },
+    blocked.length === 0
+      ? { code: 'CALCULATIONS_COMPLETE', severity: 'ok', scope: 'internal', messageEn: 'No calculation is blocked.', messageFr: 'Aucun calcul n’est bloqué.' }
+      : { code: 'CALCULATIONS_INCOMPLETE', severity: 'block', scope: 'internal', messageEn: 'A calculation is blocked by missing rules.', messageFr: 'Un calcul est bloqué par des règles manquantes.' },
+    nullStatutory.length === 0
+      ? { code: 'STATUTORY_VALUES_PRESENT', severity: 'ok', scope: 'internal', messageEn: 'PAYE, CSG, NSF and levy are present.', messageFr: 'PAYE, CSG, NSF et levy sont présents.' }
+      : { code: 'STATUTORY_VALUES_NULL', severity: 'block', scope: 'internal', messageEn: 'A statutory amount is unknown; zero is never substituted.', messageFr: 'Un montant statutaire est inconnu ; zéro n’est jamais substitué.' },
+    rows.every((row) => row.reimbursements >= 0n)
+      ? { code: 'REIMBURSEMENTS_NON_NEGATIVE', severity: 'ok', scope: 'internal', messageEn: 'Reimbursements are non-negative.', messageFr: 'Les remboursements sont positifs ou nuls.' }
+      : { code: 'REIMBURSEMENTS_NEGATIVE', severity: 'block', scope: 'internal', messageEn: 'A negative reimbursement must be reviewed.', messageFr: 'Un remboursement négatif doit être revu.' },
+    mappingMissing
+      ? { code: 'ACCOUNT_MAPPING_MISSING', severity: 'block', scope: 'internal', messageEn: 'No validated mapping exists.', messageFr: 'Aucune correspondance validée n’existe.' }
+      : { code: 'ACCOUNT_MAPPING_PRESENT', severity: 'ok', scope: 'internal', messageEn: `Mapping version ${mapping!.version} is used.`, messageFr: `La version ${mapping!.version} est utilisée.` },
+    inactive.length === 0
+      ? { code: 'ACCOUNT_MAPPING_ACTIVE', severity: 'ok', scope: 'internal', messageEn: 'Every mapped account is active.', messageFr: 'Chaque compte mappé est actif.' }
+      : { code: 'ACCOUNT_MAPPING_INACTIVE', severity: 'block', scope: 'internal', messageEn: 'A mapped account is inactive or missing.', messageFr: 'Un compte mappé est inactif ou absent.' },
+    journal?.isActive
+      ? { code: 'JOURNAL_ACTIVE', severity: 'ok', scope: 'internal', messageEn: `Journal ${journal.code} is active.`, messageFr: `Le journal ${journal.code} est actif.` }
+      : { code: 'JOURNAL_INACTIVE', severity: 'block', scope: 'internal', messageEn: 'The mapped journal is missing or inactive.', messageFr: 'Le journal mappé est absent ou inactif.' },
+    accountingPeriod
+      ? { code: 'ACCOUNTING_PERIOD_OPEN', severity: 'ok', scope: 'internal', messageEn: 'An open accounting period covers the payment date.', messageFr: 'Une période comptable ouverte couvre la date de paiement.' }
+      : { code: 'ACCOUNTING_PERIOD_CLOSED', severity: 'block', scope: 'internal', messageEn: 'No open accounting period covers the payment date.', messageFr: 'Aucune période comptable ouverte ne couvre la date de paiement.' },
+    needsOther && !accounts.otherDeductionsPayable
+      ? { code: 'OTHER_DEDUCTIONS_MAPPING_MISSING', severity: 'block', scope: 'internal', messageEn: 'Other deductions have no payable account.', messageFr: 'Les autres retenues n’ont pas de compte de dette.' }
+      : { code: 'OTHER_DEDUCTIONS_MAPPED', severity: 'ok', scope: 'internal', messageEn: 'Other deductions are mapped or absent.', messageFr: 'Les autres retenues sont mappées ou absentes.' },
+    needsReimb && !accounts.reimbursements
+      ? { code: 'REIMBURSEMENTS_MAPPING_MISSING', severity: 'block', scope: 'internal', messageEn: 'Reimbursements have no account.', messageFr: 'Les remboursements n’ont pas de compte.' }
+      : { code: 'REIMBURSEMENTS_MAPPED', severity: 'ok', scope: 'internal', messageEn: 'Reimbursements are mapped or absent.', messageFr: 'Les remboursements sont mappés ou absents.' },
+  ];
+  const amounts: Record<string, bigint | null> = {
+    gross, reimbursements, csgEmployer, nsfEmployer, trainingLevy, paye,
+    csgEmployee, nsfEmployee, otherDeductions, netAfterStatutory,
+  };
+  let lineNo = 1;
+  const lines = transferLineCategories.flatMap((descriptor) => {
+    const amount = amounts[descriptor.amount];
+    if (amount === undefined || amount === null || amount <= 0n) return [];
+    const account = accounts[descriptor.mapping] ?? null;
+    return [{
+      lineNo: lineNo++, category: descriptor.category,
+      labelEn: descriptor.labelEn, labelFr: descriptor.labelFr,
+      accountId: account?.id ?? null, accountCode: account?.code ?? null,
+      accountName: account?.name ?? null, description: descriptor.labelEn,
+      debit: descriptor.side === 'debit' ? fmt(amount) : '0.0000',
+      credit: descriptor.side === 'credit' ? fmt(amount) : '0.0000',
+    }];
+  });
+  const debitTotal = sum(lines.map((line) => money(line.debit)));
+  const creditTotal = sum(lines.map((line) => money(line.credit)));
+  const difference = debitTotal - creditTotal;
+  if (lines.some((line) => !line.accountId)) {
+    checks.push({ code: 'ACCOUNT_MISSING_ON_LINE', severity: 'block', scope: 'internal', messageEn: 'A line has no mapped account.', messageFr: 'Une ligne n’a pas de compte mappé.' });
+  }
+  if (lines.length < 2) {
+    checks.push({ code: 'ENTRY_TOO_FEW_LINES', severity: 'block', scope: 'internal', messageEn: 'Fewer than two lines.', messageFr: 'Moins de deux lignes.' });
+  }
+  if (difference !== 0n) {
+    checks.push({ code: 'ENTRY_UNBALANCED', severity: 'block', scope: 'internal', messageEn: 'Debit and credit differ; no adjustment is created.', messageFr: 'Débit et crédit diffèrent ; aucun ajustement n’est créé.' });
+  } else {
+    checks.push({ code: 'ENTRY_BALANCED', severity: 'ok', scope: 'internal', messageEn: 'Debit equals credit exactly.', messageFr: 'Le débit est exactement égal au crédit.' });
+  }
+  checks.push({ code: 'RULES_NOT_EXPERT_VALIDATED', severity: 'warning', scope: 'internal', messageEn: 'Source rules are not expert-validated; this is a test preparation.', messageFr: 'Les règles source ne sont pas validées par un expert ; préparation de test.' });
+  const blockers = checks.filter((check) => check.severity === 'block');
+  const warnings = checks.filter((check) => check.severity === 'warning');
+  const postingChecks = [
+    { code: 'PAYROLL_RULES_NOT_EXPERT_VALIDATED', severity: 'block', scope: 'posting', messageEn: 'Definitive posting is blocked while payroll rules are not expert-validated.', messageFr: 'La comptabilisation définitive est bloquée tant que les règles de paie ne sont pas validées par un expert.' },
+    { code: 'PAYROLL_PERIOD_NOT_FINALISED', severity: 'block', scope: 'posting', messageEn: 'Definitive posting requires a finalised payroll period.', messageFr: 'La comptabilisation définitive exige une période de paie finalisée.' },
+    { code: 'PAYROLL_CALCULATIONS_NOT_APPROVED', severity: 'block', scope: 'posting', messageEn: 'Test calculations cannot be posted definitively.', messageFr: 'Des calculs de test ne peuvent pas être comptabilisés définitivement.' },
+  ];
+  const sourceFingerprint = demoFingerprint(calculations
+    .map((c) => `${c.id}:${c.version}:${c.input_hash}:${c.status}`).sort().join('|'));
+  return {
+    company: { id: company.id, name: company.name, functionalCurrency: company.functional_currency },
+    period: {
+      id: period.id, year: period.period_year, month: period.period_month,
+      start: period.start_date, end: period.end_date, paymentDate: period.payment_date,
+      status: period.status, label: `${String(period.period_month).padStart(2, '0')}/${period.period_year}`,
+    },
+    entryDate: period.payment_date ?? period.end_date,
+    employees: calculations.length, employeesActive: payroll.employees.filter((e) => e.company_id === companyId && e.employment_status !== 'terminated').length,
+    currency: 'MUR', mapping, calculationIds: calculations.map((c) => c.id),
+    sourceFingerprint, sourceRules: calculations.flatMap((c) => c.rules_applied ?? []),
+    lines,
+    totals: {
+      gross: fmt(gross), reimbursements: fmt(reimbursements), otherDeductions: fmt(otherDeductions),
+      employeeStatutoryDeductions: employeeStatutory === null ? null : fmt(employeeStatutory),
+      employeeDeductions: employeeStatutory === null ? null : fmt(employeeStatutory + otherDeductions),
+      employerContributions: employerContributions === null ? null : fmt(employerContributions),
+      netArithmetic: fmt(netArithmetic), netAfterStatutory: netAfterStatutory === null ? null : fmt(netAfterStatutory),
+      employerCost: employerCost === null ? null : fmt(employerCost),
+      debitTotal: fmt(debitTotal), creditTotal: fmt(creditTotal), difference: fmt(difference),
+    },
+    checks, blockers, warnings, postingChecks,
+    canGenerate: true, canApprove: blockers.length === 0, canPost: false, postingAllowed: false,
+    regulatoryStatus: 'SIMULATION_ONLY',
+    notice: 'Proposition comptable de simulation. Aucune écriture n’est créée avant une décision humaine et la comptabilisation définitive reste bloquée.',
+    noticeEn: 'Simulated accounting proposal. No entry is created before a human decision and definitive posting remains blocked.',
+  };
+}
+
+function demoTransferView(state: DemoState, companyId: string, transfer: DemoAccountingTransfer) {
+  return {
+    id: transfer.id, companyId, periodId: transfer.period_id, version: transfer.version,
+    status: transfer.status, mappingId: transfer.mapping_id, mappingVersion: transfer.mapping_version,
+    journalId: transfer.journal_id, currency: transfer.currency,
+    calculationIds: transfer.calculation_ids, sourceFingerprint: transfer.source_fingerprint,
+    sourceRules: transfer.source_rules, totals: transfer.totals, lines: transfer.lines,
+    checks: transfer.checks, blockers: transfer.blockers, warnings: transfer.warnings,
+    postingChecks: transfer.posting_blockers, canPost: transfer.can_post, note: transfer.note,
+    createdAt: transfer.created_at, createdByName: transfer.created_by_name,
+    decidedAt: transfer.decided_at, decidedByName: transfer.decided_by_name,
+    decisionNote: transfer.decision_note, rejectionReason: transfer.rejection_reason,
+    rejection_reason: transfer.rejection_reason, postedEntryId: transfer.posted_entry_id,
+    postedAt: transfer.posted_at,
+    regulatoryStatus: transfer.status === 'POSTED' ? 'POSTED' : 'SIMULATION_ONLY',
+  };
+}
+
+function demoGenerateTransfer(state: DemoState, companyId: string, periodId: string, note?: string | null) {
+  const payroll = asState(state, companyId);
+  const preview = demoAccountingPreview(state, companyId, periodId);
+  payroll.accountingTransfers ??= [];
+  const version = Math.max(0, ...payroll.accountingTransfers
+    .filter((t) => t.company_id === companyId && t.period_id === periodId).map((t) => t.version)) + 1;
+  const status = preview.blockers.length > 0 ? 'BLOCKED'
+    : preview.warnings.length > 0 ? 'REVIEW_REQUIRED' : 'DRAFT';
+  const transfer: DemoAccountingTransfer = {
+    id: uid(), company_id: companyId, period_id: periodId, version, status,
+    mapping_id: preview.mapping?.id ?? null, mapping_version: preview.mapping?.version ?? null,
+    journal_id: preview.mapping?.journalId ?? null, currency: preview.currency,
+    calculation_ids: preview.calculationIds, source_fingerprint: preview.sourceFingerprint,
+    source_rules: preview.sourceRules, totals: preview.totals, lines: preview.lines,
+    checks: preview.checks, blockers: preview.blockers, warnings: preview.warnings,
+    posting_blockers: preview.postingChecks, can_post: false,
+    note: note ?? null, created_at: now(), created_by_name: state.users[0]?.full_name ?? 'Démonstration',
+    decided_at: null, decided_by_name: null, decision_note: null, rejection_reason: null,
+    posted_entry_id: null, posted_at: null,
+  };
+  payroll.accountingTransfers.push(transfer);
+  return demoTransferView(state, companyId, transfer);
+}
+
+function demoApproveTransfer(state: DemoState, companyId: string, id: string, payload: any) {
+  const payroll = asState(state, companyId);
+  const transfer = (payroll.accountingTransfers ?? []).find((t) => t.id === id && t.company_id === companyId);
+  if (!transfer) throw new ApiError(404, 'PAYROLL_TRANSFER_NOT_FOUND', 'Transfert introuvable');
+  if (payload.confirm !== true || String(payload.note ?? '').trim().length < 10) {
+    throw new ApiError(400, 'PAYROLL_TRANSFER_DECISION_REQUIRED', 'Confirmation et note de 10 caractères minimum requises');
+  }
+  if (transfer.status === 'POSTED') throw new ApiError(409, 'PAYROLL_TRANSFER_POSTED_IMMUTABLE', 'Transfert comptabilisé');
+  if (transfer.status === 'REJECTED') throw new ApiError(409, 'PAYROLL_TRANSFER_REJECTED', 'Transfert rejeté');
+  if (transfer.status === 'APPROVED_FOR_TEST') throw new ApiError(409, 'PAYROLL_TRANSFER_ALREADY_APPROVED', 'Déjà approuvé');
+  if (transfer.status === 'BLOCKED') throw new ApiError(409, 'PAYROLL_TRANSFER_BLOCKED', 'Transfert bloqué');
+  const preview = demoAccountingPreview(state, companyId, transfer.period_id);
+  if (preview.sourceFingerprint !== transfer.source_fingerprint ||
+      preview.mapping?.id !== transfer.mapping_id) {
+    throw new ApiError(409, 'PAYROLL_TRANSFER_STALE', 'Les calculs ou les correspondances ont changé ; générez une nouvelle proposition');
+  }
+  const duplicate = (payroll.accountingTransfers ?? []).some((t) =>
+    t.id !== id && t.company_id === companyId && t.period_id === transfer.period_id &&
+    t.source_fingerprint === transfer.source_fingerprint &&
+    ['APPROVED_FOR_TEST', 'POSTED'].includes(t.status));
+  if (duplicate) throw new ApiError(409, 'PAYROLL_TRANSFER_DUPLICATE_SOURCE', 'Ce jeu de calculs est déjà approuvé');
+  transfer.status = 'APPROVED_FOR_TEST';
+  transfer.decided_at = now();
+  transfer.decided_by_name = state.users[0]?.full_name ?? 'Démonstration';
+  transfer.decision_note = String(payload.note).trim();
+  return demoTransferView(state, companyId, transfer);
+}
+
+function demoRejectTransfer(state: DemoState, companyId: string, id: string, payload: any) {
+  const payroll = asState(state, companyId);
+  const transfer = (payroll.accountingTransfers ?? []).find((t) => t.id === id && t.company_id === companyId);
+  if (!transfer) throw new ApiError(404, 'PAYROLL_TRANSFER_NOT_FOUND', 'Transfert introuvable');
+  const reason = String(payload.reason ?? '').trim();
+  if (reason.length < 10) throw new ApiError(400, 'PAYROLL_TRANSFER_DECISION_REQUIRED', 'Motif de rejet de 10 caractères minimum requis');
+  if (transfer.status === 'POSTED') throw new ApiError(409, 'PAYROLL_TRANSFER_POSTED_IMMUTABLE', 'Transfert comptabilisé');
+  if (transfer.status === 'REJECTED') throw new ApiError(409, 'PAYROLL_TRANSFER_ALREADY_REJECTED', 'Déjà rejeté');
+  transfer.status = 'REJECTED';
+  transfer.decided_at = now();
+  transfer.decided_by_name = state.users[0]?.full_name ?? 'Démonstration';
+  transfer.rejection_reason = reason;
+  return demoTransferView(state, companyId, transfer);
+}
+
+export function demoAccountingTransferCsv(transfer: any): string {
+  const rows: string[] = [];
+  const cell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+  const line = (cells: unknown[]) => cells.map(cell).join(',');
+  rows.push(line(['PAYROLL ACCOUNTING TRANSFER - INTERNAL SIMULATION - NOT POSTED AUTOMATICALLY']));
+  rows.push(line(['SIMULATION - NOT VALIDATED FOR PAYMENT OR ACCOUNTING']));
+  rows.push(line(['Transfer ID', transfer.id]));
+  rows.push(line(['Period ID', transfer.periodId]));
+  rows.push(line(['Version', transfer.version]));
+  rows.push(line(['Status', transfer.status]));
+  rows.push(line(['Currency', transfer.currency]));
+  rows.push(line(['Mapping version', transfer.mappingVersion ?? '']));
+  rows.push(line(['Source fingerprint', transfer.sourceFingerprint]));
+  rows.push(line(['Source calculation IDs', (transfer.calculationIds ?? []).join(' ')]));
+  rows.push(line(['Created at', transfer.createdAt]));
+  rows.push(line(['Created by', transfer.createdByName ?? '']));
+  rows.push(line(['Decision', transfer.status === 'APPROVED_FOR_TEST' ? 'APPROVED FOR TEST' : transfer.status]));
+  rows.push(line(['Decision note', transfer.decisionNote ?? '']));
+  rows.push(line(['Rejection reason', transfer.rejectionReason ?? '']));
+  rows.push(line(['Posted entry', transfer.postedEntryId ?? 'NOT POSTED']));
+  rows.push('');
+  rows.push(line(['LINES']));
+  rows.push(line(['Line', 'Category', 'Account code', 'Account name', 'Description', 'Debit', 'Credit']));
+  for (const entry of transfer.lines ?? []) {
+    rows.push(line([entry.lineNo, entry.category, entry.accountCode ?? '', entry.accountName ?? '', entry.labelEn, entry.debit, entry.credit]));
+  }
+  rows.push('');
+  rows.push(line(['TOTALS']));
+  for (const [key, value] of Object.entries(transfer.totals ?? {})) rows.push(line([key, value]));
+  rows.push('');
+  rows.push(line(['CHECKS']));
+  rows.push(line(['Code', 'Severity', 'Scope', 'Message EN', 'Message FR']));
+  for (const check of transfer.checks ?? []) rows.push(line([check.code, check.severity, check.scope, check.messageEn, check.messageFr]));
+  rows.push('');
+  rows.push(line(['NO JOURNAL ENTRY IS CREATED BY THIS FILE']));
+  return '\uFEFF' + rows.join('\r\n');
+}
+
 function asState(state: DemoState, companyId: string): DemoPayrollState {
   if (!(state as any).payroll) seedDemoPayroll(state);
   const payroll = (state as any).payroll as DemoPayrollState;
@@ -712,7 +1251,7 @@ function dashboard(payroll: DemoPayrollState, companyId: string) {
     missingContracts: active.filter((e) => !payroll.contracts.some((c) => c.employee_id === e.id && c.status === 'active')).map((e) => ({ id: e.id, employee_number: e.employee_number, full_name: e.full_name })),
     rules: payroll.rules.filter((r) => r.company_id === companyId && r.required_for_calculation).map((r) => ({ ruleCode: r.rule_code, found: true, validated: r.status === 'EXPERT_VALIDATED', expertValidated: r.status === 'EXPERT_VALIDATED', usable: ['RESEARCHED','REVIEW_REQUIRED','EXPERT_VALIDATED'].includes(r.status), status: r.status, rate: r.rate, effectiveFrom: r.effective_from })),
     calculationAvailable: true, statutoryComplete: false,
-    capabilities: { employees: true, contracts: true, time: true, leave: true, variables: true, arithmeticCalculation: true, statutoryCalculation: false, finalPayslips: false, statutoryDeclarations: false, accountingTransfer: false, paye: false, csg: false, nsf: false, employerContributions: false },
+    capabilities: { employees: true, contracts: true, time: true, leave: true, variables: true, arithmeticCalculation: true, statutoryCalculation: false, finalPayslips: false, statutoryDeclarations: true, accountingTransfer: true, paye: false, csg: false, nsf: false, employerContributions: false },
     notice: 'Totaux arithmétiques uniquement. PAYE, CSG, NSF et cotisations employeur sont bloqués : aucune règle mauricienne validée, moteur réglementaire non implémenté.',
   };
 }
@@ -725,6 +1264,40 @@ export function handleDemoPayroll(
   const employees = payroll.employees.filter((e) => e.company_id === companyId);
   const company = state.companies.find((c) => c.id === companyId);
   if (!company) throw new ApiError(404, 'COMPANY_NOT_FOUND', 'Société introuvable');
+
+  if (rest === '/accounting/mapping' && method === 'GET') return demoMappingConfig(state, companyId);
+  if (rest === '/accounting/mapping' && method === 'PUT') return { mapping: demoSaveMapping(state, companyId, payload) };
+  const accountingTransferCsv = /^\/accounting-transfers\/([^/]+)\/csv$/.exec(rest);
+  if (accountingTransferCsv && method === 'GET') {
+    const transfer = (payroll.accountingTransfers ?? []).find((t) => t.id === accountingTransferCsv[1] && t.company_id === companyId);
+    if (!transfer) throw new ApiError(404, 'PAYROLL_TRANSFER_NOT_FOUND', 'Transfert introuvable');
+    return { csv: demoAccountingTransferCsv(demoTransferView(state, companyId, transfer)) };
+  }
+  const accountingTransferAction = /^\/accounting-transfers\/([^/]+)\/(approve|reject|post)$/.exec(rest);
+  if (accountingTransferAction && method === 'POST') {
+    const transferId = accountingTransferAction[1]!;
+    const action = accountingTransferAction[2]!;
+    if (action === 'approve') return { transfer: demoApproveTransfer(state, companyId, transferId, payload) };
+    if (action === 'reject') return { transfer: demoRejectTransfer(state, companyId, transferId, payload) };
+    const transfer = (payroll.accountingTransfers ?? []).find((t) => t.id === transferId && t.company_id === companyId);
+    if (!transfer) throw new ApiError(404, 'PAYROLL_TRANSFER_NOT_FOUND', 'Transfert introuvable');
+    if (transfer.status === 'POSTED') throw new ApiError(409, 'PAYROLL_TRANSFER_POSTING_BLOCKED', 'Déjà comptabilisé');
+    throw new ApiError(409, 'PAYROLL_TRANSFER_POSTING_BLOCKED', 'Comptabilisation définitive bloquée : règles de paie non validées par un expert et période non finalisée.');
+  }
+  const accountingTransfer = /^\/accounting-transfers\/([^/]+)$/.exec(rest);
+  if (accountingTransfer && method === 'GET') {
+    const transfer = (payroll.accountingTransfers ?? []).find((t) => t.id === accountingTransfer[1] && t.company_id === companyId);
+    if (!transfer) throw new ApiError(404, 'PAYROLL_TRANSFER_NOT_FOUND', 'Transfert introuvable');
+    return { transfer: demoTransferView(state, companyId, transfer) };
+  }
+  if (rest === '/accounting-transfers' && method === 'GET') {
+    return {
+      transfers: (payroll.accountingTransfers ?? [])
+        .filter((t) => t.company_id === companyId && (!query.periodId || t.period_id === query.periodId))
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .map((t) => demoTransferView(state, companyId, t)),
+    };
+  }
 
   if (rest === '/dashboard' || rest === '/summary') return dashboard(payroll, companyId);
   if (rest === '/employees' && method === 'GET') {
@@ -1042,7 +1615,13 @@ export function handleDemoPayroll(
       return { created, reused, skipped: 0, rows: created };
     }
     if (tail === '/accounting-preview' && method === 'GET') {
-      return { period: periodView(period), totalsByCurrency: [], accountsConfigured: false, postingBlocked: true, reason: 'PAYROLL_ACCOUNTING_NOT_IMPLEMENTED', note: 'Aucune écriture comptable n’est créée.' };
+      return demoAccountingPreview(state, companyId, period.id);
+    }
+    if (tail === '/accounting-transfer' && method === 'GET') {
+      return demoAccountingPreview(state, companyId, period.id);
+    }
+    if (tail === '/accounting-transfer' && method === 'POST') {
+      return { transfer: demoGenerateTransfer(state, companyId, period.id, payload.note ?? null) };
     }
   }
   if (rest === '/variables' && method === 'GET') {
@@ -1098,8 +1677,8 @@ export function handleDemoPayroll(
     if ((payslipMatch[2] ?? '') === '' && method === 'GET') return { payslip };
     if ((payslipMatch[2] ?? '') === '/finalise' && method === 'POST') throw new ApiError(409, 'PAYROLL_PAYSLIP_FINAL_BLOCKED', 'Bulletin final bloqué : règles et moteur réglementaire non validés');
   }
-  if (rest === '/settings' && method === 'GET') return { settings: { company_id: companyId, salary_expense_account_id: null, salary_payable_account_id: null }, accounts: state.accounts.filter((a) => a.company_id === companyId), accountingTransferImplemented: false };
-  if (rest === '/settings' && method === 'PATCH') return { settings: { company_id: companyId, ...payload }, accountingTransferImplemented: false };
+  if (rest === '/settings' && method === 'GET') return { settings: { company_id: companyId, salary_expense_account_id: null, salary_payable_account_id: null }, accounts: state.accounts.filter((a) => a.company_id === companyId), accountingTransferImplemented: true };
+  if (rest === '/settings' && method === 'PATCH') return { settings: { company_id: companyId, ...payload }, accountingTransferImplemented: true };
   return undefined;
 }
 

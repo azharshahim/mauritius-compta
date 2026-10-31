@@ -6,6 +6,18 @@ import { requireModuleAccess } from '../../lib/permissions.js';
 import { cabinetForCompanyUser } from '../../lib/cabinets.js';
 import { badRequest, notFound } from '../../lib/errors.js';
 import { payrollPdf } from './pdf.js';
+import {
+  accountingTransferCsv,
+  approveAccountingTransfer,
+  buildAccountingPreview,
+  generateAccountingTransfer,
+  getAccountingTransfer,
+  getMappingConfig,
+  listAccountingTransfers,
+  postAccountingTransfer,
+  rejectAccountingTransfer,
+  saveMapping,
+} from './accounting.js';
 import { MigrationParseError, parseUpload } from '../migration/parse.js';
 import {
   approveCalculationForTest,
@@ -733,7 +745,7 @@ export function payrollRoutes(app: FastifyInstance, db: Db) {
         ORDER BY code`,
       [companyId],
     );
-    return { settings: settings.rows[0] ?? null, accounts: accounts.rows, accountingTransferImplemented: false };
+    return { settings: settings.rows[0] ?? null, accounts: accounts.rows, accountingTransferImplemented: true };
   });
 
   app.patch('/companies/:companyId/payroll/settings', async (req) => {
@@ -778,7 +790,7 @@ export function payrollRoutes(app: FastifyInstance, db: Db) {
         input.statutoryArEnabled ?? null, input.statutoryBonusEnabled ?? null,
         input.notes || null, a.userId],
     );
-    return { settings: res.rows[0], accountingTransferImplemented: false };
+    return { settings: res.rows[0], accountingTransferImplemented: true };
   });
 
   app.get('/companies/:companyId/payroll/periods/:periodId/mra-return', async (req) => {
@@ -828,26 +840,110 @@ export function payrollRoutes(app: FastifyInstance, db: Db) {
     return payrollReturnCsv(summary);
   });
 
+  // ------------------------------------------------ accounting transfer (18)
+  app.get('/companies/:companyId/payroll/accounting/mapping', async (req) => {
+    const { companyId } = req.params as { companyId: string };
+    await actor(req, companyId);
+    return getMappingConfig(db, companyId);
+  });
+
+  app.put('/companies/:companyId/payroll/accounting/mapping', async (req, reply) => {
+    const { companyId } = req.params as { companyId: string };
+    const a = await actor(req, companyId, 'write');
+    const input = parse(z.object({
+      journalId: z.string().uuid(),
+      wagesExpenseAccountId: z.string().uuid(),
+      employerCsgExpenseAccountId: z.string().uuid(),
+      employerNsfExpenseAccountId: z.string().uuid(),
+      trainingLevyExpenseAccountId: z.string().uuid(),
+      payePayableAccountId: z.string().uuid(),
+      csgEmployeePayableAccountId: z.string().uuid(),
+      csgEmployerPayableAccountId: z.string().uuid(),
+      nsfEmployeePayableAccountId: z.string().uuid(),
+      nsfEmployerPayableAccountId: z.string().uuid(),
+      trainingLevyPayableAccountId: z.string().uuid(),
+      netPayableAccountId: z.string().uuid(),
+      otherDeductionsPayableAccountId: z.string().uuid().nullish(),
+      reimbursementsAccountId: z.string().uuid().nullish(),
+      note: z.string().trim().max(1000).nullish(),
+      confirm: z.literal(true),
+    }).strict(), req.body);
+    const mapping = await saveMapping(db, a, input as any);
+    return reply.code(201).send({ mapping });
+  });
+
+  app.get('/companies/:companyId/payroll/periods/:periodId/accounting-transfer', async (req) => {
+    const { companyId, periodId } = req.params as { companyId: string; periodId: string };
+    await actor(req, companyId);
+    return { preview: await buildAccountingPreview(db, companyId, periodId) };
+  });
+
+  app.post('/companies/:companyId/payroll/periods/:periodId/accounting-transfer', async (req, reply) => {
+    const { companyId, periodId } = req.params as { companyId: string; periodId: string };
+    const a = await actor(req, companyId, 'write');
+    const input = parse(z.object({ note: z.string().trim().max(1000).nullish() }).strict(), req.body ?? {});
+    const transfer = await generateAccountingTransfer(db, a, periodId, input);
+    return reply.code(201).send({ transfer });
+  });
+
+  app.get('/companies/:companyId/payroll/accounting-transfers', async (req) => {
+    const { companyId } = req.params as { companyId: string };
+    await actor(req, companyId);
+    const q = req.query as Record<string, string | undefined>;
+    return { transfers: await listAccountingTransfers(db, companyId, q.periodId) };
+  });
+
+  app.get('/companies/:companyId/payroll/accounting-transfers/:transferId', async (req) => {
+    const { companyId, transferId } = req.params as { companyId: string; transferId: string };
+    await actor(req, companyId);
+    return { transfer: await getAccountingTransfer(db, companyId, transferId) };
+  });
+
+  app.post('/companies/:companyId/payroll/accounting-transfers/:transferId/approve', async (req) => {
+    const { companyId, transferId } = req.params as { companyId: string; transferId: string };
+    const a = await actor(req, companyId, 'write');
+    const input = parse(z.object({
+      confirm: z.literal(true),
+      note: z.string().trim().min(10).max(1000),
+    }).strict(), req.body);
+    return { transfer: await approveAccountingTransfer(db, a, transferId, input) };
+  });
+
+  app.post('/companies/:companyId/payroll/accounting-transfers/:transferId/reject', async (req) => {
+    const { companyId, transferId } = req.params as { companyId: string; transferId: string };
+    const a = await actor(req, companyId, 'write');
+    const input = parse(z.object({ reason: z.string().trim().min(10).max(1000) }).strict(), req.body);
+    return { transfer: await rejectAccountingTransfer(db, a, transferId, input) };
+  });
+
+  app.post('/companies/:companyId/payroll/accounting-transfers/:transferId/post', async (req) => {
+    const { companyId, transferId } = req.params as { companyId: string; transferId: string };
+    const a = await actor(req, companyId, 'write');
+    // Posting touches the ledger: both payroll write and accounting write are required.
+    await requireModuleAccess(db, req.user!.id, companyId, 'accounting', 'write');
+    return postAccountingTransfer(db, a, transferId);
+  });
+
+  app.get('/companies/:companyId/payroll/accounting-transfers/:transferId/csv', async (req, reply) => {
+    const { companyId, transferId } = req.params as { companyId: string; transferId: string };
+    await actor(req, companyId);
+    const transfer = await getAccountingTransfer(db, companyId, transferId);
+    reply.header('content-type', 'text/csv; charset=utf-8');
+    reply.header('content-disposition', `attachment; filename="PAYROLL-ACCOUNTING-INTERNAL-${transfer.periodId}-v${transfer.version}.csv"`);
+    return accountingTransferCsv(transfer);
+  });
+
+  // Legacy preview endpoint, now backed by the mission 18 proposal engine.
   app.get('/companies/:companyId/payroll/periods/:periodId/accounting-preview', async (req) => {
     const { companyId, periodId } = req.params as { companyId: string; periodId: string };
     await actor(req, companyId);
-    const period = await db.query<any>('SELECT * FROM payroll_periods WHERE id = $1 AND company_id = $2', [periodId, companyId]);
-    if (!period.rows[0]) throw notFound('PAYROLL_PERIOD_NOT_FOUND', 'Payroll period not found');
-    const totals = await db.query<any>(
-      `SELECT currency, SUM(gross)::text AS gross, SUM(deductions)::text AS deductions,
-              SUM(net_arithmetic)::text AS net_arithmetic, COUNT(*)::int AS employees
-         FROM payroll_calculations WHERE company_id = $1 AND period_id = $2
-        GROUP BY currency ORDER BY currency`,
-      [companyId, periodId],
-    );
-    const settings = await db.query<any>('SELECT * FROM payroll_settings WHERE company_id = $1', [companyId]);
+    const preview = await buildAccountingPreview(db, companyId, periodId);
     return {
-      period: period.rows[0],
-      totalsByCurrency: totals.rows,
-      accountsConfigured: Boolean(settings.rows[0]?.salary_expense_account_id && settings.rows[0]?.salary_payable_account_id),
+      ...preview,
+      accountsConfigured: Boolean(preview.mapping),
       postingBlocked: true,
-      reason: 'PAYROLL_ACCOUNTING_NOT_IMPLEMENTED',
-      note: 'Aucune écriture comptable n’est créée. Les comptes doivent être configurés et la politique de paie validée.',
+      reason: 'PAYROLL_ACCOUNTING_SIMULATION_ONLY',
+      note: 'Aucune écriture comptable n’est créée. La proposition doit être approuvée pour test et la comptabilisation définitive est bloquée.',
     };
   });
 }

@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { api, downloadExport } from '../../api';
 import { demoEnabled } from '../../demo';
 import DeclarationsPanel from './Declarations';
+import AccountingTransferPanel from './AccountingTransfer';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
 import { Badge, Button, Card, EmptyState, ErrorBanner, Field, Modal, Spinner } from '../../components/ui';
@@ -495,20 +496,12 @@ export default function PayrollPage() {
       )}
 
       {section === 'transfer' && (
-        <Card title={t('payroll.transfer.title')}>
-          <div className="alert alert-warning">{t('payroll.notImplemented')}</div>
-          <ul className="payroll-list">
-            <li>{t('payroll.transfer.never')}</li>
-            <li>{t('payroll.declarations.never')}</li>
-            <li>{t('payroll.transfer.accounts')}</li>
-          </ul>
-          {selectedPeriod && (
-            <Button variant="ghost" onClick={() => void act(async () => {
-              const preview = await api.get<Any>(`/companies/${company.id}/payroll/periods/${selectedPeriod.id}/accounting-preview`);
-              setNotice(`${t('payroll.transfer.preview')} : ${preview.postingBlocked ? t('payroll.transfer.blocked') : ''} — ${preview.note ?? ''}`);
-            })}>{t('payroll.transfer.previewAction')}</Button>
-          )}
-        </Card>
+        <AccountingTransferPanel
+          company={company}
+          periods={data.periods}
+          selectedPeriod={selectedPeriod ?? null}
+          onSelectPeriod={setPeriodId}
+        />
       )}
 
       {modal === 'employee' && <EmployeeModal companyId={company.id} onClose={() => setModal(null)} onDone={done} />}

@@ -96,7 +96,7 @@ export const MODULES: ModuleDefinition[] = [
       { to: '/payroll/payslips', key: 'nav.payroll.payslips', icon: '📄' },
       { to: '/payroll/rules', key: 'nav.payroll.rules', icon: '⚙' },
       { to: '/payroll/declarations', key: 'nav.payroll.declarations', icon: '📤', prepared: true },
-      { to: '/payroll/transfer', key: 'nav.payroll.transfer', icon: '➡', prepared: true },
+      { to: '/payroll/transfer', key: 'nav.payroll.transfer', icon: '➡' },
     ],
   },
 ];

@@ -2728,7 +2728,7 @@ export async function payrollDashboard(db: Db, actor: PayrollActor) {
     capabilities: {
       employees: true, contracts: true, time: true, leave: true, variables: true,
       arithmeticCalculation: true, statutoryCalculation: true, finalPayslips: false,
-      statutoryDeclarations: false, accountingTransfer: false,
+      statutoryDeclarations: true, accountingTransfer: true,
       paye: true, csg: true, nsf: true, employerContributions: true,
     },
     notice:
