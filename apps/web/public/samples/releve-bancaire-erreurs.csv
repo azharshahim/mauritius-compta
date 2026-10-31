@@ -1,0 +1,5 @@
+﻿Date;Libellé;Référence;Débit;Crédit;Devise;Solde
+31/02/2025;Date impossible (fictive);ERR-DATE;1000,00;;MUR;1000,00
+05/08/2025;Devise incompatible (fictive);ERR-CURRENCY;1000,00;;USD;0,00
+03/08/2025;Opération valide mais solde incohérent (fictive);ERR-BALANCE-1;1000,00;;MUR;1000,00
+04/08/2025;Solde incohérent (fictif);ERR-BALANCE-2;500,00;;MUR;9999,00

@@ -32,6 +32,7 @@ import {
   type DemoMigrationRecord,
   type DemoMigrationTemplate,
 } from './migration';
+import { handleDemoBank, seedDemoBank } from './bank';
 import {
   IMPORT_FIELDS,
   IMPORT_KIND_LABELS,
@@ -509,6 +510,111 @@ export interface DemoEntryRule {
   validated_by: string | null;
 }
 
+export interface DemoBankAccount {
+  id: string;
+  company_id: string;
+  name: string;
+  bank_name: string;
+  currency: string;
+  account_id: string;
+  masked_reference: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface DemoBankImport {
+  id: string;
+  company_id: string;
+  bank_account_id: string;
+  file_name: string;
+  file_size: number;
+  file_hash: string;
+  idempotency_key: string;
+  format: string;
+  encoding: string;
+  status: 'previewed' | 'imported' | 'failed' | 'cancelled';
+  row_count: number;
+  imported_count: number;
+  duplicate_count: number;
+  opening_balance: string | null;
+  closing_balance: string | null;
+  summary: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface DemoBankTransaction {
+  id: string;
+  company_id: string;
+  bank_account_id: string;
+  import_id: string | null;
+  txn_date: string;
+  value_date: string | null;
+  label: string;
+  reference: string | null;
+  amount: string;
+  currency: string;
+  balance: string | null;
+  external_id: string | null;
+  fingerprint: string;
+  status: 'unmatched' | 'proposed' | 'matched' | 'review' | 'excluded' | 'cancelled';
+  created_at: string;
+}
+
+export interface DemoBankMatch {
+  id: string;
+  company_id: string;
+  bank_account_id: string;
+  transaction_id: string;
+  entry_id: string | null;
+  entry_line_id: string | null;
+  billing_payment_id: string | null;
+  status: 'proposed' | 'confirmed' | 'rejected';
+  kind: 'entry' | 'invoice' | 'internal_transfer';
+  confidence: number;
+  reasons: string[];
+  created_at: string;
+  decided_at: string | null;
+  decided_by?: string | null;
+}
+
+export interface DemoBankRule {
+  id: string;
+  company_id: string;
+  name: string;
+  label_pattern: string | null;
+  reference_pattern: string | null;
+  bank_account_id: string | null;
+  currency: string | null;
+  direction: 'any' | 'in' | 'out';
+  account_id: string;
+  journal_id: string | null;
+  priority: number;
+  version: number;
+  supersedes_id: string | null;
+  is_active: boolean;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface DemoBankProposal {
+  id: string;
+  company_id: string;
+  bank_account_id: string;
+  transaction_id: string;
+  account_id: string | null;
+  journal_id: string | null;
+  entry_date: string;
+  amount: string;
+  direction: 'in' | 'out';
+  status: 'proposed' | 'accepted' | 'rejected';
+  confidence: number;
+  rationale: Record<string, unknown>;
+  rule_id: string | null;
+  created_entry_id: string | null;
+  created_at: string;
+  decided_at: string | null;
+}
+
 export interface DemoState {
   schema: number;
   users: DemoUser[];
@@ -548,6 +654,12 @@ export interface DemoState {
   migrationJobs: DemoMigrationJob[];
   migrationTemplates: DemoMigrationTemplate[];
   migrationRecords: DemoMigrationRecord[];
+  bankAccounts: DemoBankAccount[];
+  bankImports: DemoBankImport[];
+  bankTransactions: DemoBankTransaction[];
+  bankMatches: DemoBankMatch[];
+  bankRules: DemoBankRule[];
+  bankProposals: DemoBankProposal[];
 }
 
 /* ------------------------------------------------------------------ money */
@@ -1526,8 +1638,8 @@ function seedState(): DemoState {
     verified_by: null,
   });
 
-  return {
-    schema: 6,
+  const seeded: DemoState = {
+    schema: 7,
     users: [demoUser, ...collaborators],
     session: null,
     companies: [company, ...extraCompanies],
@@ -1589,7 +1701,15 @@ function seedState(): DemoState {
     migrationJobs: [],
     migrationTemplates: [],
     migrationRecords: [],
+    bankAccounts: [],
+    bankImports: [],
+    bankTransactions: [],
+    bankMatches: [],
+    bankRules: [],
+    bankProposals: [],
   };
+  seedDemoBank(seeded);
+  return seeded;
 }
 
 function persist(): void {
@@ -1614,7 +1734,7 @@ export function loadState(): DemoState {
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as DemoState;
-        if (parsed && parsed.schema === 6) {
+        if (parsed && parsed.schema === 7) {
           state = parsed;
           return state;
         }
@@ -5739,6 +5859,27 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
         }
       }
       throw new ApiError(404, 'NOT_FOUND', 'Route de migration inconnue');
+    }
+
+    // ------------------------------------------- bank & reconciliation (9)
+    if (rest.startsWith('/bank')) {
+      const member = s.members.find(
+        (m) => m.company_id === companyId && m.user_id === requireUser().id,
+      );
+      const writers = ['owner', 'admin', 'accountant', 'manager', 'cabinet_admin'];
+      if (method !== 'GET' && (!member || !writers.includes(member.role))) {
+        throw new ApiError(403, 'FORBIDDEN', 'Rôle comptable requis pour la banque');
+      }
+      if (!member) throw new ApiError(404, 'COMPANY_NOT_FOUND', 'Société introuvable');
+      const result = handleDemoBank(s, companyId, method, rest, query, payload);
+      if (result === undefined) {
+        throw new ApiError(404, 'NOT_FOUND', 'Route bancaire inconnue');
+      }
+      if (method !== 'GET') {
+        audit(companyId, 'bank.request', 'bank', null, { path: rest, method });
+        persist();
+      }
+      return result as T;
     }
 
     if (rest === '' && method === 'GET') {

@@ -56,7 +56,7 @@ export const MODULES: ModuleDefinition[] = [
       { to: '/accounting/statements', key: 'nav.statements', icon: '▥' },
       { to: '/accounting/settings', key: 'nav.settings', icon: '⚙' },
       { to: '/accounting/purchases', key: 'nav.accounting.purchases', icon: '🧾', prepared: true },
-      { to: '/accounting/banking', key: 'nav.accounting.banking', icon: '🏦', prepared: true },
+      { to: '/accounting/banking', key: 'nav.accounting.banking', icon: '🏦' },
       { to: '/accounting/assets', key: 'nav.accounting.assets', icon: '🏢', prepared: true },
       { to: '/accounting/ifrs', key: 'nav.accounting.ifrs', icon: '📑', prepared: true },
     ],

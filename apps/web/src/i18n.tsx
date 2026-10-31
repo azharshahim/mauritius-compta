@@ -66,6 +66,8 @@ const fr: Dict = {
   'common.error': 'Une erreur est survenue.',
   'common.confirmDelete': 'Confirmer la suppression ?',
   'demo.badge': 'MODE DÉMONSTRATION',
+  'demo.short': 'Démo',
+  'demo.explain': 'Explication et réinitialisation',
   'demo.text':
     'Données fictives, stockées uniquement dans ce navigateur. Les écritures sont simulées : rien n’est enregistré sur un serveur et aucune base PostgreSQL n’est utilisée.',
   'demo.volatile':
@@ -1015,6 +1017,8 @@ const en: Dict = {
   'common.error': 'Something went wrong.',
   'common.confirmDelete': 'Confirm deletion?',
   'demo.badge': 'DEMONSTRATION MODE',
+  'demo.short': 'Demo',
+  'demo.explain': 'Explanation and reset',
   'demo.text':
     'Fictional data stored only in this browser. Entries are simulated: nothing is saved on a server and no PostgreSQL database is used.',
   'demo.volatile':

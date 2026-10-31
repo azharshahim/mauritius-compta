@@ -21,6 +21,7 @@ import AiSettingsPage from './pages/cabinet/AiSettings';
 import AiAssistantPage from './pages/cabinet/AiAssistant';
 import AiProposalsPage from './pages/cabinet/AiProposals';
 import MigrationPage from './pages/cabinet/Migration';
+import BankPage from './pages/accounting/Bank';
 import BillingOverviewPage from './pages/billing/Overview';
 import BillingCustomersPage from './pages/billing/Customers';
 import BillingDocumentsPage from './pages/billing/Documents';
@@ -65,7 +66,7 @@ export default function App() {
         <Routes>
           <Route path="*" element={<LoginPage />} />
         </Routes>
-        <DemoBanner />
+        <DemoBanner login />
       </>
     );
   }
@@ -110,6 +111,7 @@ export default function App() {
           ))}
         </select>
         <span className="grow" />
+        <DemoBanner />
         <select
           aria-label={t('common.language')}
           value={locale}
@@ -204,9 +206,10 @@ export default function App() {
             <Route path="/accounting/settings" element={<SettingsPage />} />
             <Route path="/accounting/settings/company" element={<CompanySettingsPage />} />
 
-            {/* Announced but not implemented: the page states it explicitly. */}
+            {/* Banking is operational (mission 9); the other routes remain
+                explicitly marked as prepared. */}
             <Route path="/accounting/purchases" element={<PreparedPage module="accounting" />} />
-            <Route path="/accounting/banking" element={<PreparedPage module="accounting" />} />
+            <Route path="/accounting/banking" element={<BankPage />} />
             <Route path="/accounting/assets" element={<PreparedPage module="accounting" />} />
             <Route path="/accounting/ifrs" element={<PreparedPage module="accounting" />} />
 
@@ -239,8 +242,6 @@ export default function App() {
           quatre modules, montée hors des routes pour survivre à la navigation
           et ne jamais perdre une saisie en cours. */}
       <AssistantLauncher />
-
-      <DemoBanner />
     </div>
   );
 }
