@@ -1,6 +1,12 @@
 # Feuille de route — fonctionnalités restant à développer
 
-_État au 31 octobre 2026 (version 0.1.0). Mission 19 livrée sur branche, PR en brouillon._
+_État au 31 octobre 2026 (version 0.1.0). Missions 19 et 20 livrées sur branches, PR en
+brouillon ; aucune fusion, aucun déploiement._
+
+**Mission 20 — immobilisations et amortissements** : registre, catégories configurables,
+moteur linéaire/dégressif avec prorata, propositions d'écritures, sept états, démonstration
+deux sociétés. Voir [`mission-20-report.md`](mission-20-report.md). Les manques transverses
+identifiés pendant cette mission sont en [section 9](#9-manques-transverses-identifiés-en-mission-20).
 
 ## 0. État après la mission 2 (V0.1.1)
 
@@ -72,7 +78,9 @@ Reste ouvert :
 - Modèles légaux de répartition (réserve, dividende, impôt) : à valider avant tout encodage.
 - PDF signé de l'état des capitaux propres et notes annexes.
 - Notes annexes structurées, états comparatifs N-1, tableau des flux de trésorerie.
-- Immobilisations et amortissements (IAS 16/38), dépréciations (IAS 36).
+- ~~Immobilisations et amortissements~~ — **livré en mission 20** (sans affirmation de conformité
+  IFRS) : registre, catégories, amortissements, dépréciations, cessions, sept états. Restent
+  ouverts : réévaluation, composants, amortissement fiscal, notes annexes.
 - Stocks (IAS 2), provisions (IAS 37), reconnaissance du revenu (IFRS 15).
 - Impôts différés et rapprochement résultat comptable / base imposable (sans automatiser
   l'impôt tant que `CIT-*` n'est pas `CONFIRMÉ`).
@@ -121,3 +129,37 @@ Reste ouvert :
 6. Déclarations et conformité
 7. Cabinet / consolidation
 ```
+
+
+## 9. Manques transverses identifiés en mission 20
+
+Audit détaillé avec références de code : [`accounting-gaps-audit.md`](accounting-gaps-audit.md).
+
+| # | Manque | Statut | Priorité proposée |
+|---|---|---|---|
+| M-20-01 | Comptes courants administrateurs / actionnaires (registre, soldes, limites, présentation) | Absent | Haute |
+| M-20-02 | Registre des associés, capital par part, prélèvements (`drawings`) | Partiel | Haute |
+| M-20-03 | Comptes d'attente et de compensation (workflow, ancienneté, blocage de clôture) | Absent | Haute |
+| M-20-04 | Emprunts : maître, échéancier, intérêts courus, courant / non courant | Absent | Haute |
+| M-20-05 | Charges à payer / produits constatés d'avance avec extourne contrôlée | Partiel | Moyenne |
+| M-20-06 | Provisions pour risques et charges | Absent | Moyenne |
+| M-20-07 | Stocks : articles, quantités, valorisation, inventaire, dépréciation | Absent | Moyenne |
+| M-20-08 | Opérations intercompagnies : contrepartie, appariement, éliminations | Absent | Moyenne |
+| M-20-09 | Parties liées : registre, qualification, note annexe | Absent | Moyenne |
+| M-20-10 | Réévaluation des devises : comptabilisation latente bloquée en attente de validation | Partiel | Moyenne |
+| M-20-11 | Forme juridique absente du modèle `companies` (Limited Company, Sole Trader, Partnership) | Absent | Haute |
+| M-20-12 | Mission future **Company Incorporation & Corporate Services** (note de cadrage seulement) | Absent | Basse (après validation) |
+
+### Ordre recommandé après la mission 20
+
+```text
+1. Revue professionnelle unique (questions du rapport mission 20)
+2. Forme juridique + registre des personnes (associés, administrateurs)
+3. Comptes courants et prélèvements des associés
+4. Comptes d'attente et emprunts
+5. Charges à payer / provisions / stocks
+6. Intercompagnies et parties liées
+7. Company Incorporation & Corporate Services, après validation des sources officielles
+```
+
+Aucun de ces lots ne doit être développé sans périmètre validé et sans autorisation explicite.

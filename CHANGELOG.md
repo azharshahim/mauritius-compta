@@ -1,5 +1,40 @@
 # Journal des versions
 
+## Mission 20 — Immobilisations et amortissements (31 octobre 2026)
+
+> Aucune fusion, aucun déploiement, aucune donnée réelle, aucun paiement, aucune déclaration
+> MRA, aucun fournisseur payant. Aucun compte officiel, taux fiscal ou règle mauricienne
+> d'amortissement n'est inventé. PR ouverte en brouillon ; `main` intact.
+
+### Ajouté
+
+- Migration `0018_fixed_assets.sql` : catégories par société, registre, estimations datées,
+  événements, lots de dotation, lignes mensuelles, dépréciations, propositions, séquences,
+  triggers d'isolation et d'immutabilité.
+- Moteur exact `fixed-assets/depreciation.ts` : linéaire, dégressif, prorata des jours, valeur
+  résiduelle, plafond, complément du dernier mois, révision prospective, suspension.
+- Service et comptabilisation réutilisant le moteur existant : propositions d'acquisition,
+  en-cours, mise en service, dotation, dépréciation/reprise, cession, rebut, transfert ;
+  approbation humaine et comptabilisation explicite uniquement.
+- Sept états (`register`, `schedule`, `accumulated`, `nbv`, `additions-disposals`,
+  `reconciliation`, `movement-schedule`) avec CSV et PDF, réconciliation par triplet de comptes.
+- Écran **Comptabilité → Immobilisations** en quatre onglets, FR/EN, filtres catégorie,
+  statut et exercice ; API documentée et permissions par rôle.
+- Démonstration schéma 14 : deux sociétés, deux méthodes, acquisition en cours d'année,
+  ordinateur pluriannuel, cession avant fin de vie, actif totalement amorti, en-cours,
+  dépréciation justifiée, réconciliation équilibrée.
+- Documentation : [`docs/mission-20-report.md`](docs/mission-20-report.md),
+  [`docs/accounting-gaps-audit.md`](docs/accounting-gaps-audit.md),
+  [`docs/company-incorporation-corporate-services.md`](docs/company-incorporation-corporate-services.md).
+
+### Sécurité et limites
+
+- Aucun amortissement fiscal ni capital allowance calculé ; aucun taux inventé.
+- Aucune réévaluation, aucun composant, aucune consolidation.
+- Un lot ou une proposition ne comptabilise qu'après approbation humaine explicite.
+- Les questions ouvertes sont regroupées pour une revue professionnelle unique en anglais
+  (section 12 du rapport de mission).
+
 ## Mission 19 — Capitaux propres, clôture et report à nouveau (31 octobre 2026)
 
 > Aucune fusion, aucun déploiement, aucune donnée réelle, aucun paiement, aucune déclaration
