@@ -18,7 +18,7 @@
 > et ne crée aucun paiement. Facturation (mission 6) :
 > **opérationnelle** — clients, devis, factures, avoirs, encaissements, balance âgée et PDF A4
 > générés par le serveur ; **aucun taux de TVA n'est fourni** et l'e-invoicing MRA reste
-> désactivé. Paie & RH : **préparée** (aucun calcul PAYE, CSG ou NSF). L'assistant comptable V2
+> désactivé. Paie & RH : **préparation opérationnelle** (mission 14) — dossiers salariés, contrats datés, temps, congés, variables, périodes, calcul arithmétique vérifiable et bulletins de **simulation** ; **aucun PAYE, CSG, NSF ni bulletin final**, aucune déclaration, aucun virement. L'assistant comptable V2
 > propose des écritures équilibrées issues du plan comptable réel, exige une **validation
 > humaine** puis une **comptabilisation distincte** : aucune écriture n'est créée
 > automatiquement. Le moteur IA est **optionnel**, sans clé par défaut.
@@ -27,6 +27,12 @@
 > réalisés proposés puis comptabilisés une seule fois si les comptes de change sont
 > configurés, réévaluations et virements inter-devises **simulés uniquement**.
 > Voir [`docs/multi-currency.md`](docs/multi-currency.md).
+> **Paie & RH** (mission 14) : aucun taux mauricien n’est inventé, le registre
+> PAYE/CSG/NSF reste sans taux ni source, et le moteur réglementaire est **non
+> implémenté**. Les calculs sont arithmétiques et **bloqués** ; les bulletins portent
+> « SIMULATION / DRAFT — NOT FOR PAYMENT ». Voir
+> [`docs/mission-14-report.md`](docs/mission-14-report.md) et
+> [`docs/payroll-rules-register.md`](docs/payroll-rules-register.md).
 > Voir [`docs/suite-architecture.md`](docs/suite-architecture.md),
 > [`docs/cabinet-module.md`](docs/cabinet-module.md) et
 > [`docs/bank-import.md`](docs/bank-import.md).
@@ -392,6 +398,13 @@ données, **ni** secret, **ni** donnée réelle.
 | [`docs/supplier-payments.md`](docs/supplier-payments.md) | Règlements partiels/groupés, acomptes, avoirs, banque, concurrence |
 | [`docs/supplier-accounting.md`](docs/supplier-accounting.md) | Propositions comptables, comptes, contrôles, immutabilité |
 | [`docs/mission-12-report.md`](docs/mission-12-report.md) | Rapport final de mission 12 (lettrage, 16 points) |
+| [`docs/mission-14-report.md`](docs/mission-14-report.md) | Rapport final de mission 14 (paie & RH, 16 points) |
+| [`docs/payroll-existing-audit.md`](docs/payroll-existing-audit.md) | Audit du module paie existant et décisions d’extension |
+| [`docs/mauritius-payroll-architecture.md`](docs/mauritius-payroll-architecture.md) | Architecture, migration 0014, moteur déterministe et blocage réglementaire |
+| [`docs/employee-master-data.md`](docs/employee-master-data.md) | Données salariés, contrats datés, confidentialité bancaire |
+| [`docs/payroll-rules-register.md`](docs/payroll-rules-register.md) | Registre des règles, statuts et points ouverts pour revue experte |
+| [`docs/payroll-security.md`](docs/payroll-security.md) | Isolation, permissions, masquage, IA et limites de sécurité |
+| [`docs/payroll-user-guide.md`](docs/payroll-user-guide.md) | Guide utilisateur paie (préparation et simulation) |
 | [`docs/mission-13-report.md`](docs/mission-13-report.md) | Rapport final de mission 13 (multidevises, 16 points) |
 | [`docs/multi-currency.md`](docs/multi-currency.md) | Architecture multidevise, schéma, API, rapports |
 | [`docs/exchange-rate-policy.md`](docs/exchange-rate-policy.md) | Catégories de taux, validation, absence de taux officiel |
@@ -465,7 +478,7 @@ des permissions et des tables séparées par module :
 | Cabinet | `/cabinet` | **opérationnel** : tableau de bord, dossiers clients, fiche dossier, tâches & échéances, collaborateurs |
 | Comptabilité | `/accounting` | **opérationnel** : fonctions V0.1.1 (plan comptable, écritures, grand livre, balance, états financiers, périodes, devises, audit) + **Banque & rapprochement** (import CSV/TSV/XLSX, rapprochement humain, propositions, rapport) + **Achats & Fournisseurs** (fournisseurs, factures d'achat, avoirs, règlements, échéancier par devise) |
 | Facturation | `/billing` | **opérationnel** : clients, devis, factures, avoirs, encaissements, balance âgée, PDF serveur ; e-invoicing MRA désactivé |
-| Paie & RH | `/payroll` | **préparé** : idem, aucun calcul PAYE/CSG/NSF |
+| Paie & RH | `/payroll` | **préparation** : salariés, contrats, temps, congés, variables, périodes, calcul arithmétique bloqué, bulletins de simulation ; aucun PAYE/CSG/NSF, aucune déclaration |
 
 - Rôles : `cabinet_admin`, `manager`, `accountant`, `billing_clerk`, `payroll_manager`,
   `viewer` (+ `owner`/`admin` historiques) — voir

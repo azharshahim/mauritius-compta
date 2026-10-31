@@ -1,5 +1,42 @@
 # Journal des versions
 
+## Mission 14 — Paie & RH mauricienne : préparation et simulation (31 octobre 2026)
+
+> Aucune fusion, aucun déploiement OVH, aucune donnée personnelle réelle, aucun
+> taux mauricien inventé, aucune déclaration officielle, aucun virement. PR nº1
+> laissée en brouillon ; `main` intact.
+
+### Ajouté
+
+- Migration additive `0014_payroll_foundation.sql` : extension des salariés,
+  contrats et événements datés, rubriques, temps, absences, règles de congé,
+  registre de règles versionnées, périodes, variables, calculs et bulletins ;
+  triggers de garde et isolation société.
+- Service et routes paie : dossiers salariés avec banque masquée (`last4` +
+  empreinte), doublons sans fusion, contrats historisés, temps, congés, variables
+  et import CSV/XLSX idempotent, périodes, calcul arithmétique déterministe,
+  bulletins de simulation, PDF filigrané, export CSV, aperçu comptable bloqué.
+- Calcul BigInt sur `numeric(20,4)`, prorata calendaire documenté et `input_hash`.
+- Statut `blocked` systématique : PAYE, CSG, NSF et employeur `NULL`, aucun zéro de
+  contournement ; finalisation refusée par l’API et la base.
+- Écran `Paie & RH` FR/EN en 12 sections, tableaux contenus, cartes mobile,
+  indicateur de démonstration conservé.
+- Démonstration 12 salariés fictifs A→L (mensuel, horaire, temps partiel, entrée
+  en cours de mois, avenant daté, absence non rémunérée, heures supp., prime,
+  avance, étranger, échéance, calcul bloqué), 100 % localStorage.
+- Assistant lecture seule : agrégats de préparation, règles manquantes et
+  explication d’un calcul stocké ; aucune invention, aucune action.
+- 44 tests API paie, 7 tests moteur de démonstration, 5 tests d’interface,
+  migration 0014 ; documentation complète en 7 documents.
+
+### Limites
+
+- Moteur réglementaire PAYE/CSG/NSF/employeur non implémenté.
+- Aucun bulletin final, aucune déclaration, aucun virement, aucune écriture
+  comptable automatique.
+- Aucun droit à congé ni majoration d’heures supplémentaires présumé.
+- Appareil Samsung physique non vérifié.
+
 ## Mission 13 — Multidevises, taux de change et écarts (31 octobre 2026)
 
 > Aucune fusion, aucun déploiement OVH, aucune donnée réelle, aucun fournisseur de
