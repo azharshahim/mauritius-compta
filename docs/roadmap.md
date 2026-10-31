@@ -1,6 +1,6 @@
 # Feuille de route — fonctionnalités restant à développer
 
-_État au 30 octobre 2026 (version 0.1.0)._
+_État au 31 octobre 2026 (version 0.1.0). Mission 19 livrée sur branche, PR en brouillon._
 
 ## 0. État après la mission 2 (V0.1.1)
 
@@ -12,8 +12,9 @@ Reste ouvert (par ordre de priorité) :
 
 1. **Exécuter réellement les tests navigateur Chromium** (desktop + Android) et les intégrer à la
    CI — les scénarios existent, ils n'ont pas tourné.
-2. **Écritures de clôture et report à nouveau** : le bilan affiche aujourd'hui un « résultat non
-   affecté » cumulé au lieu d'un transfert en réserves.
+2. ~~**Écritures de clôture et report à nouveau**~~ — **livré en mission 19** : registre des
+   capitaux propres, clôture contrôlée, ouverture de l'exercice suivant et affectation
+   documentée. Reste à valider les comptes et destinations avec l'expert-comptable.
 3. Sauvegardes automatisées + supervision (hors code applicatif).
 4. Export XLSX et import de relevés bancaires.
 5. Double authentification et réinitialisation de mot de passe.
@@ -59,7 +60,17 @@ textes MRA archivés et relecture par un expert-comptable mauricien.
 
 ## 3. Mission 3 — Clôtures, états financiers complets, immobilisations
 
-- Écritures de clôture et à-nouveaux, report à nouveau, affectation du résultat.
+**Livré en mission 19** (voir [`mission-19-report.md`](mission-19-report.md)) : registre des
+mouvements de capitaux propres, clôture annuelle avec contrôles bloquants et empreinte de
+source, verrouillage de la période, ouverture de l'exercice suivant, affectation du résultat
+par décision documentée, état des capitaux propres rapproché de la balance générale.
+
+Reste ouvert :
+
+- Réouverture contrôlée d'une clôture (volontairement non implémentée : l'historique est
+  immuable, les corrections passent par des écritures explicites).
+- Modèles légaux de répartition (réserve, dividende, impôt) : à valider avant tout encodage.
+- PDF signé de l'état des capitaux propres et notes annexes.
 - Notes annexes structurées, états comparatifs N-1, tableau des flux de trésorerie.
 - Immobilisations et amortissements (IAS 16/38), dépréciations (IAS 36).
 - Stocks (IAS 2), provisions (IAS 37), reconnaissance du revenu (IFRS 15).
@@ -105,7 +116,7 @@ textes MRA archivés et relecture par un expert-comptable mauricien.
 1. Finitions V0.1 (D-09, D-11, D-01, D-02, D-14)
 2. Tiers + facturation (sans TVA codée)
 3. Validation réglementaire TVA → activation progressive des taux
-4. Clôtures + états complets + immobilisations
+4. Clôtures (livrées en mission 19) + états complets + immobilisations
 5. Paie (mission dédiée, avec validation annuelle des barèmes)
 6. Déclarations et conformité
 7. Cabinet / consolidation

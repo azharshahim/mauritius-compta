@@ -406,6 +406,7 @@ données, **ni** secret, **ni** donnée réelle.
 | [`docs/mission-16-report.md`](docs/mission-16-report.md) | Rapport de mission 16 (règles 2026/27, bulletin, démonstration) |
 | [`docs/mission-17-report.md`](docs/mission-17-report.md) | Rapport de mission 17 (impression individuelle, déclarations MRA, exports internes) |
 | [`docs/mission-18-report.md`](docs/mission-18-report.md) | Rapport de mission 18 (transfert paie → comptabilité, correspondances, proposition équilibrée) |
+| [`docs/mission-19-report.md`](docs/mission-19-report.md) | Rapport de mission 19 (capitaux propres, clôture annuelle, affectation du résultat) |
 | [`docs/mra-declarations.md`](docs/mra-declarations.md) | Champs MRA vérifiés, contrôles, export interne, raisons du blocage officiel |
 | [`docs/regulatory-sources-register.md`](docs/regulatory-sources-register.md) | Registre des sources officielles, statuts et approbation experte |
 | [`docs/mauritius-regulatory-audit-dossier.md`](docs/mauritius-regulatory-audit-dossier.md) | Dossier d’audit réglementaire en anglais, 18 chapitres |
