@@ -19,6 +19,7 @@ import { attachmentRoutes } from './modules/attachments/routes.js';
 import { cabinetRoutes } from './modules/cabinet/routes.js';
 import { billingRoutes } from './modules/billing/routes.js';
 import { payrollRoutes } from './modules/payroll/routes.js';
+import { aiRoutes } from './modules/ai/routes.js';
 import type { UserRow } from './types.js';
 
 declare module 'fastify' {
@@ -177,6 +178,8 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
       cabinetRoutes(secured, db);
       billingRoutes(secured, db);
       payrollRoutes(secured, db);
+      // Mauritius AI Engine: provider-agnostic orchestration, BYOK, budgets.
+      aiRoutes(secured, db, config);
     });
   }, { prefix: '/api' });
 

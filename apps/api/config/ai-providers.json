@@ -1,0 +1,151 @@
+{
+  "$schema": "./ai-providers.schema.json",
+  "version": 1,
+  "updated_at": "2026-10-31",
+  "notice": "Catalogue de fournisseurs IA. Aucune URL, aucun modèle, aucune capacité ni aucun tarif n'est codé en dur dans le code métier : ce fichier (ou celui désigné par AI_CATALOGUE_PATH) est la seule source. Les tarifs sont volontairement vides : aucun prix daté et vérifié n'est fourni avec le logiciel, donc aucun montant n'est affiché. Renseignez `pricing` avec une date d'effet et une source, puis vérifiez chaque ligne avant d'activer le routage automatique.",
+  "providers": [
+    {
+      "key": "deepseek",
+      "label": "DeepSeek",
+      "adapter": "openai",
+      "base_url": "https://api.deepseek.com/v1",
+      "requires_key": true,
+      "enabled_by_default": true,
+      "docs_url": "https://api-docs.deepseek.com/",
+      "notes": "API compatible OpenAI (chat/completions). Pas de sortie structurée par schéma : le modèle est contraint par le prompt puis la réponse est validée par le serveur.",
+      "capabilities": {
+        "structured_output": "json_object",
+        "vision": false,
+        "documents": false,
+        "streaming": true,
+        "token_counting": "provider"
+      },
+      "models": [
+        { "id": "deepseek-chat", "label": "DeepSeek Chat", "context_tokens": 64000, "max_output_tokens": 8000 },
+        { "id": "deepseek-reasoner", "label": "DeepSeek Reasoner", "context_tokens": 64000, "max_output_tokens": 8000 }
+      ]
+    },
+    {
+      "key": "openai",
+      "label": "OpenAI",
+      "adapter": "openai",
+      "base_url": "https://api.openai.com/v1",
+      "requires_key": true,
+      "enabled_by_default": true,
+      "docs_url": "https://platform.openai.com/docs/api-reference",
+      "notes": "Sortie structurée native (json_schema strict) et comptage de tokens fourni dans usage.",
+      "capabilities": {
+        "structured_output": "json_schema",
+        "vision": true,
+        "documents": false,
+        "streaming": true,
+        "token_counting": "provider"
+      },
+      "models": [
+        { "id": "gpt-4o-mini", "label": "GPT-4o mini", "context_tokens": 128000, "max_output_tokens": 16000 },
+        { "id": "gpt-4o", "label": "GPT-4o", "context_tokens": 128000, "max_output_tokens": 16000 }
+      ]
+    },
+    {
+      "key": "gemini",
+      "label": "Google Gemini",
+      "adapter": "gemini",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta",
+      "requires_key": true,
+      "enabled_by_default": true,
+      "docs_url": "https://ai.google.dev/gemini-api/docs",
+      "notes": "API generateContent : schéma de réponse passé dans generationConfig, comptage via usageMetadata.",
+      "capabilities": {
+        "structured_output": "json_schema",
+        "vision": true,
+        "documents": true,
+        "streaming": true,
+        "token_counting": "provider"
+      },
+      "models": [
+        { "id": "gemini-2.0-flash", "label": "Gemini 2.0 Flash", "context_tokens": 1000000, "max_output_tokens": 8192 },
+        { "id": "gemini-2.5-flash", "label": "Gemini 2.5 Flash", "context_tokens": 1000000, "max_output_tokens": 8192 }
+      ]
+    },
+    {
+      "key": "mistral",
+      "label": "Mistral AI",
+      "adapter": "openai",
+      "base_url": "https://api.mistral.ai/v1",
+      "requires_key": true,
+      "enabled_by_default": true,
+      "docs_url": "https://docs.mistral.ai/",
+      "notes": "API compatible OpenAI. Sortie structurée limitée à json_object : le schéma est vérifié côté serveur.",
+      "capabilities": {
+        "structured_output": "json_object",
+        "vision": false,
+        "documents": false,
+        "streaming": true,
+        "token_counting": "provider"
+      },
+      "models": [
+        { "id": "mistral-small-latest", "label": "Mistral Small", "context_tokens": 128000, "max_output_tokens": 8192 },
+        { "id": "mistral-large-latest", "label": "Mistral Large", "context_tokens": 128000, "max_output_tokens": 8192 }
+      ]
+    },
+    {
+      "key": "openai_compatible",
+      "label": "Compatible OpenAI (configurable)",
+      "adapter": "openai",
+      "base_url": "",
+      "base_url_configurable": true,
+      "requires_key": true,
+      "enabled_by_default": true,
+      "docs_url": "",
+      "notes": "Pour un fournisseur compatible OpenAI non listé : l'URL de base et le modèle sont saisis par le cabinet et validés côté serveur (http/https, pas d'adresse privée sauf autorisation explicite).",
+      "capabilities": {
+        "structured_output": "json_object",
+        "vision": false,
+        "documents": false,
+        "streaming": false,
+        "token_counting": "unknown"
+      },
+      "models": []
+    },
+    {
+      "key": "local",
+      "label": "Auto-hébergé (phase ultérieure)",
+      "adapter": "openai",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "base_url_configurable": true,
+      "requires_key": false,
+      "enabled_by_default": false,
+      "docs_url": "",
+      "notes": "Serveur local compatible OpenAI. Désactivé par défaut : aucune installation n'est fournie et aucune requête n'est émise sans activation explicite de l'opérateur.",
+      "capabilities": {
+        "structured_output": "json_object",
+        "vision": false,
+        "documents": false,
+        "streaming": false,
+        "token_counting": "unknown"
+      },
+      "models": []
+    },
+    {
+      "key": "simulated",
+      "label": "Simulateur fictif (démonstration et tests)",
+      "adapter": "simulated",
+      "base_url": "",
+      "requires_key": false,
+      "enabled_by_default": false,
+      "docs_url": "",
+      "notes": "Fournisseur déterministe, sans réseau. Utilisé par la démonstration GitHub Pages et les tests. Ne produit aucune dépense.",
+      "capabilities": {
+        "structured_output": "json_schema",
+        "vision": false,
+        "documents": false,
+        "streaming": false,
+        "token_counting": "estimated"
+      },
+      "models": [
+        { "id": "simulated-fictif", "label": "Simulateur déterministe", "context_tokens": 8192, "max_output_tokens": 1024 }
+      ]
+    }
+  ],
+  "pricing": []
+}

@@ -4,6 +4,7 @@ import type { Db } from '../../db/index.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { clientIp, parse } from '../../lib/http.js';
 import { writeAudit } from '../../lib/audit.js';
+import { attachCompanyToCabinet } from '../../lib/cabinets.js';
 import { requireCompany } from '../../lib/tenant.js';
 import { effectiveModules, requireModuleAccess } from '../../lib/permissions.js';
 import { provisionCompanyDefaults } from '../../lib/provisioning.js';
@@ -147,6 +148,8 @@ export function companyRoutes(app: FastifyInstance, db: Db) {
         'INSERT INTO company_members (company_id, user_id, role) VALUES ($1, $2, $3)',
         [row.id, user.id, 'owner'],
       );
+      // The dossier belongs to the creator's cabinet (AI scope, budgets, keys).
+      await attachCompanyToCabinet(tx, row.id, user.id);
       // The first accounting period is always opened (independently of the
       // optional demonstration chart), otherwise no entry could ever be posted.
       await provisionCompanyDefaults(tx, row, locale, {
