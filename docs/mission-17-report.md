@@ -223,6 +223,13 @@ Les trois jobs de la CI sont verts : `Migrations against real PostgreSQL`,
 avertissements visibles concernent uniquement la dépréciation de Node 20 dans les
 actions et la migration d’image `ubuntu-latest` ; ils ne sont pas des échecs.
 
+Les commits suivants ont également une CI verte :
+
+- `de41e70` (consignation CI) : [run 41225161081](https://github.com/azharshahim/mauritius-compta/actions/runs/41225161081) ;
+- `476f483` (pied de page PDF ne conservant que la mention de simulation) :
+  [run 41225426057](https://github.com/azharshahim/mauritius-compta/actions/runs/41225426057),
+  tests PDF ciblés `payroll-pdf.test.ts` 2/2 et `payroll-2026-27.test.ts` 4/4.
+
 ### Non testé
 
 - rendu papier réel dans Chrome Windows et Chrome Android ;
