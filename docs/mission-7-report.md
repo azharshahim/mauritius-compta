@@ -245,5 +245,19 @@ fournie. **Aucune validation professionnelle n'est revendiquée.**
 
 ### Statut des exécutions
 
-À compléter après le push de la documentation (identifiants des exécutions
-`CI` et `Demo (GitHub Pages)`).
+| Workflow | Exécution | Commit | Résultat |
+| --- | --- | --- | --- |
+| `CI` (push) | `41184028275` | `4580910` | ✅ |
+| `CI` (pull request nº1) | `41184024587` | `4580910` | ✅ |
+| `Demo (GitHub Pages)` | `41183941018` | `22f643b` | ✅ (smoke test mission 7 inclus) |
+
+- Les deux exécutions `CI` du commit de code `22f643b` (`41183941019`,
+  `41183945304`) ont été **annulées** par la concurrence du workflow lors du push
+  de la documentation ; les exécutions finales ci-dessus portent sur la tête de
+  branche et sont vertes.
+- `Demo (GitHub Pages)` ne se déclenche pas sur un commit de documentation seule
+  (`paths: apps/web/**`) : la démonstration publiée correspond donc au commit de
+  code `22f643b`, dont le smoke test vérifie la pastille, l'écran Paramètres
+  société, le taux de démonstration 15 % et les codes TVA.
+- PR nº1 : `OPEN`, `isDraft=true`, `arena/b0b62798-mauritius-compta → main` ;
+  `main` reste à `9e46f16`.

@@ -29,7 +29,7 @@ délai de paiement par défaut, langue des documents, logo (URL), mentions léga
 FR/EN, coordonnées bancaires, comptes par défaut (produits, clients, banque,
 achats, TVA récupérable, TVA collectée).
 
-### Fiscalite
+### Fiscalité
 Statut TVA de la société, numéro de TVA, liste des taux (voir
 `docs/vat-configuration.md`), compteurs vérifiés/non vérifiés, historique.
 
