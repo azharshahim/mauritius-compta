@@ -100,10 +100,14 @@ jobs:
           echo "asset: $asset ($(wc -c < /tmp/app.js) octets)"
           grep -q 'MODE DÉMONSTRATION' /tmp/app.js
           grep -q 'mc.demo.state.v1' /tmp/app.js
+          grep -q 'Mauritius Business Suite' /tmp/app.js
+          grep -q 'Dossiers clients' /tmp/app.js
+          grep -q 'Tâches & échéances' /tmp/app.js
+          grep -q 'Vieux Grand Port Logistics' /tmp/app.js
           FOUR04=$(curl -s -o /tmp/404.html -w '%{http_code}' "$BASE/404.html")
           echo "404.html: $FOUR04"
           DEEP=$(curl -s -o /tmp/deep.html -w '%{http_code}' "$BASE/entries")
           echo "lien profond /entries: $DEEP"
           grep -q 'Redirection vers la demonstration\|Redirection vers la démonstration' /tmp/deep.html
           echo "OK: page 200, bundle JS charge, mode demo embarque, fallback 404 actif"
-          echo "::notice::URL https://azharshahim.github.io/mauritius-compta/ -> index ${code}, asset ${asset} ($(wc -c < /tmp/app.js) octets), 404.html ${FOUR04}, lien profond ${DEEP}"
+          echo "::notice::URL https://azharshahim.github.io/mauritius-compta/ -> index ${code}, asset ${asset} ($(wc -c < /tmp/app.js) octets), 404.html ${FOUR04}, lien profond ${DEEP}, 4 modules et cabinet présents"
