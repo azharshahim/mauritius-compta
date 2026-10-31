@@ -16,6 +16,9 @@ import { entryRoutes } from './modules/entries/routes.js';
 import { settingsRoutes } from './modules/settings/routes.js';
 import { reportRoutes } from './modules/reports/routes.js';
 import { attachmentRoutes } from './modules/attachments/routes.js';
+import { cabinetRoutes } from './modules/cabinet/routes.js';
+import { billingRoutes } from './modules/billing/routes.js';
+import { payrollRoutes } from './modules/payroll/routes.js';
 import type { UserRow } from './types.js';
 
 declare module 'fastify' {
@@ -169,6 +172,11 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
       settingsRoutes(secured, db);
       reportRoutes(secured, db);
       attachmentRoutes(secured, db, config);
+      // Mauritius Business Suite modules: Cabinet first-class, Billing and
+      // Payroll as prepared (501) foundations with their own permissions.
+      cabinetRoutes(secured, db);
+      billingRoutes(secured, db);
+      payrollRoutes(secured, db);
     });
   }, { prefix: '/api' });
 

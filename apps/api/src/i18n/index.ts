@@ -38,6 +38,15 @@ const fr: Dict = {
   ATTACHMENT_TYPE_NOT_ALLOWED: 'Type de justificatif non autorisé.',
   UNSUPPORTED_FORMAT: 'Format non supporté.',
   INVALID_DATE_RANGE: 'Plage de dates invalide.',
+  MODULE_FORBIDDEN: "Ce module n'est pas accessible avec vos droits sur ce dossier.",
+  COMPANY_ARCHIVED: 'Ce dossier est archivé : il est en lecture seule.',
+  TASK_NOT_FOUND: 'Tâche introuvable.',
+  MEMBER_NOT_FOUND: 'Collaborateur introuvable sur ce dossier.',
+  ASSIGNEE_NOT_MEMBER: "Le collaborateur affecté n'appartient pas à ce dossier.",
+  INVALID_ROLE: 'Rôle non supporté pour ce dossier.',
+  INVALID_MODULE: 'Module inconnu.',
+  NOT_IMPLEMENTED: 'Fonctionnalité préparée mais non disponible dans cette version.',
+
 
   'pdf.title.ledger': 'Grand livre',
   'pdf.title.trialBalance': 'Balance générale',
@@ -130,6 +139,15 @@ const en: Dict = {
   ATTACHMENT_TYPE_NOT_ALLOWED: 'Supporting document type not allowed.',
   UNSUPPORTED_FORMAT: 'Unsupported format.',
   INVALID_DATE_RANGE: 'Invalid date range.',
+  MODULE_FORBIDDEN: 'This module is not available with your rights on this dossier.',
+  COMPANY_ARCHIVED: 'This dossier is archived: it is read-only.',
+  TASK_NOT_FOUND: 'Task not found.',
+  MEMBER_NOT_FOUND: 'Collaborator not found on this dossier.',
+  ASSIGNEE_NOT_MEMBER: 'The assignee is not a member of this dossier.',
+  INVALID_ROLE: 'Unsupported role for this dossier.',
+  INVALID_MODULE: 'Unknown module.',
+  NOT_IMPLEMENTED: 'Feature prepared but not available in this version.',
+
 
   'pdf.title.ledger': 'General Ledger',
   'pdf.title.trialBalance': 'Trial Balance',

@@ -1,13 +1,60 @@
 import type { Locale } from './i18n/index.js';
 
-export type CompanyRole = 'owner' | 'admin' | 'accountant' | 'viewer';
+/**
+ * Company role. `owner`, `admin`, `accountant` and `viewer` are the historical
+ * V0.1 roles; the cabinet vocabulary is additive (migration 0004).
+ */
+export type CompanyRole =
+  | 'owner'
+  | 'admin'
+  | 'cabinet_admin'
+  | 'manager'
+  | 'accountant'
+  | 'billing_clerk'
+  | 'payroll_manager'
+  | 'viewer';
+
+export const COMPANY_ROLES: CompanyRole[] = [
+  'owner',
+  'admin',
+  'cabinet_admin',
+  'manager',
+  'accountant',
+  'billing_clerk',
+  'payroll_manager',
+  'viewer',
+];
 
 export const ROLE_WEIGHT: Record<CompanyRole, number> = {
   viewer: 1,
   accountant: 2,
-  admin: 3,
-  owner: 4,
+  billing_clerk: 2,
+  payroll_manager: 2,
+  manager: 3,
+  admin: 4,
+  owner: 5,
+  cabinet_admin: 5,
 };
+
+/** Modules of the Mauritius Business Suite. */
+export type ModuleName = 'cabinet' | 'accounting' | 'billing' | 'payroll';
+export type AccessLevel = 'none' | 'read' | 'write' | 'admin';
+
+export const TASK_CATEGORIES = [
+  'accounting',
+  'vat',
+  'tax',
+  'payroll',
+  'financial_statements',
+  'administrative',
+] as const;
+export type TaskCategory = (typeof TASK_CATEGORIES)[number];
+
+export const TASK_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
+export type TaskPriority = (typeof TASK_PRIORITIES)[number];
+
+export const TASK_STATUSES = ['todo', 'in_progress', 'blocked', 'done', 'cancelled'] as const;
+export type TaskStatus = (typeof TASK_STATUSES)[number];
 
 export interface UserRow {
   id: string;
@@ -31,6 +78,10 @@ export interface CompanyRow {
   id: string;
   name: string;
   brn: string | null;
+  crn: string | null;
+  client_code: string | null;
+  dossier_manager_id: string | null;
+  archived_at: string | null;
   vat_number: string | null;
   registered_address: string | null;
   business_activity: string | null;

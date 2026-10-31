@@ -38,7 +38,15 @@ export type ErrorCode =
   | 'ATTACHMENT_TOO_LARGE'
   | 'ATTACHMENT_TYPE_NOT_ALLOWED'
   | 'UNSUPPORTED_FORMAT'
-  | 'INVALID_DATE_RANGE';
+  | 'INVALID_DATE_RANGE'
+  | 'MODULE_FORBIDDEN'
+  | 'COMPANY_ARCHIVED'
+  | 'TASK_NOT_FOUND'
+  | 'MEMBER_NOT_FOUND'
+  | 'ASSIGNEE_NOT_MEMBER'
+  | 'INVALID_ROLE'
+  | 'INVALID_MODULE'
+  | 'NOT_IMPLEMENTED';
 
 export class AppError extends Error {
   readonly code: ErrorCode;
@@ -56,10 +64,13 @@ export class AppError extends Error {
 export const badRequest = (code: ErrorCode, message?: string, details?: unknown) =>
   new AppError(code, 400, message, details);
 export const unauthorized = (message?: string) => new AppError('UNAUTHORIZED', 401, message);
-export const forbidden = (message?: string) => new AppError('FORBIDDEN', 403, message);
+export const forbidden = (message?: string, code: ErrorCode = 'FORBIDDEN') =>
+  new AppError(code, 403, message);
 export const notFound = (code: ErrorCode, message?: string) =>
   new AppError(code, 404, message);
 export const conflict = (code: ErrorCode, message?: string) => new AppError(code, 409, message);
+export const notImplemented = (code: ErrorCode, message?: string) =>
+  new AppError(code, 501, message);
 
 /** Maps raw PostgreSQL error codes/messages to business errors. */
 export function mapDatabaseError(err: unknown): AppError | null {

@@ -5,10 +5,11 @@ import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { clientIp, parse } from '../../lib/http.js';
 import { writeAudit } from '../../lib/audit.js';
 import { requireCompany } from '../../lib/tenant.js';
+import { effectiveModules, requireModuleAccess } from '../../lib/permissions.js';
 import { provisionCompanyDefaults } from '../../lib/provisioning.js';
 import { hashPassword } from '../../lib/password.js';
 import { loadCompanyRules, validateField } from './validation-rules.js';
-import type { CompanyRole, CompanyRow, UserRow } from '../../types.js';
+import { COMPANY_ROLES, type CompanyRole, type CompanyRow, type UserRow } from '../../types.js';
 import type { Locale } from '../../i18n/index.js';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
@@ -16,6 +17,9 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
 const companyBody = z.object({
   name: z.string().min(1).max(200),
   brn: z.string().max(40).nullish(),
+  crn: z.string().max(40).nullish(),
+  clientCode: z.string().max(24).nullish(),
+  dossierManagerId: z.string().uuid().nullish(),
   vatNumber: z.string().max(40).nullish(),
   registeredAddress: z.string().max(500).nullish(),
   businessActivity: z.string().max(300).nullish(),
@@ -37,6 +41,7 @@ function applyRules(body: CompanyBody, currencyList: string[], standardList: str
     validateField(rules.name, body.name, 'name'),
     validateField(rules.brn, body.brn, 'brn'),
     validateField(rules.vatNumber, body.vatNumber, 'vatNumber'),
+    validateField(rules.brn, body.crn, 'crn'),
     validateField(rules.registeredAddress, body.registeredAddress, 'registeredAddress'),
     validateField(rules.businessActivity, body.businessActivity, 'businessActivity'),
   ].filter(Boolean) as { path: string; message: string }[];
@@ -69,16 +74,26 @@ export function companyRoutes(app: FastifyInstance, db: Db) {
   // -------------------------------------------------------------------------
   app.get('/companies', async (req) => {
     const user = req.user!;
-    const res = await db.query(
+    const res = await db.query<CompanyRow & { role: CompanyRole }>(
       `SELECT c.*, m.role,
-              (SELECT count(*)::int FROM accounts a WHERE a.company_id = c.id) AS accounts_count
+              (SELECT count(*)::int FROM accounts a WHERE a.company_id = c.id) AS accounts_count,
+              (SELECT count(*)::int FROM cabinet_tasks t
+                WHERE t.company_id = c.id AND t.status IN ('todo', 'in_progress', 'blocked')) AS open_tasks
          FROM companies c
          JOIN company_members m ON m.company_id = c.id
         WHERE m.user_id = $1
         ORDER BY c.created_at ASC`,
       [user.id],
     );
-    return { companies: res.rows };
+    // Module permissions travel with the company so the UI can hide spaces the
+    // user cannot open (the API enforces them again on every request).
+    const companies = await Promise.all(
+      res.rows.map(async (row) => ({
+        ...row,
+        modules: await effectiveModules(db, row.id, user.id, row.role),
+      })),
+    );
+    return { companies };
   });
 
   // -------------------------------------------------------------------------
@@ -104,8 +119,9 @@ export function companyRoutes(app: FastifyInstance, db: Db) {
         `INSERT INTO companies
            (name, brn, vat_number, registered_address, business_activity,
             financial_year_start, financial_year_end, functional_currency,
-            presentation_currency, accounting_standard, status, locale, created_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+            presentation_currency, accounting_standard, status, locale, created_by,
+            crn, client_code, dossier_manager_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
          RETURNING *`,
         [
           body.name.trim(),
@@ -121,6 +137,9 @@ export function companyRoutes(app: FastifyInstance, db: Db) {
           body.status ?? 'active',
           locale,
           user.id,
+          body.crn?.trim() || null,
+          body.clientCode?.trim() || null,
+          body.dossierManagerId ?? null,
         ],
       );
       const row = created.rows[0]!;
@@ -185,6 +204,12 @@ export function companyRoutes(app: FastifyInstance, db: Db) {
       accountingStandard: patch.accountingStandard ?? ctx.company.accounting_standard,
       status: patch.status ?? ctx.company.status,
       locale: patch.locale ?? ctx.company.locale,
+      crn: patch.crn !== undefined ? patch.crn : ctx.company.crn,
+      clientCode: patch.clientCode !== undefined ? patch.clientCode : ctx.company.client_code,
+      dossierManagerId:
+        patch.dossierManagerId !== undefined
+          ? patch.dossierManagerId
+          : ctx.company.dossier_manager_id,
     };
     applyRules(merged as CompanyBody, rules.currencies, rules.accountingStandards);
 
@@ -201,7 +226,11 @@ export function companyRoutes(app: FastifyInstance, db: Db) {
          name = $2, brn = $3, vat_number = $4, registered_address = $5,
          business_activity = $6, financial_year_start = $7, financial_year_end = $8,
          functional_currency = $9, presentation_currency = $10, accounting_standard = $11,
-         status = $12, locale = $13, updated_at = now()
+         status = $12, locale = $13, crn = $14, client_code = $15, dossier_manager_id = $16,
+         archived_at = CASE WHEN $12 = 'archived' AND archived_at IS NULL THEN now()
+                            WHEN $12 <> 'archived' THEN NULL
+                            ELSE archived_at END,
+         updated_at = now()
        WHERE id = $1
    RETURNING *`,
       [
@@ -218,6 +247,9 @@ export function companyRoutes(app: FastifyInstance, db: Db) {
         merged.accountingStandard,
         merged.status,
         merged.locale,
+        merged.crn?.trim() || null,
+        merged.clientCode?.trim() || null,
+        merged.dossierManagerId ?? null,
       ],
     );
     await writeAudit(db, {
@@ -255,7 +287,10 @@ export function companyRoutes(app: FastifyInstance, db: Db) {
     const body = parse(
       z.object({
         email: z.string().email(),
-        role: z.enum(['admin', 'accountant', 'viewer']),
+        role: z.enum(COMPANY_ROLES as [CompanyRole, ...CompanyRole[]]).refine(
+          (r) => r !== 'owner',
+          'Use the ownership transfer endpoint for the owner role',
+        ),
         fullName: z.string().min(2).max(120).optional(),
         temporaryPassword: z.string().min(10).max(200).optional(),
       }),
