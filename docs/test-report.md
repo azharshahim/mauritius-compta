@@ -105,3 +105,28 @@ npm run build:demo
 
 Aucun secret, aucune base externe, aucun accès réseau ne sont nécessaires : les tests utilisent
 des données fictives et PGlite.
+
+## Mission 7 — assistant universel, paramètres société, TVA
+
+| Suite | Commande | Résultat |
+| --- | --- | --- |
+| API | `npm test -w @mc/api` | 162 réussis, 4 ignorés (concurrence PostgreSQL réel) |
+| Web | `npm test -w @mc/web` | 81 réussis (8 fichiers) |
+| Typecheck | `npm run typecheck` | 0 erreur |
+| Build démo | `npm run build:demo` | OK, panneau assistant en chunk séparé (3,27 kB) |
+
+Nouveaux fichiers : `apps/api/tests/assistant.test.ts` (23 cas),
+`apps/web/tests/demo-assistant.test.ts` (13), `apps/web/tests/assistant-ui.test.tsx`
+(5), `apps/web/tests/company-settings-ui.test.tsx` (3).
+
+Couverture mission 7 : contexte serveur et rejet d'une société non autorisée,
+permissions d'outils (refus `denied`), factures impayées et tâches réelles,
+recherche de compte et balance, indisponibilité de la paie, préparation d'écriture
+sans comptabilisation, exemple 3 250 / 487,50 / 3 737,50, paramètres société et
+verrou d'exercice, TVA (source obligatoire, traitements distincts, historique,
+refus d'un taux non vérifié, gel après émission), démonstration sans appel réseau,
+pastille dans les quatre modules, `Échap`, conservation de la conversation après
+navigation, focus jamais volé.
+
+**Non réalisé** (et non revendiqué) : aucune session navigateur réelle
+(Chrome/Android), aucun appareil physique, aucun test de charge.

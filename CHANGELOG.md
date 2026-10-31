@@ -1,5 +1,47 @@
 # Journal des versions
 
+## Mauritius Business Suite — 31 octobre 2026 (mission 7)
+
+> Assistant IA universel, paramètres société et TVA configurable. Aucun module
+> existant réécrit, aucune paie mauricienne calculée, aucun second moteur IA,
+> aucune PR fusionnée.
+
+### Ajouté — Assistant IA universel
+
+- Pastille « ✨ Assistant IA » sur tous les écrans authentifiés des quatre modules ;
+  panneau latéral sur ordinateur, feuille plein écran sur Android (safe-areas,
+  composeur visible, chargement différé), survit aux changements de module sans
+  perdre une saisie ni rouvrir le clavier.
+- Contexte construit **côté serveur** (société re-vérifiée, module, écran, langue,
+  permissions, référence d'objet) ; un `companyId` du navigateur n'est jamais cru.
+- Registre d'outils en lecture seule (cabinet, facturation, comptabilité, paie),
+  contrôle de permission à chaque appel, arguments validés, audit et rétention
+  configurable (30 jours par défaut).
+- Préparation d'écriture uniquement en **proposition brouillon** via l'Assistant V2
+  existant : aucune comptabilisation, aucun outil irréversible.
+
+### Ajouté — Paramètres société et TVA
+
+- Écran unique accessible depuis Cabinet → Fiche société → Paramètres et depuis
+  Comptabilité → Paramètres société : identification, comptabilité, facturation,
+  fiscalité, historique.
+- TVA : quatre traitements distincts (taxable / taux zéro / exonéré / hors champ),
+  compte de TVA, vérification humaine sourcée et confirmée, historique append-only,
+  taux gelé dès qu'un document émis l'utilise, aucun taux seedé.
+- Migration additive `0007_assistant_settings_vat.sql` ; verrous d'exercice et de
+  devise en présence d'écritures.
+
+### Démonstration
+
+- Schéma de stockage local **5** ; assistant réellement interactif branché sur les
+  données fictives existantes, TVA 15 % de démonstration **non vérifiée**, aucun
+  appel réseau, bandeau permanent.
+
+### Tests
+
+- API : 162 réussis, 4 ignorés (concurrence PostgreSQL réel). Web : 81 réussis.
+  `typecheck` 0 erreur. Build démo : panneau en chunk séparé.
+
 ## Mauritius Business Suite — 31 octobre 2026 (mission 6)
 
 > Facturation de bout en bout + assistant comptable V2. Cœur comptable et correctif clavier

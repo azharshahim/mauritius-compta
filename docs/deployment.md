@@ -240,3 +240,15 @@ Variables à renseigner uniquement si l'IA doit être utilisée :
 Aucune clé de fournisseur IA ne doit figurer dans `.env.example`, dans le dépôt ou dans un
 workflow GitHub : les clés sont saisies par chaque cabinet dans l'interface et chiffrées en
 base avec `AI_ENCRYPTION_KEY`.
+
+## Mission 7 — vérifications de la démonstration
+
+- Schéma localStorage : **5** (les données de démonstration antérieures sont
+  régénérées à partir du jeu fictif mis à jour).
+- Chaînes contrôlées dans le bundle publié par le smoke test Pages :
+  `Assistant IA`, `Paramètres société`, `Taux de démonstration 15`,
+  `VAT_SOURCE_REQUIRED`, `SETTINGS_FINANCIAL_YEAR_LOCKED`, `assistant-panel`.
+- Chunk différé : `assets/AssistantPanel-*.js` (le panneau n'est téléchargé qu'à
+  la première ouverture).
+- La démo ne contacte aucun fournisseur IA : la conversation est servie par le
+  backend navigateur, sur les mêmes routes que l'API.

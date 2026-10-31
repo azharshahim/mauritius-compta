@@ -186,3 +186,14 @@ simulé : la démo renvoie `PDF_NOT_AVAILABLE_IN_DEMO` et l'écran l'affiche.
 > Limite : toujours **aucun navigateur réel** (Chrome, Samsung/Android) dans l'environnement de
 > travail. La publication GitHub Pages est vérifiée par le workflow (HTTP 200, bundle, chaînes
 > des écrans, `404.html`, lien profond), pas par une session graphique.
+
+## 11. Mission 7 — tests jsdom de l'assistant et des paramètres
+
+| Test | Ce qui est vérifié | Limite |
+| --- | --- | --- |
+| `tests/assistant-ui.test.tsx` | pastille dans les quatre modules, ouverture/fermeture (`Échap`), réponse sur données fictives, conversation conservée après navigation, focus jamais volé | jsdom, pas de navigateur réel |
+| `tests/company-settings-ui.test.tsx` | accès depuis la fiche société et depuis Comptabilité, quatre sections, taux 15 % non vérifié et source obligatoire | jsdom |
+| `tests/demo-assistant.test.ts` | intentions réelles (impayés, tâches, compte, écriture 3 250), refus explicite, aucun `fetch` | simulation navigateur |
+
+Aucun test Chrome ni Android physique n'a été exécuté pour cette mission ; le
+clavier virtuel reste couvert par les tests de la mission 5.

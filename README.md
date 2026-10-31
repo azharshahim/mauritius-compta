@@ -364,6 +364,12 @@ données, **ni** secret, **ni** donnée réelle.
 | [`docs/ai-account-suggestions.md`](docs/ai-account-suggestions.md) | Assistant de suggestion de compte et validation humaine |
 | [`docs/mission-5-report.md`](docs/mission-5-report.md) | Rapport de mission 5 |
 | [`docs/mission-6-report.md`](docs/mission-6-report.md) | Rapport de mission 6 (facturation, assistant V2) |
+| [`docs/mission-7-report.md`](docs/mission-7-report.md) | Rapport de mission 7 (assistant universel, paramètres société, TVA) |
+| [`docs/ai-universal-assistant.md`](docs/ai-universal-assistant.md) | Pastille IA, contexte serveur, orchestration, rétention |
+| [`docs/ai-tool-permissions.md`](docs/ai-tool-permissions.md) | Matrice outil × module × permission, anti-injection |
+| [`docs/company-settings.md`](docs/company-settings.md) | Référentiel unique des paramètres société |
+| [`docs/vat-configuration.md`](docs/vat-configuration.md) | Traitements TVA, vérification humaine, historique |
+| [`docs/regulatory-review-register.md`](docs/regulatory-review-register.md) | Registre des règles à faire vérifier (aucune validation inventée) |
 | [`docs/audit-existing-apps.md`](docs/audit-existing-apps.md) | Audit des applications existantes du propriétaire (aucune modification) |
 | [`docs/mauritius-regulations/`](docs/mauritius-regulations/) | Veille réglementaire : comptabilité, TVA, IS, paie, données, sources, registre |
 
