@@ -22,6 +22,14 @@ import {
   suggestAccount,
 } from './suggestions.js';
 import { AI_FEATURES, featureByKey } from './types.js';
+import { toolCatalogue } from './tools.js';
+import {
+  closeConversation,
+  createConversation,
+  listConversations,
+  loadConversation,
+  runAssistantTurn,
+} from './assistant.js';
 import {
   listProposals,
   loadProposal,
@@ -680,6 +688,171 @@ export function aiRoutes(app: FastifyInstance, db: Db, config: Config): void {
       history: await listRuleHistory(db, cabinetId, companyId, assertRuleType(q.ruleType), q.matchKey),
     };
   });
+
+  // ------------------------------------------------------- universal assistant
+  /**
+   * Mission 7. The panel is available in the four modules; the *server* decides
+   * what the user may read, one tool call at a time. No provider is contacted:
+   * answers are rendered from real rows of the active company.
+   */
+  const conversationBody = z
+    .object({
+      companyId: z.string().uuid(),
+      module: z.enum(['cabinet', 'accounting', 'billing', 'payroll']).optional(),
+      screen: z.string().trim().max(80).nullable().optional(),
+      locale: z.enum(['fr', 'en']).optional(),
+      objectRef: z
+        .object({
+          type: z.enum(['invoice', 'proposal', 'entry', 'customer', 'company', 'task']),
+          id: z.string().uuid(),
+        })
+        .nullable()
+        .optional(),
+    })
+    .strict();
+
+  const messageBody = z
+    .object({
+      text: z.string().trim().min(2).max(600),
+      companyId: z.string().uuid(),
+    })
+    .strict();
+
+  app.get('/companies/:companyId/ai/assistant/tools', async (req) => {
+    const user = req.user!;
+    const { companyId } = req.params as { companyId: string };
+    await requireModuleAccess(db, user.id, companyId, 'cabinet', 'read');
+    return {
+      tools: toolCatalogue(),
+      provider: null,
+      mode: 'deterministic-read-only',
+      disclaimer: {
+        fr: 'Réponses construites à partir des données du dossier actif. Aucune écriture comptable n’est créée par l’assistant.',
+        en: 'Answers built from the active dossier. The assistant never creates an accounting entry.',
+      },
+    };
+  });
+
+  app.post('/companies/:companyId/ai/assistant/conversations', async (req, reply) => {
+    const user = req.user!;
+    const { companyId } = req.params as { companyId: string };
+    const body = parse(conversationBody, req.body);
+    if (body.companyId !== companyId) {
+      throw badRequest('COMPANY_MISMATCH', 'The body company does not match the URL');
+    }
+    const created = await createConversation(
+      db,
+      service,
+      user.id,
+      {
+        companyId,
+        module: body.module,
+        screen: body.screen ?? null,
+        objectRef: body.objectRef ?? null,
+      },
+      body.locale ?? 'fr',
+      config,
+    );
+    void clientIp(req);
+    return reply.code(201).send(created);
+  });
+
+  app.get('/companies/:companyId/ai/assistant/conversations', async (req) => {
+    const user = req.user!;
+    const { companyId } = req.params as { companyId: string };
+    await requireModuleAccess(db, user.id, companyId, 'cabinet', 'read');
+    return { conversations: await listConversations(db, companyId, user.id) };
+  });
+
+  app.get(
+    '/companies/:companyId/ai/assistant/conversations/:conversationId',
+    async (req) => {
+      const user = req.user!;
+      const { companyId, conversationId } = req.params as {
+        companyId: string;
+        conversationId: string;
+      };
+      await requireModuleAccess(db, user.id, companyId, 'cabinet', 'read');
+      const loaded = await loadConversation(db, companyId, user.id, conversationId);
+      return {
+        conversation: { id: loaded.conversation.id, module: loaded.conversation.module, locale: loaded.conversation.locale, status: loaded.conversation.status },
+        messages: loaded.messages.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          context: m.context,
+          payload: m.payload,
+          createdAt: m.created_at,
+        })),
+        toolRuns: loaded.toolRuns,
+      };
+    },
+  );
+
+  app.post(
+    '/companies/:companyId/ai/assistant/conversations/:conversationId/messages',
+    async (req, reply) => {
+      const user = req.user!;
+      const { companyId, conversationId } = req.params as {
+        companyId: string;
+        conversationId: string;
+      };
+      const body = parse(messageBody, req.body);
+      if (body.companyId !== companyId) {
+        throw badRequest('COMPANY_MISMATCH', 'The body company does not match the URL');
+      }
+      const result = await runAssistantTurn(
+        db,
+        service,
+        user.id,
+        conversationId,
+        companyId,
+        body.text,
+        config,
+      );
+      return reply.code(201).send(result);
+    },
+  );
+
+  app.post(
+    '/companies/:companyId/ai/assistant/conversations/:conversationId/close',
+    async (req) => {
+      const user = req.user!;
+      const { companyId, conversationId } = req.params as {
+        companyId: string;
+        conversationId: string;
+      };
+      await requireModuleAccess(db, user.id, companyId, 'cabinet', 'read');
+      return closeConversation(db, companyId, user.id, conversationId);
+    },
+  );
+
+  // Retention: the user can erase their own conversation at any time, and the
+  // server purges expired ones on every new conversation.
+  app.delete(
+    '/companies/:companyId/ai/assistant/conversations/:conversationId',
+    async (req, reply) => {
+      const user = req.user!;
+      const { companyId, conversationId } = req.params as {
+        companyId: string;
+        conversationId: string;
+      };
+      await requireModuleAccess(db, user.id, companyId, 'cabinet', 'read');
+      await db.query(
+        `DELETE FROM ai_conversations WHERE id = $1 AND company_id = $2 AND user_id = $3`,
+        [conversationId, companyId, user.id],
+      );
+      await writeAudit(db, {
+        companyId,
+        userId: user.id,
+        action: 'ai.conversation.delete',
+        entityType: 'ai_conversation',
+        entityId: conversationId,
+        ip: clientIp(req),
+      });
+      return reply.code(204).send();
+    },
+  );
 
   // -------------------------------------------------------- future automation
   // The engine exposes the contract of the announced features and refuses to

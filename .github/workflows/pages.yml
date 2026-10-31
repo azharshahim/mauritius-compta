@@ -54,6 +54,12 @@ jobs:
           grep -q 'src="/mauritius-compta/assets/' apps/web/dist/index.html
           grep -q 'MODE DÉMONSTRATION' apps/web/dist/assets/*.js
           grep -q 'Simulation IA' apps/web/dist/assets/*.js
+          # Mission 7 : assistant universel, paramètres société et TVA de démo
+          grep -q 'Assistant IA' apps/web/dist/assets/*.js
+          grep -q 'Paramètres société' apps/web/dist/assets/*.js
+          grep -q 'Taux de démonstration 15' apps/web/dist/assets/*.js
+          grep -q 'VAT_SOURCE_REQUIRED' apps/web/dist/assets/*.js
+          ls apps/web/dist/assets/AssistantPanel-*.js >/dev/null
           test -f apps/web/dist/404.html
 
       - uses: actions/upload-pages-artifact@v3
@@ -113,6 +119,15 @@ jobs:
           grep -q 'FAC-DEMO-0002' /tmp/app.js
           grep -q 'Écritures proposées' /tmp/app.js
           grep -q 'AI_PROPOSAL_NOT_VALIDATED' /tmp/app.js
+          # Mission 7 : pastille universelle, paramètres société, TVA configurable
+          grep -q 'Assistant IA' /tmp/app.js
+          grep -q 'Paramètres société' /tmp/app.js
+          grep -q 'Taux de démonstration 15' /tmp/app.js
+          grep -q 'VAT_SOURCE_REQUIRED' /tmp/app.js
+          grep -q 'SETTINGS_FINANCIAL_YEAR_LOCKED' /tmp/app.js
+          # Le panneau est chargé à la demande (chunk séparé vérifié au build) ;
+          # la pastille, elle, est dans le bundle principal.
+          grep -q 'assistant-panel' /tmp/app.js
           FOUR04=$(curl -s -o /tmp/404.html -w '%{http_code}' "$BASE/404.html")
           echo "404.html: $FOUR04"
           DEEP=$(curl -s -o /tmp/deep.html -w '%{http_code}' "$BASE/entries")

@@ -474,3 +474,183 @@ body.demo-mode .modal-backdrop { padding-bottom: 64px; }
   .definition { grid-template-columns: 1fr; gap: 2px; }
   .definition dd { margin-bottom: 8px; }
 }
+
+/* -------------------------------------------------------------------------
+ * Mission 7 - assistant IA universel
+ * Pastille discrète, panneau latéral sur ordinateur, feuille plein écran sur
+ * téléphone. Le panneau respecte les safe-areas et ne recouvre jamais la
+ * validation d'un formulaire : il est fermable au clavier (Échap) et à l'écran.
+ * ---------------------------------------------------------------------- */
+.assistant-fab {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 70;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  box-shadow: 0 10px 24px rgba(15, 32, 54, 0.22);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.assistant-fab:hover { background: var(--accent-dark); }
+.assistant-fab:focus-visible { outline: 3px solid #9cc3f5; outline-offset: 2px; }
+.assistant-fab-label { white-space: nowrap; }
+
+.assistant-panel {
+  position: fixed;
+  z-index: 75;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: calc(max(16px, env(safe-area-inset-bottom)) + 60px);
+  width: min(420px, calc(100vw - 32px));
+  max-height: min(72vh, 640px);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 18px 48px rgba(15, 32, 54, 0.24);
+  overflow: hidden;
+}
+.assistant-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.assistant-context {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+.assistant-head-actions { display: flex; gap: 4px; }
+.assistant-messages {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  -webkit-overflow-scrolling: touch;
+}
+.assistant-intro p { margin: 0 0 8px; }
+.assistant-suggestions { display: flex; flex-wrap: wrap; gap: 6px; }
+.assistant-chip {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  min-height: 36px;
+}
+.assistant-chip:hover { border-color: var(--accent); }
+.assistant-message { display: flex; flex-direction: column; gap: 6px; }
+.assistant-bubble {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.assistant-message.user { align-items: flex-end; }
+.assistant-message.user .assistant-bubble { background: var(--accent); color: #fff; max-width: 88%; }
+.assistant-message.assistant .assistant-bubble { background: var(--surface); border: 1px solid var(--border); }
+.assistant-action {
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 10px;
+  padding: 10px;
+  background: #fff;
+  font-size: 13px;
+}
+.assistant-action p { margin: 4px 0; }
+.assistant-meta { color: var(--muted); font-size: 12px; }
+.assistant-risks { margin: 4px 0 8px 18px; padding: 0; color: var(--danger); font-size: 12px; }
+.assistant-composer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  background: #fff;
+}
+.assistant-composer input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font: inherit;
+}
+.assistant-foot {
+  margin: 0;
+  padding: 0 12px 10px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.btn-sm { min-height: 34px; padding: 6px 10px; font-size: 13px; }
+.btn-secondary { background: var(--surface); border-color: var(--border); }
+.alert-info { background: #eef5ff; border: 1px solid #cfe0f8; color: #1c3f6e; }
+.checkbox { display: flex; align-items: flex-start; gap: 8px; margin: 10px 0; font-size: 14px; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.rate-history, .verify-box {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.rate-history ul, .history-list { margin: 6px 0 0 18px; padding: 0; font-size: 13px; }
+.verify-box h4, .rate-history h4 { margin: 0 0 6px; font-size: 14px; }
+
+/* Téléphone : feuille plein écran, atteignable au pouce, sans masquer la
+   validation des formulaires. Le clavier virtuel ne cache pas le champ. */
+@media (max-width: 720px) {
+  .assistant-fab {
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    padding: 10px 14px;
+  }
+  .assistant-fab-label { display: none; }
+  .assistant-panel {
+    inset: 0;
+    width: auto;
+    max-height: none;
+    height: 100dvh;
+    border-radius: 0;
+    border: 0;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .assistant-messages { padding-bottom: 12px; }
+  .assistant-composer { position: sticky; bottom: 0; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+  .assistant-foot { display: none; }
+}

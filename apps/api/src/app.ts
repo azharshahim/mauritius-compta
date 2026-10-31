@@ -10,6 +10,7 @@ import { AppError, mapDatabaseError } from './lib/errors.js';
 import { resolveLocale, t } from './i18n/index.js';
 import { buildAuthGuards } from './modules/auth/routes.js';
 import { companyRoutes } from './modules/companies/routes.js';
+import { companySettingsRoutes } from './modules/companies/settings.js';
 import { accountRoutes } from './modules/accounts/routes.js';
 import { journalRoutes } from './modules/journals/routes.js';
 import { entryRoutes } from './modules/entries/routes.js';
@@ -167,6 +168,7 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
         await guards.currentUser(req);
       });
       companyRoutes(secured, db);
+      companySettingsRoutes(secured, db);
       accountRoutes(secured, db);
       journalRoutes(secured, db);
       entryRoutes(secured, db, config);

@@ -10,6 +10,7 @@ import LedgerPage from './pages/Ledger';
 import TrialBalancePage from './pages/TrialBalance';
 import StatementsPage from './pages/Statements';
 import SettingsPage from './pages/Settings';
+import CompanySettingsPage from './pages/company/CompanySettings';
 import CompaniesPage from './pages/Companies';
 import DossierPage from './pages/cabinet/Dossier';
 import CabinetDashboardPage from './pages/cabinet/CabinetDashboard';
@@ -27,6 +28,7 @@ import BillingAgingPage from './pages/billing/Aging';
 import { MODULES, LEGACY_REDIRECTS, moduleByPath, type ModuleKey } from './modules';
 import { Spinner } from './components/ui';
 import { DemoBanner } from './components/DemoBanner';
+import { AssistantLauncher } from './components/AssistantLauncher';
 
 const ACCESS_WEIGHT: Record<string, number> = { none: 0, read: 1, write: 2, admin: 3 };
 
@@ -183,6 +185,7 @@ export default function App() {
             <Route path="/cabinet" element={<CabinetDashboardPage />} />
             <Route path="/cabinet/companies" element={<CompaniesPage />} />
             <Route path="/cabinet/companies/:companyId" element={<DossierPage />} />
+            <Route path="/cabinet/companies/:companyId/settings" element={<CompanySettingsPage />} />
             <Route path="/cabinet/tasks" element={<TasksPage />} />
             <Route path="/cabinet/team" element={<TeamPage />} />
             <Route path="/cabinet/ai-assistant" element={<AiAssistantPage />} />
@@ -197,6 +200,7 @@ export default function App() {
             <Route path="/accounting/trial-balance" element={<TrialBalancePage />} />
             <Route path="/accounting/statements" element={<StatementsPage />} />
             <Route path="/accounting/settings" element={<SettingsPage />} />
+            <Route path="/accounting/settings/company" element={<CompanySettingsPage />} />
 
             {/* Announced but not implemented: the page states it explicitly. */}
             <Route path="/accounting/purchases" element={<PreparedPage module="accounting" />} />
@@ -228,6 +232,12 @@ export default function App() {
           </Routes>
         </main>
       </div>
+
+      {/* Assistant IA universel : pastille flottante sur tous les écrans des
+          quatre modules, montée hors des routes pour survivre à la navigation
+          et ne jamais perdre une saisie en cours. */}
+      <AssistantLauncher />
+
       <DemoBanner />
     </div>
   );

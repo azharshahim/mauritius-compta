@@ -105,6 +105,17 @@ const taxRateBody = z
     verified: z.boolean().optional(),
     source: z.string().trim().max(200).nullable().optional(),
     notes: z.string().trim().max(500).nullable().optional(),
+    // Mission 7: the four fiscal treatments are distinct and never assimilated.
+    treatment: z.enum(['taxable', 'zero_rated', 'exempt', 'out_of_scope']).optional(),
+    vatAccountId: z.string().uuid().nullable().optional(),
+  })
+  .strict();
+
+const verifyBody = z
+  .object({
+    source: z.string().trim().min(5).max(200),
+    note: z.string().trim().max(500).optional(),
+    confirm: z.literal(true),
   })
   .strict();
 
@@ -651,6 +662,55 @@ async function createDocumentTx(
   return { document, lines: lines.rows, duplicates, warnings: computation.warnings };
 }
 
+/**
+ * Append-only VAT configuration history (mission 7). Every creation, update and
+ * verification is recorded with the actor and the before/after state, so a rate
+ * can never be changed silently.
+ */
+async function logRateEvent(
+  db: Db,
+  companyId: string,
+  taxRateId: string,
+  action: 'created' | 'updated' | 'verified' | 'unverified' | 'archived',
+  actorId: string,
+  before: unknown,
+  after: unknown,
+): Promise<void> {
+  const pick = (row: any) =>
+    row
+      ? {
+          code: row.code,
+          label: row.label,
+          rate: row.rate,
+          treatment: row.treatment,
+          effectiveFrom: row.effective_from,
+          effectiveTo: row.effective_to,
+          verified: row.verified,
+          source: row.source,
+          vatAccountId: row.vat_account_id,
+        }
+      : null;
+  await db.query(
+    `INSERT INTO billing_tax_rate_events
+       (company_id, tax_rate_id, action, actor_id, before_state, after_state)
+     VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb)`,
+    [companyId, taxRateId, action, actorId, JSON.stringify(pick(before)), JSON.stringify(pick(after))],
+  );
+}
+
+/** Camel-cased view of a VAT rate, with the raw row kept for compatibility. */
+function rateView(row: any) {
+  if (!row) return row;
+  return {
+    ...row,
+    effectiveFrom: row.effective_from,
+    effectiveTo: row.effective_to ?? null,
+    verifiedAt: row.verified_at ?? null,
+    verifiedBy: row.verified_by ?? null,
+    vatAccountId: row.vat_account_id ?? null,
+  };
+}
+
 export function billingRoutes(app: FastifyInstance, db: Db): void {
   // -------------------------------------------------------------------------
   // Settings
@@ -761,8 +821,13 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
         effectiveFrom: r.effective_from,
         effectiveTo: r.effective_to,
         verified: r.verified,
+        verifiedAt: r.verified_at,
+        verifiedBy: r.verified_by,
         source: r.source,
         notes: r.notes,
+        treatment: r.treatment,
+        vatAccountId: r.vat_account_id,
+        historyUrl: `/api/companies/${companyId}/billing/tax-rates/${r.id}/history`,
       })),
       notice:
         'No rate is pre-filled. A rate must be entered by the cabinet, sourced and verified by a professional before any computation.',
@@ -778,10 +843,36 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
     if (parseAmount(rate) > parseAmount('100')) {
       throw badRequest('VALIDATION_ERROR', 'A VAT rate cannot exceed 100%');
     }
+    const treatment = body.treatment ?? 'taxable';
+    if (treatment !== 'taxable' && parseAmount(rate) !== 0n) {
+      throw badRequest(
+        'VALIDATION_ERROR',
+        'A zero-rated, exempt or out-of-scope treatment carries no percentage',
+      );
+    }
+    // A "verified" flag is never self-granted: it requires a documented source
+    // and the explicit confirmation of an administrator. The assistant can
+    // never call this route.
+    if (body.verified === true && !nullable(body.source)) {
+      throw badRequest(
+        'VAT_SOURCE_REQUIRED',
+        'A verified VAT rate requires a documented source',
+      );
+    }
+    if (body.vatAccountId) {
+      const account = await db.query('SELECT 1 FROM accounts WHERE id = $1 AND company_id = $2', [
+        body.vatAccountId,
+        companyId,
+      ]);
+      if (account.rowCount === 0) {
+        throw badRequest('SETTINGS_ACCOUNT_NOT_IN_CHART', 'VAT account not in this chart of accounts');
+      }
+    }
     const inserted = await db.query(
       `INSERT INTO billing_tax_rates
-         (company_id, code, label, rate, effective_from, effective_to, verified, source, notes, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         (company_id, code, label, rate, effective_from, effective_to, verified, source, notes,
+          created_by, treatment, vat_account_id, verified_at, verified_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        RETURNING *`,
       [
         companyId,
@@ -794,8 +885,13 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
         nullable(body.source),
         nullable(body.notes),
         user.id,
+        treatment,
+        body.vatAccountId ?? null,
+        body.verified === true ? new Date().toISOString() : null,
+        body.verified === true ? user.id : null,
       ],
     );
+    await logRateEvent(db, companyId, (inserted.rows[0] as any).id, 'created', user.id, null, inserted.rows[0]);
     await writeAudit(db, {
       companyId,
       userId: user.id,
@@ -805,7 +901,7 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
       details: { code: body.code, verified: body.verified ?? false },
       ip: clientIp(req),
     });
-    return reply.code(201).send({ rate: inserted.rows[0] });
+    return reply.code(201).send({ rate: rateView(inserted.rows[0]) });
   });
 
   app.patch('/companies/:companyId/billing/tax-rates/:rateId', async (req) => {
@@ -813,6 +909,59 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
     const { companyId, rateId } = req.params as { companyId: string; rateId: string };
     await requireCompany(db, user.id, companyId, 'admin', 'billing');
     const body = parse(taxRateBody.partial(), req.body);
+
+    const current = (
+      await db.query('SELECT * FROM billing_tax_rates WHERE id = $1 AND company_id = $2', [
+        rateId,
+        companyId,
+      ])
+    ).rows[0];
+    if (!current) throw notFound('VAT_RATE_NOT_FOUND', 'VAT rate not found');
+
+    // Once an issued document carries this rate, its percentage, treatment and
+    // period are frozen: issued documents are never rewritten retroactively.
+    const used = await db.query(
+      `SELECT 1 FROM billing_document_lines l
+         JOIN billing_documents d ON d.id = l.document_id
+        WHERE l.company_id = $1 AND l.vat_rate_id = $2 AND d.status <> 'draft'
+        LIMIT 1`,
+      [companyId, rateId],
+    );
+    if (
+      used.rowCount &&
+      used.rowCount > 0 &&
+      (body.rate !== undefined ||
+        body.treatment !== undefined ||
+        body.effectiveFrom !== undefined ||
+        body.effectiveTo !== undefined)
+    ) {
+      throw conflict(
+        'VAT_RATE_LOCKED',
+        'This VAT rate is already used by an issued document: its percentage, treatment and period are frozen',
+      );
+    }
+
+    const treatment = body.treatment ?? (current as any).treatment;
+    const nextRate = body.rate === undefined ? (current as any).rate : decimal(body.rate);
+    if (treatment !== 'taxable' && parseAmount(nextRate) !== 0n) {
+      throw badRequest(
+        'VALIDATION_ERROR',
+        'A zero-rated, exempt or out-of-scope treatment carries no percentage',
+      );
+    }
+    if (body.verified === true && !nullable(body.source ?? current.source)) {
+      throw badRequest('VAT_SOURCE_REQUIRED', 'A verified VAT rate requires a documented source');
+    }
+    if (body.vatAccountId) {
+      const account = await db.query('SELECT 1 FROM accounts WHERE id = $1 AND company_id = $2', [
+        body.vatAccountId,
+        companyId,
+      ]);
+      if (account.rowCount === 0) {
+        throw badRequest('SETTINGS_ACCOUNT_NOT_IN_CHART', 'VAT account not in this chart of accounts');
+      }
+    }
+
     const updated = await db.query(
       `UPDATE billing_tax_rates SET
          code = COALESCE($3, code),
@@ -822,7 +971,17 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
          effective_to = $7,
          verified = COALESCE($8, verified),
          source = $9,
-         notes = $10
+         notes = $10,
+         treatment = COALESCE($11, treatment),
+         vat_account_id = $12,
+         verified_at = CASE
+           WHEN $13::boolean IS TRUE AND verified IS NOT TRUE THEN now()
+           WHEN $13::boolean IS FALSE THEN NULL
+           ELSE verified_at END,
+         verified_by = CASE
+           WHEN $13::boolean IS TRUE AND verified IS NOT TRUE THEN $14::uuid
+           WHEN $13::boolean IS FALSE THEN NULL
+           ELSE verified_by END
        WHERE id = $1 AND company_id = $2
        RETURNING *`,
       [
@@ -836,10 +995,116 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
         body.verified ?? null,
         body.source === undefined ? undefined : nullable(body.source),
         body.notes === undefined ? undefined : nullable(body.notes),
+        body.treatment ?? null,
+        body.vatAccountId === undefined ? undefined : body.vatAccountId,
+        body.verified === undefined ? null : body.verified,
+        user.id,
       ],
     );
     if (updated.rowCount === 0) throw notFound('VAT_RATE_NOT_FOUND', 'VAT rate not found');
-    return { rate: updated.rows[0] };
+
+    await logRateEvent(
+      db,
+      companyId,
+      rateId,
+      body.verified === true ? 'verified' : body.verified === false ? 'unverified' : 'updated',
+      user.id,
+      current,
+      updated.rows[0],
+    );
+    return { rate: rateView(updated.rows[0]) };
+  });
+
+  // Explicit human verification: documented source + confirmation. This route
+  // is never called by the assistant.
+  app.post('/companies/:companyId/billing/tax-rates/:rateId/verify', async (req) => {
+    const user = req.user!;
+    const { companyId, rateId } = req.params as { companyId: string; rateId: string };
+    await requireCompany(db, user.id, companyId, 'admin', 'billing');
+    const body = parse(verifyBody, req.body);
+    const current = (
+      await db.query('SELECT * FROM billing_tax_rates WHERE id = $1 AND company_id = $2', [
+        rateId,
+        companyId,
+      ])
+    ).rows[0];
+    if (!current) throw notFound('VAT_RATE_NOT_FOUND', 'VAT rate not found');
+    if (body.note) {
+      await db.query(
+        'UPDATE billing_tax_rates SET notes = COALESCE($3, notes) WHERE id = $1 AND company_id = $2',
+        [rateId, companyId, body.note],
+      );
+    }
+    const updated = await db.query(
+      `UPDATE billing_tax_rates
+          SET verified = true, verified_at = now(), verified_by = $3, source = $4
+        WHERE id = $1 AND company_id = $2
+        RETURNING *`,
+      [rateId, companyId, user.id, body.source],
+    );
+    await logRateEvent(db, companyId, rateId, 'verified', user.id, current, updated.rows[0]);
+    await writeAudit(db, {
+      companyId,
+      userId: user.id,
+      action: 'billing.tax_rate.verify',
+      entityType: 'billing_tax_rate',
+      entityId: rateId,
+      details: { source: body.source, confirm: true },
+      ip: clientIp(req),
+    });
+    return { rate: rateView(updated.rows[0]) };
+  });
+
+  app.post('/companies/:companyId/billing/tax-rates/:rateId/unverify', async (req) => {
+    const user = req.user!;
+    const { companyId, rateId } = req.params as { companyId: string; rateId: string };
+    await requireCompany(db, user.id, companyId, 'admin', 'billing');
+    const current = (
+      await db.query('SELECT * FROM billing_tax_rates WHERE id = $1 AND company_id = $2', [
+        rateId,
+        companyId,
+      ])
+    ).rows[0];
+    if (!current) throw notFound('VAT_RATE_NOT_FOUND', 'VAT rate not found');
+    const updated = await db.query(
+      `UPDATE billing_tax_rates
+          SET verified = false, verified_at = NULL, verified_by = NULL
+        WHERE id = $1 AND company_id = $2 RETURNING *`,
+      [rateId, companyId],
+    );
+    await logRateEvent(db, companyId, rateId, 'unverified', user.id, current, updated.rows[0]);
+    await writeAudit(db, {
+      companyId,
+      userId: user.id,
+      action: 'billing.tax_rate.unverify',
+      entityType: 'billing_tax_rate',
+      entityId: rateId,
+      ip: clientIp(req),
+    });
+    return { rate: rateView(updated.rows[0]) };
+  });
+
+  app.get('/companies/:companyId/billing/tax-rates/:rateId/history', async (req) => {
+    const user = req.user!;
+    const { companyId, rateId } = req.params as { companyId: string; rateId: string };
+    await requireCompany(db, user.id, companyId, 'viewer', 'billing');
+    const res = await db.query(
+      `SELECT id, action, actor_id, before_state, after_state, created_at
+         FROM billing_tax_rate_events
+        WHERE company_id = $1 AND tax_rate_id = $2
+        ORDER BY created_at DESC LIMIT 100`,
+      [companyId, rateId],
+    );
+    return {
+      events: res.rows.map((r: any) => ({
+        id: r.id,
+        action: r.action,
+        actorId: r.actor_id,
+        before: r.before_state,
+        after: r.after_state,
+        createdAt: r.created_at,
+      })),
+    };
   });
 
   // -------------------------------------------------------------------------

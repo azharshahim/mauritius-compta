@@ -96,7 +96,22 @@ export type ErrorCode =
   | 'AI_HUMAN_REQUIRED'
   | 'AI_RULE_NOT_FOUND'
   | 'AI_RULE_INVALID'
-  | 'ACCOUNTING_ALREADY_POSTED';
+  | 'ACCOUNTING_ALREADY_POSTED'
+  // Universal assistant (mission 7)
+  | 'AI_CONVERSATION_NOT_FOUND'
+  | 'AI_CONVERSATION_CLOSED'
+  | 'AI_ASSISTANT_TURN_LIMIT'
+  | 'AI_TOOL_UNKNOWN'
+  | 'AI_TOOL_ARGUMENTS_INVALID'
+  | 'AI_INPUT_INCOMPLETE'
+  | 'COMPANY_MISMATCH'
+  // Company settings and VAT configuration (mission 7)
+  | 'SETTINGS_ACCOUNT_NOT_IN_CHART'
+  | 'VAT_RATE_LOCKED'
+  | 'VAT_VERIFICATION_FORBIDDEN'
+  | 'VAT_SOURCE_REQUIRED'
+  | 'SETTINGS_FINANCIAL_YEAR_LOCKED'
+  | 'SETTINGS_CURRENCY_LOCKED';
 
 export class AppError extends Error {
   readonly code: ErrorCode;

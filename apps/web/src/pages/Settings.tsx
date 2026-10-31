@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api';
+import { Link } from 'react-router-dom';
 import { useI18n } from '../i18n';
 import { errorMessage, useSession } from '../store';
 import { useAsync } from '../hooks';
@@ -124,6 +125,9 @@ export default function SettingsPage() {
             {company.name} · {t(`role.${company.role ?? 'owner'}`)}
           </div>
         </div>
+      </div>
+      <div className="alert alert-info">
+        <Link to="/accounting/settings/company">{t('settings.company.link')}</Link>
       </div>
       {message && <div className="alert alert-success">{message}</div>}
       <ErrorBanner message={error} />

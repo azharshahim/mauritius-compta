@@ -41,6 +41,9 @@ const EnvSchema = z.object({
   AI_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).max(600).default(20),
   AI_MAX_INPUT_CHARS: z.coerce.number().int().min(100).max(200_000).default(12_000),
   AI_ALLOW_SIMULATED: bool(true),
+  // Universal assistant (mission 7): bounded history and configurable retention.
+  AI_ASSISTANT_MAX_TURNS: z.coerce.number().int().min(4).max(500).default(40),
+  AI_CONVERSATION_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(30),
   AI_ALLOW_PRIVATE_BASE_URL: bool(false),
 });
 

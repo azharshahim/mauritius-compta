@@ -48,6 +48,10 @@ export interface DemoCompany {
   status: 'active' | 'inactive' | 'archived';
   locale: 'fr' | 'en';
   created_at: string;
+  trade_name?: string | null;
+  contact_name?: string | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
 }
 
 export interface DemoAccount {
@@ -237,6 +241,14 @@ export interface DemoBillingSettings {
   legal_footer_fr: string | null;
   legal_footer_en: string | null;
   bank_details: string | null;
+  document_language?: 'fr' | 'en';
+  logo_url?: string | null;
+  default_revenue_account_id?: string | null;
+  default_receivable_account_id?: string | null;
+  default_bank_account_id?: string | null;
+  default_purchase_account_id?: string | null;
+  default_vat_input_account_id?: string | null;
+  default_vat_output_account_id?: string | null;
 }
 
 export interface DemoBillingCustomer {
@@ -280,6 +292,8 @@ export interface DemoBillingItem {
   created_at: string;
 }
 
+export type DemoTaxTreatment = 'taxable' | 'zero_rated' | 'exempt' | 'out_of_scope';
+
 export interface DemoTaxRate {
   id: string;
   company_id: string;
@@ -291,6 +305,44 @@ export interface DemoTaxRate {
   verified: boolean;
   source: string | null;
   notes: string | null;
+  treatment: DemoTaxTreatment;
+  vat_account_id: string | null;
+  verified_at: string | null;
+  verified_by: string | null;
+}
+
+export interface DemoTaxRateEvent {
+  id: string;
+  company_id: string;
+  tax_rate_id: string;
+  action: 'created' | 'updated' | 'verified' | 'unverified';
+  actor_id: string | null;
+  before_state: Record<string, unknown> | null;
+  after_state: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface DemoAssistantConversation {
+  id: string;
+  company_id: string;
+  user_id: string;
+  module: string;
+  screen: string | null;
+  locale: 'fr' | 'en';
+  title: string | null;
+  status: 'open' | 'closed';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DemoAssistantMessage {
+  id: string;
+  conversation_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  context: Record<string, unknown>;
+  payload: Record<string, unknown>;
+  created_at: string;
 }
 
 export type DemoDocKind = 'quote' | 'invoice' | 'credit_note';
@@ -463,6 +515,9 @@ export interface DemoState {
   billingCustomers: DemoBillingCustomer[];
   billingItems: DemoBillingItem[];
   taxRates: DemoTaxRate[];
+  taxRateEvents: DemoTaxRateEvent[];
+  assistantConversations: DemoAssistantConversation[];
+  assistantMessages: DemoAssistantMessage[];
   billingDocuments: DemoBillingDocument[];
   billingLines: DemoBillingLine[];
   billingPayments: DemoBillingPayment[];
@@ -577,6 +632,10 @@ function seedState(): DemoState {
     status: (DEMO_SEED.company.status as DemoCompany['status']) ?? 'active',
     locale: (DEMO_SEED.company.locale as 'fr' | 'en') ?? 'fr',
     created_at: created,
+    trade_name: 'Lagon Bleu (enseigne fictive)',
+    contact_name: 'Contact Fictif Démo',
+    contact_email: 'contact@lagon-bleu.example.test',
+    contact_phone: '+230 0000 0000 (fictif)',
   };
 
   const accounts: DemoAccount[] = [];
@@ -1426,8 +1485,27 @@ function seedState(): DemoState {
     });
   }
 
+  // Demonstration parameter only: 15 % is *not* presented as a Mauritian rule
+  // and stays unverified until a human documents the source.
+  taxRates.push({
+    id: uid(),
+    company_id: company.id,
+    code: 'DEMO-15',
+    label: 'Taux de démonstration 15 % (fictif, non vérifié)',
+    rate: '15.0000',
+    effective_from: company.financial_year_start,
+    effective_to: null,
+    verified: false,
+    source: 'Paramètre de démonstration fictif — aucune valeur légale',
+    notes: 'Saisi pour illustrer la configuration TVA. Ne pas présenter comme un taux officiel.',
+    treatment: 'taxable',
+    vat_account_id: idByCode.get('4000') ?? null,
+    verified_at: null,
+    verified_by: null,
+  });
+
   return {
-    schema: 4,
+    schema: 5,
     users: [demoUser, ...collaborators],
     session: null,
     companies: [company, ...extraCompanies],
@@ -1475,6 +1553,9 @@ function seedState(): DemoState {
     billingCustomers,
     billingItems,
     taxRates,
+    taxRateEvents: [],
+    assistantConversations: [],
+    assistantMessages: [],
     billingDocuments,
     billingLines,
     billingPayments,
@@ -1508,7 +1589,7 @@ export function loadState(): DemoState {
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as DemoState;
-        if (parsed && parsed.schema === 4) {
+        if (parsed && parsed.schema === 5) {
           state = parsed;
           return state;
         }
@@ -4218,6 +4299,647 @@ function entryRuleView(rule: DemoEntryRule) {
   };
 }
 
+/* -------------------------------------------------------------------------
+ * Mission 7 - company settings, VAT configuration and universal assistant.
+ * Everything below runs in the browser on the *fictional* demo dataset: no
+ * network call, no provider, no real data. The answers are computed from the
+ * same records the demo screens display, never from hard-coded figures.
+ * ---------------------------------------------------------------------- */
+
+const DEMO_ASSISTANT_TOOLS = [
+  { key: 'billing.invoices.unpaid', module: 'billing', readOnly: true },
+  { key: 'billing.invoices.search', module: 'billing', readOnly: true },
+  { key: 'billing.customers.balance', module: 'billing', readOnly: true },
+  { key: 'billing.payments.recent', module: 'billing', readOnly: true },
+  { key: 'billing.approvals.pending', module: 'billing', readOnly: true },
+  { key: 'cabinet.tasks.open', module: 'cabinet', readOnly: true },
+  { key: 'cabinet.tasks.overdue', module: 'cabinet', readOnly: true },
+  { key: 'cabinet.deadlines', module: 'cabinet', readOnly: true },
+  { key: 'cabinet.companies', module: 'cabinet', readOnly: true },
+  { key: 'accounting.accounts.search', module: 'accounting', readOnly: true },
+  { key: 'accounting.trialBalance', module: 'accounting', readOnly: true },
+  { key: 'accounting.proposal.prepare', module: 'accounting', readOnly: true },
+  { key: 'accounting.proposal.check', module: 'accounting', readOnly: true },
+  { key: 'payroll.status', module: 'payroll', readOnly: true },
+];
+
+function demoTaxRateView(rate: DemoTaxRate) {
+  return {
+    ...rate,
+    effectiveFrom: rate.effective_from,
+    effectiveTo: rate.effective_to,
+    verifiedAt: rate.verified_at,
+    verifiedBy: rate.verified_by,
+    vatAccountId: rate.vat_account_id,
+  };
+}
+
+function demoRateSnapshot(rate: DemoTaxRate | null | undefined) {
+  if (!rate) return null;
+  return {
+    code: rate.code,
+    label: rate.label,
+    rate: rate.rate,
+    treatment: rate.treatment,
+    effectiveFrom: rate.effective_from,
+    effectiveTo: rate.effective_to,
+    verified: rate.verified,
+    source: rate.source,
+    vatAccountId: rate.vat_account_id,
+  };
+}
+
+function demoLogRateEvent(
+  companyId: string,
+  rateId: string,
+  action: DemoTaxRateEvent['action'],
+  before: DemoTaxRate | null,
+  after: DemoTaxRate | null,
+): void {
+  const s = loadState();
+  s.taxRateEvents.push({
+    id: uid(),
+    company_id: companyId,
+    tax_rate_id: rateId,
+    action,
+    actor_id: requireUser().id,
+    before_state: demoRateSnapshot(before),
+    after_state: demoRateSnapshot(after),
+    created_at: now(),
+  });
+}
+
+function demoCompanySettingsView(companyId: string) {
+  const s = loadState();
+  const ctx = requireCompany(companyId);
+  const company = ctx.company;
+  const settings = billingSettingsOf(companyId);
+  const accounts = accountsOf(companyId);
+  const journals = s.journals.filter((j) => j.company_id === companyId);
+  const periods = s.periods
+    .filter((p) => p.company_id === companyId)
+    .sort((a, b) => b.start_date.localeCompare(a.start_date));
+  const rates = s.taxRates
+    .filter((r) => r.company_id === companyId)
+    .sort((a, b) => b.effective_from.localeCompare(a.effective_from));
+  const modules = effectiveModulesFor(companyId, ctx.user.id, ctx.role);
+  const canEdit = modules.cabinet === 'admin';
+  return {
+    company: { id: company.id, status: company.status, locale: company.locale, createdAt: company.created_at },
+    identification: {
+      name: company.name,
+      tradeName: company.trade_name ?? null,
+      brn: company.brn,
+      vatNumber: company.vat_number,
+      registeredAddress: company.registered_address,
+      businessActivity: company.business_activity,
+      contactName: company.contact_name ?? null,
+      contactEmail: company.contact_email ?? null,
+      contactPhone: company.contact_phone ?? null,
+      locale: company.locale,
+    },
+    accounting: {
+      functionalCurrency: company.functional_currency,
+      presentationCurrency: company.presentation_currency,
+      accountingStandard: company.accounting_standard,
+      financialYearStart: company.financial_year_start,
+      financialYearEnd: company.financial_year_end,
+      journals: journals.map((j) => ({ id: j.id, code: j.code, name: j.name, type: j.type, is_active: j.is_active })),
+      periods: periods.map((p) => ({ id: p.id, name: p.name, start_date: p.start_date, end_date: p.end_date, status: p.status })),
+      defaultAccounts: {
+        revenue: settings.default_revenue_account_id ?? null,
+        receivable: settings.default_receivable_account_id ?? null,
+        bank: settings.default_bank_account_id ?? null,
+        purchase: settings.default_purchase_account_id ?? null,
+        vatInput: settings.default_vat_input_account_id ?? null,
+        vatOutput: settings.default_vat_output_account_id ?? null,
+      },
+    },
+    billing: {
+      quotePrefix: settings.quote_prefix,
+      invoicePrefix: settings.invoice_prefix,
+      creditPrefix: settings.credit_prefix,
+      numberingPolicy: settings.numbering_policy,
+      defaultPaymentTerms: settings.default_payment_terms,
+      defaultCurrency: settings.default_currency,
+      documentLanguage: settings.document_language ?? 'fr',
+      logoUrl: settings.logo_url ?? null,
+      legalFooterFr: settings.legal_footer_fr,
+      legalFooterEn: settings.legal_footer_en,
+      bankDetails: settings.bank_details,
+      defaultRevenueAccountId: settings.default_revenue_account_id ?? null,
+      defaultReceivableAccountId: settings.default_receivable_account_id ?? null,
+      defaultBankAccountId: settings.default_bank_account_id ?? null,
+      defaultPurchaseAccountId: settings.default_purchase_account_id ?? null,
+      defaultVatInputAccountId: settings.default_vat_input_account_id ?? null,
+      defaultVatOutputAccountId: settings.default_vat_output_account_id ?? null,
+    },
+    tax: {
+      vatEnabled: settings.vat_enabled,
+      vatNumber: settings.vat_number,
+      rates: rates.map(demoTaxRateView),
+      verifiedCount: rates.filter((r) => r.verified).length,
+      unverifiedCount: rates.filter((r) => !r.verified).length,
+      notice:
+        'Aucun taux n’est prérempli. Un taux non vérifié ne peut pas servir à émettre une facture fiscale ; le statut « vérifié » exige une source documentée et une validation humaine.',
+    },
+    chartOfAccounts: accounts.map((a) => ({
+      id: a.id,
+      code: a.code,
+      name: a.name,
+      type: a.type,
+      is_active: a.is_active,
+    })),
+    history: s.audit
+      .filter(
+        (e) =>
+          e.company_id === companyId &&
+          (e.action.startsWith('settings.') || e.action.startsWith('billing.tax_rate.')),
+      )
+      .slice(0, 50)
+      .map((e) => ({ id: e.id, action: e.action, userId: e.user_id, details: e.details, createdAt: e.created_at })),
+    permissions: {
+      canEditIdentification: canEdit,
+      canEditAccounting: modules.accounting === 'admin',
+      canEditBilling: modules.billing === 'admin',
+      canEditTax: modules.billing === 'admin',
+    },
+    demo: true,
+  };
+}
+
+interface DemoAssistantReply {
+  content: string;
+  toolKey: string | null;
+  toolStatus: 'ok' | 'error' | 'denied' | 'none';
+  data: Record<string, unknown>;
+  actions: Record<string, unknown>[];
+}
+
+function demoAssistantContext(companyId: string, module: string, screen: string | null, locale: 'fr' | 'en') {
+  const s = loadState();
+  const ctx = requireCompany(companyId);
+  return {
+    module,
+    screen,
+    companyId,
+    companyName: ctx.company.name,
+    locale,
+    permissions: effectiveModulesFor(companyId, ctx.user.id, ctx.role),
+    objectRef: null,
+  };
+}
+
+function demoExtractAmount(text: string): string | null {
+  const match = /(\d{1,3}(?:[ \u00a0]\d{3})+|\d+)(?:[.,](\d{1,4}))?/.exec(text);
+  if (!match) return null;
+  const integer = match[1]!.replace(/[ \u00a0]/g, '');
+  const fraction = (match[2] ?? '').padEnd(4, '0');
+  const value = `${integer}.${fraction}`;
+  return /^0+\.0*$/.test(value) ? null : value;
+}
+
+function demoOutstanding(doc: DemoBillingDocument): bigint {
+  const due = amount(doc.total_amount) - amount(doc.amount_paid) - amount(doc.credited_amount);
+  return due > 0n ? due : 0n;
+}
+
+/**
+ * Deterministic demo router: one read-only tool per question, answered from the
+ * demo records. Unsupported requests are refused explicitly.
+ */
+function demoAssistantAnswer(companyId: string, text: string, locale: 'fr' | 'en'): DemoAssistantReply {
+  const s = loadState();
+  const fr = locale === 'fr';
+  const t = text.toLowerCase().replace(/[’']/g, "'").replace(/\s+/g, ' ').trim();
+  const no = (content: string): DemoAssistantReply => ({
+    content,
+    toolKey: null,
+    toolStatus: 'none',
+    data: {},
+    actions: [],
+  });
+
+  if (/\b(paie|payroll|bulletin|payslip|paye|csg|nsf)\b/.test(t)) {
+    return {
+      content: fr
+        ? 'Le module Paie & RH est préparé mais non implémenté : aucun bulletin, aucun taux PAYE/CSG/NSF et aucune déclaration ne sont calculés. Aucune donnée de paie n’est lue ni inventée.'
+        : 'The Payroll & HR module is prepared but not implemented: no payslip, PAYE/CSG/NSF rate or statutory declaration is computed. No payroll data is read or invented.',
+      toolKey: 'payroll.status',
+      toolStatus: 'ok',
+      data: { implemented: false },
+      actions: [],
+    };
+  }
+
+  const prepare = /(pr[ée]pare|prepare|propose|proposer)/.test(t) && /([ée]criture|entry|achat|purchase)/.test(t);
+  if (prepare) {
+    const raw = demoExtractAmount(text);
+    if (!raw) {
+      return {
+        content: fr
+          ? 'Il manque une information pour préparer cette écriture : le montant (et sa devise) est obligatoire.\nAucune écriture n’a été créée. Exemple : « Prépare une écriture pour un achat de 3 250 MUR ».'
+          : 'One piece of information is missing: the amount (and its currency).\nNo entry was created. Example: “Prepare an entry for a purchase of 3 250 MUR”.',
+        toolKey: 'accounting.proposal.prepare',
+        toolStatus: 'error',
+        data: {},
+        actions: [],
+      };
+    }
+    const net = amount(raw);
+    const accounts = accountsOf(companyId);
+    const purchase =
+      accounts.find((a) => a.type === 'expense' && /achat|marchandise/i.test(a.name)) ??
+      accounts.find((a) => a.type === 'expense');
+    const vat = accounts.find((a) => /tva r[ée]cup[ée]rable/i.test(a.name));
+    const bank = accounts.find((a) => /banque/i.test(a.name) && a.type === 'asset');
+    const vatRate = s.taxRates.find((r) => r.company_id === companyId && r.treatment === 'taxable');
+    if (!purchase || !vat || !bank || !vatRate) {
+      return {
+        content: fr
+          ? 'Des comptes nécessaires manquent dans le plan comptable (achat, TVA récupérable ou banque). Aucun compte n’a été inventé : choisissez les comptes avant de préparer l’écriture.'
+          : 'Required accounts are missing (purchase, input VAT or bank). No account was invented: choose the accounts before preparing the entry.',
+        toolKey: 'accounting.proposal.prepare',
+        toolStatus: 'error',
+        data: {},
+        actions: [],
+      };
+    }
+    const vatAmount = applyPct(net, amount(vatRate.rate));
+    const total = net + vatAmount;
+    const journal = demandJournal(companyId, ['purchases', 'general']);
+    const proposal = demoCreateProposal(s, companyId, {
+      source_kind: 'manual',
+      source_id: null,
+      journal_id: journal?.id ?? null,
+      entry_date: todayIso(),
+      reference: null,
+      description: text.slice(0, 300),
+      currency: 'MUR',
+      exchange_rate: null,
+      confidence: null,
+      rationale: 'Démonstration : montants et comptes issus du dossier fictif.',
+      warnings: [
+        `TVA de démonstration ${fmt(amount(vatRate.rate))} % — paramètre fictif NON vérifié, sans valeur fiscale.`,
+      ],
+      missing: [],
+      rule_trace: ['demo-assistant', 'chart-of-accounts'],
+      provider: null,
+      model: null,
+      lines: [
+        { account_id: purchase.id, description: 'Achat de marchandises (démo)', debit: net, credit: 0n },
+        { account_id: vat.id, description: 'TVA récupérable (démo, non vérifiée)', debit: vatAmount, credit: 0n },
+        { account_id: bank.id, description: 'Règlement banque (démo)', debit: 0n, credit: total },
+      ],
+    });
+    const view = demoProposalView(proposal);
+    return {
+      content: [
+        fr ? `Proposition préparée : « ${proposal.description} ».` : `Proposal prepared: "${proposal.description}".`,
+        ...view.lines.map(
+          (l: any) =>
+            `• ${l.accountCode} ${l.accountName} — ${fr ? 'débit' : 'debit'} ${l.debit}, ${fr ? 'crédit' : 'credit'} ${l.credit}`,
+        ),
+        fr
+          ? `Équilibrée : ${view.totals.debit} au débit et au crédit.`
+          : `Balanced: ${view.totals.debit} debit and credit.`,
+        fr
+          ? 'TVA de démonstration NON vérifiée : ce taux fictif ne peut pas servir à émettre une facture fiscale.'
+          : 'Demonstration VAT rate NOT verified: this fictional rate cannot be used to issue a fiscal invoice.',
+        fr
+          ? 'Aucune écriture comptable n’a été créée : validation puis comptabilisation humaines requises.'
+          : 'No accounting entry was created: human validation then posting are required.',
+      ].join('\n'),
+      toolKey: 'accounting.proposal.prepare',
+      toolStatus: 'ok',
+      data: { proposal: view, entryCreated: false },
+      actions: [
+        {
+          kind: 'proposal',
+          id: proposal.id,
+          title: { fr: 'Examiner la proposition d’écriture', en: 'Review the entry proposal' },
+          description: { fr: proposal.description, en: proposal.description },
+          dataUsed: ['plan comptable fictif', 'taux de démonstration'],
+          expected: {
+            fr: 'Proposition éditable, sans impact comptable tant qu’elle n’est pas comptabilisée.',
+            en: 'Editable proposal, with no accounting impact until it is posted.',
+          },
+          risks: view.warnings,
+          examineHref: `/cabinet/ai-proposals?proposal=${proposal.id}`,
+        },
+      ],
+    };
+  }
+
+  if (/(v[ée]rifie|check|pourquoi|why|[ée]quilibr|balanc)/.test(t) && /(proposition|proposal|[ée]criture|entry)/.test(t)) {
+    const proposal = s.entryProposals
+      .filter((p) => p.company_id === companyId && (p.status === 'proposed' || p.status === 'validated'))
+      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
+    if (!proposal) {
+      return no(
+        fr
+          ? 'Aucune proposition d’écriture à vérifier pour ce dossier.'
+          : 'No entry proposal to check for this dossier.',
+      );
+    }
+    const view = demoProposalView(proposal);
+    const blocking = view.checks.filter((c: any) => !c.ok && c.severity === 'error');
+    return {
+      content: [
+        fr
+          ? `Proposition « ${view.description} » : ${view.totals.balanced ? 'équilibrée' : 'déséquilibrée'} (${view.totals.debit} au débit).`
+          : `Proposal "${view.description}": ${view.totals.balanced ? 'balanced' : 'unbalanced'} (${view.totals.debit} debit).`,
+        blocking.length === 0
+          ? fr
+            ? 'Aucun contrôle bloquant.'
+            : 'No blocking check.'
+          : `${fr ? 'Contrôles bloquants' : 'Blocking checks'} : ${blocking.map((c: any) => c.label).join(', ')}.`,
+        fr
+          ? 'Aucune écriture n’a été créée : la validation et la comptabilisation restent des actions humaines séparées.'
+          : 'No entry was created: validation and posting remain separate human actions.',
+      ].join('\n'),
+      toolKey: 'accounting.proposal.check',
+      toolStatus: 'ok',
+      data: { proposal: view },
+      actions: [
+        {
+          kind: 'proposal',
+          id: proposal.id,
+          title: { fr: 'Examiner la proposition', en: 'Review the proposal' },
+          description: { fr: proposal.description, en: proposal.description },
+          dataUsed: ['propositions de démonstration'],
+          expected: {
+            fr: 'Aucune écriture tant que vous ne validez pas puis ne comptabilisez pas explicitement.',
+            en: 'No entry until you explicitly validate and then post.',
+          },
+          risks: view.warnings,
+          examineHref: `/cabinet/ai-proposals?proposal=${proposal.id}`,
+        },
+      ],
+    };
+  }
+
+  if (/(impay[ée]|unpaid|outstanding|reste d[ûu])/.test(t) && /(facture|invoice)/.test(t)) {
+    const invoices = s.billingDocuments
+      .filter(
+        (d) =>
+          d.company_id === companyId &&
+          d.kind === 'invoice' &&
+          d.status !== 'draft' &&
+          d.status !== 'cancelled' &&
+          demoOutstanding(d) > 0n,
+      )
+      .sort((a, b) => b.issue_date.localeCompare(a.issue_date));
+    const total = invoices.reduce((acc, d) => acc + demoOutstanding(d), 0n);
+    return {
+      content:
+        invoices.length === 0
+          ? fr
+            ? 'Aucune facture impayée : tous les soldes sont à zéro.'
+            : 'No unpaid invoice: every balance is zero.'
+          : [
+              fr
+                ? `${invoices.length} facture(s) impayée(s), total dû ${fmt(total)} :`
+                : `${invoices.length} unpaid invoice(s), total due ${fmt(total)}:`,
+              ...invoices.map(
+                (d) =>
+                  `• ${d.doc_no ?? (fr ? '(brouillon)' : '(draft)')} — ${d.customer_name ?? ''} — ${d.total_amount} ${d.currency}, ${fr ? 'reste dû' : 'outstanding'} ${fmt(demoOutstanding(d))}`,
+              ),
+              fr
+                ? 'Données lues dans le dossier fictif. Aucune écriture comptable n’a été créée.'
+                : 'Data read from the fictional dossier. No accounting entry was created.',
+            ].join('\n'),
+      toolKey: 'billing.invoices.unpaid',
+      toolStatus: 'ok',
+      data: { invoices: invoices.map((d) => ({ id: d.id, number: d.doc_no, outstanding: fmt(demoOutstanding(d)) })), totalOutstanding: fmt(total) },
+      actions: [
+        {
+          kind: 'navigation',
+          title: { fr: 'Ouvrir les factures', en: 'Open the invoices' },
+          description: { fr: 'Voir ces factures dans la Facturation.', en: 'See these invoices in Billing.' },
+          dataUsed: ['billing_documents'],
+          expected: { fr: 'Aucun changement de données.', en: 'No data change.' },
+          risks: [],
+          examineHref: '/billing/invoices',
+        },
+      ],
+    };
+  }
+
+  if (/(facture|invoice)/.test(t) && /(recherch|search|trouv|find|retrouv|montre|affiche|show)/.test(t)) {
+    const term = text.replace(/[^A-Za-z0-9- ]/g, ' ').split(/\s+/).find((w) => /^FAC|^DEV|^AV|^\w{4,}$/i.test(w) && /[0-9-]/.test(w));
+    const found = s.billingDocuments
+      .filter((d) => d.company_id === companyId && d.kind === 'invoice')
+      .filter((d) => (term ? `${d.doc_no ?? ''} ${d.customer_name ?? ''}`.toLowerCase().includes(term.toLowerCase()) : true))
+      .slice(0, 10);
+    return {
+      content:
+        found.length === 0
+          ? fr
+            ? 'Aucune facture ne correspond à cette recherche dans ce dossier fictif.'
+            : 'No invoice matches this search in this fictional dossier.'
+          : found
+              .map(
+                (d) =>
+                  `• ${d.doc_no ?? (fr ? '(brouillon)' : '(draft)')} — ${d.customer_name ?? ''} — ${d.total_amount} ${d.currency} (${d.status})`,
+              )
+              .join('\n'),
+      toolKey: 'billing.invoices.search',
+      toolStatus: 'ok',
+      data: { invoices: found.map((d) => ({ id: d.id, number: d.doc_no, status: d.status })) },
+      actions: [],
+    };
+  }
+
+  if (/(solde|balance)/.test(t) && /(client|customer)/.test(t)) {
+    const customers = s.billingCustomers.filter((c) => c.company_id === companyId);
+    const rows = customers.map((c) => {
+      const docs = s.billingDocuments.filter(
+        (d) => d.company_id === companyId && d.kind === 'invoice' && d.customer_id === c.id && d.status !== 'draft' && d.status !== 'cancelled',
+      );
+      const due = docs.reduce((acc, d) => acc + demoOutstanding(d), 0n);
+      return { name: c.name, outstanding: due };
+    });
+    return {
+      content: rows.length === 0
+        ? fr ? 'Aucun client dans ce dossier.' : 'No customer in this dossier.'
+        : rows.map((r) => `• ${r.name} — ${fr ? 'solde dû' : 'outstanding'} ${fmt(r.outstanding)}`).join('\n'),
+      toolKey: 'billing.customers.balance',
+      toolStatus: 'ok',
+      data: { customers: rows.map((r) => ({ name: r.name, outstanding: fmt(r.outstanding) })) },
+      actions: [],
+    };
+  }
+
+  if (/(encaissement|payment|r[èe]glement|received)/.test(t)) {
+    const payments = s.billingPayments
+      .filter((p) => p.company_id === companyId)
+      .sort((a, b) => b.payment_date.localeCompare(a.payment_date))
+      .slice(0, 10);
+    return {
+      content: payments.length === 0
+        ? fr ? 'Aucun encaissement enregistré pour ce dossier.' : 'No payment recorded for this dossier.'
+        : payments.map((p) => `• ${p.payment_date} — ${p.payment_no} — ${p.amount} ${p.currency}`).join('\n'),
+      toolKey: 'billing.payments.recent',
+      toolStatus: 'ok',
+      data: { payments: payments.map((p) => ({ id: p.id, number: p.payment_no, amount: p.amount })) },
+      actions: [],
+    };
+  }
+
+  if (/(attente|pending|validation|approval)/.test(t)) {
+    const drafts = s.billingDocuments.filter((d) => d.company_id === companyId && d.status === 'draft').length;
+    const proposals = s.entryProposals.filter((p) => p.company_id === companyId && (p.status === 'proposed' || p.status === 'validated')).length;
+    return {
+      content: [
+        fr ? `Brouillons de documents : ${drafts}.` : `Draft documents: ${drafts}.`,
+        fr ? `Propositions d’écriture à examiner : ${proposals}.` : `Entry proposals awaiting review: ${proposals}.`,
+        fr ? 'Aucune écriture créée automatiquement.' : 'No entry created automatically.',
+      ].join('\n'),
+      toolKey: 'billing.approvals.pending',
+      toolStatus: 'ok',
+      data: { drafts, proposals },
+      actions: [
+        {
+          kind: 'navigation',
+          title: { fr: 'Examiner les propositions', en: 'Review the proposals' },
+          description: { fr: 'Ouvrir l’écran des propositions d’écriture.', en: 'Open the entry proposals screen.' },
+          dataUsed: ['ai_entry_proposals'],
+          expected: { fr: 'Aucune écriture créée automatiquement.', en: 'No entry created automatically.' },
+          risks: [],
+          examineHref: '/cabinet/ai-proposals',
+        },
+      ],
+    };
+  }
+
+  if (/(retard|overdue|late)/.test(t) && /(t[âa]che|task|todo)/.test(t)) {
+    const open = s.tasks.filter(
+      (x) => x.company_id === companyId && ['todo', 'in_progress', 'blocked'].includes(x.status),
+    );
+    const late = open.filter((x) => x.due_date && x.due_date < todayIso());
+    return {
+      content:
+        late.length === 0
+          ? fr ? 'Aucune tâche en retard pour ce dossier fictif.' : 'No overdue task in this fictional dossier.'
+          : [
+              fr ? `${late.length} tâche(s) en retard :` : `${late.length} overdue task(s):`,
+              ...late.map((x) => `• ${x.title} — ${fr ? 'échéance' : 'due'} ${x.due_date}`),
+            ].join('\n'),
+      toolKey: 'cabinet.tasks.overdue',
+      toolStatus: 'ok',
+      data: { tasks: late.map((x) => ({ id: x.id, title: x.title, dueDate: x.due_date })) },
+      actions: [
+        {
+          kind: 'navigation',
+          title: { fr: 'Ouvrir les tâches', en: 'Open the tasks' },
+          description: { fr: 'Retrouver ces tâches dans l’écran Tâches.', en: 'Find these tasks in the Tasks screen.' },
+          dataUsed: ['cabinet_tasks'],
+          expected: { fr: 'Aucun changement de données.', en: 'No data change.' },
+          risks: [],
+          examineHref: '/cabinet/tasks',
+        },
+      ],
+    };
+  }
+
+  if (/([ée]ch[ée]ance|deadline|agenda|due date)/.test(t)) {
+    const tasks = s.tasks.filter((x) => x.company_id === companyId && x.due_date && x.status !== 'done' && x.status !== 'cancelled');
+    const periods = s.periods.filter((p) => p.company_id === companyId && p.status === 'open');
+    return {
+      content: [
+        ...tasks.map((x) => `• ${x.due_date} — ${x.title}`),
+        ...periods.map((p) => `${fr ? 'Exercice ouvert' : 'Open period'} : ${p.name} (${p.start_date} → ${p.end_date}).`),
+      ].join('\n') || (fr ? 'Aucune échéance enregistrée.' : 'No recorded deadline.'),
+      toolKey: 'cabinet.deadlines',
+      toolStatus: 'ok',
+      data: { tasks: tasks.length, periods: periods.length },
+      actions: [],
+    };
+  }
+
+  if (/(t[âa]che|task|todo|à faire|a faire)/.test(t)) {
+    const open = s.tasks.filter((x) => x.company_id === companyId && ['todo', 'in_progress', 'blocked'].includes(x.status));
+    return {
+      content:
+        open.length === 0
+          ? fr ? 'Aucune tâche ouverte pour ce dossier.' : 'No open task for this dossier.'
+          : [
+              fr ? `${open.length} tâche(s) ouverte(s) :` : `${open.length} open task(s):`,
+              ...open.map((x) => `• ${x.title} — ${x.status}${x.due_date ? `, ${fr ? 'échéance' : 'due'} ${x.due_date}` : ''}`),
+            ].join('\n'),
+      toolKey: 'cabinet.tasks.open',
+      toolStatus: 'ok',
+      data: { tasks: open.map((x) => ({ id: x.id, title: x.title, status: x.status })) },
+      actions: [],
+    };
+  }
+
+  if (/(soci[ée]t[ée]s|companies|dossiers)/.test(t) && /(liste|list|recherch|search|accessible|mes)/.test(t)) {
+    const rows = s.companies.filter((c) => s.members.some((m) => m.company_id === c.id && m.user_id === requireUser().id));
+    return {
+      content: rows.map((c) => `• ${c.name}${c.brn ? ` (BRN ${c.brn})` : ''}`).join('\n'),
+      toolKey: 'cabinet.companies',
+      toolStatus: 'ok',
+      data: { companies: rows.map((c) => ({ id: c.id, name: c.name })) },
+      actions: [],
+    };
+  }
+
+  if (/(compte|account)/.test(t) && /(recherch|search|trouv|find|cherch|quel|which)/.test(t)) {
+    const code = /\b\d{3,10}\b/.exec(t)?.[0];
+    const term = (code ?? t.replace(/[^a-zA-Zà-ÿ ]/g, ' ').split(/\s+/).filter((w) => w.length > 3).pop() ?? '').toLowerCase();
+    const rows = accountsOf(companyId).filter((a) =>
+      code ? a.code === code : `${a.code} ${a.name}`.toLowerCase().includes(term),
+    );
+    return {
+      content:
+        rows.length === 0
+          ? fr ? 'Aucun compte ne correspond dans ce plan comptable fictif.' : 'No account matches in this fictional chart.'
+          : rows.map((a) => `${a.code} — ${a.name} (${a.type})`).join('\n'),
+      toolKey: 'accounting.accounts.search',
+      toolStatus: 'ok',
+      data: { accounts: rows.map((a) => ({ code: a.code, name: a.name })) },
+      actions: [],
+    };
+  }
+
+  if (/balance|trial balance/.test(t)) {
+    let debit = 0n;
+    let credit = 0n;
+    for (const entry of s.entries.filter((e) => e.company_id === companyId && e.status === 'posted')) {
+      for (const line of s.lines.filter((l) => l.entry_id === entry.id)) {
+        debit += amount(line.debit);
+        credit += amount(line.credit);
+      }
+    }
+    return {
+      content: [
+        fr ? `Balance : débit ${fmt(debit)}, crédit ${fmt(credit)} MUR.` : `Trial balance: debit ${fmt(debit)}, credit ${fmt(credit)} MUR.`,
+        debit === credit ? (fr ? 'La balance est équilibrée.' : 'The trial balance is balanced.') : fr ? 'La balance n’est pas équilibrée.' : 'The trial balance is not balanced.',
+      ].join('\n'),
+      toolKey: 'accounting.trialBalance',
+      toolStatus: 'ok',
+      data: { debit: fmt(debit), credit: fmt(credit), balanced: debit === credit },
+      actions: [],
+    };
+  }
+
+  return no(
+    fr
+      ? [
+          'Cette demande n’est pas encore prise en charge par l’assistant de démonstration.',
+          'Demandes disponibles : factures impayées, recherche de facture, solde client, encaissements récents, tâches (dont retards), échéances, sociétés accessibles, recherche de compte, balance, vérification d’une proposition, préparation d’une écriture, état de la paie.',
+          'Aucune donnée n’a été inventée et aucune opération n’a été exécutée.',
+        ].join('\n')
+      : [
+          'This request is not supported by the demonstration assistant yet.',
+          'Supported requests: unpaid invoices, invoice search, customer balance, recent payments, tasks (including overdue), deadlines, accessible companies, account search, trial balance, proposal check, entry preparation, payroll status.',
+          'No data was invented and no operation was executed.',
+        ].join('\n'),
+  );
+}
+
 export function demoRequest<T>(method: Method, rawPath: string, body?: unknown): T {
   const [path, search] = rawPath.split('?');
   const query = new URLSearchParams(search ?? '');
@@ -4790,6 +5512,375 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
     }
 
 
+    // --------------------------- mission 7 : paramètres société & TVA
+    if (rest === '/settings/company' && method === 'GET') {
+      requireModule(companyId, 'cabinet', 'read');
+      return demoCompanySettingsView(companyId) as T;
+    }
+
+    if (rest === '/settings/identification' && method === 'PATCH') {
+      requireModule(companyId, 'cabinet', 'admin');
+      const before = { name: company.name, brn: company.brn, vat_number: company.vat_number };
+      const map: [string, keyof DemoCompany][] = [
+        ['name', 'name'],
+        ['tradeName', 'trade_name'],
+        ['brn', 'brn'],
+        ['vatNumber', 'vat_number'],
+        ['registeredAddress', 'registered_address'],
+        ['businessActivity', 'business_activity'],
+        ['contactName', 'contact_name'],
+        ['contactEmail', 'contact_email'],
+        ['contactPhone', 'contact_phone'],
+        ['locale', 'locale'],
+      ];
+      for (const [key, column] of map) {
+        if (payload[key] !== undefined) (company as any)[column] = payload[key] === '' ? null : payload[key];
+      }
+      audit(companyId, 'settings.identification.update', 'company', companyId, {
+        changed: Object.keys(payload),
+        before,
+        after: { name: company.name, brn: company.brn, vat_number: company.vat_number },
+      });
+      persist();
+      return { identification: demoCompanySettingsView(companyId).identification } as T;
+    }
+
+    if (rest === '/settings/accounting' && method === 'PATCH') {
+      requireModule(companyId, 'accounting', 'admin');
+      const start = payload.financialYearStart ?? company.financial_year_start;
+      const end = payload.financialYearEnd ?? company.financial_year_end;
+      if (String(start) >= String(end)) {
+        throw new ApiError(400, 'VALIDATION_ERROR', 'La fin de l’exercice doit suivre son début');
+      }
+      if (payload.financialYearStart || payload.financialYearEnd) {
+        const orphan = s.entries.some(
+          (e) =>
+            e.company_id === companyId &&
+            e.status === 'posted' &&
+            (e.entry_date < String(start) || e.entry_date > String(end)),
+        );
+        if (orphan) {
+          throw new ApiError(
+            409,
+            'SETTINGS_FINANCIAL_YEAR_LOCKED',
+            'Des écritures comptabilisées existent hors du nouvel exercice : modification refusée',
+          );
+        }
+      }
+      if (payload.presentationCurrency && payload.presentationCurrency !== company.presentation_currency) {
+        if (s.journals.some((j) => j.company_id === companyId)) {
+          throw new ApiError(
+            409,
+            'SETTINGS_CURRENCY_LOCKED',
+            'La devise de présentation ne peut plus changer une fois le plan comptable créé',
+          );
+        }
+      }
+      company.financial_year_start = String(start);
+      company.financial_year_end = String(end);
+      if (payload.presentationCurrency) company.presentation_currency = String(payload.presentationCurrency).toUpperCase();
+      if (payload.accountingStandard) company.accounting_standard = String(payload.accountingStandard);
+      audit(companyId, 'settings.accounting.update', 'company', companyId, { fields: Object.keys(payload) });
+      persist();
+      return { accounting: demoCompanySettingsView(companyId).accounting } as T;
+    }
+
+    if (rest === '/settings/billing' && method === 'PATCH') {
+      requireModule(companyId, 'billing', 'admin');
+      const st = billingSettingsOf(companyId);
+      const accounts = accountsOf(companyId);
+      const accountFields: [string, keyof DemoBillingSettings][] = [
+        ['defaultRevenueAccountId', 'default_revenue_account_id'],
+        ['defaultReceivableAccountId', 'default_receivable_account_id'],
+        ['defaultBankAccountId', 'default_bank_account_id'],
+        ['defaultPurchaseAccountId', 'default_purchase_account_id'],
+        ['defaultVatInputAccountId', 'default_vat_input_account_id'],
+        ['defaultVatOutputAccountId', 'default_vat_output_account_id'],
+      ];
+      for (const [key, column] of accountFields) {
+        if (payload[key] === undefined) continue;
+        if (payload[key] !== null && !accounts.some((a) => a.id === payload[key])) {
+          throw new ApiError(
+            400,
+            'SETTINGS_ACCOUNT_NOT_IN_CHART',
+            'Le compte choisi n’appartient pas au plan comptable de cette société',
+          );
+        }
+        (st as any)[column] = payload[key];
+      }
+      const map: [string, keyof DemoBillingSettings][] = [
+        ['quotePrefix', 'quote_prefix'],
+        ['invoicePrefix', 'invoice_prefix'],
+        ['creditPrefix', 'credit_prefix'],
+        ['numberingPolicy', 'numbering_policy'],
+        ['defaultPaymentTerms', 'default_payment_terms'],
+        ['documentLanguage', 'document_language'],
+        ['logoUrl', 'logo_url'],
+        ['legalFooterFr', 'legal_footer_fr'],
+        ['legalFooterEn', 'legal_footer_en'],
+        ['bankDetails', 'bank_details'],
+        ['vatEnabled', 'vat_enabled'],
+        ['vatNumber', 'vat_number'],
+      ];
+      for (const [key, column] of map) {
+        if (payload[key] !== undefined) (st as any)[column] = payload[key];
+      }
+      audit(companyId, 'settings.billing.update', 'billing_settings', companyId, { fields: Object.keys(payload) });
+      persist();
+      return { billing: demoCompanySettingsView(companyId).billing } as T;
+    }
+
+    const rateMatch = /^\/billing\/tax-rates\/([0-9a-f-]{36})(?:\/(verify|unverify|history))?$/.exec(rest);
+    if (rateMatch) {
+      const rate = s.taxRates.find((r) => r.id === rateMatch[1] && r.company_id === companyId);
+      if (!rate) throw new ApiError(404, 'VAT_RATE_NOT_FOUND', 'Taux de TVA introuvable');
+      const action = rateMatch[2] ?? '';
+
+      if (action === '' && method === 'PATCH') {
+        requireModule(companyId, 'billing', 'admin');
+        const used = s.billingLines.some((line) => {
+          if (line.vat_rate_id !== rate.id) return false;
+          const doc = s.billingDocuments.find((d) => d.id === line.document_id);
+          return Boolean(doc && doc.status !== 'draft');
+        });
+        if (
+          used &&
+          (payload.rate !== undefined ||
+            payload.treatment !== undefined ||
+            payload.effectiveFrom !== undefined ||
+            payload.effectiveTo !== undefined)
+        ) {
+          throw new ApiError(
+            409,
+            'VAT_RATE_LOCKED',
+            'Ce taux est utilisé par un document émis : pourcentage, traitement et période sont figés',
+          );
+        }
+        const before = { ...rate };
+        if (payload.code !== undefined) rate.code = String(payload.code);
+        if (payload.label !== undefined) rate.label = String(payload.label);
+        if (payload.rate !== undefined) rate.rate = fmt(amount(payload.rate));
+        if (payload.treatment !== undefined) rate.treatment = payload.treatment as DemoTaxTreatment;
+        if (payload.effectiveFrom !== undefined) rate.effective_from = String(payload.effectiveFrom);
+        if (payload.effectiveTo !== undefined) rate.effective_to = payload.effectiveTo;
+        if (payload.source !== undefined) rate.source = payload.source;
+        if (payload.notes !== undefined) rate.notes = payload.notes;
+        if (payload.vatAccountId !== undefined) rate.vat_account_id = payload.vatAccountId;
+        if (rate.treatment !== 'taxable' && amount(rate.rate) !== 0n) {
+          throw new ApiError(400, 'VALIDATION_ERROR', 'Une qualification non taxable ne porte pas de pourcentage');
+        }
+        if (payload.verified === true) {
+          if (!rate.source) throw new ApiError(400, 'VAT_SOURCE_REQUIRED', 'Une source documentée est requise');
+          rate.verified = true;
+          rate.verified_at = now();
+          rate.verified_by = requireUser().id;
+        } else if (payload.verified === false) {
+          rate.verified = false;
+          rate.verified_at = null;
+          rate.verified_by = null;
+        }
+        demoLogRateEvent(companyId, rate.id, payload.verified === true ? 'verified' : payload.verified === false ? 'unverified' : 'updated', before, rate);
+        audit(companyId, 'billing.tax_rate.update', 'billing_tax_rate', rate.id, { fields: Object.keys(payload) });
+        persist();
+        return { rate: demoTaxRateView(rate) } as T;
+      }
+
+      if (action === 'verify' && method === 'POST') {
+        requireModule(companyId, 'billing', 'admin');
+        if (payload.confirm !== true) throw new ApiError(400, 'VALIDATION_ERROR', 'Confirmation explicite requise');
+        const source = String(payload.source ?? '').trim();
+        if (source.length < 5) throw new ApiError(400, 'VAT_SOURCE_REQUIRED', 'Une source documentée est requise');
+        const before = { ...rate };
+        rate.source = source;
+        if (payload.note) rate.notes = payload.note;
+        rate.verified = true;
+        rate.verified_at = now();
+        rate.verified_by = requireUser().id;
+        demoLogRateEvent(companyId, rate.id, 'verified', before, rate);
+        audit(companyId, 'billing.tax_rate.verify', 'billing_tax_rate', rate.id, { source });
+        persist();
+        return { rate: demoTaxRateView(rate) } as T;
+      }
+
+      if (action === 'unverify' && method === 'POST') {
+        requireModule(companyId, 'billing', 'admin');
+        const before = { ...rate };
+        rate.verified = false;
+        rate.verified_at = null;
+        rate.verified_by = null;
+        demoLogRateEvent(companyId, rate.id, 'unverified', before, rate);
+        audit(companyId, 'billing.tax_rate.unverify', 'billing_tax_rate', rate.id, {});
+        persist();
+        return { rate: demoTaxRateView(rate) } as T;
+      }
+
+      if (action === 'history' && method === 'GET') {
+        requireModule(companyId, 'billing', 'read');
+        return {
+          events: s.taxRateEvents
+            .filter((e) => e.company_id === companyId && e.tax_rate_id === rate.id)
+            .sort((a, b) => (a.created_at < b.created_at ? 1 : -1)),
+        } as T;
+      }
+    }
+
+    // ------------------------------ mission 7 : assistant universel
+    if (rest === '/ai/assistant/tools' && method === 'GET') {
+      requireModule(companyId, 'cabinet', 'read');
+      return {
+        tools: DEMO_ASSISTANT_TOOLS,
+        provider: null,
+        mode: 'deterministic-read-only',
+        demo: true,
+        disclaimer: {
+          fr: 'Réponses construites à partir des données fictives du dossier actif. Aucune écriture comptable n’est créée par l’assistant.',
+          en: 'Answers built from the fictional records of the active dossier. The assistant never creates an accounting entry.',
+        },
+      } as T;
+    }
+
+    if (rest === '/ai/assistant/conversations' && method === 'POST') {
+      requireModule(companyId, 'cabinet', 'read');
+      const module = String(payload.module ?? 'cabinet');
+      const locale = payload.locale === 'en' ? 'en' : 'fr';
+      const active = s.assistantConversations
+        .filter((c) => c.company_id === companyId && c.user_id === requireUser().id && c.status === 'open')
+        .sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1))[0];
+      const conversation: DemoAssistantConversation =
+        active ?? {
+          id: uid(),
+          company_id: companyId,
+          user_id: requireUser().id,
+          module,
+          screen: payload.screen ?? null,
+          locale,
+          title: null,
+          status: 'open',
+          created_at: now(),
+          updated_at: now(),
+        };
+      if (!active) s.assistantConversations.push(conversation);
+      audit(companyId, 'ai.conversation.open', 'ai_conversation', conversation.id, { module });
+      persist();
+      return {
+        conversation: {
+          id: conversation.id,
+          companyId,
+          module: conversation.module,
+          screen: conversation.screen,
+          locale: conversation.locale,
+          title: conversation.title,
+          status: conversation.status,
+          createdAt: conversation.created_at,
+          updatedAt: conversation.updated_at,
+        },
+        context: demoAssistantContext(companyId, conversation.module, conversation.screen, conversation.locale),
+      } as T;
+    }
+
+    if (rest === '/ai/assistant/conversations' && method === 'GET') {
+      requireModule(companyId, 'cabinet', 'read');
+      return {
+        conversations: s.assistantConversations
+          .filter((c) => c.company_id === companyId && c.user_id === requireUser().id && c.status === 'open')
+          .map((c) => ({ id: c.id, module: c.module, title: c.title, updatedAt: c.updated_at })),
+      } as T;
+    }
+
+    const conversationMatch = /^\/ai\/assistant\/conversations\/([0-9a-f-]{36})(?:\/(messages|close))?$/.exec(rest);
+    if (conversationMatch) {
+      requireModule(companyId, 'cabinet', 'read');
+      const conversation = s.assistantConversations.find(
+        (c) => c.id === conversationMatch[1] && c.company_id === companyId && c.user_id === requireUser().id,
+      );
+      if (!conversation) throw new ApiError(404, 'AI_CONVERSATION_NOT_FOUND', 'Conversation introuvable');
+      const action = conversationMatch[2] ?? '';
+
+      if (action === '' && method === 'GET') {
+        return {
+          conversation: { id: conversation.id, module: conversation.module, locale: conversation.locale, status: conversation.status },
+          messages: s.assistantMessages
+            .filter((m) => m.conversation_id === conversation.id)
+            .sort((a, b) => (a.created_at < b.created_at ? -1 : 1))
+            .map((m) => ({ id: m.id, role: m.role, content: m.content, context: m.context, payload: m.payload, createdAt: m.created_at })),
+          toolRuns: [],
+        } as T;
+      }
+
+      if (action === 'messages' && method === 'POST') {
+        const text = String(payload.text ?? '').replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 600);
+        if (text.length < 2) throw new ApiError(400, 'AI_INPUT_TOO_LONG', 'Message trop court');
+        const userMessage: DemoAssistantMessage = {
+          id: uid(),
+          conversation_id: conversation.id,
+          role: 'user',
+          content: text,
+          context: demoAssistantContext(companyId, conversation.module, conversation.screen, conversation.locale),
+          payload: {},
+          created_at: now(),
+        };
+        s.assistantMessages.push(userMessage);
+        const reply = demoAssistantAnswer(companyId, text, conversation.locale);
+        const assistantMessage: DemoAssistantMessage = {
+          id: uid(),
+          conversation_id: conversation.id,
+          role: 'assistant',
+          content: reply.content,
+          context: userMessage.context,
+          payload: {
+            intent: reply.toolKey ?? 'help',
+            toolKey: reply.toolKey,
+            toolStatus: reply.toolStatus,
+            actions: reply.actions,
+            context: userMessage.context,
+            data: reply.data,
+          },
+          created_at: now(),
+        };
+        s.assistantMessages.push(assistantMessage);
+        conversation.updated_at = now();
+        if (!conversation.title) conversation.title = text.slice(0, 80);
+        audit(companyId, 'ai.conversation.message', 'ai_conversation', conversation.id, {
+          tool: reply.toolKey,
+          status: reply.toolStatus,
+        });
+        persist();
+        return {
+          conversation: { id: conversation.id, module: conversation.module, locale: conversation.locale, status: conversation.status },
+          messages: [
+            { id: userMessage.id, role: 'user', content: userMessage.content, payload: {}, createdAt: userMessage.created_at },
+            {
+              id: assistantMessage.id,
+              role: 'assistant',
+              content: assistantMessage.content,
+              payload: assistantMessage.payload,
+              createdAt: assistantMessage.created_at,
+            },
+          ],
+          context: userMessage.context,
+          toolRuns: reply.toolKey
+            ? [{ tool: reply.toolKey, status: reply.toolStatus, rowCount: null }]
+            : [],
+          actions: reply.actions,
+        } as T;
+      }
+
+      if (action === 'close' && method === 'POST') {
+        conversation.status = 'closed';
+        conversation.updated_at = now();
+        persist();
+        return { closed: true } as T;
+      }
+
+      if (action === '' && method === 'DELETE') {
+        s.assistantMessages = s.assistantMessages.filter((m) => m.conversation_id !== conversation.id);
+        s.assistantConversations = s.assistantConversations.filter((c) => c.id !== conversation.id);
+        audit(companyId, 'ai.conversation.delete', 'ai_conversation', conversation.id, {});
+        persist();
+        return { ok: true } as T;
+      }
+    }
+
     // ------------------------------------------------------------- AI
     if (rest === '/ai/suggestions/account' && method === 'POST') {
       requireModule(companyId, 'accounting', 'write');
@@ -5070,8 +6161,19 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
         verified: payload.verified === true,
         source: payload.source ?? null,
         notes: payload.notes ?? null,
+        treatment: (payload.treatment as DemoTaxTreatment) ?? 'taxable',
+        vat_account_id: payload.vatAccountId ?? null,
+        verified_at: payload.verified === true ? now() : null,
+        verified_by: payload.verified === true ? requireUser().id : null,
       };
+      if (created.verified && !created.source) {
+        throw new ApiError(400, 'VAT_SOURCE_REQUIRED', 'Une source documentée est requise pour vérifier un taux');
+      }
+      if (created.treatment !== 'taxable' && amount(created.rate) !== 0n) {
+        throw new ApiError(400, 'VALIDATION_ERROR', 'Une qualification non taxable ne porte pas de pourcentage');
+      }
       s.taxRates.push(created);
+      demoLogRateEvent(companyId, created.id, 'created', null, created);
       audit(companyId, 'billing.tax_rate.create', 'billing_tax_rate', created.id, { code, rate: created.rate, verified: created.verified });
       persist();
       return { rate: created } as T;

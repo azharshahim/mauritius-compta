@@ -81,6 +81,9 @@ export default function DossierPage() {
           </div>
         </div>
         <Badge kind={c.status === 'active' ? 'success' : 'neutral'}>{t(`companies.${c.status}`)}</Badge>
+        <Link className="btn" to={`/cabinet/companies/${c.id}/settings`}>
+          {t('settings.company.title')}
+        </Link>
         {company?.id !== c.id && (
           <button className="btn" onClick={() => setCompany(c.id)}>
             {t('cabinet.companies.select')}
