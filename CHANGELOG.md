@@ -1,5 +1,44 @@
 # Journal des versions
 
+## Mission 18 — Transfert Paie → Comptabilité (31 octobre 2026)
+
+> Aucune fusion, aucun déploiement OVH, aucune donnée réelle, aucun paiement,
+> aucune déclaration MRA, aucun fournisseur payant. La comptabilisation définitive
+> d’une paie non validée reste bloquée. PR nº1 ouverte en brouillon ; `main` intact.
+
+### Ajouté
+
+- Migration `0016_payroll_accounting_transfer.sql` : correspondances versionnées
+  à 13 rôles configurables, un seul mapping `VALIDATED` par société, instantanés
+  de transfert avec 6 statuts, empreinte des calculs, décisions humaines et
+  anti-doublons (un `POSTED` par période, une approbation par empreinte).
+- Service `payroll/accounting.ts` réutilisant `prepareEntry`, `assertOpenPeriod`,
+  `nextEntryNo`, `loadJournal`, `loadAccounts` et `insertLines`.
+- API de correspondances, prévisualisation, génération, historique, approbation
+  pour test, rejet motivé, comptabilisation contrôlée et CSV interne.
+- Onglet **Paie & RH → Transfert comptable** : totaux, comptes, contrôles, lignes
+  débit/crédit, historique, décision humaine et export interne.
+- Démonstration octobre 2026 fictive avec mapping propre à chaque société.
+- Documentation : [`docs/mission-18-report.md`](docs/mission-18-report.md).
+
+### Sécurité et limites
+
+- Aucun compte comptable obligatoire n’est imposé ; aucun plan comptable
+  mauricien n’est inventé.
+- Une approbation `APPROVED_FOR_TEST` ne crée aucune écriture.
+- `POST` renvoie `PAYROLL_TRANSFER_POSTING_BLOCKED` tant que les règles ne sont
+  pas validées par un expert, la paie approuvée pour usage réel et la période
+  finalisée.
+- Aucune ligne d’ajustement n’est créée pour équilibrer une proposition.
+
+### Tests
+
+- API : `payroll-accounting.test.ts` (8), migrations (6) ; suite 415 réussis,
+  11 ignorés.
+- Web : `demo-accounting-transfer.test.ts` (7), interface de transfert (1) ;
+  suite 198 réussis.
+
+
 ## Mission 17 — Bulletins individuels et préparation des déclarations MRA (31 octobre 2026)
 
 > Aucune fusion, aucun déploiement OVH, aucune donnée réelle, aucune soumission MRA,
