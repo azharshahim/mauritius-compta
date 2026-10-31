@@ -158,7 +158,7 @@ describe('demo build (jsdom)', () => {
     );
   });
 
-  it('opens the operational billing screens while payroll stays prepared', async () => {
+  it('opens billing and the payroll preparation screens', async () => {
     await login();
     fireEvent.click(moduleTab(/Facturation/));
     await screen.findByRole('heading', { name: /^Facturation$/i });
@@ -173,8 +173,8 @@ describe('demo build (jsdom)', () => {
     await screen.findByRole('heading', { name: /^Balance âgée$/i });
 
     fireEvent.click(moduleTab(/Paie & RH/));
-    await screen.findByRole('heading', { name: /Tableau de bord/i });
-    expect(await screen.findByText(/Aucun calcul PAYE, CSG ou NSF/i)).toBeTruthy();
+    await screen.findByRole('heading', { name: /Paie & RH/i });
+    expect(await screen.findByText(/PAYE, CSG, NSF et cotisations employeur ne sont pas calculés/i)).toBeTruthy();
     expect(screen.queryByText(/bulletin généré/i)).toBeNull();
   });
 

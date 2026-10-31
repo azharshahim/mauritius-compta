@@ -36,6 +36,7 @@ import { handleDemoBank, seedDemoBank } from './bank';
 import { handleDemoPurchases, seedDemoPurchases } from './purchases';
 import { handleDemoLettering, seedDemoLettering } from './lettering';
 import { handleDemoFx, seedDemoFx } from './fx';
+import { handleDemoPayroll, payrollCsv, seedDemoPayroll } from './payroll';
 import {
   IMPORT_FIELDS,
   IMPORT_KIND_LABELS,
@@ -1918,6 +1919,7 @@ function seedState(): DemoState {
   seedDemoPurchases(seeded);
   seedDemoLettering(seeded);
   seedDemoFx(seeded);
+  seedDemoPayroll(seeded);
   return seeded;
 }
 
@@ -6095,6 +6097,29 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
       return result as T;
     }
 
+    // -------------------------------------------------------- payroll (14)
+    if (rest.startsWith('/payroll')) {
+      const member = s.members.find(
+        (m) => m.company_id === companyId && m.user_id === requireUser().id,
+      );
+      if (!member) throw new ApiError(404, 'COMPANY_NOT_FOUND', 'Société introuvable');
+      const writers = ['owner', 'admin', 'cabinet_admin', 'payroll_manager'];
+      const payrollRead = ['owner', 'admin', 'cabinet_admin', 'payroll_manager'];
+      if (!payrollRead.includes(member.role)) {
+        throw new ApiError(403, 'MODULE_FORBIDDEN', 'La paie n’est pas accessible avec ce rôle');
+      }
+      if (method !== 'GET' && !writers.includes(member.role)) {
+        throw new ApiError(403, 'FORBIDDEN', 'Rôle paie requis pour cette opération');
+      }
+      const result = handleDemoPayroll(s, companyId, method, rest.slice('/payroll'.length), Object.fromEntries(query.entries()), payload);
+      if (result === undefined) throw new ApiError(404, 'NOT_FOUND', 'Route paie inconnue');
+      if (method !== 'GET') {
+        audit(companyId, 'payroll.request', 'payroll', null, { path: rest, method, demo: true });
+        persist();
+      }
+      return result as T;
+    }
+
     // ------------------------------------------------ multi-currency (13)
     if (rest.startsWith('/fx')) {
       const member = s.members.find(
@@ -8219,5 +8244,9 @@ export function demoCsv(path: string, format: 'csv' | 'pdf'): { text?: string; m
   const [base, search] = path.split('?');
   const query = new URLSearchParams(search ?? '');
   const user = currentUser();
+  const payrollMatch = /^\/companies\/([0-9a-f-]{36})\/payroll\/payslips\.csv$/.exec(base ?? '');
+  if (payrollMatch) {
+    return { text: payrollCsv(loadState(), payrollMatch[1]!), mode: 'download' };
+  }
   return { text: exportCsv(base ?? '', query, user?.locale ?? 'fr'), mode: 'download' };
 }

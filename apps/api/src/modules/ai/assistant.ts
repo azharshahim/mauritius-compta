@@ -141,6 +141,7 @@ async function validateObjectRef(
 
 export type AssistantIntent =
   | 'payroll_status'
+  | 'payroll_explain'
   | 'invoices_unpaid'
   | 'invoice_search'
   | 'customer_balance'
@@ -172,7 +173,13 @@ const has = (text: string, pattern: RegExp) => pattern.test(text);
 export function detectIntent(raw: string): { intent: AssistantIntent; query?: string } {
   const text = raw.toLowerCase().replace(/[’']/g, "'").replace(/\s+/g, ' ').trim();
 
-  if (has(text, /\b(paie|payroll|bulletin|payslip|paye|csg|nsf)\b/)) return { intent: 'payroll_status' };
+  if (has(text, /\b(paie|payroll|bulletin|payslip|paye|csg|nsf)\b/)) {
+    if (has(text, /(explique|explain|détail|detail|ligne|line)/)) {
+      const match = /\b([a-z]\d{2,5})\b/i.exec(raw);
+      return { intent: 'payroll_explain', ...(match ? { query: match[1] } : {}) };
+    }
+    return { intent: 'payroll_status' };
+  }
 
   // Multi-currency (mission 13). The assistant may read rates and explain a
   // conversion, but it never selects a non-validated rate or posts anything.
@@ -738,6 +745,8 @@ function planTool(
   switch (intent) {
     case 'payroll_status':
       return { key: 'payroll.status', args: {} };
+    case 'payroll_explain':
+      return { key: 'payroll.calculation.explain', args: query ? { employeeNumber: query } : {} };
     case 'invoices_unpaid':
       return { key: 'billing.invoices.unpaid', args: { limit: 10 } };
     case 'invoice_search':

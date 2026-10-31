@@ -1014,3 +1014,24 @@ tr.total-row td { font-weight: 700; background: #f2f6fb; border-top: 2px solid v
   .lettering-actions .btn { flex: 1 1 auto; white-space: normal; }
   .lettering-summary { flex-direction: column; align-items: flex-start; }
 }
+
+/* --------------------------------------------------------------- payroll */
+.payroll-disclaimer { margin-bottom: 14px; }
+.payroll-columns { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.payroll-inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.payroll-list { margin: 0 0 10px; padding: 0; list-style: none; display: grid; gap: 8px; }
+.payroll-list li { display: flex; gap: 8px; align-items: flex-start; }
+.payroll-toolbar { margin-bottom: 12px; flex-wrap: wrap; }
+.payroll-h3 { margin: 18px 0 8px; font-size: 1rem; }
+.payroll-detail-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 10px; }
+.payroll-detail-grid > div { display: flex; flex-direction: column; gap: 3px; font-size: 0.9rem; }
+.payroll-detail-grid .muted { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.field-inline { display: inline-flex; align-items: center; gap: 8px; font-size: 0.86rem; }
+.field-inline select { min-width: 150px; max-width: 100%; }
+@media (max-width: 640px) {
+  .payroll-columns { grid-template-columns: 1fr; }
+  .payroll-toolbar { flex-direction: column; align-items: stretch; }
+  .field-inline { width: 100%; }
+  .field-inline select { flex: 1; min-width: 0; }
+  .payroll-disclaimer { font-size: 0.82rem; }
+}

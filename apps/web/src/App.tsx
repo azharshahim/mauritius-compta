@@ -30,6 +30,7 @@ import BillingCustomersPage from './pages/billing/Customers';
 import BillingDocumentsPage from './pages/billing/Documents';
 import BillingPaymentsPage from './pages/billing/Payments';
 import BillingAgingPage from './pages/billing/Aging';
+import PayrollPage from './pages/payroll/Payroll';
 import { MODULES, LEGACY_REDIRECTS, moduleByPath, type ModuleKey } from './modules';
 import { Spinner } from './components/ui';
 import { DemoBanner } from './components/DemoBanner';
@@ -231,9 +232,9 @@ export default function App() {
             <Route path="/billing/e-invoicing" element={<PreparedPage module="billing" />} />
             <Route path="/billing/:section" element={<PreparedPage module="billing" />} />
 
-            {/* Paie & RH : préparée seulement. */}
-            <Route path="/payroll" element={<PreparedPage module="payroll" />} />
-            <Route path="/payroll/:section" element={<PreparedPage module="payroll" />} />
+            {/* Paie & RH : préparation vérifiable, moteur réglementaire bloqué. */}
+            <Route path="/payroll" element={<PayrollPage />} />
+            <Route path="/payroll/:section" element={<PayrollPage />} />
 
             {LEGACY_REDIRECTS.map((r) => (
               <Route key={r.from} path={r.from} element={<Navigate to={r.to} replace />} />

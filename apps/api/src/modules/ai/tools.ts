@@ -1488,25 +1488,158 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
     key: 'payroll.status',
     module: 'payroll',
     readOnly: true,
-    title: { fr: 'État des fonctions Paie & RH', en: 'Payroll module status' },
+    title: { fr: 'État de la préparation de paie', en: 'Payroll preparation status' },
     description: {
-      fr: 'Explique honnêtement que la paie mauricienne n’est pas implémentée.',
-      en: 'Honestly explains that Mauritian payroll is not implemented.',
+      fr: 'Compte les salariés actifs, les périodes, les variables à valider, les congés en attente et les règles manquantes. Aucun taux inventé, aucune écriture.',
+      en: 'Counts active employees, periods, draft variables, pending leave and missing rules. No invented rate, no posting.',
     },
     args: emptyArgs,
     async run(ctx) {
       requireAccess(ctx, 'payroll', 'read');
+      const [employees, periods, variables, leave, contracts, rules, calculations] = await Promise.all([
+        ctx.db.query<any>(
+          `SELECT count(*) FILTER (WHERE employment_status IN ('active','probation'))::int AS active,
+                  count(*)::int AS total
+             FROM payroll_employees WHERE company_id = $1`,
+          [ctx.companyId],
+        ),
+        ctx.db.query<any>(
+          `SELECT period_year, period_month, status FROM payroll_periods
+            WHERE company_id = $1 ORDER BY period_year DESC, period_month DESC LIMIT 1`,
+          [ctx.companyId],
+        ),
+        ctx.db.query<any>(
+          `SELECT count(*) FILTER (WHERE status = 'draft')::int AS draft,
+                  count(*) FILTER (WHERE status = 'validated')::int AS validated
+             FROM payroll_variables WHERE company_id = $1`,
+          [ctx.companyId],
+        ),
+        ctx.db.query<any>(
+          `SELECT count(*) FILTER (WHERE status = 'requested')::int AS pending
+             FROM payroll_absences WHERE company_id = $1`,
+          [ctx.companyId],
+        ),
+        ctx.db.query<any>(
+          `SELECT count(*)::int AS active,
+                  count(*) FILTER (WHERE contract_type = 'fixed_term' AND effective_to IS NOT NULL
+                    AND effective_to <= (CURRENT_DATE + INTERVAL '60 days'))::int AS expiring
+             FROM payroll_contracts WHERE company_id = $1 AND status = 'active'`,
+          [ctx.companyId],
+        ),
+        ctx.db.query<any>(
+          `SELECT DISTINCT ON (upper(rule_code)) upper(rule_code) AS rule_code, status
+             FROM payroll_rules WHERE company_id = $1 AND required_for_calculation = true
+              AND status <> 'DEPRECATED'
+             ORDER BY upper(rule_code), version DESC`,
+          [ctx.companyId],
+        ),
+        ctx.db.query<any>(
+          `SELECT count(*)::int AS total,
+                  count(*) FILTER (WHERE status = 'blocked')::int AS blocked
+             FROM payroll_calculations WHERE company_id = $1`,
+          [ctx.companyId],
+        ),
+      ]);
+      const missingRules = rules.rows.filter((r) => r.status !== 'EXPERT_VALIDATED').map((r) => r.rule_code);
+      const latest = periods.rows[0];
       return {
-        data: { implemented: false },
-        rowCount: 0,
+        data: {
+          available: true,
+          activeEmployees: employees.rows[0]?.active ?? 0,
+          totalEmployees: employees.rows[0]?.total ?? 0,
+          latestPeriod: latest ? `${latest.period_month}/${latest.period_year}` : null,
+          latestPeriodStatus: latest?.status ?? null,
+          draftVariables: variables.rows[0]?.draft ?? 0,
+          validatedVariables: variables.rows[0]?.validated ?? 0,
+          pendingLeave: leave.rows[0]?.pending ?? 0,
+          activeContracts: contracts.rows[0]?.active ?? 0,
+          expiringContracts: contracts.rows[0]?.expiring ?? 0,
+          missingRules,
+          calculations: calculations.rows[0] ?? { total: 0, blocked: 0 },
+          statutoryEngineImplemented: false,
+        },
+        rowCount: 1,
         lines: {
           fr: [
-            'Le module Paie & RH est préparé mais non implémenté : aucun bulletin, aucun taux PAYE/CSG/NSF et aucune déclaration ne sont calculés.',
-            'Aucune donnée de paie n’est lue ni inventée par l’assistant.',
+            `${employees.rows[0]?.active ?? 0} salarié(s) actif(s), ${contracts.rows[0]?.active ?? 0} contrat(s) actif(s), dont ${contracts.rows[0]?.expiring ?? 0} à échéance sous 60 jours.`,
+            latest
+              ? `Dernière période : ${latest.period_month}/${latest.period_year}, statut ${latest.status}.`
+              : 'Aucune période de paie enregistrée.',
+            `${variables.rows[0]?.draft ?? 0} variable(s) en brouillon à valider, ${leave.rows[0]?.pending ?? 0} congé(s) en attente.`,
+            missingRules.length
+              ? `Règles obligatoires non validées : ${missingRules.join(', ')}. Le calcul réglementaire PAYE/CSG/NSF reste non implémenté et nul taux n’est inventé.`
+              : 'Aucune règle obligatoire manquante dans le registre, mais le moteur réglementaire reste non implémenté.',
           ],
           en: [
-            'The Payroll & HR module is prepared but not implemented: no payslip, PAYE/CSG/NSF rate or statutory declaration is computed.',
-            'The assistant neither reads nor invents payroll data.',
+            `${employees.rows[0]?.active ?? 0} active employee(s), ${contracts.rows[0]?.active ?? 0} active contract(s), ${contracts.rows[0]?.expiring ?? 0} expiring within 60 days.`,
+            latest
+              ? `Latest period: ${latest.period_month}/${latest.period_year}, status ${latest.status}.`
+              : 'No payroll period recorded.',
+            `${variables.rows[0]?.draft ?? 0} draft variable(s) to validate, ${leave.rows[0]?.pending ?? 0} pending leave request(s).`,
+            missingRules.length
+              ? `Required rules not validated: ${missingRules.join(', ')}. The statutory PAYE/CSG/NSF engine remains not implemented and no rate is invented.`
+              : 'No required rule is missing from the register, but the statutory engine remains not implemented.',
+          ],
+        },
+      };
+    },
+  },
+  {
+    key: 'payroll.calculation.explain',
+    module: 'payroll',
+    readOnly: true,
+    title: { fr: 'Expliquer un calcul de paie vérifié', en: 'Explain a verified payroll calculation' },
+    description: {
+      fr: 'Lit les lignes d’un calcul arithmétique existant, son brut, ses retenues et les règles manquantes. Ne calcule ni taux ni net légal.',
+      en: 'Reads an existing arithmetic calculation, its gross, deductions and missing rules. Computes no rate or legal net.',
+    },
+    args: z.object({ employeeNumber: z.string().trim().max(50).optional() }).strict(),
+    async run(ctx, args) {
+      requireAccess(ctx, 'payroll', 'read');
+      const res = await ctx.db.query<any>(
+        `SELECT c.id, c.status, c.currency, c.base_amount, c.earnings, c.gross, c.deductions,
+                c.net_arithmetic, c.paye, c.csg, c.nsf, c.statutory_complete,
+                c.missing_rules, c.warnings, c.version, e.employee_number, e.full_name,
+                p.period_year, p.period_month
+           FROM payroll_calculations c
+           JOIN payroll_employees e ON e.id = c.employee_id
+           JOIN payroll_periods p ON p.id = c.period_id
+          WHERE c.company_id = $1
+            AND ($2::text IS NULL OR lower(e.employee_number) = lower($2))
+          ORDER BY p.period_year DESC, p.period_month DESC, e.employee_number, c.version DESC
+          LIMIT 1`,
+        [ctx.companyId, args.employeeNumber ?? null],
+      );
+      const row = res.rows[0];
+      if (!row) {
+        return {
+          data: { found: false },
+          rowCount: 0,
+          lines: {
+            fr: ['Aucun calcul arithmétique enregistré pour ce dossier. Aucun calcul n’est inventé.'],
+            en: ['No arithmetic calculation recorded for this dossier. No calculation is invented.'],
+          },
+        };
+      }
+      const lines = await ctx.db.query<any>(
+        'SELECT code, label_en, label_fr, line_type, quantity, rate, amount FROM payroll_calculation_lines WHERE calculation_id = $1 ORDER BY line_no',
+        [row.id],
+      );
+      return {
+        data: { calculation: { ...row, lines: lines.rows } },
+        rowCount: 1,
+        lines: {
+          fr: [
+            `${row.employee_number} — ${row.full_name}, période ${row.period_month}/${row.period_year}, version ${row.version}, statut ${row.status}.`,
+            `Brut ${row.gross} ${row.currency}, retenues ${row.deductions}, net arithmétique ${row.net_arithmetic}. PAYE/CSG/NSF : non calculés.`,
+            ...lines.rows.slice(0, 12).map((l) => `${l.code} (${l.label_fr}) : ${l.amount} ${row.currency}`),
+            'Ce net est arithmétique : il ne constitue pas un net légal payable.',
+          ],
+          en: [
+            `${row.employee_number} — ${row.full_name}, period ${row.period_month}/${row.period_year}, version ${row.version}, status ${row.status}.`,
+            `Gross ${row.gross} ${row.currency}, deductions ${row.deductions}, arithmetic net ${row.net_arithmetic}. PAYE/CSG/NSF: not calculated.`,
+            ...lines.rows.slice(0, 12).map((l) => `${l.code} (${l.label_en}) : ${l.amount} ${row.currency}`),
+            'This net is arithmetic: it is not a legal net payable.',
           ],
         },
       };

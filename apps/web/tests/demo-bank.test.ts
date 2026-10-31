@@ -181,7 +181,7 @@ describe('démo banque — rapprochement et propositions', () => {
       expect(detail.account.rationaleFr).toMatch(/salaire|paie/i);
     }
     const payroll = call<any>('GET', `/companies/${company}/payroll/employees`);
-    expect(payroll.employees ?? []).toHaveLength(0);
+    expect(payroll.employees ?? []).toHaveLength(12);
   });
 
   test('scénarios A→G : trois virements, partiel, groupé, déjà comptabilisé, doublon, ambigu, interne', () => {
