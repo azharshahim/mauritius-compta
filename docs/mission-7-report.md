@@ -250,8 +250,10 @@ fournie. **Aucune validation professionnelle n'est revendiquée.**
 | `CI` (push) | `41184028275` | `4580910` | ✅ |
 | `CI` (pull request nº1) | `41184024587` | `4580910` | ✅ |
 | `Demo (GitHub Pages)` | `41183941018` | `22f643b` | ✅ (smoke test mission 7 inclus) |
-| `CI` (push, tête finale) | `41184177607` | `0da0042` | ✅ |
-| `CI` (pull request nº1, tête finale) | `41184173522` | `0da0042` | ✅ |
+| `CI` (push) | `41184177607` | `0da0042` | ✅ |
+| `CI` (pull request nº1) | `41184173522` | `0da0042` | ✅ |
+| `CI` (push, dernier commit de documentation) | `41184334730` | `a8e20a5` | ✅ |
+| `CI` (pull request nº1, dernier commit de documentation) | `41184329462` | `a8e20a5` | ✅ |
 
 - Les deux exécutions `CI` du commit de code `22f643b` (`41183941019`,
   `41183945304`) ont été **annulées** par la concurrence du workflow lors du push
