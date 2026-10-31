@@ -147,6 +147,47 @@
   `quality`, `postgres-tests` et `postgres-migrations` sont verts.
 - Démo Pages `41197195778` (commit `a2fb589`) : **succès**.
 
+### 12.1 Les 28 points de contrôle
+
+Statut : ✅ couvert par un test exécuté ; 🟡 partiel ou vérifié sans matériel
+réel ; ⛔ non implémenté et bloqué explicitement (aucune donnée inventée).
+
+| # | Point | Preuve / statut |
+|---|---|---|
+| 1 | Plusieurs transactions → une créance (n↔1) | ✅ API `reconciles three bank transfers…` + démo A |
+| 2 | Un virement → plusieurs factures (1↔n) | ✅ API `links one 100 000 transfer to one payment…` |
+| 3 | Paiement partiel client | ✅ API 30 000/80 000, restant 50 000 + démo B |
+| 4 | Paiement partiel fournisseur | ⛔ aucun module de factures fournisseurs ; dimension fournisseur absente, non inventée |
+| 5 | Virement groupé sur plusieurs règlements | ✅ API `allocates one transfer across two payments…` + démo C |
+| 6 | Facture soldée seulement si le total couvre le dû | ✅ contrôles de restant, soldes recalculés ; démo A |
+| 7 | Absence de double écriture | ✅ API `posts an unposted payment exactly once` |
+| 8 | Double validation simultanée | ✅ CI PostgreSQL `links one payment … once when two humans confirm` |
+| 9 | Idempotence d'une validation répétée | ✅ API `is idempotent for an identical repeated validation` + démo E |
+| 10 | Rollback / cohérence après échec | ✅ API refus 409/400 sans écriture partielle ; transactions SQL et rollback du posting |
+| 11 | Isolation par société | ✅ API `never exposes or links a payment from another company` |
+| 12 | Isolation par cabinet | ✅ API `isolates a transaction from another cabinet user` |
+| 13 | Permissions (lecteur / comptable) | ✅ API `denies reconciliation to a viewer…` |
+| 14 | Devises identiques exigées | ✅ API `blocks a currency mismatch instead of inventing an exchange rate` |
+| 15 | Écart de change | ⛔ refusé ; aucune conversion, aucun taux inventé |
+| 16 | Virement interne | 🟡 détection seulement (démo G), pas d'affectation comptable automatique |
+| 17 | Références ambiguës | ✅ API `never auto-confirms an ambiguous pair…` + démo F |
+| 18 | Affectation > montant de la transaction | ✅ API `refuses an allocation above the bank transaction…` |
+| 19 | Affectation > restant du règlement | ✅ même test, plafond `BANK_AMOUNT_EXCEEDS_PAYMENT` |
+| 20 | Annulation / retrait | ✅ API annulation refusée si rapproché, retrait sans suppression d'historique |
+| 21 | Audit (utilisateur, date, référence) | ✅ `bank_events`, `decided_by`, `decided_at`, rapport détaillé |
+| 22 | Export CSV | ✅ API rapport/CSV, montants textuels exacts, absence de facture soldée à tort |
+| 23 | Mobile / cartes Samsung | 🟡 contrat CSS/DOM `< 640 px`, **aucun appareil physique** |
+| 24 | Fichiers Android | 🟡 6 tests `upload-policy`, correctif `d3a4347` conservé, **aucun appareil physique** |
+| 25 | IA non intrusive | ✅ suggestions existantes seulement, aucune comptabilisation automatique, aucun fournisseur payant |
+| 26 | Régression API | ✅ `bank.test.ts` 28/28, suite API 231 réussis |
+| 27 | Régression web | ✅ 127 réussis / 13 fichiers |
+| 28 | Migrations et CI PostgreSQL | ✅ runs `41197327498` / `41197332790` verts, `0001`→`0010` |
+
+Bilan honnête : **23 points couverts ou vérifiés**, **3 partiels** (virement
+interne, ergonomie et fichiers Android sans matériel), **2 non implémentés**
+(paiement partiel fournisseur, écart de change). Les points 4 et 15 ne sont pas
+contournés : ils sont refusés ou documentés ; le point 16 reste une détection.
+
 ## 13. CI PostgreSQL réel
 
 - Job `postgres-tests` : exécute toute la suite avec `TEST_DATABASE_URL`, donc
