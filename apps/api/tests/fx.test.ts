@@ -3,6 +3,7 @@ import {
   accountByCode,
   api,
   closeTestApp,
+  createCompany,
   registerUser,
   setupCompanyWithChart,
   type TestContext,
@@ -801,13 +802,13 @@ describe('multi-currency and exchange differences (mission 13)', () => {
 
   // 30 ----------------------------------------------------------------------
   it('does not expose another company rate through a forged company id', async () => {
-    const other = await setupCompanyWithChart();
-    try {
-      const res = await api(ctx, owner.cookie, 'GET', `/api/companies/${other.company.id}/fx/rates`);
-      expect([403, 404]).toContain(res.statusCode);
-    } finally {
-      await closeTestApp(other.ctx);
-    }
+    // A second company is created inside the same test database instead of
+    // opening a nested test app: on real PostgreSQL a nested app truncates the
+    // whole schema and would invalidate the cookies used by later tests.
+    const outsider = await registerUser(ctx);
+    const other = await createCompany(ctx, outsider.cookie);
+    const res = await api(ctx, owner.cookie, 'GET', `/api/companies/${other.id}/fx/rates`);
+    expect([403, 404]).toContain(res.statusCode);
   });
 
   // 31 ----------------------------------------------------------------------
