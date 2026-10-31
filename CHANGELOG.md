@@ -43,8 +43,8 @@
   **116 réussis** (12 fichiers) ; typecheck 0 erreur ; build démo OK.
 - CI PostgreSQL réel : vérification des sept tables `bank_*` après migration
   et ré-application idempotente.
-- CI mission 9 : runs `41191757797` (push) et `41191761898` (PR) verts ;
-  Pages `41191757775` vert (déploiement + vérifications HTTPS).
+- CI mission 9 : runs `41192173639` (push) et `41192178271` (PR) verts ;
+  Pages `41192173531` vert (déploiement + vérifications HTTPS).
 - Limites non revendiquées : OFX/QFX, PDF/OCR, connexion bancaire, PDF du
   rapport, tests Chrome/Android réels, conformité MRA.
 
