@@ -353,6 +353,7 @@ export default function PayrollPage() {
                         {p.status === 'draft' && <Button variant="ghost" onClick={() => void act(() => api.patch(`/companies/${company.id}/payroll/periods/${p.id}/status`, { status: 'data_collection' }), t('payroll.period.collect'))}>{t('payroll.period.startCollect')}</Button>}
                         {['data_collection', 'ready_for_review', 'blocked'].includes(p.status) && <Button variant="primary" onClick={() => void act(() => api.post(`/companies/${company.id}/payroll/periods/${p.id}/calculate`, {}), t('payroll.period.calculated'))}>{t('payroll.period.calculate')}</Button>}
                         {p.status === 'blocked' && <Button variant="ghost" onClick={() => void act(() => api.patch(`/companies/${company.id}/payroll/periods/${p.id}/status`, { status: 'ready_for_review' }), t('payroll.period.review'))}>{t('payroll.period.review')}</Button>}
+                        {['calculated', 'blocked'].includes(p.status) && <a className="btn btn-ghost" href={`#`} onClick={(e) => { e.preventDefault(); void downloadExport(`/companies/${company.id}/payroll/periods/${p.id}/mra-return.csv`, `MRA-preparation-${periodLabel(p)}.csv`, 'csv').catch(() => setError(t('payroll.mra.preparationOnly'))); }}>{t('payroll.mra.prepare')}</a>}
                       </div>
                     </td>
                   </tr>
@@ -369,18 +370,23 @@ export default function PayrollPage() {
           <div className="alert alert-warning">{t('payroll.calculations.blocked')}</div>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>{t('payroll.col.number')}</th><th>{t('common.name')}</th><th className="num">{t('payroll.col.base')}</th><th className="num">{t('payroll.col.gross')}</th><th className="num">{t('payroll.col.deductions')}</th><th className="num">{t('payroll.col.netArithmetic')}</th><th className="num">PAYE / CSG / NSF</th><th>{t('common.status')}</th><th>{t('payroll.col.warnings')}</th></tr></thead>
+              <thead><tr><th>{t('payroll.col.number')}</th><th>{t('common.name')}</th><th className="num">{t('payroll.col.base')}</th><th className="num">{t('payroll.col.gross')}</th><th className="num">PAYE</th><th className="num">CSG / NSF</th><th className="num">{t('payroll.col.netStatutory')}</th><th className="num">{t('payroll.col.netPayable')}</th><th>{t('common.status')}</th><th /></tr></thead>
               <tbody>
                 {data.calculations.map((c) => (
                   <tr key={c.id}>
                     <td>{c.employee_number}</td><td>{c.full_name}</td>
                     <td className="num">{money(c.base_amount, locale, c.currency)}</td>
                     <td className="num">{money(c.gross, locale, c.currency)}</td>
-                    <td className="num">{money(c.deductions, locale, c.currency)}</td>
-                    <td className="num"><strong>{money(c.net_arithmetic, locale, c.currency)}</strong></td>
-                    <td className="num"><Badge kind="warning">—</Badge></td>
+                    <td className="num">{c.paye === null ? '—' : money(c.paye, locale, c.currency)}</td>
+                    <td className="num">{c.csg_employee === null ? '—' : `${money(c.csg_employee, locale, c.currency)} / ${money(c.nsf_employee, locale, c.currency)}`}</td>
+                    <td className="num">{c.net_after_statutory === null ? '—' : money(c.net_after_statutory, locale, c.currency)}</td>
+                    <td className="num"><Badge kind={c.net_payable === null ? 'warning' : 'success'}>{c.net_payable === null ? t('payroll.notPayable') : money(c.net_payable, locale, c.currency)}</Badge></td>
                     <td><Badge kind={badgeKind(c.status)}>{c.status}</Badge></td>
-                    <td className="small">{Array.isArray(c.warnings) && c.warnings.length > 0 ? c.warnings.map((w: Any) => <div key={w.code}>{w.code}</div>) : '—'}</td>
+                    <td>{['expert_review_pending', 'review_required'].includes(c.status) && <Button variant="ghost" onClick={() => {
+                      const note = window.prompt(t('payroll.review.note'));
+                      if (!note || note.trim().length < 10) return;
+                      void act(() => api.post(`/companies/${company.id}/payroll/calculations/${c.id}/approve-for-test`, { confirm: true, note }), t('payroll.review.approved'));
+                    }}>{t('payroll.review.approveTest')}</Button>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -444,7 +450,14 @@ export default function PayrollPage() {
                         <td><strong>{r.rule_code}</strong></td><td>{locale === 'fr' ? r.name_fr : r.name_en}</td>
                         <td className="small">{read(r.source_reference)}<div className="muted">{read(r.legal_source)}</div></td>
                         <td>{read(r.effective_from)}</td><td className="num">{r.rate === null ? '—' : r.rate}</td>
-                        <td><Badge kind={badgeKind(r.status)}>{r.status}</Badge></td><td>{r.version}</td>
+                        <td><Badge kind={badgeKind(r.status)}>{r.status}</Badge><div className="small muted">{r.source_url ? <a href={r.source_url} target="_blank" rel="noreferrer">{t('payroll.rules.official')}</a> : t('payroll.rules.noOfficial')}</div>
+                          {['RESEARCHED', 'REVIEW_REQUIRED'].includes(r.status) && <Button variant="ghost" onClick={() => {
+                            const note = window.prompt(t('payroll.rules.reviewNote'));
+                            if (!note) return;
+                            void act(() => api.post(`/companies/${company.id}/payroll/rules/${r.id}/validate`, {
+                              confirm: true, note, legalSource: r.legal_source, sourceReference: r.source_reference,
+                            }), t('payroll.rules.validated'));
+                          }}>{t('payroll.rules.validate')}</Button>}</td><td>{r.version}</td>
                       </tr>
                     ))}
                   </tbody>

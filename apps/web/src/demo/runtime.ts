@@ -36,7 +36,7 @@ import { handleDemoBank, seedDemoBank } from './bank';
 import { handleDemoPurchases, seedDemoPurchases } from './purchases';
 import { handleDemoLettering, seedDemoLettering } from './lettering';
 import { handleDemoFx, seedDemoFx } from './fx';
-import { handleDemoPayroll, payrollCsv, seedDemoPayroll } from './payroll';
+import { handleDemoPayroll, payrollCsv, payrollReturnCsv, seedDemoPayroll } from './payroll';
 import {
   IMPORT_FIELDS,
   IMPORT_KIND_LABELS,
@@ -8247,6 +8247,10 @@ export function demoCsv(path: string, format: 'csv' | 'pdf'): { text?: string; m
   const payrollMatch = /^\/companies\/([0-9a-f-]{36})\/payroll\/payslips\.csv$/.exec(base ?? '');
   if (payrollMatch) {
     return { text: payrollCsv(loadState(), payrollMatch[1]!), mode: 'download' };
+  }
+  const returnMatch = /^\/companies\/([0-9a-f-]{36})\/payroll\/periods\/([0-9a-f-]{36})\/mra-return\.csv$/.exec(base ?? '');
+  if (returnMatch) {
+    return { text: payrollReturnCsv(loadState(), returnMatch[1]!, returnMatch[2]!), mode: 'download' };
   }
   return { text: exportCsv(base ?? '', query, user?.locale ?? 'fr'), mode: 'download' };
 }

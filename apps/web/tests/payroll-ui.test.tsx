@@ -58,20 +58,20 @@ describe('paie & RH (interface démonstration)', () => {
     await login();
     window.location.hash = '#/payroll/calculations';
     await screen.findByRole('heading', { name: /Paie & RH/i });
-    expect(await screen.findByText(/Tous les calculs sont BLOCKED/i)).toBeTruthy();
-    expect((await screen.findAllByText('blocked')).length).toBeGreaterThan(0);
+    expect(await screen.findByText(/règles sourcées mais non validées par un expert/i)).toBeTruthy();
+    expect((await screen.findAllByText('expert_review_pending')).length).toBeGreaterThan(0);
     expect(document.body.textContent).not.toMatch(/net légal garanti/i);
     window.location.hash = '#/payroll/rules';
     expect(await screen.findByText(/Registre des règles datées/i)).toBeTruthy();
-    expect((await screen.findAllByText('UNVERIFIED')).length).toBeGreaterThan(0);
-    expect(screen.getByText(/NON IMPLÉMENTÉ — les calculs PAYE/i)).toBeTruthy();
+    expect((await screen.findAllByText('RESEARCHED')).length).toBeGreaterThan(0);
+    expect(screen.getByText(/MOTEUR IMPLÉMENTÉ, REVUE EXPERTE EN ATTENTE/i)).toBeTruthy();
   });
 
   it('ne propose que des bulletins de simulation et interdit le bulletin final', async () => {
     await login();
     window.location.hash = '#/payroll/payslips';
     await screen.findByRole('heading', { name: /Paie & RH/i });
-    expect(await screen.findByText('SIM-202607-0001')).toBeTruthy();
+    expect(await screen.findByText('SIM-202601-0001')).toBeTruthy();
     expect((await screen.findAllByText(/SIMULATION \/ DRAFT/i)).length).toBeGreaterThan(0);
     expect(screen.getByText(/Aucun bulletin final n’est possible/i)).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Finaliser/i })).toBeNull();
@@ -84,7 +84,7 @@ describe('paie & RH (interface démonstration)', () => {
     const language = screen.getByLabelText(/Langue/i) as HTMLSelectElement;
     fireEvent.change(language, { target: { value: 'en' } });
     expect(await screen.findByRole('heading', { name: /^Payroll & HR$/i })).toBeTruthy();
-    expect(await screen.findByText(/PAYE, CSG, NSF and employer contributions are not calculated/i)).toBeTruthy();
+    expect(await screen.findByText(/PAYE, CSG, NSF and Training Levy are computed from sourced official rules/i)).toBeTruthy();
   });
 
   it('conserve des tableaux contenus et une mise en page mobile sans débordement horizontal', () => {

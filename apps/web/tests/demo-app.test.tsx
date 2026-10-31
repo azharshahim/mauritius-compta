@@ -174,7 +174,7 @@ describe('demo build (jsdom)', () => {
 
     fireEvent.click(moduleTab(/Paie & RH/));
     await screen.findByRole('heading', { name: /Paie & RH/i });
-    expect(await screen.findByText(/PAYE, CSG, NSF et cotisations employeur ne sont pas calculés/i)).toBeTruthy();
+    expect(await screen.findByText(/PAYE, CSG, NSF et Training Levy sont calculés à partir de règles officielles sourcées/i)).toBeTruthy();
     expect(screen.queryByText(/bulletin généré/i)).toBeNull();
   });
 

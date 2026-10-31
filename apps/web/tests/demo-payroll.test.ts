@@ -20,11 +20,11 @@ describe('démo paie — moteur déterministe bloqué', () => {
     localStorage.clear();
   });
 
-  it('sert 12 salariés fictifs A→L et masque les coordonnées bancaires', () => {
+  it('sert 18 salariés fictifs A→R et masque les coordonnées bancaires', () => {
     const company = loginAndCompany();
     const employees = call<any>('GET', `/companies/${company}/payroll/employees`).employees;
-    expect(employees).toHaveLength(12);
-    expect(employees.map((e: any) => e.employee_number)).toContain('L012');
+    expect(employees).toHaveLength(18);
+    expect(employees.map((e: any) => e.employee_number)).toContain('R018');
     expect(employees.every((e: any) => e.bankAccountMasked?.startsWith('•••• '))).toBe(true);
     expect(JSON.stringify(employees)).not.toContain('MU00FICT');
   });
@@ -37,24 +37,39 @@ describe('démo paie — moteur déterministe bloqué', () => {
     expect(contracts.some((c: any) => c.contract_type === 'fixed_term')).toBe(true);
   });
 
-  it('calcule l’arithmétique exacte, ajoute prime et avance, puis bloque les contributions', () => {
+  it('calcule l’arithmétique exacte, ajoute la rémunération additionnelle puis les cotisations sourcées', () => {
     const company = loginAndCompany();
     const periods = call<any>('GET', `/companies/${company}/payroll/periods`).periods;
     const calculations = call<any>('GET', `/companies/${company}/payroll/periods/${periods[0].id}/calculations`).calculations;
     const a = calculations.find((c: any) => c.employee_number === 'A001');
     expect(a.base_amount).toBe('30000.0000');
-    expect(a.paye).toBeNull();
-    expect(a.csg).toBeNull();
-    expect(a.nsf).toBeNull();
-    expect(a.status).toBe('blocked');
+    expect(a.paye).toBe('0.0000');
+    expect(a.csg).toBe('459.5250');
+    expect(a.nsf).toBe('297.1000');
+    expect(a.status).toBe('expert_review_pending');
+    expect(a.net_payable).toBeNull();
     const h = calculations.find((c: any) => c.employee_number === 'H008');
-    expect(h.gross).toBe('32500.0000');
+    expect(h.gross).toBe('33135.0000');
     const i = calculations.find((c: any) => c.employee_number === 'I009');
-    expect(i.net_arithmetic).toBe('22000.0000');
+    expect(i.net_arithmetic).toBe('22635.0000');
     const d = calculations.find((c: any) => c.employee_number === 'D004');
     expect(d.base_amount).toBe('15483.8710');
     const e = calculations.find((c: any) => c.employee_number === 'E005');
     expect(e.base_amount).toBe('22064.5162');
+  });
+
+  it('présente 18 cas A→R, dont secteur public et date de naissance manquante bloqués', () => {
+    const company = loginAndCompany();
+    const periods = call<any>('GET', `/companies/${company}/payroll/periods`).periods;
+    const calculations = call<any>('GET', `/companies/${company}/payroll/periods/${periods[0].id}/calculations`).calculations;
+    expect(calculations).toHaveLength(18);
+    const publicSector = calculations.find((c: any) => c.employee_number === 'P016');
+    expect(publicSector.status).toBe('rules_incomplete');
+    expect(publicSector.missing_rules.some((r: any) => r.ruleCode === 'CSG_PUBLIC_SECTOR')).toBe(true);
+    const noDob = calculations.find((c: any) => c.employee_number === 'Q017');
+    expect(noDob.status).toBe('rules_incomplete');
+    expect(noDob.missing_rules.some((r: any) => r.reason === 'DATE_OF_BIRTH_REQUIRED')).toBe(true);
+    expect(calculations.find((c: any) => c.employee_number === 'R018').additional_remuneration).toBe('0.0000');
   });
 
   it('refuse un second calcul sans réouverture, et refuse toute finalisation', () => {
@@ -70,7 +85,7 @@ describe('démo paie — moteur déterministe bloqué', () => {
     const company = loginAndCompany();
     const periods = call<any>('GET', `/companies/${company}/payroll/periods`).periods;
     const period = periods[0];
-    // The seeded period is blocked but imports remain preparation-only.
+    // The seeded period is calculated but imports remain preparation-only.
     const rows = [{ employeeNumber: 'L012', payItemCode: 'PRIME_DEMO', amount: '750', externalRef: 'FICT-IMP-1' }];
     const first = call<any>('POST', `/companies/${company}/payroll/periods/${period.id}/variables/import`, { source: 'csv', rows });
     expect(first.created).toBe(1);
@@ -101,7 +116,7 @@ describe('démo paie — moteur déterministe bloqué', () => {
     expect(() => call('POST', `/companies/${company}/payroll/holidays`, {
       holidayDate: '2026-08-15', nameEn: 'Doublon', nameFr: 'Doublon', source: 'Fictif',
     })).toThrow(/existe déjà/);
-    const contentText = 'employeeNumber;workDate;hoursWorked;overtimeHours\nB002;06/07/2026;8;0\nG007;2026-07-08;7;1';
+    const contentText = 'employeeNumber;workDate;hoursWorked;overtimeHours\nB002;06/01/2026;8;0\nG007;2026-01-08;7;1';
     const first = call<any>('POST', `/companies/${company}/payroll/time/import-file`, { fileName: 'temps.csv', contentText });
     expect(first).toMatchObject({ created: 1, skipped: 1 });
   });
@@ -112,7 +127,7 @@ describe('démo paie — moteur déterministe bloqué', () => {
     expect(mode).toBe('download');
     expect(text).toContain('SIMULATION - NOT FOR PAYMENT');
     expect(text).toContain('"Net payable"');
-    expect(text).toContain('"SIM-202607-0001"');
+    expect(text).toContain('"SIM-202601-0001"');
   });
 
   it('ne demande aucun réseau et ne persiste que dans le navigateur', () => {

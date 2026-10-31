@@ -9,6 +9,9 @@ import { ApiError } from '../errors';
 import { scaled4ToString, toScaled4 } from '../format';
 import type { DemoState } from './runtime';
 import { parseUpload } from '../../../api/src/modules/migration/parse';
+import {
+  computeCsg, computeNsf, computePayeWithoutEdf, computeTrainingLevy, percentage,
+} from '../../../api/src/modules/payroll/statutory';
 
 const uid = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
@@ -41,6 +44,8 @@ interface DemoEmployee {
   statutory_id_last4: string | null; statutory_ref_last4: string | null;
   emergency_contact_name: string | null; emergency_contact_phone: string | null;
   emergency_contact_relation: string | null; notes: string | null;
+  pay_frequency?: string; worker_type?: string; paye_category?: string; tax_residency?: string;
+  is_public_sector?: boolean; is_household_worker?: boolean;
   created_at: string; updated_at: string;
 }
 interface DemoContract {
@@ -73,7 +78,8 @@ interface DemoRule {
   effective_to: string | null; calculation_basis: string | null; rate: string | null;
   threshold_amount: string | null; cap_amount: string | null; rounding_policy: string | null;
   status: string; required_for_calculation: boolean; version: number; test_cases: unknown[];
-  notes: string | null;
+  notes: string | null; parameters?: Record<string, unknown>; source_url?: string | null;
+  source_fingerprint?: string | null;
 }
 interface DemoPeriod {
   id: string; company_id: string; period_year: number; period_month: number;
@@ -91,10 +97,16 @@ interface DemoLine {
 }
 interface DemoCalculation {
   id: string; company_id: string; period_id: string; employee_id: string; employee_number: string;
-  full_name: string; version: number; status: 'blocked' | 'simulated'; currency: string;
+  full_name: string; version: number; status: 'blocked' | 'simulated' | 'expert_review_pending' | 'rules_incomplete' | 'approved_for_test'; currency: string;
   contract_id: string | null; base_amount: string; proration_days: string | null; period_days: number;
   earnings: string; gross: string; deductions: string; net_arithmetic: string;
-  paye: null; csg: null; nsf: null; employer_contributions: null; statutory_complete: false;
+  paye: string | null; csg: string | null; nsf: string | null; employer_contributions: string | null; statutory_complete: boolean;
+  taxable_emoluments?: string; basic_wage?: string; paye_basis?: string | null;
+  csg_employee?: string | null; csg_employer?: string | null;
+  nsf_employee?: string | null; nsf_employer?: string | null;
+  training_levy?: string | null; additional_remuneration?: string;
+  employer_cost?: string | null; net_after_statutory?: string | null; net_payable?: string | null;
+  statutory_status?: string; edf_basis?: string | null; rules_applied?: unknown[]; review_reasons?: unknown[];
   missing_rules: { ruleCode: string; status: string; reason: string }[];
   warnings: { code: string; message: string }[]; input_hash: string; rule_version: string;
   calculated_at: string; lines: DemoLine[]; bankAccountMasked: string | null;
@@ -135,6 +147,12 @@ const people: [string, string, string, string][] = [
   ['J010', 'Jean', 'Étranger', 'Consultant fictif (étranger)'],
   ['K011', 'Kavita', 'Échéance', 'Chargée de projet fictive'],
   ['L012', 'Lucas', 'Bloqué', 'Stagiaire fictif'],
+  ['M013', 'Mina', 'Partiel', 'Assistante à temps partiel fictive'],
+  ['N014', 'Noé', 'Cadre', 'Cadre fictif à haut salaire'],
+  ['O015', 'Olga', 'Maison', 'Employée domestique fictive'],
+  ['P016', 'Paul', 'Public', 'Agent public fictif'],
+  ['Q017', 'Quinn', 'SansDate', 'Salarié fictif sans date de naissance'],
+  ['R018', 'Rita', 'Rendement', 'Travailleuse au rendement fictive'],
 ];
 
 export function seedDemoPayroll(state: DemoState): void {
@@ -146,12 +164,12 @@ export function seedDemoPayroll(state: DemoState): void {
   const employees: DemoEmployee[] = people.map(([number, first, last, job], index) => ({
     id: uid(), company_id: companyId, employee_number: number, employee_ref: number,
     first_name: first, last_name: last, full_name: `${first} ${last}`, preferred_name: null,
-    date_of_birth: `199${index % 9}-0${(index % 9) + 1}-1${index % 9}`,
+    date_of_birth: number === 'Q017' ? null : `199${index % 9}-0${(index % 9) + 1}-1${index % 9}`,
     nationality: number === 'J010' ? 'French' : 'Mauritian',
     country_of_residence: 'Mauritius',
     address: `${index + 1}, Rue Fictive, Port Louis (fictif)`,
     email: `${number.toLowerCase()}@demo-fictif.test`, phone: '+230 5000 00 00',
-    employment_status: 'active', hire_date: number === 'D004' ? '2026-07-16' : '2024-01-15',
+    employment_status: 'active', hire_date: number === 'D004' ? '2026-01-16' : '2024-01-15',
     termination_date: null, department: index % 3 === 0 ? 'Administration' : 'Opérations',
     job_title: job, work_location: 'Port Louis', manager_employee_id: null,
     cost_centre: `CC-DEMO-${index + 1}`, payroll_currency: 'MUR',
@@ -159,27 +177,39 @@ export function seedDemoPayroll(state: DemoState): void {
     bank_account_last4: String(4000 + index), statutory_id_last4: number === 'J010' ? '9010' : '7000',
     statutory_ref_last4: `00${index}`, emergency_contact_name: 'Contact fictif',
     emergency_contact_phone: '+230 5000 00 01', emergency_contact_relation: 'Famille (fictif)',
-    notes: 'Dossier de démonstration entièrement fictif', created_at: created, updated_at: created,
+    notes: 'Dossier de démonstration entièrement fictif',
+    pay_frequency: 'monthly',
+    worker_type: number === 'B002' || number === 'C003' || number === 'M013' ? 'part_time'
+      : number === 'R018' ? 'piece_rate' : 'full_time',
+    paye_category: 'standard', tax_residency: 'resident',
+    is_public_sector: number === 'P016', is_household_worker: number === 'O015',
+    created_at: created, updated_at: created,
   }));
   const byNumber = new Map(employees.map((e) => [e.employee_number, e]));
   const contractSeed: [string, number, string, string, string, string | null][] = [
     ['A001', 30000, 'monthly', 'permanent', '2024-01-15', null],
     ['B002', 250, 'hourly', 'permanent', '2024-01-15', null],
     ['C003', 12000, 'monthly', 'permanent', '2024-01-15', null],
-    ['D004', 30000, 'monthly', 'permanent', '2026-07-16', null],
-    ['E005', 20000, 'monthly', 'permanent', '2024-01-15', '2026-07-15'],
+    ['D004', 30000, 'monthly', 'permanent', '2026-01-16', null],
+    ['E005', 20000, 'monthly', 'permanent', '2024-01-15', '2026-01-15'],
     ['F006', 18000, 'monthly', 'permanent', '2024-01-15', null],
     ['G007', 22000, 'monthly', 'permanent', '2024-01-15', null],
     ['H008', 26000, 'monthly', 'permanent', '2024-01-15', null],
     ['I009', 24000, 'monthly', 'permanent', '2024-01-15', null],
     ['J010', 28000, 'monthly', 'permanent', '2024-01-15', null],
     ['K011', 21000, 'monthly', 'fixed_term', '2024-01-15', '2026-12-31'],
-    ['L012', 20000, 'monthly', 'permanent', '2026-07-01', null],
+    ['L012', 20000, 'monthly', 'permanent', '2026-01-01', null],
+    ['M013', 12000, 'monthly', 'permanent', '2024-01-15', null],
+    ['N014', 600000, 'monthly', 'permanent', '2024-01-15', null],
+    ['O015', 3000, 'monthly', 'permanent', '2024-01-15', null],
+    ['P016', 25000, 'monthly', 'permanent', '2024-01-15', null],
+    ['Q017', 35000, 'monthly', 'permanent', '2024-01-15', null],
+    ['R018', 18000, 'monthly', 'permanent', '2024-01-15', null],
   ];
   const contracts: DemoContract[] = contractSeed.map(([number, salary, period, type, from, to]) => ({
     id: uid(), company_id: companyId, employee_id: byNumber.get(number)!.id,
-    contract_type: type, work_pattern: number === 'B002' || number === 'C003' ? 'part_time' : 'full_time',
-    status: to === '2026-07-15' ? 'superseded' : 'active', effective_from: from, effective_to: to,
+    contract_type: type, work_pattern: number === 'B002' || number === 'C003' || number === 'M013' ? 'part_time' : 'full_time',
+    status: to === '2026-01-15' ? 'superseded' : 'active', effective_from: from, effective_to: to,
     base_salary: `${salary}.0000`, salary_period: period, currency: 'MUR',
     weekly_hours: period === 'hourly' ? '20.00' : '40.00',
     department: byNumber.get(number)!.department, job_title: byNumber.get(number)!.job_title,
@@ -190,7 +220,7 @@ export function seedDemoPayroll(state: DemoState): void {
   contracts.push({
     id: uid(), company_id: companyId, employee_id: byNumber.get('E005')!.id,
     contract_type: 'permanent', work_pattern: 'full_time', status: 'active',
-    effective_from: '2026-07-16', effective_to: null, base_salary: '24000.0000',
+    effective_from: '2026-01-16', effective_to: null, base_salary: '24000.0000',
     salary_period: 'monthly', currency: 'MUR', weekly_hours: '40.00',
     department: 'Opérations', job_title: 'Analyste fictive', work_location: 'Port Louis',
     change_reason: 'Avenant fictif daté : 20 000 → 24 000', amendment_of: null, created_at: created,
@@ -203,27 +233,40 @@ export function seedDemoPayroll(state: DemoState): void {
   ];
   const item = (code: string) => payItems.find((i) => i.code === code)!;
   const period: DemoPeriod = {
-    id: uid(), company_id: companyId, period_year: 2026, period_month: 7,
-    start_date: '2026-07-01', end_date: '2026-07-31', payment_date: '2026-07-31',
+    id: uid(), company_id: companyId, period_year: 2026, period_month: 1,
+    start_date: '2026-01-01', end_date: '2026-01-31', payment_date: '2026-01-31',
     status: 'data_collection', version: 1, calculated_at: null,
   };
   const time: DemoTime[] = [
-    { id: uid(), company_id: companyId, employee_id: byNumber.get('B002')!.id, work_date: '2026-07-06', hours_worked: '8.00', overtime_hours: '2.00', lateness_minutes: 0, note: 'Heures fictives, majoration non paramétrée', source: 'manual' },
-    { id: uid(), company_id: companyId, employee_id: byNumber.get('B002')!.id, work_date: '2026-07-07', hours_worked: '8.00', overtime_hours: '0.00', lateness_minutes: 10, note: 'Retard fictif', source: 'manual' },
+    { id: uid(), company_id: companyId, employee_id: byNumber.get('B002')!.id, work_date: '2026-01-06', hours_worked: '8.00', overtime_hours: '2.00', lateness_minutes: 0, note: 'Heures fictives, majoration non paramétrée', source: 'manual' },
+    { id: uid(), company_id: companyId, employee_id: byNumber.get('B002')!.id, work_date: '2026-01-07', hours_worked: '8.00', overtime_hours: '0.00', lateness_minutes: 10, note: 'Retard fictif', source: 'manual' },
   ];
   const absences: DemoAbsence[] = [{
     id: uid(), company_id: companyId, employee_id: byNumber.get('F006')!.id,
-    leave_type: 'unpaid', start_date: '2026-07-20', end_date: '2026-07-22', days: '3.00',
+    leave_type: 'unpaid', start_date: '2026-01-20', end_date: '2026-01-22', days: '3.00',
     status: 'approved', reason: 'Absence non rémunérée fictive', decision_reason: 'Validation fictive de démonstration',
     document_ref: 'FICT-DOC-001', created_at: created,
   }];
-  const rules: DemoRule[] = ['PAYE', 'CSG', 'NSF'].map((code) => ({
-    id: uid(), company_id: companyId, rule_code: code,
-    name_en: `${code} (placeholder - no rate)`, name_fr: `${code} (paramètre - aucun taux)`,
-    legal_source: null, source_reference: null, effective_from: null, effective_to: null,
-    calculation_basis: null, rate: null, threshold_amount: null, cap_amount: null,
-    rounding_policy: null, status: 'UNVERIFIED', required_for_calculation: true, version: 1,
-    test_cases: [], notes: 'Aucun taux, aucun seuil, aucune source légale. Revue experte requise.',
+  const rules: DemoRule[] = [
+    ['PAYE', 'PAYE — progressive cumulative bands', 'PAYE — bandes cumulatives', '20', 'https://www.mra.mu/download/PayeGuide.pdf', 'MRA PAYE Guide Dec 2025 §2'],
+    ['PAYE_NO_EDF', 'PAYE — flat 15% without EDF', 'PAYE — forfait 15 % sans EDF', '15', 'https://www.mra.mu/download/PayeGuide.pdf', 'MRA PAYE Guide Dec 2025 §5.9.1'],
+    ['CSG_PRIVATE', 'CSG — private-sector rates', 'CSG — taux du secteur privé', '6', 'https://mra.mu/index.php/business/csg', 'MRA CSG page — rate table'],
+    ['NSF_RATES', 'NSF contribution rates', 'NSF — taux de cotisation', '2.5', 'https://www.mra.mu/employers/npf-nsf-contributions', 'MRA NPF/NSF page §2'],
+    ['NSF_LIMITS', 'NSF dated minimum and maximum', 'NSF — minimum et maximum datés', null, 'https://www.mra.mu/employers/npf-nsf-contributions', 'MRA NPF/NSF page — table 1 July 2026'],
+    ['TRAINING_LEVY', 'HRDC Training Levy', 'Levy de formation HRDC', '1.5', 'https://www.mra.mu/employers/npf-nsf-contributions', 'MRA NPF/NSF page §3'],
+    ['ADDITIONAL_REMUNERATION', 'Additional Remuneration 2026', 'Rémunération additionnelle 2026', '635', 'https://www.mra.mu/download/GN15WRA.pdf', 'GN No. 7 of 2026, effective 1 January 2026'],
+  ].map(([code, en, fr, rate, url, ref]) => ({
+    id: uid(), company_id: companyId, rule_code: code as string,
+    name_en: en as string, name_fr: fr as string,
+    legal_source: 'Mauritius Revenue Authority / Government Gazette (official)',
+    source_reference: ref as string, source_url: url as string,
+    effective_from: code === 'ADDITIONAL_REMUNERATION' ? '2026-01-01' : code === 'NSF_LIMITS' ? '2026-07-01' : '2025-07-01',
+    effective_to: null, calculation_basis: 'basic wage / taxable emoluments',
+    rate: rate as string | null, threshold_amount: code === 'PAYE_NO_EDF' ? '38462' : code === 'CSG_PRIVATE' ? '50000' : null,
+    cap_amount: null, rounding_policy: 'PAYE rounded down to the rupee; CSG/NSF/levy exact to 4 decimals',
+    status: 'RESEARCHED', required_for_calculation: code !== 'ADDITIONAL_REMUNERATION',
+    version: 1, test_cases: [], parameters: {}, source_fingerprint: 'demo-fingerprint',
+    notes: 'Sourced but not expert-approved. Demonstration only.',
   }));
   const variables: DemoVariable[] = [
     { id: uid(), company_id: companyId, period_id: period.id, employee_id: byNumber.get('H008')!.id, pay_item_id: item('PRIME_DEMO').id, quantity: '1.0000', rate: '0.0000', amount: '5000.0000', note: 'Prime variable fictive validée', status: 'validated', source: 'manual', import_key: null, created_at: created },
@@ -240,7 +283,7 @@ export function seedDemoPayroll(state: DemoState): void {
   };
   demo.calculations = calculate(demo, companyId, period);
   demo.payslips = [payslipFor(demo, demo.calculations.find((c) => c.employee_number === 'A001')!, `${company.name}`)];
-  demo.periods[0]!.status = 'blocked';
+  demo.periods[0]!.status = demo.calculations.some((c) => c.status === 'rules_incomplete') ? 'blocked' : 'calculated';
   (state as any).payroll = demo;
 }
 
@@ -266,9 +309,8 @@ function periodView(p: DemoPeriod) {
 
 function calculate(payroll: DemoPayrollState, companyId: string, period: DemoPeriod): DemoCalculation[] {
   const missing = payroll.rules
-    .filter((r) => r.required_for_calculation && r.status !== 'EXPERT_VALIDATED')
-    .map((r) => ({ ruleCode: r.rule_code, status: r.status, reason: 'NOT_EXPERT_VALIDATED' }));
-  missing.push({ ruleCode: 'STATUTORY_ENGINE', status: 'NOT_IMPLEMENTED', reason: 'PAYROLL_STATUTORY_ENGINE_NOT_IMPLEMENTED' });
+    .filter((r) => r.required_for_calculation && !['RESEARCHED', 'REVIEW_REQUIRED', 'EXPERT_VALIDATED'].includes(r.status))
+    .map((r) => ({ ruleCode: r.rule_code, status: r.status, reason: 'NOT_SOURCE_VERIFIED' }));
   const allDays = datesBetween(period.start_date, period.end_date);
   return payroll.employees.filter((e) => e.company_id === companyId && e.employment_status !== 'terminated').map((employee) => {
     const contracts = payroll.contracts.filter((c) => c.employee_id === employee.id && c.effective_from <= period.end_date && (!c.effective_to || c.effective_to >= period.start_date));
@@ -328,18 +370,75 @@ function calculate(payroll: DemoPayrollState, companyId: string, period: DemoPer
     for (const absence of payroll.absences.filter((a) => a.employee_id === employee.id && a.status === 'approved' && a.start_date <= period.end_date && a.end_date >= period.start_date)) {
       warnings.push({ code: absence.leave_type === 'unpaid' ? 'UNPAID_LEAVE_NOT_VALUED' : 'LEAVE_NOT_VALUED', message: `${absence.days} jour(s) de congé ${absence.leave_type} validé(s) ; aucun impact légal n’est paramétré.` });
     }
+    let additionalRemuneration = 0n;
+    if (period.end_date >= '2026-01-01' && employee.worker_type !== 'piece_rate' && base <= money('50000')!) {
+      additionalRemuneration = employee.worker_type === 'part_time'
+        ? (base < money('17110')! ? (percentage(base, '3.7') > money('635')! ? money('635')! : ((percentage(base, '3.7') + 9999n) / 10000n) * 10000n) : money('635')!)
+        : money('635')!;
+    }
+    if (additionalRemuneration > 0n) {
+      earnings += additionalRemuneration;
+      lines.push({ line_no: lineNo++, code: 'AR2026', label_en: 'Additional Remuneration 2026', label_fr: 'Rémunération additionnelle 2026', line_type: 'earning', quantity: null, rate: null, amount: fmt(additionalRemuneration), source: 'statutory_rule', note: 'GN No. 7 of 2026 — sourced, not expert-approved.' });
+    }
+    const basicWage = base + additionalRemuneration;
     const gross = base + earnings;
     const net = gross + reimbursements - deductions;
+    const employeeMissing = [...missing];
+    if (!employee.date_of_birth) employeeMissing.push({ ruleCode: 'NSF_AGE', status: 'MISSING', reason: 'DATE_OF_BIRTH_REQUIRED' });
+    if (employee.is_public_sector) employeeMissing.push({ ruleCode: 'CSG_PUBLIC_SECTOR', status: 'MISSING', reason: 'PUBLIC_SECTOR_CSG_NOT_IMPLEMENTED' });
+    let paye: bigint | null = null;
+    let csgEmployee: bigint | null = null;
+    let csgEmployer: bigint | null = null;
+    let nsfEmployee: bigint | null = null;
+    let nsfEmployer: bigint | null = null;
+    let trainingLevy: bigint | null = null;
+    if (employeeMissing.length === 0) {
+      const noEdf = payroll.rules.find((r) => r.rule_code === 'PAYE_NO_EDF');
+      const csgRule = payroll.rules.find((r) => r.rule_code === 'CSG_PRIVATE');
+      const levyRule = payroll.rules.find((r) => r.rule_code === 'TRAINING_LEVY');
+      paye = computePayeWithoutEdf({ periodEmoluments: gross, threshold: noEdf?.threshold_amount ?? '38462', rate: noEdf?.rate ?? '15' }).value;
+      const csg = computeCsg({
+        amount: basicWage, threshold: csgRule?.threshold_amount ?? '50000',
+        lowEmployeeRate: '1.5', lowEmployerRate: '3', highEmployeeRate: '3', highEmployerRate: '6',
+      }).value;
+      csgEmployee = csg.employee; csgEmployer = csg.employer;
+      const nsf = computeNsf({
+        basicWage, frequency: 'monthly',
+        limits: { minHousehold: '2910', minOther: '4580', max: '29710' },
+        household: Boolean(employee.is_household_worker), employeeRate: '1', employerRate: '2.5',
+      }).value;
+      nsfEmployee = nsf.employee; nsfEmployer = nsf.employer;
+      trainingLevy = computeTrainingLevy({ basicWage, rate: levyRule?.rate ?? '1.5', exempt: false }).value;
+      lines.push({ line_no: lineNo++, code: 'PAYE', label_en: 'PAYE withheld (no EDF)', label_fr: 'PAYE retenu (sans EDF)', line_type: 'deduction', quantity: null, rate: null, amount: fmt(paye), source: 'statutory_rule', note: 'Flat 15% — no EDF in the demo.' });
+      if (csgEmployee > 0n) lines.push({ line_no: lineNo++, code: 'CSG_EE', label_en: 'CSG employee', label_fr: 'CSG salarié', line_type: 'deduction', quantity: null, rate: null, amount: fmt(csgEmployee), source: 'statutory_rule', note: null });
+      if (nsfEmployee > 0n) lines.push({ line_no: lineNo++, code: 'NSF_EE', label_en: 'NSF employee', label_fr: 'NSF salarié', line_type: 'deduction', quantity: null, rate: null, amount: fmt(nsfEmployee), source: 'statutory_rule', note: null });
+      if (csgEmployer > 0n) lines.push({ line_no: lineNo++, code: 'CSG_ER', label_en: 'CSG employer', label_fr: 'CSG employeur', line_type: 'employer', quantity: null, rate: null, amount: fmt(csgEmployer), source: 'statutory_rule', note: null });
+      if (nsfEmployer > 0n) lines.push({ line_no: lineNo++, code: 'NSF_ER', label_en: 'NSF employer', label_fr: 'NSF employeur', line_type: 'employer', quantity: null, rate: null, amount: fmt(nsfEmployer), source: 'statutory_rule', note: null });
+      if (trainingLevy > 0n) lines.push({ line_no: lineNo++, code: 'TRAINING_LEVY', label_en: 'HRDC Training Levy', label_fr: 'Levy de formation HRDC', line_type: 'employer', quantity: null, rate: null, amount: fmt(trainingLevy), source: 'statutory_rule', note: null });
+    }
+    const blocked = employeeMissing.length > 0;
+    const netAfterStatutory = blocked ? null : net - (paye ?? 0n) - (csgEmployee ?? 0n) - (nsfEmployee ?? 0n);
+    const employerContributions = (csgEmployer ?? 0n) + (nsfEmployer ?? 0n) + (trainingLevy ?? 0n);
+    const rulesApplied = payroll.rules.filter((r) => r.company_id === companyId).map((r) => ({ ruleCode: r.rule_code, version: r.version, status: r.status, effectiveFrom: r.effective_from, sourceUrl: r.source_url ?? null }));
     return {
       id: uid(), company_id: companyId, period_id: period.id, employee_id: employee.id,
       employee_number: employee.employee_number, full_name: employee.full_name, version: 1,
-      status: 'blocked', currency, contract_id: contracts[0]?.id ?? null, base_amount: fmt(base),
-      proration_days: active.length === allDays.length ? null : `${active.length}.0000`, period_days: allDays.length,
-      earnings: fmt(earnings), gross: fmt(gross), deductions: fmt(deductions), net_arithmetic: fmt(net),
-      paye: null, csg: null, nsf: null, employer_contributions: null, statutory_complete: false,
-      missing_rules: missing, warnings, input_hash: `demo-${Date.now()}-${employee.id}`,
-      rule_version: 'rules:PAYE=UNVERIFIED,CSG=UNVERIFIED,NSF=UNVERIFIED;engine=not_implemented',
-      calculated_at: now(), lines, bankAccountMasked: employee.bank_account_last4 ? `•••• ${employee.bank_account_last4}` : null,
+      status: blocked ? 'rules_incomplete' : 'expert_review_pending', currency, contract_id: contracts[0]?.id ?? null,
+      base_amount: fmt(base), proration_days: active.length === allDays.length ? null : `${active.length}.0000`,
+      period_days: allDays.length, earnings: fmt(earnings), gross: fmt(gross), deductions: fmt(deductions),
+      net_arithmetic: fmt(net), paye: blocked ? null : fmt(paye ?? 0n), csg: blocked ? null : fmt(csgEmployee ?? 0n),
+      nsf: blocked ? null : fmt(nsfEmployee ?? 0n), employer_contributions: blocked ? null : fmt(employerContributions),
+      statutory_complete: false, taxable_emoluments: fmt(gross), basic_wage: fmt(basicWage),
+      paye_basis: blocked ? null : 'NO_EDF_FLAT_15', csg_employee: blocked ? null : fmt(csgEmployee ?? 0n),
+      csg_employer: blocked ? null : fmt(csgEmployer ?? 0n), nsf_employee: blocked ? null : fmt(nsfEmployee ?? 0n),
+      nsf_employer: blocked ? null : fmt(nsfEmployer ?? 0n), training_levy: blocked ? null : fmt(trainingLevy ?? 0n),
+      additional_remuneration: fmt(additionalRemuneration), employer_cost: blocked ? null : fmt(gross + reimbursements + employerContributions),
+      net_after_statutory: netAfterStatutory === null ? null : fmt(netAfterStatutory), net_payable: null,
+      statutory_status: blocked ? 'RULES_INCOMPLETE' : 'EXPERT_REVIEW_PENDING', edf_basis: 'NO_EDF',
+      rules_applied: rulesApplied, review_reasons: [],
+      missing_rules: employeeMissing, warnings, input_hash: `demo-${Date.now()}-${employee.id}`,
+      rule_version: 'rules:RESEARCHED;engine=mission15-demo', calculated_at: now(), lines,
+      bankAccountMasked: employee.bank_account_last4 ? `•••• ${employee.bank_account_last4}` : null,
     };
   });
 }
@@ -349,19 +448,27 @@ function payslipFor(payroll: DemoPayrollState, calculation: DemoCalculation, com
   return {
     id: uid(), company_id: calculation.company_id, calculation_id: calculation.id,
     period_id: calculation.period_id, employee_id: calculation.employee_id,
-    payslip_no: `SIM-202607-${String(payroll.payslips.length + 1).padStart(4, '0')}`,
+    payslip_no: `SIM-202601-${String(payroll.payslips.length + 1).padStart(4, '0')}`,
     status: 'simulation', version: 1, generated_at: now(),
     snapshot: {
       disclaimer: 'SIMULATION / DRAFT — NOT FOR PAYMENT. Ce bulletin n’est pas officiel.',
       company: { name: companyName, brn: 'BRN-DEMO-FICTIF' },
       employee: { number: employee.employee_number, name: employee.full_name, bankAccountMasked: calculation.bankAccountMasked },
-      period: { year: 2026, month: 7 }, currency: calculation.currency,
+      period: { year: 2026, month: 1 }, currency: calculation.currency,
       lines: calculation.lines,
       totals: {
-        base: calculation.base_amount, gross: calculation.gross, deductions: calculation.deductions,
-        netArithmetic: calculation.net_arithmetic, paye: null, csg: null, nsf: null, netPayable: null,
+        base: calculation.base_amount, additionalRemuneration: calculation.additional_remuneration,
+        taxableEmoluments: calculation.taxable_emoluments, gross: calculation.gross,
+        deductions: calculation.deductions, netArithmetic: calculation.net_arithmetic,
+        paye: calculation.paye, csgEmployee: calculation.csg_employee, nsfEmployee: calculation.nsf_employee,
+        netAfterStatutory: calculation.net_after_statutory, netPayable: null,
+        csgEmployer: calculation.csg_employer, nsfEmployer: calculation.nsf_employer,
+        trainingLevy: calculation.training_levy, employerCost: calculation.employer_cost,
       },
-      status: 'blocked', missingRules: calculation.missing_rules, warnings: calculation.warnings,
+      status: calculation.status === 'rules_incomplete' ? 'blocked' : 'simulation',
+      statutoryStatus: calculation.statutory_status, payeBasis: calculation.paye_basis,
+      rulesApplied: calculation.rules_applied, reviewReasons: calculation.review_reasons,
+      missingRules: calculation.missing_rules, warnings: calculation.warnings,
       calculationVersion: 1, generatedAt: now(),
     },
   };
@@ -398,7 +505,7 @@ function dashboard(payroll: DemoPayrollState, companyId: string) {
     },
     pendingLeave: payroll.absences.filter((a) => a.company_id === companyId && a.status === 'requested').length,
     missingContracts: active.filter((e) => !payroll.contracts.some((c) => c.employee_id === e.id && c.status === 'active')).map((e) => ({ id: e.id, employee_number: e.employee_number, full_name: e.full_name })),
-    rules: payroll.rules.filter((r) => r.company_id === companyId && r.required_for_calculation).map((r) => ({ ruleCode: r.rule_code, found: true, validated: r.status === 'EXPERT_VALIDATED', status: r.status, rate: r.rate, effectiveFrom: r.effective_from })),
+    rules: payroll.rules.filter((r) => r.company_id === companyId && r.required_for_calculation).map((r) => ({ ruleCode: r.rule_code, found: true, validated: r.status === 'EXPERT_VALIDATED', expertValidated: r.status === 'EXPERT_VALIDATED', usable: ['RESEARCHED','REVIEW_REQUIRED','EXPERT_VALIDATED'].includes(r.status), status: r.status, rate: r.rate, effectiveFrom: r.effective_from })),
     calculationAvailable: true, statutoryComplete: false,
     capabilities: { employees: true, contracts: true, time: true, leave: true, variables: true, arithmeticCalculation: true, statutoryCalculation: false, finalPayslips: false, statutoryDeclarations: false, accountingTransfer: false, paye: false, csg: false, nsf: false, employerContributions: false },
     notice: 'Totaux arithmétiques uniquement. PAYE, CSG, NSF et cotisations employeur sont bloqués : aucune règle mauricienne validée, moteur réglementaire non implémenté.',
@@ -602,7 +709,7 @@ export function handleDemoPayroll(
     return { rule };
   }
   if (rest === '/rules' && method === 'GET') {
-    return { rules: payroll.rules.filter((r) => r.company_id === companyId), required: payroll.rules.filter((r) => r.company_id === companyId && r.required_for_calculation).map((r) => ({ ruleCode: r.rule_code, found: true, validated: r.status === 'EXPERT_VALIDATED', status: r.status, rate: r.rate, effectiveFrom: r.effective_from })), statutoryEngineImplemented: false };
+    return { rules: payroll.rules.filter((r) => r.company_id === companyId), required: payroll.rules.filter((r) => r.company_id === companyId && r.required_for_calculation).map((r) => ({ ruleCode: r.rule_code, found: true, validated: r.status === 'EXPERT_VALIDATED', expertValidated: r.status === 'EXPERT_VALIDATED', usable: ['RESEARCHED','REVIEW_REQUIRED','EXPERT_VALIDATED'].includes(r.status), status: r.status, rate: r.rate, effectiveFrom: r.effective_from })), statutoryEngineImplemented: true, statutoryFinalisationEnabled: false };
   }
   if (rest === '/rules' && method === 'POST') {
     const rule: DemoRule = { id: uid(), company_id: companyId, rule_code: String(payload.ruleCode).toUpperCase(), name_en: payload.nameEn, name_fr: payload.nameFr, legal_source: payload.legalSource ?? null, source_reference: payload.sourceReference ?? null, effective_from: payload.effectiveFrom ?? null, effective_to: payload.effectiveTo ?? null, calculation_basis: payload.calculationBasis ?? null, rate: payload.rate !== undefined && payload.rate !== null ? fmt(money(payload.rate)) : null, threshold_amount: null, cap_amount: null, rounding_policy: payload.roundingPolicy ?? null, status: 'UNVERIFIED', required_for_calculation: payload.requiredForCalculation ?? true, version: 1, test_cases: [], notes: payload.notes ?? null };
@@ -642,10 +749,24 @@ export function handleDemoPayroll(
       payroll.calculations = payroll.calculations.filter((c) => c.period_id !== period.id);
       const calculations = calculate(payroll, companyId, period);
       payroll.calculations.push(...calculations);
-      period.status = 'blocked'; period.calculated_at = now();
-      return { period: periodView(period), version: period.version, calculations, blocked: true, statutoryComplete: false, missingRules: calculations[0]?.missing_rules ?? [], missingEngine: 'PAYROLL_STATUTORY_ENGINE_NOT_IMPLEMENTED' };
+      const blocked = calculations.some((c) => c.status === 'rules_incomplete');
+      period.status = blocked ? 'blocked' : 'calculated'; period.calculated_at = now();
+      return { period: periodView(period), version: period.version, calculations, blocked, expertReviewPending: !blocked, statutoryComplete: false, missingRules: calculations.flatMap((c) => c.missing_rules), engine: 'mission15-demo', finalisationBlocked: true };
     }
     if (tail === '/calculations' && method === 'GET') return { calculations: payroll.calculations.filter((c) => c.period_id === period.id && c.company_id === companyId) };
+    if (tail === '/mra-return' && method === 'GET') {
+      const latest = payroll.calculations.filter((c) => c.period_id === period.id && c.company_id === companyId);
+      const sum = (field: keyof DemoCalculation) => latest.reduce((total, c) => total + money(c[field] as string | null), 0n);
+      return {
+        period: { id: period.id, year: period.period_year, month: period.period_month, start: period.start_date, end: period.end_date, status: period.status },
+        employees: latest.length, gross: fmt(sum('gross')), paye: fmt(sum('paye')), csg_employee: fmt(sum('csg_employee')),
+        csg_employer: fmt(sum('csg_employer')), nsf_employee: fmt(sum('nsf_employee')), nsf_employer: fmt(sum('nsf_employer')),
+        training_levy: fmt(sum('training_levy')), incomplete: latest.filter((c) => c.status === 'rules_incomplete').length,
+        approved_for_test: latest.filter((c) => c.status === 'approved_for_test').length,
+        submission: 'NOT_SUBMITTED', status: 'PREPARATION_ONLY',
+        notice: 'Préparation locale fictive. Aucune soumission MRA, aucun identifiant réel.',
+      };
+    }
     if (tail === '/variables/import-file' && method === 'POST') {
       let sheetRows: string[][] = [];
       let headers: string[] = [];
@@ -724,6 +845,19 @@ export function handleDemoPayroll(
     return { variable };
   }
   if (rest === '/payslips' && method === 'GET') return { payslips: payroll.payslips.filter((p) => p.company_id === companyId && (!query.periodId || p.period_id === query.periodId)).map((p) => { const employee = payroll.employees.find((e) => e.id === p.employee_id)!; const period = payroll.periods.find((x) => x.id === p.period_id)!; return { ...p, employee_number: employee.employee_number, full_name: employee.full_name, period_year: period.period_year, period_month: period.period_month }; }) };
+  const reviewMatch = /^\/calculations\/([^/]+)\/(approve-for-test|request-review)$/.exec(rest);
+  if (reviewMatch && method === 'POST') {
+    const calculation = payroll.calculations.find((c) => c.id === reviewMatch[1] && c.company_id === companyId);
+    if (!calculation) throw new ApiError(404, 'PAYROLL_CALCULATION_NOT_FOUND', 'Calcul introuvable');
+    if (calculation.status === 'rules_incomplete') throw new ApiError(409, 'PAYROLL_RULES_NOT_VALIDATED', 'Règles incomplètes : approbation impossible');
+    if (reviewMatch[2] === 'approve-for-test') {
+      if (!payload.confirm || String(payload.note ?? '').trim().length < 10) throw new ApiError(400, 'PAYROLL_REVIEW_REQUIRED', 'Note de revue de 10 caractères minimum requise');
+      calculation.status = 'approved_for_test'; calculation.statutory_status = 'APPROVED_FOR_TEST';
+    } else {
+      calculation.status = 'expert_review_pending'; calculation.statutory_status = 'EXPERT_REVIEW_PENDING';
+    }
+    return { calculation };
+  }
   const calculationMatch = /^\/calculations\/([^/]+)(\/payslip)?$/.exec(rest);
   if (calculationMatch) {
     const calculation = payroll.calculations.find((c) => c.id === calculationMatch[1] && c.company_id === companyId);
@@ -747,6 +881,22 @@ export function handleDemoPayroll(
   if (rest === '/settings' && method === 'GET') return { settings: { company_id: companyId, salary_expense_account_id: null, salary_payable_account_id: null }, accounts: state.accounts.filter((a) => a.company_id === companyId), accountingTransferImplemented: false };
   if (rest === '/settings' && method === 'PATCH') return { settings: { company_id: companyId, ...payload }, accountingTransferImplemented: false };
   return undefined;
+}
+
+export function payrollReturnCsv(state: DemoState, companyId: string, periodId: string): string {
+  const payroll = asState(state, companyId);
+  const period = payroll.periods.find((p) => p.id === periodId && p.company_id === companyId);
+  const rows: string[][] = [['PREPARATION ONLY - NOT SUBMITTED TO MRA'], ['Period', period ? `${period.period_year}-${String(period.period_month).padStart(2, '0')}` : '']];
+  rows.push(['Field', 'Amount (MUR)']);
+  for (const [label, value] of [
+    ['Gross emoluments', 'gross'], ['PAYE withheld', 'paye'], ['CSG employee', 'csg_employee'], ['CSG employer', 'csg_employer'],
+    ['NSF employee', 'nsf_employee'], ['NSF employer', 'nsf_employer'], ['Training levy', 'training_levy'],
+  ] as [string, keyof DemoCalculation][]) {
+    const total = payroll.calculations.filter((c) => c.period_id === periodId && c.company_id === companyId).reduce((acc, c) => acc + money(c[value] as string | null), 0n);
+    rows.push([label, fmt(total)]);
+  }
+  rows.push(['Status', 'PREPARATION_ONLY']);
+  return '\uFEFF' + rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
 }
 
 export function payrollCsv(state: DemoState, companyId: string): string {
