@@ -225,7 +225,7 @@ La démonstration utilise `localStorage` uniquement ; la réinitialisation de la
 
 | Vérification | Résultat |
 |---|---|
-| `apps/api` — `npx vitest run` | **415 réussis, 11 ignorés** (26 fichiers, dont 8 nouveaux tests mission 18) |
+| `apps/api` — `npx vitest run` | **418 réussis, 11 ignorés** (26 fichiers, dont 11 nouveaux tests mission 18) |
 | `apps/web` — `npx vitest run` | **198 réussis** (23 fichiers, dont 7 nouveaux tests de démonstration + 1 test d’interface) |
 | `tests/migrations.test.ts` | **6/6**, migration `0016` appliquée sur base neuve |
 | `npx tsc --noEmit -p apps/api/tsconfig.json` | ✅ |
@@ -250,6 +250,8 @@ Couverture mission 18 :
 - versionnement des correspondances et historique ;
 - export CSV interne ;
 - absence de comptabilisation automatique ;
+- permissions séparées paie / comptabilité ;
+- calcul de paie bloqué (`rules_incomplete`) ;
 - non-régression des modules existants.
 
 **Non exécuté ou non observable :** suite PostgreSQL réelle (`postgres-tests`), rendu Chrome Windows/Android. Aucun script `lint` n’est défini à la racine. Les tests de concurrence restent ignorés comme avant la mission. Aucun navigateur graphique n’est disponible dans l’environnement.

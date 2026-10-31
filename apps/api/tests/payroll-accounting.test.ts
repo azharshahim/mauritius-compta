@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
-  accountByCode, api, closeTestApp, journalByCode, setupCompanyWithChart,
+  accountByCode, api, closeTestApp, journalByCode, registerUser, setupCompanyWithChart,
   type TestContext, type TestUser,
 } from './helpers.js';
 
@@ -265,6 +265,84 @@ describe('payroll accounting transfer', () => {
       { confirm: true, note: 'Approbation après recalcul, doit être refusée.' });
     expect(stale.statusCode).toBe(409);
     expect(stale.json().error.code).toBe('PAYROLL_TRANSFER_STALE');
+  });
+
+  it('refuses a second approval for the exact same calculation set', async () => {
+    const first = await api(ctx, owner.cookie, 'POST',
+      `/api/companies/${company.id}/payroll/periods/${period.id}/accounting-transfer`, { note: 'Nouvelle proposition après recalcul.' });
+    expect(first.statusCode, first.body).toBe(201);
+    const approved = await api(ctx, owner.cookie, 'POST',
+      `/api/companies/${company.id}/payroll/accounting-transfers/${first.json().transfer.id}/approve`,
+      { confirm: true, note: 'Approbation fictive pour tester l’anti-doublon.' });
+    expect(approved.statusCode, approved.body).toBe(200);
+
+    const duplicate = await api(ctx, owner.cookie, 'POST',
+      `/api/companies/${company.id}/payroll/periods/${period.id}/accounting-transfer`, {});
+    expect(duplicate.statusCode, duplicate.body).toBe(201);
+    expect(duplicate.json().transfer.sourceFingerprint).toBe(first.json().transfer.sourceFingerprint);
+    const refused = await api(ctx, owner.cookie, 'POST',
+      `/api/companies/${company.id}/payroll/accounting-transfers/${duplicate.json().transfer.id}/approve`,
+      { confirm: true, note: 'Ce doublon de calculs doit être refusé.' });
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json().error.code).toBe('PAYROLL_TRANSFER_DUPLICATE_SOURCE');
+  });
+
+  it('blocks generation and approval when a payroll calculation is incomplete', async () => {
+    const saved = await ctx.db.query<{ id: string; status: string }>(
+      'SELECT id, status FROM payroll_calculations WHERE company_id = $1', [company.id],
+    );
+    try {
+      await ctx.db.query(
+        `UPDATE payroll_calculations SET status = 'rules_incomplete' WHERE company_id = $1`, [company.id],
+      );
+      const preview = await api(ctx, owner.cookie, 'GET',
+        `/api/companies/${company.id}/payroll/periods/${period.id}/accounting-transfer`);
+      expect(preview.statusCode, preview.body).toBe(200);
+      expect(preview.json().preview.blockers.map((check: any) => check.code)).toContain('CALCULATIONS_INCOMPLETE');
+      expect(preview.json().preview.canApprove).toBe(false);
+      const generated = await api(ctx, owner.cookie, 'POST',
+        `/api/companies/${company.id}/payroll/periods/${period.id}/accounting-transfer`, {});
+      expect(generated.statusCode, generated.body).toBe(201);
+      expect(generated.json().transfer.status).toBe('BLOCKED');
+      const refused = await api(ctx, owner.cookie, 'POST',
+        `/api/companies/${company.id}/payroll/accounting-transfers/${generated.json().transfer.id}/approve`,
+        { confirm: true, note: 'Une paie incomplète ne doit jamais être approuvée.' });
+      expect(refused.statusCode).toBe(409);
+      expect(refused.json().error.code).toBe('PAYROLL_TRANSFER_BLOCKED');
+    } finally {
+      for (const row of saved.rows) {
+        await ctx.db.query('UPDATE payroll_calculations SET status = $2 WHERE id = $1', [row.id, row.status]);
+      }
+    }
+    const entries = await ctx.db.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM journal_entries WHERE company_id = $1', [company.id],
+    );
+    expect(entries.rows[0]!.count).toBe('0');
+  });
+
+  it('keeps payroll and accounting permissions separate', async () => {
+    const payrollManager = await registerUser(ctx);
+    const managerMembership = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/members`, {
+      email: payrollManager.email, role: 'payroll_manager',
+    });
+    expect(managerMembership.statusCode, managerMembership.body).toBe(201);
+    const managerRead = await api(ctx, payrollManager.cookie, 'GET',
+      `/api/companies/${company.id}/payroll/accounting/mapping`);
+    expect(managerRead.statusCode, managerRead.body).toBe(200);
+
+    const accountant = await registerUser(ctx);
+    const accountantMembership = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/members`, {
+      email: accountant.email, role: 'accountant',
+    });
+    expect(accountantMembership.statusCode, accountantMembership.body).toBe(201);
+    const denied = await api(ctx, accountant.cookie, 'GET',
+      `/api/companies/${company.id}/payroll/accounting/mapping`);
+    expect(denied.statusCode).toBe(403);
+
+    // Payroll write alone cannot touch the ledger: posting needs accounting write too.
+    const deniedPost = await api(ctx, payrollManager.cookie, 'POST',
+      `/api/companies/${company.id}/payroll/accounting-transfers/${transfer.id}/post`, {});
+    expect(deniedPost.statusCode).toBe(403);
   });
 
   it('isolates mappings and transfers between companies', async () => {

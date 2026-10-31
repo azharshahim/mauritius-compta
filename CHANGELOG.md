@@ -33,7 +33,7 @@
 
 ### Tests
 
-- API : `payroll-accounting.test.ts` (8), migrations (6) ; suite 415 réussis,
+- API : `payroll-accounting.test.ts` (11), migrations (6) ; suite 418 réussis,
   11 ignorés.
 - Web : `demo-accounting-transfer.test.ts` (7), interface de transfert (1) ;
   suite 198 réussis.
