@@ -31,6 +31,10 @@ export interface DemoCompany {
   id: string;
   name: string;
   brn: string | null;
+  crn: string | null;
+  client_code: string | null;
+  dossier_manager_id: string | null;
+  archived_at: string | null;
   vat_number: string | null;
   registered_address: string | null;
   business_activity: string | null;
@@ -120,9 +124,41 @@ export interface DemoMember {
   id: string;
   company_id: string;
   user_id: string;
-  role: 'owner' | 'admin' | 'accountant' | 'viewer';
+  role: string;
   email: string;
   full_name: string;
+}
+
+export interface DemoModuleAccess {
+  company_id: string;
+  user_id: string;
+  module: 'cabinet' | 'accounting' | 'billing' | 'payroll';
+  access: 'read' | 'write' | 'admin';
+}
+
+export interface DemoTask {
+  id: string;
+  company_id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  priority: string;
+  status: string;
+  due_date: string | null;
+  assigned_to: string | null;
+  created_by: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DemoTaskComment {
+  id: string;
+  task_id: string;
+  company_id: string;
+  author_id: string | null;
+  body: string;
+  created_at: string;
 }
 
 export interface DemoAuditEvent {
@@ -149,6 +185,9 @@ export interface DemoState {
   periods: DemoPeriod[];
   rates: DemoRate[];
   members: DemoMember[];
+  moduleAccess: DemoModuleAccess[];
+  tasks: DemoTask[];
+  taskComments: DemoTaskComment[];
   audit: DemoAuditEvent[];
   sequences: Record<string, number>;
   auditSeq: number;
@@ -243,6 +282,10 @@ function seedState(): DemoState {
     id: uid(),
     name: DEMO_SEED.company.name ?? 'Lagon Bleu Trading Ltd (DEMO)',
     brn: DEMO_SEED.company.brn ?? null,
+    crn: 'CRN-DEMO-0001',
+    client_code: 'DEMO-001',
+    dossier_manager_id: demoUser.id,
+    archived_at: null,
     vat_number: DEMO_SEED.company.vat_number ?? null,
     registered_address: DEMO_SEED.company.registered_address ?? null,
     business_activity: DEMO_SEED.company.business_activity ?? null,
@@ -387,18 +430,298 @@ function seedState(): DemoState {
     },
   ];
 
+  // ------------------------------------------------- collaborators (fictifs)
+  const collaborators: DemoUser[] = [
+    {
+      id: uid(),
+      email: 'a.ramgoolam@cabinet-demo.test',
+      password: 'DemoCollab2026',
+      full_name: 'Anjali Ramgoolam (fictif)',
+      locale: 'fr',
+    },
+    {
+      id: uid(),
+      email: 'j.leclézio@cabinet-demo.test',
+      password: 'DemoCollab2026',
+      full_name: 'Jean Leclézio (fictif)',
+      locale: 'fr',
+    },
+    {
+      id: uid(),
+      email: 's.patel@cabinet-demo.test',
+      password: 'DemoCollab2026',
+      full_name: 'Sonia Patel (fictive)',
+      locale: 'en',
+    },
+  ];
+
+  // --------------------------------------------- additional demo dossiers
+  const extraSeed = [
+    {
+      name: 'Case Noyale Retail Ltd (DEMO)',
+      brn: 'DEMO-BRN-0002',
+      vat: 'DEMO-VAT-0002',
+      crn: 'CRN-DEMO-0002',
+      code: 'DEMO-002',
+      activity: 'Commerce de détail (fictif)',
+      address: '12, Royal Road, Case Noyale (fictif)',
+      manager: collaborators[0]!.id,
+      status: 'active' as const,
+    },
+    {
+      name: 'Belle Mare Hospitality Ltd (DEMO)',
+      brn: 'DEMO-BRN-0003',
+      vat: 'DEMO-VAT-0003',
+      crn: 'CRN-DEMO-0003',
+      code: 'DEMO-003',
+      activity: 'Hôtellerie et restauration (fictif)',
+      address: '3, Coastal Road, Belle Mare (fictif)',
+      manager: collaborators[1]!.id,
+      status: 'active' as const,
+    },
+    {
+      name: 'Vieux Grand Port Logistics Ltd (DEMO)',
+      brn: 'DEMO-BRN-0004',
+      vat: null,
+      crn: 'CRN-DEMO-0004',
+      code: 'DEMO-004',
+      activity: 'Transit et logistique (fictif)',
+      address: '8, Harbour Street, Vieux Grand Port (fictif)',
+      manager: null as string | null,
+      status: 'archived' as const,
+    },
+  ];
+
+  const minimalChart: [string, string, DemoAccount['type']][] = [
+    ['1010', 'Banque (MUR)', 'asset'],
+    ['2010', 'Fournisseurs', 'liability'],
+    ['3010', 'Capital social', 'equity'],
+    ['4000', 'Ventes', 'revenue'],
+    ['5000', 'Achats', 'expense'],
+    ['6010', 'Charges externes', 'expense'],
+  ];
+
+  const extraCompanies: DemoCompany[] = [];
+  const extraMembers: DemoMember[] = [];
+  for (const seed of extraSeed) {
+    const extra: DemoCompany = {
+      id: uid(),
+      name: seed.name,
+      brn: seed.brn,
+      crn: seed.crn,
+      client_code: seed.code,
+      dossier_manager_id: seed.manager,
+      archived_at: seed.status === 'archived' ? created : null,
+      vat_number: seed.vat,
+      registered_address: seed.address,
+      business_activity: seed.activity,
+      financial_year_start: '2025-07-01',
+      financial_year_end: '2026-06-30',
+      functional_currency: 'MUR',
+      presentation_currency: 'MUR',
+      accounting_standard: 'IFRS for SMEs',
+      status: seed.status,
+      locale: 'fr',
+      created_at: created,
+    };
+    extraCompanies.push(extra);
+    for (const [code, name, type] of minimalChart) {
+      accounts.push({
+        id: uid(),
+        company_id: extra.id,
+        code,
+        name,
+        type,
+        parent_id: null,
+        currency: 'MUR',
+        is_active: true,
+        fs_mapping: code.startsWith('1') ? 'bs.current_assets.cash_and_equivalents' : null,
+        description: null,
+      });
+    }
+    for (const template of DEMO_SEED.journals.filter((j) =>
+      ['OD', 'VE', 'AC'].includes(j.code),
+    )) {
+      journals.push({
+        id: uid(),
+        company_id: extra.id,
+        code: template.code,
+        name: template.name,
+        type: template.type,
+        is_active: true,
+      });
+    }
+    periods.push({
+      id: uid(),
+      company_id: extra.id,
+      name: 'FY 2025/2026',
+      start_date: extra.financial_year_start,
+      end_date: extra.financial_year_end,
+      status: 'open',
+    });
+    extraMembers.push({
+      id: uid(),
+      company_id: extra.id,
+      user_id: demoUser.id,
+      role: 'cabinet_admin',
+      email: demoUser.email,
+      full_name: demoUser.full_name,
+    });
+    if (seed.manager) {
+      const manager = collaborators.find((c) => c.id === seed.manager)!;
+      extraMembers.push({
+        id: uid(),
+        company_id: extra.id,
+        user_id: manager.id,
+        role: 'manager',
+        email: manager.email,
+        full_name: manager.full_name,
+      });
+    }
+  }
+
+  // ------------------------------------------------------ cabinet tasks
+  const day = (offset: number) => {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + offset);
+    return d.toISOString().slice(0, 10);
+  };
+  const taskSeed: {
+    company: string;
+    title: string;
+    category: string;
+    priority: string;
+    status: string;
+    due: number;
+    assignee: string | null;
+    description?: string;
+  }[] = [
+    {
+      company: company.id,
+      title: 'Réviser la balance au 30 septembre (fictif)',
+      category: 'accounting',
+      priority: 'high',
+      status: 'in_progress',
+      due: 3,
+      assignee: demoUser.id,
+      description: 'Contrôle des comptes d’attente et des comptes bancaires.',
+    },
+    {
+      company: company.id,
+      title: 'Préparer le dossier TVA du trimestre (fictif)',
+      category: 'vat',
+      priority: 'urgent',
+      status: 'todo',
+      due: -2,
+      assignee: collaborators[2]!.id,
+    },
+    {
+      company: company.id,
+      title: 'Mettre à jour les états financiers provisoires',
+      category: 'financial_statements',
+      priority: 'normal',
+      status: 'todo',
+      due: 12,
+      assignee: collaborators[0]!.id,
+    },
+    {
+      company: company.id,
+      title: 'Classer les justificatifs fournisseurs',
+      category: 'administrative',
+      priority: 'low',
+      status: 'done',
+      due: -12,
+      assignee: demoUser.id,
+    },
+    {
+      company: extraCompanies[0]!.id,
+      title: 'Rapprochement bancaire de septembre (fictif)',
+      category: 'accounting',
+      priority: 'high',
+      status: 'todo',
+      due: 5,
+      assignee: collaborators[0]!.id,
+    },
+    {
+      company: extraCompanies[0]!.id,
+      title: 'Inventaire de fin d’année',
+      category: 'accounting',
+      priority: 'normal',
+      status: 'blocked',
+      due: 21,
+      assignee: collaborators[1]!.id,
+    },
+    {
+      company: extraCompanies[1]!.id,
+      title: 'Contrôle des notes de restaurant (fictif)',
+      category: 'vat',
+      priority: 'normal',
+      status: 'todo',
+      due: -5,
+      assignee: collaborators[1]!.id,
+    },
+    {
+      company: extraCompanies[1]!.id,
+      title: 'Préparer la revue de paie du mois',
+      category: 'payroll',
+      priority: 'normal',
+      status: 'todo',
+      due: 9,
+      assignee: null,
+    },
+    {
+      company: extraCompanies[2]!.id,
+      title: 'Archiver les liasses 2024 (fictif)',
+      category: 'administrative',
+      priority: 'low',
+      status: 'done',
+      due: -30,
+      assignee: demoUser.id,
+    },
+  ];
+  const tasks: DemoTask[] = taskSeed.map((task) => ({
+    id: uid(),
+    company_id: task.company,
+    title: task.title,
+    description: task.description ?? null,
+    category: task.category,
+    priority: task.priority,
+    status: task.status,
+    due_date: day(task.due),
+    assigned_to: task.assignee,
+    created_by: demoUser.id,
+    completed_at: task.status === 'done' ? now() : null,
+    created_at: created,
+    updated_at: created,
+  }));
+
+  const taskComments: DemoTaskComment[] = tasks.slice(0, 2).map((task, i) => ({
+    id: uid(),
+    task_id: task.id,
+    company_id: task.company_id,
+    author_id: collaborators[i]!.id,
+    body:
+      i === 0
+        ? 'Premier contrôle effectué, deux comptes restent à justifier (fictif).'
+        : 'Pièces reçues du client, vérification en cours (fictif).',
+    created_at: now(),
+  }));
+
   return {
-    schema: 1,
-    users: [demoUser],
+    schema: 2,
+    users: [demoUser, ...collaborators],
     session: null,
-    companies: [company],
+    companies: [company, ...extraCompanies],
     accounts,
     journals,
     entries,
     lines,
     periods,
     rates,
-    members,
+    members: [...members, ...extraMembers],
+    moduleAccess: [],
+    tasks,
+    taskComments,
     audit: [
       {
         id: 1,
@@ -439,7 +762,7 @@ export function loadState(): DemoState {
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as DemoState;
-        if (parsed && parsed.schema === 1) {
+        if (parsed && parsed.schema === 2) {
           state = parsed;
           return state;
         }
@@ -502,13 +825,17 @@ function requireUser(): DemoUser {
   return user;
 }
 
-function requireCompany(companyId: string): { company: DemoCompany; role: DemoMember['role'] } {
+function requireCompany(companyId: string): {
+  company: DemoCompany;
+  role: DemoMember['role'];
+  user: DemoUser;
+} {
   const s = loadState();
   const user = requireUser();
   const company = s.companies.find((c) => c.id === companyId);
   const member = s.members.find((m) => m.company_id === companyId && m.user_id === user.id);
   if (!company || !member) throw new ApiError(404, 'COMPANY_NOT_FOUND', 'Société introuvable');
-  return { company, role: member.role };
+  return { company, role: member.role, user };
 }
 
 function accountsOf(companyId: string): DemoAccount[] {
@@ -1183,6 +1510,127 @@ function exportCsv(path: string, query: URLSearchParams, locale: 'fr' | 'en'): s
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
+
+/* ------------------------------------------------------- module security */
+
+type ModuleKey = 'cabinet' | 'accounting' | 'billing' | 'payroll';
+type Access = 'none' | 'read' | 'write' | 'admin';
+
+const ACCESS_WEIGHT: Record<Access, number> = { none: 0, read: 1, write: 2, admin: 3 };
+
+/**
+ * Same defaults as the API (apps/api/src/lib/permissions.ts). Payroll and
+ * accounting stay disjoint on purpose: the browser demo must not suggest that
+ * an accounting collaborator can read payroll data.
+ */
+const ROLE_MODULES: Record<string, Record<ModuleKey, Access>> = {
+  owner: { cabinet: 'admin', accounting: 'admin', billing: 'admin', payroll: 'admin' },
+  admin: { cabinet: 'admin', accounting: 'admin', billing: 'admin', payroll: 'admin' },
+  cabinet_admin: { cabinet: 'admin', accounting: 'admin', billing: 'admin', payroll: 'admin' },
+  manager: { cabinet: 'write', accounting: 'write', billing: 'write', payroll: 'none' },
+  accountant: { cabinet: 'read', accounting: 'write', billing: 'read', payroll: 'none' },
+  billing_clerk: { cabinet: 'read', accounting: 'read', billing: 'write', payroll: 'none' },
+  payroll_manager: { cabinet: 'read', accounting: 'read', billing: 'read', payroll: 'write' },
+  viewer: { cabinet: 'read', accounting: 'read', billing: 'read', payroll: 'none' },
+};
+
+function effectiveModulesFor(companyId: string, userId: string, role: string): Record<ModuleKey, Access> {
+  const s = loadState();
+  const out = { ...(ROLE_MODULES[role] ?? ROLE_MODULES.viewer!) };
+  for (const grant of s.moduleAccess ?? []) {
+    if (grant.company_id !== companyId || grant.user_id !== userId) continue;
+    if (ACCESS_WEIGHT[grant.access] > ACCESS_WEIGHT[out[grant.module]]) out[grant.module] = grant.access;
+  }
+  return out;
+}
+
+function requireModule(
+  companyId: string,
+  module: ModuleKey,
+  min: Access = 'read',
+  allowArchived = false,
+) {
+  const ctx = requireCompany(companyId);
+  const level = effectiveModulesFor(companyId, ctx.user.id, ctx.role)[module];
+  if (ACCESS_WEIGHT[level] < ACCESS_WEIGHT[min]) {
+    throw new ApiError(403, 'MODULE_FORBIDDEN', "Ce module n'est pas accessible avec vos droits");
+  }
+  if (min !== 'read' && ctx.company.status === 'archived' && !allowArchived) {
+    throw new ApiError(409, 'COMPANY_ARCHIVED', 'Ce dossier est archivé : lecture seule');
+  }
+  return { company: ctx.company, role: ctx.role, access: level, user: ctx.user };
+}
+
+function taskView(s: DemoState, task: DemoTask) {
+  const company = s.companies.find((c) => c.id === task.company_id);
+  const assignee = s.users.find((u) => u.id === task.assigned_to);
+  return {
+    ...task,
+    company_name: company?.name ?? null,
+    assignee_name: assignee?.full_name ?? null,
+  };
+}
+
+const OPEN_TASK_STATUSES = ['todo', 'in_progress', 'blocked'];
+
+/* -------------------------------------------------- cabinet (demo) routes */
+
+function cabinetDashboard(s: DemoState, user: DemoUser) {
+  const companies = s.members
+    .filter((m) => m.user_id === user.id)
+    .map((m) => s.companies.find((c) => c.id === m.company_id))
+    .filter((c): c is DemoCompany => !!c)
+    .filter((c) => effectiveModulesFor(c.id, user.id, s.members.find((m) => m.company_id === c.id && m.user_id === user.id)!.role).cabinet !== 'none');
+  const ids = new Set(companies.map((c) => c.id));
+  const tasks = s.tasks.filter((t) => ids.has(t.company_id));
+  const open = tasks.filter((t) => OPEN_TASK_STATUSES.includes(t.status));
+  const today = todayIso();
+  const soon = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+  const byCategory = new Map<string, number>();
+  for (const task of open) byCategory.set(task.category, (byCategory.get(task.category) ?? 0) + 1);
+  const companiesWithOpenTasks = new Set(open.map((t) => t.company_id));
+  const collaborators = new Set(s.members.filter((m) => ids.has(m.company_id)).map((m) => m.user_id));
+
+  return {
+    metrics: {
+      clients: companies.length,
+      active: companies.filter((c) => c.status === 'active').length,
+      archived: companies.filter((c) => c.status === 'archived').length,
+      toReview: companiesWithOpenTasks.size,
+      openTasks: open.length,
+      overdueTasks: open.filter((t) => t.due_date && t.due_date < today).length,
+      dueSoon: open.filter((t) => t.due_date && t.due_date >= today && t.due_date <= soon).length,
+      collaborators: collaborators.size,
+    },
+    tasksByCategory: [...byCategory.entries()].map(([category, count]) => ({ category, count })),
+    upcoming: open
+      .filter((t) => !!t.due_date)
+      .sort((a, b) => String(a.due_date).localeCompare(String(b.due_date)))
+      .slice(0, 10)
+      .map((t) => taskView(s, t)),
+    recentActivity: s.audit
+      .filter((a) => a.company_id && ids.has(a.company_id))
+      .slice(-12)
+      .reverse()
+      .map((a) => ({
+        id: a.id,
+        action: a.action,
+        entity_type: a.entity_type,
+        created_at: a.created_at,
+        company_name: s.companies.find((c) => c.id === a.company_id)?.name ?? null,
+        user_name: a.user_email,
+      })),
+    dossiers: companies.map((c) => ({
+      id: c.id,
+      name: c.name,
+      status: c.status,
+      client_code: c.client_code,
+      financial_year_end: c.financial_year_end,
+      open_tasks: open.filter((t) => t.company_id === c.id).length,
+    })),
+  };
+}
+
 export function demoRequest<T>(method: Method, rawPath: string, body?: unknown): T {
   const [path, search] = rawPath.split('?');
   const query = new URLSearchParams(search ?? '');
@@ -1264,6 +1712,239 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
     return { user: publicUser(user), sessionsInvalidated } as T;
   }
 
+
+  // ------------------------------------------------------------- cabinet
+  if (p === '/cabinet/dashboard' && method === 'GET') {
+    return cabinetDashboard(s, requireUser()) as T;
+  }
+
+  if (p === '/cabinet/companies' && method === 'GET') {
+    const user = requireUser();
+    const status = query.get('status');
+    const search = (query.get('search') ?? '').toLowerCase();
+    const manager = query.get('manager');
+    const rows = s.members
+      .filter((m) => m.user_id === user.id)
+      .map((m) => {
+        const company = s.companies.find((c) => c.id === m.company_id);
+        if (!company) return null;
+        const modules = effectiveModulesFor(company.id, user.id, m.role);
+        if (modules.cabinet === 'none') return null;
+        const dossierManager = s.users.find((u) => u.id === company.dossier_manager_id);
+        return {
+          ...company,
+          role: m.role,
+          modules,
+          dossier_manager_name: dossierManager?.full_name ?? null,
+          open_tasks: s.tasks.filter(
+            (t) => t.company_id === company.id && OPEN_TASK_STATUSES.includes(t.status),
+          ).length,
+        };
+      })
+      .filter((c): c is NonNullable<typeof c> => !!c)
+      .filter((c) => (status && status !== 'all' ? c.status === status : true))
+      .filter((c) => (manager ? c.dossier_manager_id === manager : true))
+      .filter((c) =>
+        search
+          ? `${c.name} ${c.brn ?? ''} ${c.client_code ?? ''}`.toLowerCase().includes(search)
+          : true,
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return { companies: rows } as T;
+  }
+
+  const cabinetMatch = /^\/cabinet\/companies\/([0-9a-f-]{36})(?:\/(archive|unarchive|members))?(?:\/([0-9a-f-]{36}))?$/.exec(p);
+  if (cabinetMatch) {
+    const companyId = cabinetMatch[1]!;
+    const action = cabinetMatch[2];
+    const memberId = cabinetMatch[3];
+
+    if (action === 'archive' && method === 'POST') {
+      const ctx = requireModule(companyId, 'cabinet', 'admin', true);
+      ctx.company.status = 'archived';
+      ctx.company.archived_at = now();
+      audit(companyId, 'cabinet.archive', 'company', companyId);
+      persist();
+      return { company: ctx.company } as T;
+    }
+
+    if (action === 'unarchive' && method === 'POST') {
+      const ctx = requireModule(companyId, 'cabinet', 'admin', true);
+      ctx.company.status = 'active';
+      ctx.company.archived_at = null;
+      audit(companyId, 'cabinet.unarchive', 'company', companyId);
+      persist();
+      return { company: ctx.company } as T;
+    }
+
+    if (action === 'members' && memberId && method === 'PATCH') {
+      requireModule(companyId, 'cabinet', 'admin', true);
+      const member = s.members.find((m) => m.company_id === companyId && m.user_id === memberId);
+      if (!member) throw new ApiError(404, 'MEMBER_NOT_FOUND', 'Collaborateur introuvable');
+      if (typeof payload.role === 'string' && member.role !== 'owner') member.role = payload.role;
+      if (payload.isActive !== undefined) {
+        const target = s.users.find((u) => u.id === memberId);
+        if (target) (target as DemoUser & { is_active?: boolean }).is_active = !!payload.isActive;
+      }
+      if (payload.modules && typeof payload.modules === 'object') {
+        for (const [module, access] of Object.entries(payload.modules as Record<string, string>)) {
+          s.moduleAccess = (s.moduleAccess ?? []).filter(
+            (g) => !(g.company_id === companyId && g.user_id === memberId && g.module === module),
+          );
+          if (access !== 'none') {
+            s.moduleAccess.push({
+              company_id: companyId,
+              user_id: memberId,
+              module: module as ModuleKey,
+              access: access as 'read' | 'write' | 'admin',
+            });
+          }
+        }
+      }
+      audit(companyId, 'cabinet.member.update', 'user', memberId, { role: payload.role });
+      persist();
+      return {
+        member: {
+          userId: memberId,
+          role: member.role,
+          modules: effectiveModulesFor(companyId, memberId, member.role),
+        },
+      } as T;
+    }
+
+    if (!action && method === 'GET') {
+      requireModule(companyId, 'cabinet', 'read');
+      const company = s.companies.find((c) => c.id === companyId)!;
+      const myMember = s.members.find(
+        (m) => m.company_id === companyId && m.user_id === requireUser().id,
+      )!;
+      const manager = s.users.find((u) => u.id === company.dossier_manager_id) ?? null;
+      const members = s.members
+        .filter((m) => m.company_id === companyId)
+        .map((m) => ({
+          ...m,
+          is_active: true,
+          modules: effectiveModulesFor(companyId, m.user_id, m.role),
+        }));
+      const tasks = s.tasks
+        .filter((t) => t.company_id === companyId)
+        .sort((a, b) => String(a.due_date ?? '9999').localeCompare(String(b.due_date ?? '9999')))
+        .map((t) => taskView(s, t));
+      const openTasks = tasks.filter((t) => OPEN_TASK_STATUSES.includes(t.status));
+      return {
+        company,
+        manager: manager
+          ? { id: manager.id, full_name: manager.full_name, email: manager.email }
+          : null,
+        role: myMember.role,
+        modules: effectiveModulesFor(companyId, requireUser().id, myMember.role),
+        members,
+        tasks,
+        openTasks,
+        recentActivity: s.audit
+          .filter((a) => a.company_id === companyId)
+          .slice(-15)
+          .reverse()
+          .map((a) => ({
+            id: a.id,
+            action: a.action,
+            entity_type: a.entity_type,
+            entity_id: a.entity_id,
+            created_at: a.created_at,
+            user_name: a.user_email,
+          })),
+        counts: {
+          entries: s.entries.filter((e) => e.company_id === companyId).length,
+          accounts: accountsOf(companyId).length,
+          openTasks: openTasks.length,
+          collaborators: members.length,
+        },
+      } as T;
+    }
+
+    if (!action && method === 'PATCH') {
+      requireModule(companyId, 'cabinet', 'admin');
+      const company = s.companies.find((c) => c.id === companyId)!;
+      if (payload.dossierManagerId !== undefined) {
+        company.dossier_manager_id = payload.dossierManagerId || null;
+      }
+      if (payload.clientCode !== undefined) company.client_code = payload.clientCode || null;
+      if (payload.crn !== undefined) company.crn = payload.crn || null;
+      audit(companyId, 'cabinet.dossier.update', 'company', companyId, {
+        fields: Object.keys(payload),
+      });
+      persist();
+      return { company } as T;
+    }
+  }
+
+  if (p === '/cabinet/tasks' && method === 'GET') {
+    const user = requireUser();
+    const visible = new Set(
+      s.members
+        .filter((m) => m.user_id === user.id)
+        .filter((m) => effectiveModulesFor(m.company_id, user.id, m.role).cabinet !== 'none')
+        .map((m) => m.company_id),
+    );
+    const status = query.get('status');
+    const category = query.get('category');
+    const companyId = query.get('companyId');
+    const assignedTo = query.get('assignedTo');
+    const overdue = query.get('overdue') === '1';
+    const today = todayIso();
+    const rows = s.tasks
+      .filter((t) => visible.has(t.company_id))
+      .filter((t) => (companyId ? t.company_id === companyId : true))
+      .filter((t) => (status && status !== 'all' ? t.status === status : true))
+      .filter((t) => (category && category !== 'all' ? t.category === category : true))
+      .filter((t) => (assignedTo ? t.assigned_to === assignedTo : true))
+      .filter((t) => (overdue ? !!t.due_date && t.due_date < today && OPEN_TASK_STATUSES.includes(t.status) : true))
+      .sort((a, b) => {
+        const aDone = ['done', 'cancelled'].includes(a.status) ? 1 : 0;
+        const bDone = ['done', 'cancelled'].includes(b.status) ? 1 : 0;
+        if (aDone !== bDone) return aDone - bDone;
+        return String(a.due_date ?? '9999').localeCompare(String(b.due_date ?? '9999'));
+      })
+      .map((t) => taskView(s, t));
+    return { tasks: rows } as T;
+  }
+
+  if (p === '/cabinet/team' && method === 'GET') {
+    const user = requireUser();
+    const visible = new Set(
+      s.members
+        .filter((m) => m.user_id === user.id)
+        .filter((m) => effectiveModulesFor(m.company_id, user.id, m.role).cabinet !== 'none')
+        .map((m) => m.company_id),
+    );
+    const byUser = new Map<
+      string,
+      {
+        userId: string;
+        fullName: string;
+        email: string;
+        isActive: boolean;
+        assignments: { companyId: string; companyName: string; role: string }[];
+      }
+    >();
+    for (const member of s.members.filter((m) => visible.has(m.company_id))) {
+      const entry = byUser.get(member.user_id) ?? {
+        userId: member.user_id,
+        fullName: member.full_name,
+        email: member.email,
+        isActive: true,
+        assignments: [],
+      };
+      entry.assignments.push({
+        companyId: member.company_id,
+        companyName: s.companies.find((c) => c.id === member.company_id)?.name ?? '',
+        role: member.role,
+      });
+      byUser.set(member.user_id, entry);
+    }
+    return { collaborators: [...byUser.values()] } as T;
+  }
+
   // ----------------------------------------------------------- companies
   if (p === '/companies' && method === 'GET') {
     const user = requireUser();
@@ -1276,6 +1957,10 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
           ...company,
           role: m.role,
           accounts_count: accountsOf(company.id).length,
+          open_tasks: s.tasks.filter(
+            (t) => t.company_id === company.id && OPEN_TASK_STATUSES.includes(t.status),
+          ).length,
+          modules: effectiveModulesFor(company.id, user.id, m.role),
         };
       })
       .filter(Boolean);
@@ -1298,6 +1983,10 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
       id: uid(),
       name,
       brn: payload.brn?.trim() || null,
+      crn: payload.crn?.trim() || null,
+      client_code: payload.clientCode?.trim() || null,
+      dossier_manager_id: payload.dossierManagerId ?? null,
+      archived_at: null,
       vat_number: payload.vatNumber?.trim() || null,
       registered_address: payload.registeredAddress?.trim() || null,
       business_activity: payload.businessActivity?.trim() || null,
@@ -1364,6 +2053,11 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
     const rest = companyMatch[2] ?? '';
     const { company } = requireCompany(companyId);
 
+    // An archived dossier is read-only (same rule as the API).
+    if (company.status === 'archived' && method !== 'GET') {
+      throw new ApiError(409, 'COMPANY_ARCHIVED', 'Ce dossier est archivé : lecture seule');
+    }
+
     if (rest === '' && method === 'GET') {
       return {
         company,
@@ -1381,6 +2075,206 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
       audit(companyId, 'company.update', 'company', companyId, { fields: Object.keys(payload) });
       persist();
       return { company } as T;
+    }
+
+
+    // ---------------------------------------------------------- tasks
+    if (rest === '/tasks' && method === 'GET') {
+      requireModule(companyId, 'cabinet', 'read');
+      const rows = s.tasks
+        .filter((t) => t.company_id === companyId)
+        .sort((a, b) => String(a.due_date ?? '9999').localeCompare(String(b.due_date ?? '9999')))
+        .map((t) => taskView(s, t));
+      return { tasks: rows } as T;
+    }
+
+    if (rest === '/tasks' && method === 'POST') {
+      const ctx = requireModule(companyId, 'cabinet', 'write');
+      const title = String(payload.title ?? '').trim();
+      if (title.length < 2) throw new ApiError(400, 'VALIDATION_ERROR', 'Titre trop court');
+      if (payload.assignedTo) {
+        const isMember = s.members.some(
+          (m) => m.company_id === companyId && m.user_id === payload.assignedTo,
+        );
+        if (!isMember) {
+          throw new ApiError(400, 'ASSIGNEE_NOT_MEMBER', "Ce collaborateur n'appartient pas au dossier");
+        }
+      }
+      const task: DemoTask = {
+        id: uid(),
+        company_id: companyId,
+        title,
+        description: payload.description ? String(payload.description) : null,
+        category: String(payload.category ?? 'accounting'),
+        priority: String(payload.priority ?? 'normal'),
+        status: String(payload.status ?? 'todo'),
+        due_date: payload.dueDate || null,
+        assigned_to: payload.assignedTo || null,
+        created_by: ctx.user.id,
+        completed_at: payload.status === 'done' ? now() : null,
+        created_at: now(),
+        updated_at: now(),
+      };
+      s.tasks.push(task);
+      audit(companyId, 'cabinet.task.create', 'cabinet_task', task.id, { title });
+      persist();
+      return { task: taskView(s, task) } as T;
+    }
+
+    const taskMatch = /^\/tasks\/([0-9a-f-]{36})(\/comments)?$/.exec(rest);
+    if (taskMatch) {
+      const task = s.tasks.find((t) => t.id === taskMatch[1] && t.company_id === companyId);
+      if (!task) throw new ApiError(404, 'TASK_NOT_FOUND', 'Tâche introuvable');
+
+      if (!taskMatch[2] && method === 'GET') {
+        requireModule(companyId, 'cabinet', 'read');
+        return {
+          task: taskView(s, task),
+          comments: s.taskComments
+            .filter((c) => c.task_id === task.id)
+            .map((c) => ({
+              ...c,
+              author_name: s.users.find((u) => u.id === c.author_id)?.full_name ?? null,
+            })),
+          history: s.audit
+            .filter((a) => a.entity_type === 'cabinet_task' && a.entity_id === task.id)
+            .slice()
+            .reverse()
+            .map((a) => ({
+              id: a.id,
+              action: a.action,
+              created_at: a.created_at,
+              user_name: a.user_email,
+            })),
+        } as T;
+      }
+
+      if (!taskMatch[2] && method === 'PATCH') {
+        const ctx = requireModule(companyId, 'cabinet', 'write');
+        if (payload.assignedTo) {
+          const isMember = s.members.some(
+            (m) => m.company_id === companyId && m.user_id === payload.assignedTo,
+          );
+          if (!isMember) {
+            throw new ApiError(400, 'ASSIGNEE_NOT_MEMBER', "Ce collaborateur n'appartient pas au dossier");
+          }
+        }
+        const previousStatus = task.status;
+        if (payload.title !== undefined) task.title = String(payload.title).trim();
+        if (payload.description !== undefined) task.description = payload.description || null;
+        if (payload.category !== undefined) task.category = String(payload.category);
+        if (payload.priority !== undefined) task.priority = String(payload.priority);
+        if (payload.status !== undefined) task.status = String(payload.status);
+        if (payload.dueDate !== undefined) task.due_date = payload.dueDate || null;
+        if (payload.assignedTo !== undefined) task.assigned_to = payload.assignedTo || null;
+        task.updated_at = now();
+        task.completed_at = task.status === 'done' ? task.completed_at ?? now() : null;
+        if (payload.comment) {
+          s.taskComments.push({
+            id: uid(),
+            task_id: task.id,
+            company_id: companyId,
+            author_id: ctx.user.id,
+            body: String(payload.comment),
+            created_at: now(),
+          });
+        }
+        audit(
+          companyId,
+          payload.status && payload.status !== previousStatus
+            ? 'cabinet.task.status'
+            : 'cabinet.task.update',
+          'cabinet_task',
+          task.id,
+          { from: previousStatus, to: task.status },
+        );
+        persist();
+        return { task: taskView(s, task) } as T;
+      }
+
+      if (taskMatch[2] && method === 'POST') {
+        const ctx = requireModule(companyId, 'cabinet', 'write');
+        const body = String(payload.body ?? '').trim();
+        if (!body) throw new ApiError(400, 'VALIDATION_ERROR', 'Commentaire vide');
+        const comment: DemoTaskComment = {
+          id: uid(),
+          task_id: task.id,
+          company_id: companyId,
+          author_id: ctx.user.id,
+          body,
+          created_at: now(),
+        };
+        s.taskComments.push(comment);
+        audit(companyId, 'cabinet.task.comment', 'cabinet_task', task.id);
+        persist();
+        return { comment } as T;
+      }
+
+      if (!taskMatch[2] && method === 'DELETE') {
+        const ctx = requireModule(companyId, 'cabinet', 'write');
+        if (ACCESS_WEIGHT[ctx.access] < ACCESS_WEIGHT.admin && task.created_by !== ctx.user.id) {
+          throw new ApiError(403, 'FORBIDDEN', 'Suppression réservée à un administrateur cabinet');
+        }
+        s.tasks = s.tasks.filter((t) => t.id !== task.id);
+        s.taskComments = s.taskComments.filter((c) => c.task_id !== task.id);
+        audit(companyId, 'cabinet.task.delete', 'cabinet_task', task.id);
+        persist();
+        return { ok: true } as T;
+      }
+    }
+
+    // --------------------------------------------- billing (foundation)
+    if (rest === '/billing/documents' && method === 'GET') {
+      requireModule(companyId, 'billing', 'read');
+      return { documents: [], available: false } as T;
+    }
+
+    if (rest === '/billing/summary' && method === 'GET') {
+      requireModule(companyId, 'billing', 'read');
+      return {
+        available: false,
+        counts: [],
+        capabilities: {
+          numbering: false,
+          vatComputation: false,
+          mraEInvoicing: false,
+          postingToAccounting: false,
+        },
+      } as T;
+    }
+
+    if (rest === '/billing/documents' && method === 'POST') {
+      requireModule(companyId, 'billing', 'write');
+      throw new ApiError(501, 'NOT_IMPLEMENTED', 'Facturation préparée mais non implémentée');
+    }
+
+    // ---------------------------------------------- payroll (foundation)
+    if (rest === '/payroll/employees' && method === 'GET') {
+      requireModule(companyId, 'payroll', 'read');
+      return { employees: [], available: false } as T;
+    }
+
+    if (rest === '/payroll/summary' && method === 'GET') {
+      requireModule(companyId, 'payroll', 'read');
+      return {
+        available: false,
+        activeEmployees: 0,
+        capabilities: {
+          paye: false,
+          csg: false,
+          nsf: false,
+          payslips: false,
+          leaveManagement: false,
+          statutoryDeclarations: false,
+          accountingTransfer: false,
+        },
+        notice: 'Les calculs réglementaires ne sont pas implémentés.',
+      } as T;
+    }
+
+    if ((rest === '/payroll/employees' || rest === '/payroll/runs') && method === 'POST') {
+      requireModule(companyId, 'payroll', 'write');
+      throw new ApiError(501, 'NOT_IMPLEMENTED', 'Paie préparée mais non implémentée');
     }
 
     // ------------------------------------------------------------ accounts
@@ -1873,6 +2767,14 @@ function sanitiseCompanyPatch(payload: Record<string, any>) {
   if (payload.accountingStandard !== undefined) patch.accounting_standard = payload.accountingStandard;
   if (payload.status !== undefined) patch.status = payload.status;
   if (payload.locale !== undefined) patch.locale = payload.locale;
+  if (payload.crn !== undefined) patch.crn = payload.crn?.trim() || null;
+  if (payload.clientCode !== undefined) patch.client_code = payload.clientCode?.trim() || null;
+  if (payload.dossierManagerId !== undefined) {
+    patch.dossier_manager_id = payload.dossierManagerId || null;
+  }
+  if (patch.status !== undefined) {
+    patch.archived_at = patch.status === 'archived' ? now() : null;
+  }
   return patch;
 }
 

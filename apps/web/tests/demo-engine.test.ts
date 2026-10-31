@@ -286,3 +286,147 @@ describe('demo backend — accounting rules', () => {
     expect(audit.events.map((e) => e.action)).toContain('entry.create_draft');
   });
 });
+
+describe('demo backend — cabinet module and module permissions', () => {
+  beforeEach(() => {
+    resetDemo();
+    login();
+  });
+
+  const companyIdByName = (name: RegExp): string => {
+    const companies = call<{ companies: { id: string; name: string }[] }>('GET', '/companies')
+      .companies;
+    return companies.find((c) => name.test(c.name))!.id;
+  };
+
+  it('aggregates the cabinet dashboard from the fictional dossiers', () => {
+    const dashboard = call<{
+      metrics: { clients: number; archived: number; overdueTasks: number; openTasks: number };
+      upcoming: unknown[];
+      dossiers: unknown[];
+    }>('GET', '/cabinet/dashboard');
+    expect(dashboard.metrics.clients).toBe(4);
+    expect(dashboard.metrics.archived).toBe(1);
+    expect(dashboard.metrics.overdueTasks).toBeGreaterThanOrEqual(1);
+    expect(dashboard.metrics.openTasks).toBeGreaterThan(0);
+    expect(dashboard.dossiers).toHaveLength(4);
+    expect(dashboard.upcoming.length).toBeGreaterThan(0);
+  });
+
+  it('creates, updates and comments a task', () => {
+    const companyId = companyIdByName(/Lagon Bleu/);
+    const created = call<{ task: { id: string; status: string } }>(
+      'POST',
+      `/companies/${companyId}/tasks`,
+      { title: 'Tâche de test démo', category: 'vat', dueDate: '2026-12-01' },
+    );
+    expect(created.task.status).toBe('todo');
+
+    const updated = call<{ task: { status: string; completed_at: string | null } }>(
+      'PATCH',
+      `/companies/${companyId}/tasks/${created.task.id}`,
+      { status: 'done', comment: 'Terminé (fictif)' },
+    );
+    expect(updated.task.status).toBe('done');
+    expect(updated.task.completed_at).toBeTruthy();
+
+    const detail = call<{ comments: unknown[]; history: { action: string }[] }>(
+      'GET',
+      `/companies/${companyId}/tasks/${created.task.id}`,
+    );
+    expect(detail.comments).toHaveLength(1);
+    expect(detail.history.map((h) => h.action)).toContain('cabinet.task.status');
+  });
+
+  it('rejects an assignee outside the dossier', () => {
+    const companyId = companyIdByName(/Lagon Bleu/);
+    expect(() =>
+      call('POST', `/companies/${companyId}/tasks`, {
+        title: 'Affectation interdite',
+        category: 'accounting',
+        assignedTo: crypto.randomUUID(),
+      }),
+    ).toThrowError(/appartient pas au dossier/);
+  });
+
+  it('archives a dossier read-only and restores it', () => {
+    const companyId = companyIdByName(/Belle Mare/);
+    const archived = call<{ company: { status: string; archived_at: string | null } }>(
+      'POST',
+      `/cabinet/companies/${companyId}/archive`,
+    );
+    expect(archived.company.status).toBe('archived');
+    expect(archived.company.archived_at).toBeTruthy();
+
+    const journal = journalId(companyId, 'OD');
+    const account = accountId(companyId, '1010');
+    expect(() =>
+      call('POST', `/companies/${companyId}/entries`, {
+        journalId: journal,
+        entryDate: '2026-01-15',
+        description: 'Écriture interdite',
+        lines: [
+          { accountId: account, debit: '10' },
+          { accountId: accountId(companyId, '4000'), credit: '10' },
+        ],
+      }),
+    ).toThrowError(/archivé/);
+
+    const restored = call<{ company: { status: string } }>(
+      'POST',
+      `/cabinet/companies/${companyId}/unarchive`,
+    );
+    expect(restored.company.status).toBe('active');
+  });
+
+  it('separates payroll from accounting permissions', () => {
+    const companyId = companyIdByName(/Lagon Bleu/);
+
+    // The demonstration owner administers every module.
+    const payroll = call<{ capabilities: { paye: boolean; csg: boolean } }>(
+      'GET',
+      `/companies/${companyId}/payroll/summary`,
+    );
+    expect(payroll.capabilities.paye).toBe(false);
+    expect(payroll.capabilities.csg).toBe(false);
+
+    // A dossier manager (fictional collaborator) has no payroll access at all.
+    const managedCompany = companyIdByName(/Case Noyale/);
+    call('POST', '/auth/logout');
+    call('POST', '/auth/login', {
+      email: 'a.ramgoolam@cabinet-demo.test',
+      password: 'DemoCollab2026',
+    });
+    expect(() =>
+      call('GET', `/companies/${managedCompany}/payroll/summary`),
+    ).toThrowError(/pas accessible/);
+    // …but can work on the accounting of that dossier.
+    expect(
+      call<{ accounts: unknown[] }>('GET', `/companies/${managedCompany}/accounts`).accounts.length,
+    ).toBeGreaterThan(0);
+  });
+
+  it('announces billing as a prepared, unavailable module', () => {
+    const companyId = companyIdByName(/Lagon Bleu/);
+    const summary = call<{ available: boolean; capabilities: { vatComputation: boolean } }>(
+      'GET',
+      `/companies/${companyId}/billing/summary`,
+    );
+    expect(summary.available).toBe(false);
+    expect(summary.capabilities.vatComputation).toBe(false);
+    expect(() =>
+      call('POST', `/companies/${companyId}/billing/documents`, { customerName: 'X' }),
+    ).toThrowError(/non implémentée/);
+  });
+
+  it('lists collaborators with their dossier roles', () => {
+    const team = call<{ collaborators: { email: string; assignments: unknown[] }[] }>(
+      'GET',
+      '/cabinet/team',
+    );
+    const emails = team.collaborators.map((c) => c.email);
+    expect(emails).toContain(DEMO_EMAIL);
+    expect(emails).toContain('a.ramgoolam@cabinet-demo.test');
+    expect(team.collaborators.every((c) => c.assignments.length > 0)).toBe(true);
+  });
+});

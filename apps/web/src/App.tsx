@@ -1,35 +1,33 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useI18n } from './i18n';
 import { useSession } from './store';
 import LoginPage from './pages/Login';
 import DashboardPage from './pages/Dashboard';
-import CompaniesPage from './pages/Companies';
 import AccountsPage from './pages/Accounts';
 import EntriesPage from './pages/Entries';
 import LedgerPage from './pages/Ledger';
 import TrialBalancePage from './pages/TrialBalance';
 import StatementsPage from './pages/Statements';
 import SettingsPage from './pages/Settings';
+import CompaniesPage from './pages/Companies';
+import DossierPage from './pages/cabinet/Dossier';
+import CabinetDashboardPage from './pages/cabinet/CabinetDashboard';
+import TasksPage from './pages/cabinet/Tasks';
+import TeamPage from './pages/cabinet/Team';
+import PreparedPage from './pages/prepared/Prepared';
+import { MODULES, LEGACY_REDIRECTS, moduleByPath, type ModuleKey } from './modules';
 import { Spinner } from './components/ui';
 import { DemoBanner } from './components/DemoBanner';
 
-const NAV = [
-  { to: '/', key: 'nav.dashboard', icon: '▦', end: true },
-  { to: '/companies', key: 'nav.companies', icon: '⌂' },
-  { to: '/accounts', key: 'nav.accounts', icon: '≡' },
-  { to: '/entries', key: 'nav.entries', icon: '✎' },
-  { to: '/ledger', key: 'nav.ledger', icon: '▤' },
-  { to: '/trial-balance', key: 'nav.trialBalance', icon: '⊞' },
-  { to: '/statements', key: 'nav.statements', icon: '▥' },
-  { to: '/settings', key: 'nav.settings', icon: '⚙' },
-];
+const ACCESS_WEIGHT: Record<string, number> = { none: 0, read: 1, write: 2, admin: 3 };
 
 export default function App() {
   const { t, locale, setLocale } = useI18n();
   const { user, initialized, companies, company, setCompany, logout } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Hooks must run before any early return: the drawer is closed on navigation
   // and with the Escape key.
@@ -62,24 +60,100 @@ export default function App() {
   }
 
   const closeMenu = () => setMenuOpen(false);
+  const active = moduleByPath(location.pathname);
+  const modules = (company as { modules?: Record<ModuleKey, string> } | null)?.modules;
+
+  const moduleAllowed = (key: ModuleKey) =>
+    key === 'cabinet' || !modules || ACCESS_WEIGHT[modules[key] ?? 'read']! > 0;
 
   return (
     <div className="app-shell">
-      <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
-        <div className="brand">
+      <header className="topbar">
+        <button
+          className="btn btn-ghost mobile-only"
+          onClick={() => setMenuOpen((v) => !v)}
+          aria-label={t('nav.menu')}
+          aria-expanded={menuOpen}
+        >
+          ☰
+        </button>
+        <div className="brand-inline">
           <div className="brand-mark">M</div>
           <div>
-            <div className="brand-name">{t('app.name')}</div>
-            <div className="brand-tag">{t('app.tagline')}</div>
+            <div className="brand-name">{t('suite.name')}</div>
+            <div className="brand-tag">{t('suite.tagline')}</div>
           </div>
         </div>
+        <select
+          aria-label={t('common.company')}
+          value={company?.id ?? ''}
+          onChange={(e) => setCompany(e.target.value)}
+          disabled={companies.length === 0}
+          className="company-select"
+        >
+          {companies.length === 0 && <option value="">{t('common.none')}</option>}
+          {companies.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <span className="grow" />
+        <select
+          aria-label={t('common.language')}
+          value={locale}
+          onChange={(e) => {
+            const next = e.target.value as 'fr' | 'en';
+            setLocale(next);
+            void fetch('/api/auth/me', {
+              method: 'PATCH',
+              credentials: 'include',
+              headers: { 'content-type': 'application/json', 'x-locale': next },
+              body: JSON.stringify({ locale: next }),
+            });
+          }}
+          style={{ maxWidth: 110 }}
+        >
+          <option value="fr">FR</option>
+          <option value="en">EN</option>
+        </select>
+        <button className="btn btn-ghost" onClick={() => void logout()}>
+          {t('nav.logout')}
+        </button>
+      </header>
+
+      <nav className="module-tabs" aria-label={t('nav.modules')}>
+        {MODULES.map((m) => {
+          const allowed = moduleAllowed(m.key);
+          return (
+            <button
+              key={m.key}
+              type="button"
+              className={`module-tab ${active.key === m.key ? 'active' : ''}`}
+              onClick={() => {
+                const first = m.items[0];
+                if (allowed && first) navigate(first.to);
+              }}
+              disabled={!allowed}
+              title={allowed ? t(m.labelKey) : t('module.locked')}
+              aria-current={active.key === m.key ? 'page' : undefined}
+            >
+              <span aria-hidden="true">{m.icon}</span> {t(m.labelKey)}
+            </button>
+          );
+        })}
+      </nav>
+
+      <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
+        <div className="sidebar-title">{t(active.labelKey)}</div>
         <nav className="nav" onClick={closeMenu}>
-          {NAV.map((item) => (
+          {active.items.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end}>
               <span className="nav-icon" aria-hidden="true">
                 {item.icon}
               </span>
-              {t(item.key)}
+              <span className="nav-label">{t(item.key)}</span>
+              {item.prepared && <span className="pill">{t('module.prepared')}</span>}
             </NavLink>
           ))}
         </nav>
@@ -93,63 +167,42 @@ export default function App() {
       {menuOpen && <div className="drawer-backdrop" onClick={closeMenu} aria-hidden="true" />}
 
       <div className="main">
-        <header className="topbar">
-          <button
-            className="btn btn-ghost mobile-only"
-            onClick={() => setMenuOpen((v) => !v)}
-            aria-label={t('nav.menu')}
-            aria-expanded={menuOpen}
-          >
-            ☰
-          </button>
-          <select
-            aria-label={t('common.company')}
-            value={company?.id ?? ''}
-            onChange={(e) => setCompany(e.target.value)}
-            disabled={companies.length === 0}
-          >
-            {companies.length === 0 && <option value="">{t('common.none')}</option>}
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <span className="grow" />
-          <select
-            aria-label={t('common.language')}
-            value={locale}
-            onChange={(e) => {
-              const next = e.target.value as 'fr' | 'en';
-              setLocale(next);
-              void fetch('/api/auth/me', {
-                method: 'PATCH',
-                credentials: 'include',
-                headers: { 'content-type': 'application/json', 'x-locale': next },
-                body: JSON.stringify({ locale: next }),
-              });
-            }}
-            style={{ maxWidth: 110 }}
-          >
-            <option value="fr">FR</option>
-            <option value="en">EN</option>
-          </select>
-          <button className="btn btn-ghost" onClick={() => void logout()}>
-            {t('nav.logout')}
-          </button>
-        </header>
-
         <main className="page" key={location.pathname}>
           <Routes>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/companies" element={<CompaniesPage />} />
-            <Route path="/accounts" element={<AccountsPage />} />
-            <Route path="/entries" element={<EntriesPage />} />
-            <Route path="/ledger" element={<LedgerPage />} />
-            <Route path="/trial-balance" element={<TrialBalancePage />} />
-            <Route path="/statements" element={<StatementsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="/" element={<Navigate to="/cabinet" replace />} />
+
+            {/* Cabinet */}
+            <Route path="/cabinet" element={<CabinetDashboardPage />} />
+            <Route path="/cabinet/companies" element={<CompaniesPage />} />
+            <Route path="/cabinet/companies/:companyId" element={<DossierPage />} />
+            <Route path="/cabinet/tasks" element={<TasksPage />} />
+            <Route path="/cabinet/team" element={<TeamPage />} />
+
+            {/* Accounting (existing V0.1 screens, unchanged behaviour) */}
+            <Route path="/accounting" element={<DashboardPage />} />
+            <Route path="/accounting/accounts" element={<AccountsPage />} />
+            <Route path="/accounting/entries" element={<EntriesPage />} />
+            <Route path="/accounting/ledger" element={<LedgerPage />} />
+            <Route path="/accounting/trial-balance" element={<TrialBalancePage />} />
+            <Route path="/accounting/statements" element={<StatementsPage />} />
+            <Route path="/accounting/settings" element={<SettingsPage />} />
+
+            {/* Announced but not implemented: the page states it explicitly. */}
+            <Route path="/accounting/purchases" element={<PreparedPage module="accounting" />} />
+            <Route path="/accounting/banking" element={<PreparedPage module="accounting" />} />
+            <Route path="/accounting/assets" element={<PreparedPage module="accounting" />} />
+            <Route path="/accounting/ifrs" element={<PreparedPage module="accounting" />} />
+
+            {/* Billing & payroll: prepared spaces */}
+            <Route path="/billing" element={<PreparedPage module="billing" />} />
+            <Route path="/billing/:section" element={<PreparedPage module="billing" />} />
+            <Route path="/payroll" element={<PreparedPage module="payroll" />} />
+            <Route path="/payroll/:section" element={<PreparedPage module="payroll" />} />
+
+            {LEGACY_REDIRECTS.map((r) => (
+              <Route key={r.from} path={r.from} element={<Navigate to={r.to} replace />} />
+            ))}
+            <Route path="*" element={<Navigate to="/cabinet" replace />} />
           </Routes>
         </main>
       </div>

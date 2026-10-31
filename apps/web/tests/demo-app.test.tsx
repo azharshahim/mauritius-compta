@@ -28,11 +28,24 @@ const navLink = (name: RegExp) => {
   return within(nav).getByRole('link', { name });
 };
 
+const moduleTab = (name: RegExp) => screen.getByRole('button', { name });
+
+const tableText = async (name: string | RegExp) => {
+  await waitFor(() => expect(document.querySelector('.table-wrap table')).toBeTruthy());
+  const table = document.querySelector('.table-wrap table') as HTMLElement;
+  return within(table).findByText(name);
+};
+
+const tableRow = async (name: string | RegExp) => {
+  const cell = await tableText(name);
+  return cell.closest('tr') as HTMLElement;
+};
+
 async function login() {
   renderApp();
   const button = await screen.findByRole('button', { name: /Se connecter/i });
   fireEvent.click(button);
-  await screen.findByRole('heading', { name: /Tableau de bord/i });
+  await screen.findByRole('heading', { name: /Tableau de bord Cabinet/i });
 }
 
 describe('demo build (jsdom)', () => {
@@ -59,95 +72,120 @@ describe('demo build (jsdom)', () => {
     expect(password.value).toBe('DemoPassw0rd2026');
   });
 
-  it('signs in, navigates the hash router and never calls the network', async () => {
+  it('exposes the four suite modules and keeps the accounting screens', async () => {
     await login();
-    expect(navLink(/Écritures/)).toBeTruthy();
+    expect(moduleTab(/Cabinet/)).toBeTruthy();
+    expect(moduleTab(/Comptabilité/)).toBeTruthy();
+    expect(moduleTab(/Facturation/)).toBeTruthy();
+    expect(moduleTab(/Paie & RH/)).toBeTruthy();
 
+    fireEvent.click(navLink(/Dossiers clients/));
+    await screen.findByRole('heading', { name: /Dossiers clients/i });
+    expect(await tableText(/Lagon Bleu Trading Ltd \(DEMO\)/)).toBeTruthy();
+    expect(await tableText(/Case Noyale Retail Ltd \(DEMO\)/)).toBeTruthy();
+    expect(window.location.hash).toBe('#/cabinet/companies');
+
+    // Accounting space: the V0.1 screens are still there, unchanged.
+    fireEvent.click(moduleTab(/Comptabilité/));
+    await screen.findByRole('heading', { name: /Tableau de bord/i });
     fireEvent.click(navLink(/Écritures/));
     await screen.findByRole('heading', { name: /Écritures/ });
     expect(await screen.findByText(/Facture de vente fictive FA-2025-001/)).toBeTruthy();
-    expect(window.location.hash).toBe('#/entries');
+    expect(window.location.hash).toBe('#/accounting/entries');
 
     fireEvent.click(navLink(/Balance/));
     await screen.findByRole('heading', { name: /Balance générale/ });
     expect(await screen.findByText(/Balance équilibrée/)).toBeTruthy();
 
-    fireEvent.click(navLink(/États financiers/));
-    await screen.findByRole('heading', { name: /États financiers/ });
-    expect(await screen.findByText(/Situation financière/)).toBeTruthy();
-
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('captures a new entry in the browser demo', async () => {
+  it('keeps the cabinet dashboard metrics in sync with the tasks', async () => {
     await login();
-    fireEvent.click(navLink(/Écritures/));
-    await screen.findByRole('heading', { name: /Écritures/ });
+    // Two overdue tasks are seeded for the demo user's dossiers.
+    expect(screen.getByText(/Tâches en retard/i)).toBeTruthy();
+    fireEvent.click(navLink(/Tâches & échéances/));
+    await screen.findByRole('heading', { name: /Tâches & échéances/i });
+    expect(await screen.findByText(/Préparer le dossier TVA du trimestre \(fictif\)/)).toBeTruthy();
+  });
 
-    const newButton = screen.getByRole('button', { name: /Nouvelle écriture/ });
-    await waitFor(() => expect((newButton as HTMLButtonElement).disabled).toBe(false));
-    fireEvent.click(newButton);
+  it('creates a dossier then a task in the browser demo', async () => {
+    await login();
+    fireEvent.click(navLink(/Dossiers clients/));
+    await screen.findByRole('heading', { name: /Dossiers clients/i });
 
+    fireEvent.click(screen.getByRole('button', { name: /Nouveau dossier/ }));
     const dialog = await screen.findByRole('dialog');
-    const selects = within(dialog).getAllByRole('combobox') as HTMLSelectElement[];
-    // selects[0] = journal, selects[1] = currency, selects[2..] = accounts
-    fireEvent.change(selects[0]!, { target: { value: selects[0]!.options[0]!.value } });
-    const accountSelects = selects.slice(2);
-    // Option 0 is the placeholder, option 1 the first real account.
-    fireEvent.change(accountSelects[0]!, { target: { value: accountSelects[0]!.options[1]!.value } });
-    fireEvent.change(accountSelects[1]!, { target: { value: accountSelects[1]!.options[2]!.value } });
-
-    const description = within(dialog).getByLabelText(/Libellé|Description/i) as HTMLInputElement;
-    fireEvent.change(description, { target: { value: 'Écriture saisie dans la démo' } });
-
-    const debits = within(dialog).getAllByLabelText(/^Débit$/i) as HTMLInputElement[];
-    const credits = within(dialog).getAllByLabelText(/^Crédit$/i) as HTMLInputElement[];
-    fireEvent.change(debits[0]!, { target: { value: '250.50' } });
-    fireEvent.change(credits[1]!, { target: { value: '250.50' } });
-
-    fireEvent.click(within(dialog).getByRole('button', { name: /Enregistrer et valider/i }));
-
-    await waitFor(() => {
-      const stillOpen = screen.queryByRole('dialog');
-      if (stillOpen) {
-        const alert = stillOpen.querySelector('.alert-error');
-        if (alert) throw new Error(`Erreur affichée : ${alert.textContent}`);
-      }
-      expect(stillOpen).toBeNull();
+    fireEvent.change(within(dialog).getByLabelText(/^Nom$/i), {
+      target: { value: 'Dossier créé dans Chrome (fictif)' },
     });
-    expect(await screen.findByText('Écriture saisie dans la démo')).toBeTruthy();
+    fireEvent.change(within(dialog).getByLabelText(/Code client/i), {
+      target: { value: 'CLI-999' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: /Enregistrer/i }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(await tableText('Dossier créé dans Chrome (fictif)')).toBeTruthy();
+
+    // The new dossier becomes the current company: a task can be attached to it.
+    fireEvent.click(navLink(/Tâches & échéances/));
+    await screen.findByRole('heading', { name: /Tâches & échéances/i });
+    fireEvent.click(screen.getByRole('button', { name: /Nouvelle tâche/ }));
+    const taskDialog = await screen.findByRole('dialog');
+    const companySelect = within(taskDialog).getAllByRole('combobox')[0] as HTMLSelectElement;
+    const option = Array.from(companySelect.options).find((o) =>
+      o.text.includes('Dossier créé dans Chrome'),
+    );
+    expect(option).toBeTruthy();
+    fireEvent.change(companySelect, { target: { value: option!.value } });
+    fireEvent.change(within(taskDialog).getAllByLabelText(/Libellé|Description/i)[0]!, {
+      target: { value: 'Tâche créée dans Chrome (fictif)' },
+    });
+    fireEvent.click(within(taskDialog).getByRole('button', { name: /Enregistrer/i }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(await screen.findByText('Tâche créée dans Chrome (fictif)')).toBeTruthy();
+  });
+
+  it('archives a dossier and makes it read-only', async () => {
+    await login();
+    fireEvent.click(navLink(/Dossiers clients/));
+    await screen.findByRole('heading', { name: /Dossiers clients/i });
+
+    const row = await tableRow(/Belle Mare Hospitality Ltd \(DEMO\)/);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    fireEvent.click(within(row).getByRole('button', { name: /Archiver/i }));
+    await waitFor(() =>
+      expect(within(row).getByRole('button', { name: /Désarchiver/i })).toBeTruthy(),
+    );
+  });
+
+  it('shows billing and payroll as prepared, never as working features', async () => {
+    await login();
+    fireEvent.click(moduleTab(/Facturation/));
+    await screen.findByRole('heading', { name: /Tableau de bord/i });
+    expect(await screen.findByText(/préparée mais pas encore opérationnelle/i)).toBeTruthy();
+    expect(screen.getByText(/vatComputation/)).toBeTruthy();
+
+    fireEvent.click(moduleTab(/Paie & RH/));
+    await screen.findByRole('heading', { name: /Tableau de bord/i });
+    expect(await screen.findByText(/Aucun calcul PAYE, CSG ou NSF/i)).toBeTruthy();
+    expect(screen.getByText(/paye/)).toBeTruthy();
+    expect(screen.queryByText(/bulletin généré/i)).toBeNull();
   });
 
   it('switches FR <-> EN and opens the mobile navigation drawer', async () => {
     await login();
     const language = screen.getByLabelText(/Langue/i);
     fireEvent.change(language, { target: { value: 'en' } });
-    expect(await screen.findByRole('link', { name: 'Dashboard' })).toBeTruthy();
+    expect(await screen.findByText(/Client dossiers/i)).toBeTruthy();
     fireEvent.change(screen.getByLabelText(/Language/i), { target: { value: 'fr' } });
-    expect(await screen.findByRole('link', { name: /Tableau de bord/ })).toBeTruthy();
+    expect(await screen.findByText(/Dossiers clients/i)).toBeTruthy();
 
     const menu = screen.getByRole('button', { name: /Menu/ });
     fireEvent.click(menu);
     const drawer = document.querySelector('.sidebar');
     expect(drawer?.className).toContain('open');
-    fireEvent.click(navLink(/Sociétés/));
-    await screen.findByRole('heading', { name: /Sociétés/ });
+    fireEvent.click(navLink(/Collaborateurs/));
+    await screen.findByRole('heading', { name: /Collaborateurs/i });
     await waitFor(() => expect(document.querySelector('.sidebar')?.className).not.toContain('open'));
-  });
-
-  it('creates a company from the demo build', async () => {
-    await login();
-    fireEvent.click(navLink(/Sociétés/));
-    await screen.findByRole('heading', { name: /Sociétés/ });
-    fireEvent.click(screen.getByRole('button', { name: /Nouvelle société/ }));
-
-    const dialog = await screen.findByRole('dialog');
-    const name = within(dialog).getByLabelText(/^Nom$/i) as HTMLInputElement;
-    fireEvent.change(name, { target: { value: 'Société démo créée dans Chrome' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: /Enregistrer/i }));
-
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    const matches = await screen.findAllByText('Société démo créée dans Chrome');
-    expect(matches.length).toBeGreaterThan(0);
   });
 });

@@ -14,6 +14,11 @@ export interface Company {
   id: string;
   name: string;
   brn: string | null;
+  crn?: string | null;
+  client_code?: string | null;
+  dossier_manager_id?: string | null;
+  archived_at?: string | null;
+  modules?: Record<string, string>;
   vat_number: string | null;
   registered_address: string | null;
   business_activity: string | null;
