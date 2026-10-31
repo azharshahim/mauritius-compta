@@ -166,8 +166,8 @@ Les comptes, journaux et catégories sont propres à chaque société : l'isolat
 7. Rejouer le même lot : le doublon doit être refusé.
 8. Clôturer une période puis tenter de comptabiliser : `PERIOD_CLOSED`.
 
-La démonstration publiée reste sur GitHub Pages depuis la branche de développement, sans
-déploiement OVH. **Aucun test navigateur réel n'a été exécuté dans cette mission** : les tests
+La démonstration publiée reste sur GitHub Pages depuis la branche de développement
+(`https://azharshahim.github.io/mauritius-compta/`), sans déploiement OVH. **Aucun test navigateur réel n'a été exécuté dans cette mission** : les tests
 sont des tests de simulation DOM / moteur, pas un parcours Chrome Windows ou Samsung Android.
 
 ## 9. Résultats de tests (exécutés)
@@ -183,6 +183,8 @@ sont des tests de simulation DOM / moteur, pas un parcours Chrome Windows ou Sam
 | dont `demo-equity.test.ts` | **4/4** |
 | dont `migration-ui.test.tsx` | **3/3** |
 | `npm run build:demo` | **réussi** (3,57 s) |
+| CI GitHub Actions (typecheck, tests, build, PostgreSQL réel, migrations + seed) | **3/3 jobs réussis** |
+| Déploiement GitHub Pages (`pages.yml`) | **build et déploiement réussis**, URL HTTPS vérifiée par le workflow |
 
 Non exécutés / non vérifiés : `npm run lint`, tests E2E Playwright, rendu Chrome Windows réel,
 Samsung Android physique, `FinanceAct2026.pdf` sections 7/18/28 (hors périmètre de cette
