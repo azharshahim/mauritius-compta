@@ -16,6 +16,8 @@
 import { ApiError } from '../errors';
 import { toScaled4, scaled4ToString } from '../format';
 import { DEMO_SEED } from './seed-data';
+import { AI_PROVIDERS, providerByKey } from '../ai/catalogue';
+import { chooseAccount, normalise, ruleKeyword } from '../ai/simulation';
 
 /* ------------------------------------------------------------------ types */
 
@@ -173,6 +175,52 @@ export interface DemoAuditEvent {
   created_at: string;
 }
 
+export interface DemoAiSettings {
+  enabled: boolean;
+  routingMode: 'manual' | 'automatic';
+  primaryProvider: string | null;
+  primaryModel: string | null;
+  fallbackProvider: string | null;
+  fallbackModel: string | null;
+  monthlyBudgetUsd: string | null;
+  monthlyRequestLimit: number | null;
+  alertThreshold: number;
+  features: Record<string, boolean>;
+  /** Only ever a *state*: the demonstration stores no API key of any kind. */
+  credentials: Record<string, { configured: boolean; updatedAt: string }>;
+}
+
+export interface DemoAiSuggestion {
+  id: string;
+  company_id: string;
+  input_text: string;
+  amount: string | null;
+  currency: string | null;
+  suggested_account_id: string | null;
+  suggested_account_code: string | null;
+  category: string | null;
+  rationale: string | null;
+  confidence: number | null;
+  status: 'proposed' | 'accepted' | 'modified' | 'rejected';
+  decided_account_id: string | null;
+  decided_by: string | null;
+  decided_at: string | null;
+  source: 'provider' | 'rule';
+  provider: string | null;
+  model: string | null;
+  created_by: string | null;
+  created_at: string;
+  posted_entry_id: string | null;
+}
+
+export interface DemoAiRule {
+  id: string;
+  company_id: string;
+  keyword: string;
+  account_id: string;
+  created_at: string;
+}
+
 export interface DemoState {
   schema: number;
   users: DemoUser[];
@@ -191,6 +239,9 @@ export interface DemoState {
   audit: DemoAuditEvent[];
   sequences: Record<string, number>;
   auditSeq: number;
+  ai: DemoAiSettings;
+  aiSuggestions: DemoAiSuggestion[];
+  aiRules: DemoAiRule[];
 }
 
 /* ------------------------------------------------------------------ money */
@@ -708,7 +759,7 @@ function seedState(): DemoState {
   }));
 
   return {
-    schema: 2,
+    schema: 3,
     users: [demoUser, ...collaborators],
     session: null,
     companies: [company, ...extraCompanies],
@@ -737,6 +788,21 @@ function seedState(): DemoState {
     ],
     sequences,
     auditSeq: 1,
+    ai: {
+      enabled: true,
+      routingMode: 'manual',
+      primaryProvider: 'simulated',
+      primaryModel: 'simulated-fictif',
+      fallbackProvider: null,
+      fallbackModel: null,
+      monthlyBudgetUsd: null,
+      monthlyRequestLimit: 50,
+      alertThreshold: 80,
+      features: { accounting: true, cabinet: true, billing: false, payroll: false },
+      credentials: {},
+    },
+    aiSuggestions: [],
+    aiRules: [],
   };
 }
 
@@ -762,7 +828,7 @@ export function loadState(): DemoState {
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as DemoState;
-        if (parsed && parsed.schema === 2) {
+        if (parsed && parsed.schema === 3) {
           state = parsed;
           return state;
         }
@@ -1631,6 +1697,279 @@ function cabinetDashboard(s: DemoState, user: DemoUser) {
   };
 }
 
+
+/* --------------------------------------------------------- AI (demo only) */
+
+/**
+ * Simulated AI engine for the GitHub Pages demonstration.
+ *
+ * Rules enforced here, mirroring the server:
+ *  - no network call of any kind, no cost, no real API key is ever accepted;
+ *  - the proposal can only reference an account of the selected company;
+ *  - a decision never creates a journal entry;
+ *  - the module must be enabled and the user must have the required access.
+ */
+function requireCabinetAdminDemo(s: DemoState): DemoUser {
+  const user = requireUser();
+  const admin = s.members.some(
+    (m) => m.user_id === user.id && ['owner', 'admin', 'cabinet_admin'].includes(m.role),
+  );
+  if (admin) return user;
+  if (s.members.some((m) => m.user_id === user.id)) {
+    throw new ApiError(403, 'AI_FORBIDDEN', "Droits d'administration du cabinet requis");
+  }
+  throw new ApiError(404, 'CABINET_NOT_FOUND', 'Cabinet introuvable');
+}
+
+function aiProviderViews(s: DemoState) {
+  return AI_PROVIDERS.map((p) => ({
+    key: p.key,
+    label: p.label,
+    adapter: p.key === 'simulated' ? 'simulated' : p.key === 'gemini' ? 'gemini' : 'openai',
+    requiresKey: p.requiresKey,
+    docsUrl: '',
+    notes: p.notes.fr,
+    baseUrlConfigurable: p.baseUrlConfigurable ?? false,
+    baseUrl: null,
+    models: p.models,
+    capabilities: p.capabilities,
+    configured: p.key === 'simulated' ? true : Boolean(s.ai.credentials[p.key]?.configured),
+    available: p.key !== 'simulated',
+    priceVerified: false,
+  }));
+}
+
+function aiUsageSummary(s: DemoState) {
+  const calls = s.aiSuggestions.filter((x) => x.source === 'provider');
+  const byProvider = new Map<string, number>();
+  const byModule = new Map<string, number>();
+  for (const call of calls) {
+    const key = `${call.provider ?? 'simulated'}|${call.model ?? ''}`;
+    byProvider.set(key, (byProvider.get(key) ?? 0) + 1);
+    byModule.set('accounting', (byModule.get('accounting') ?? 0) + 1);
+  }
+  const requests = calls.length;
+  const limit = s.ai.monthlyRequestLimit;
+  const state =
+    limit !== null && requests >= limit ? 'exceeded' : s.ai.monthlyBudgetUsd ? 'unknown' : 'ok';
+  return {
+    month: new Date().toISOString().slice(0, 7),
+    requests,
+    inputTokens: 0,
+    outputTokens: 0,
+    estimatedCostUsd: null,
+    costKnown: false,
+    byProvider: [...byProvider.entries()].map(([key, count]) => {
+      const [provider = 'simulated', model = ''] = key.split('|');
+      return { provider, model, requests: count, estimatedCostUsd: null };
+    }),
+    byModule: [...byModule.entries()].map(([module, count]) => ({ module, requests: count })),
+    budget: {
+      limitUsd: s.ai.monthlyBudgetUsd,
+      requestLimit: limit,
+      usedUsd: null,
+      percent: null,
+      state,
+    },
+  };
+}
+
+function aiSettingsView(s: DemoState) {
+  return {
+    cabinetId: 'demo-cabinet',
+    enabled: s.ai.enabled,
+    routingMode: s.ai.routingMode,
+    primary: { provider: s.ai.primaryProvider, model: s.ai.primaryModel },
+    fallback: { provider: s.ai.fallbackProvider, model: s.ai.fallbackModel },
+    monthlyBudgetUsd: s.ai.monthlyBudgetUsd,
+    monthlyRequestLimit: s.ai.monthlyRequestLimit,
+    alertThreshold: s.ai.alertThreshold,
+    features: s.ai.features,
+    sharedPoolEnabled: false,
+    // The browser demonstration has no server-side encryption: it states so
+    // and accepts no key at all.
+    encryptionReady: false,
+    simulatedAvailable: true,
+    providers: aiProviderViews(s),
+    usage: aiUsageSummary(s),
+    catalogue: {
+      version: 1,
+      updatedAt: '2026-10-31',
+      notice:
+        'Simulation IA — aucune API externe utilisée. Aucun tarif vérifié n’est fourni : aucun coût n’est affiché.',
+      priceRows: 0,
+      verifiedPriceModels: [],
+    },
+  };
+}
+
+function aiRequireEnabled(s: DemoState, module: ModuleKey) {
+  if (!s.ai.enabled) throw new ApiError(403, 'AI_DISABLED', 'IA désactivée pour ce cabinet');
+  if (s.ai.features[module] !== true) {
+    throw new ApiError(403, 'AI_FEATURE_DISABLED', "Fonctionnalités IA désactivées pour ce module");
+  }
+}
+
+function aiSuggestInDemo(s: DemoState, companyId: string, payload: Record<string, any>) {
+  aiRequireEnabled(s, 'accounting');
+  const description = String(payload.description ?? '').trim();
+  if (description.length < 3) throw new ApiError(400, 'VALIDATION_ERROR', 'Description trop courte');
+
+  const limit = s.ai.monthlyRequestLimit;
+  const used = s.aiSuggestions.filter((x) => x.source === 'provider').length;
+  if (limit !== null && used >= limit) {
+    throw new ApiError(402, 'AI_BUDGET_EXCEEDED', 'Plafond de requêtes IA atteint (démonstration)');
+  }
+
+  const accounts = accountsOf(companyId).filter((a) => a.is_active);
+  if (accounts.length === 0) throw new ApiError(409, 'AI_NOT_CONFIGURED', 'Plan comptable vide');
+
+  const normalized = normalise(description);
+  const rule = s.aiRules.find((r) => r.company_id === companyId && normalized.includes(normalise(r.keyword)));
+  if (rule) {
+    const account = accounts.find((a) => a.id === rule.account_id);
+    if (account) {
+      const suggestion: DemoAiSuggestion = {
+        id: uid(),
+        company_id: companyId,
+        input_text: description,
+        amount: payload.amount === undefined || payload.amount === null ? null : String(payload.amount),
+        currency: payload.currency ? String(payload.currency).toUpperCase() : null,
+        suggested_account_id: account.id,
+        suggested_account_code: account.code,
+        category: 'rule',
+        rationale: `Règle validée par le cabinet : « ${rule.keyword} » → ${account.code} ${account.name}.`,
+        confidence: 1,
+        status: 'proposed',
+        decided_account_id: null,
+        decided_by: null,
+        decided_at: null,
+        source: 'rule',
+        provider: 'rule',
+        model: null,
+        created_by: requireUser().id,
+        created_at: now(),
+        posted_entry_id: null,
+      };
+      s.aiSuggestions.unshift(suggestion);
+      audit(companyId, 'ai.suggestion.propose', 'ai_suggestion', suggestion.id, { source: 'rule' });
+      persist();
+      return { suggestion: suggestionView(s, suggestion), entryCreated: false };
+    }
+  }
+
+  const accountsForSim = accounts.map((a) => ({ code: a.code, name: a.name, type: a.type }));
+  const match = chooseAccount(description, accountsForSim);
+  const confidence = match ? Math.min(0.9, Math.max(0.2, match.score)) : 0.1;
+  const suggestion: DemoAiSuggestion = {
+    id: uid(),
+    company_id: companyId,
+    input_text: description,
+    amount: payload.amount === undefined || payload.amount === null ? null : String(payload.amount),
+    currency: payload.currency ? String(payload.currency).toUpperCase() : null,
+    suggested_account_id: match ? (accounts.find((a) => a.code === match.code)?.id ?? null) : null,
+    suggested_account_code: match?.code ?? null,
+    category: match?.matched ? 'compte correspondant' : 'à vérifier',
+    rationale: match
+      ? match.matched
+        ? `Le libellé « ${description} » correspond au compte ${match.code} (${match.name}). Proposition à vérifier par un collaborateur.`
+        : `Proposition par défaut : compte ${match.code} (${match.name}). Aucune correspondance fiable, vérification requise.`
+      : 'Aucun compte du plan comptable ne correspond à cette description.',
+    confidence,
+    status: 'proposed',
+    decided_account_id: null,
+    decided_by: null,
+    decided_at: null,
+    source: 'provider',
+    provider: 'simulated',
+    model: 'simulated-fictif',
+    created_by: requireUser().id,
+    created_at: now(),
+    posted_entry_id: null,
+  };
+  s.aiSuggestions.unshift(suggestion);
+  audit(companyId, 'ai.suggestion.propose', 'ai_suggestion', suggestion.id, {
+    provider: 'simulated',
+    accountCode: suggestion.suggested_account_code,
+  });
+  persist();
+  return { suggestion: suggestionView(s, suggestion), entryCreated: false };
+}
+
+function suggestionView(s: DemoState, suggestion: DemoAiSuggestion) {
+  const account = suggestion.suggested_account_id
+    ? s.accounts.find((a) => a.id === suggestion.suggested_account_id) ?? null
+    : null;
+  const decided = suggestion.decided_account_id
+    ? s.accounts.find((a) => a.id === suggestion.decided_account_id) ?? null
+    : null;
+  return {
+    ...suggestion,
+    account: account ? { id: account.id, code: account.code, name: account.name } : null,
+    decidedAccount: decided ? { id: decided.id, code: decided.code, name: decided.name } : null,
+  };
+}
+
+function aiDecideInDemo(
+  s: DemoState,
+  companyId: string,
+  suggestionId: string,
+  payload: Record<string, any>,
+) {
+  aiRequireEnabled(s, 'accounting');
+  const suggestion = s.aiSuggestions.find((x) => x.id === suggestionId && x.company_id === companyId);
+  if (!suggestion) throw new ApiError(404, 'AI_SUGGESTION_NOT_FOUND', 'Suggestion introuvable');
+  if (suggestion.status !== 'proposed') {
+    throw new ApiError(409, 'AI_SUGGESTION_DECIDED', 'Suggestion déjà traitée');
+  }
+  const decision = String(payload.decision ?? '');
+  if (!['accepted', 'modified', 'rejected'].includes(decision)) {
+    throw new ApiError(400, 'VALIDATION_ERROR', 'Décision invalide');
+  }
+  let decidedId: string | null = null;
+  if (decision !== 'rejected') {
+    const wanted = decision === 'accepted' ? suggestion.suggested_account_id : payload.accountId;
+    if (!wanted) {
+      throw new ApiError(400, 'AI_ACCOUNT_NOT_IN_CHART', 'Choisissez un compte du plan comptable');
+    }
+    const account = accountsOf(companyId).find((a) => a.id === wanted && a.is_active);
+    if (!account) {
+      throw new ApiError(
+        400,
+        'AI_ACCOUNT_NOT_IN_CHART',
+        "Le compte choisi n'appartient pas au plan comptable de cette société",
+      );
+    }
+    decidedId = account.id;
+  }
+  const user = requireUser();
+  suggestion.status = decision as DemoAiSuggestion['status'];
+  suggestion.decided_account_id = decidedId;
+  suggestion.decided_by = user.id;
+  suggestion.decided_at = now();
+
+  let ruleCreated: { keyword: string; accountId: string } | null = null;
+  if (payload.createRule && decidedId) {
+    const keyword = String(payload.keyword ?? ruleKeyword(suggestion.input_text)).trim();
+    if (keyword.length >= 3) {
+      const existing = s.aiRules.find(
+        (r) => r.company_id === companyId && normalise(r.keyword) === normalise(keyword),
+      );
+      if (existing) existing.account_id = decidedId;
+      else {
+        s.aiRules.push({ id: uid(), company_id: companyId, keyword, account_id: decidedId, created_at: now() });
+      }
+      ruleCreated = { keyword, accountId: decidedId };
+    }
+  }
+  audit(companyId, `ai.suggestion.${decision}`, 'ai_suggestion', suggestion.id, {
+    accountId: decidedId,
+    ruleCreated: ruleCreated !== null,
+  });
+  persist();
+  return { suggestion: suggestionView(s, suggestion), entryCreated: false, ruleCreated };
+}
+
 export function demoRequest<T>(method: Method, rawPath: string, body?: unknown): T {
   const [path, search] = rawPath.split('?');
   const query = new URLSearchParams(search ?? '');
@@ -1945,6 +2284,131 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
     return { collaborators: [...byUser.values()] } as T;
   }
 
+
+  // --------------------------------------------------------------- AI (demo)
+  if (p === '/cabinet/ai/settings' && method === 'GET') {
+    requireCabinetAdminDemo(s);
+    return aiSettingsView(s) as T;
+  }
+
+  if (p === '/cabinet/ai/settings' && method === 'PATCH') {
+    requireCabinetAdminDemo(s);
+    const patch = payload as Record<string, any>;
+    const resolve = (ref: any) => {
+      if (ref === undefined) return undefined;
+      if (ref === null) return null;
+      const definition = providerByKey(String(ref.provider ?? ''));
+      if (!definition) throw new ApiError(400, 'AI_PROVIDER_NOT_ALLOWED', 'Fournisseur inconnu');
+      const model = ref.model ?? definition.models[0]?.id ?? null;
+      if (definition.models.length > 0 && !definition.models.some((mm) => mm.id === model)) {
+        throw new ApiError(400, 'AI_MODEL_NOT_ALLOWED', 'Modèle inconnu pour ce fournisseur');
+      }
+      return { provider: definition.key, model };
+    };
+    const primary = resolve(patch.primary);
+    const fallback = resolve(patch.fallback);
+    if (patch.enabled !== undefined) s.ai.enabled = Boolean(patch.enabled);
+    if (patch.routingMode !== undefined) {
+      if (!['manual', 'automatic'].includes(patch.routingMode)) {
+        throw new ApiError(400, 'VALIDATION_ERROR', 'Mode de routage invalide');
+      }
+      s.ai.routingMode = patch.routingMode;
+    }
+    if (primary !== undefined) {
+      s.ai.primaryProvider = primary?.provider ?? null;
+      s.ai.primaryModel = primary?.model ?? null;
+    }
+    if (fallback !== undefined) {
+      s.ai.fallbackProvider = fallback?.provider ?? null;
+      s.ai.fallbackModel = fallback?.model ?? null;
+    }
+    if (patch.monthlyBudgetUsd !== undefined) {
+      s.ai.monthlyBudgetUsd =
+        patch.monthlyBudgetUsd === null ? null : String(patch.monthlyBudgetUsd);
+    }
+    if (patch.monthlyRequestLimit !== undefined) {
+      s.ai.monthlyRequestLimit =
+        patch.monthlyRequestLimit === null ? null : Number(patch.monthlyRequestLimit);
+    }
+    if (patch.alertThreshold !== undefined) s.ai.alertThreshold = Number(patch.alertThreshold);
+    if (patch.features) {
+      for (const [key, value] of Object.entries(patch.features)) {
+        if (!['accounting', 'billing', 'payroll', 'cabinet'].includes(key)) {
+          throw new ApiError(400, 'AI_FEATURE_UNKNOWN', 'Module inconnu');
+        }
+        s.ai.features[key] = Boolean(value);
+      }
+    }
+    audit(null, 'ai.settings.update', 'ai_settings', null, { enabled: s.ai.enabled });
+    persist();
+    return aiSettingsView(s) as T;
+  }
+
+  const aiCredentialMatch = /^\/cabinet\/ai\/credentials\/([a-z0-9_-]+)$/.exec(p);
+  if (aiCredentialMatch) {
+    requireCabinetAdminDemo(s);
+    const provider = aiCredentialMatch[1]!;
+    if (method === 'PUT') {
+      // Deliberate refusal: the browser demonstration never accepts a key.
+      throw new ApiError(
+        400,
+        'DEMO_KEY_NOT_ACCEPTED',
+        'La démonstration n’accepte aucune clé API réelle. Utilisez le fournisseur fictif.',
+      );
+    }
+    if (method === 'DELETE') {
+      if (s.ai.credentials[provider]) {
+        s.ai.credentials[provider] = { configured: false, updatedAt: now() };
+      }
+      audit(null, 'ai.credential.delete', 'ai_credential', null, { provider });
+      persist();
+      return { provider, configured: false } as T;
+    }
+  }
+
+  if (p === '/cabinet/ai/test-connection' && method === 'POST') {
+    requireCabinetAdminDemo(s);
+    const provider = String(payload.provider ?? 'simulated');
+    if (!providerByKey(provider)) {
+      throw new ApiError(400, 'AI_PROVIDER_NOT_ALLOWED', 'Fournisseur inconnu');
+    }
+    if (provider !== 'simulated') {
+      throw new ApiError(
+        400,
+        'DEMO_KEY_NOT_ACCEPTED',
+        'Démonstration : aucun appel externe. Seul le fournisseur fictif peut être testé.',
+      );
+    }
+    return {
+      ok: true,
+      provider: 'simulated',
+      model: 'simulated-fictif',
+      latencyMs: 0,
+      simulated: true,
+    } as T;
+  }
+
+  if (p === '/cabinet/ai/usage' && method === 'GET') {
+    requireCabinetAdminDemo(s);
+    return aiUsageSummary(s) as T;
+  }
+
+  if (p === '/cabinet/ai/capabilities' && method === 'GET') {
+    requireCabinetAdminDemo(s);
+    return {
+      providers: AI_PROVIDERS.map((x) => ({
+        key: x.key,
+        label: x.label,
+        adapter: x.key === 'simulated' ? 'simulated' : 'openai',
+        requiresKey: x.requiresKey,
+        capabilities: x.capabilities,
+        models: x.models.map((m) => m.id),
+      })),
+      demoProvider: 'simulated',
+      sharedPoolEnabled: false,
+    } as T;
+  }
+
   // ----------------------------------------------------------- companies
   if (p === '/companies' && method === 'GET') {
     const user = requireUser();
@@ -2077,6 +2541,58 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
       return { company } as T;
     }
 
+
+    // ------------------------------------------------------------- AI
+    if (rest === '/ai/suggestions/account' && method === 'POST') {
+      requireModule(companyId, 'accounting', 'write');
+      return aiSuggestInDemo(s, companyId, payload) as T;
+    }
+
+    if (rest === '/ai/suggestions' && method === 'GET') {
+      requireModule(companyId, 'accounting', 'read');
+      return {
+        suggestions: s.aiSuggestions
+          .filter((x) => x.company_id === companyId)
+          .slice(0, 20)
+          .map((x) => suggestionView(s, x)),
+      } as T;
+    }
+
+    const aiDecision = /^\/ai\/suggestions\/([0-9a-f-]{36})\/decision$/.exec(rest);
+    if (aiDecision && method === 'POST') {
+      requireModule(companyId, 'accounting', 'write');
+      return aiDecideInDemo(s, companyId, aiDecision[1]!, payload) as T;
+    }
+
+    if (rest === '/ai/rules' && method === 'GET') {
+      requireModule(companyId, 'accounting', 'read');
+      return {
+        rules: s.aiRules
+          .filter((r) => r.company_id === companyId)
+          .map((r) => {
+            const account = s.accounts.find((a) => a.id === r.account_id);
+            return {
+              id: r.id,
+              keyword: r.keyword,
+              accountId: r.account_id,
+              code: account?.code ?? '',
+              name: account?.name ?? '',
+              useCount: 0,
+            };
+          }),
+      } as T;
+    }
+
+    const aiRule = /^\/ai\/rules\/([0-9a-f-]{36})$/.exec(rest);
+    if (aiRule && method === 'DELETE') {
+      requireModule(companyId, 'accounting', 'write');
+      const index = s.aiRules.findIndex((r) => r.id === aiRule[1] && r.company_id === companyId);
+      if (index === -1) throw new ApiError(404, 'NOT_FOUND', 'Règle introuvable');
+      s.aiRules.splice(index, 1);
+      audit(companyId, 'ai.rule.delete', 'ai_account_rule', aiRule[1]!, {});
+      persist();
+      return { deleted: true } as T;
+    }
 
     // ---------------------------------------------------------- tasks
     if (rest === '/tasks' && method === 'GET') {

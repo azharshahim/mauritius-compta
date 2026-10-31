@@ -14,7 +14,7 @@ import {
   resetDemo,
 } from '../src/demo';
 
-const call = <T>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, body?: unknown) =>
+const call = <T>(method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE', path: string, body?: unknown) =>
   demoRequest<T>(method, path, body);
 
 const login = () =>
@@ -428,5 +428,127 @@ describe('demo backend — cabinet module and module permissions', () => {
     expect(emails).toContain(DEMO_EMAIL);
     expect(emails).toContain('a.ramgoolam@cabinet-demo.test');
     expect(team.collaborators.every((c) => c.assignments.length > 0)).toBe(true);
+  });
+});
+
+describe('browser demo — Mauritius AI Engine (simulated, offline)', () => {
+  it('exposes a fictional provider and no way to store a real key', () => {
+    login();
+    const settings = call<{
+      enabled: boolean;
+      sharedPoolEnabled: boolean;
+      encryptionReady: boolean;
+      simulatedAvailable: boolean;
+      providers: { key: string; configured: boolean }[];
+      usage: { costKnown: boolean };
+    }>('GET', '/cabinet/ai/settings');
+
+    expect(settings.enabled).toBe(true);
+    expect(settings.simulatedAvailable).toBe(true);
+    expect(settings.sharedPoolEnabled).toBe(false);
+    expect(settings.encryptionReady).toBe(false);
+    expect(settings.providers.map((p) => p.key)).toContain('simulated');
+    expect(settings.providers.find((p) => p.key === 'simulated')!.configured).toBe(true);
+    expect(settings.providers.find((p) => p.key === 'openai')!.configured).toBe(false);
+    // No dated price is shipped: the cost is unknown, never invented.
+    expect(settings.usage.costKnown).toBe(false);
+
+    expect(() =>
+      call('PUT', '/cabinet/ai/credentials/openai', { apiKey: 'sk-real-key-should-never-stick' }),
+    ).toThrowError(/aucune clé API réelle/i);
+
+    const stored = JSON.stringify(localStorage.getItem('mc.demo.state.v1'));
+    expect(stored).not.toContain('sk-real-key-should-never-stick');
+  });
+
+  it('suggests an account from the company chart and never posts an entry', () => {
+    login();
+    const companyId = firstCompanyId();
+    const before = call<{ entries: unknown[] }>('GET', `/companies/${companyId}/entries`).entries.length;
+
+    const res = call<{ suggestion: any; entryCreated: boolean }>(
+      'POST',
+      `/companies/${companyId}/ai/suggestions/account`,
+      { description: 'Achat de fournitures de bureau — 2 500 MUR', amount: '2500.00', currency: 'MUR' },
+    );
+    expect(res.entryCreated).toBe(false);
+    expect(res.suggestion.status).toBe('proposed');
+    expect(res.suggestion.source).toBe('provider');
+    expect(res.suggestion.provider).toBe('simulated');
+    expect(res.suggestion.account).toBeTruthy();
+
+    const accounts = call<{ accounts: { id: string }[] }>('GET', `/companies/${companyId}/accounts`)
+      .accounts;
+    expect(accounts.some((a) => a.id === res.suggestion.account.id)).toBe(true);
+
+    const decision = call<{ entryCreated: boolean; ruleCreated: any }>(
+      'POST',
+      `/companies/${companyId}/ai/suggestions/${res.suggestion.id}/decision`,
+      { decision: 'accepted', createRule: true, keyword: 'fournitures bureau' },
+    );
+    expect(decision.entryCreated).toBe(false);
+    expect(decision.ruleCreated).toBeTruthy();
+
+    const after = call<{ entries: unknown[] }>('GET', `/companies/${companyId}/entries`).entries.length;
+    expect(after).toBe(before);
+
+    // The validated rule is reused without a provider call.
+    const again = call<{ suggestion: any }>('POST', `/companies/${companyId}/ai/suggestions/account`, {
+      description: 'Fournitures bureau — Curepipe',
+    });
+    expect(again.suggestion.source).toBe('rule');
+    expect(again.suggestion.suggested_account_code).toBe(res.suggestion.suggested_account_code);
+  });
+
+  it('refuses an account that is not in the dossier chart', () => {
+    login();
+    const companyId = firstCompanyId();
+    const otherId = call<{ companies: { id: string }[] }>('GET', '/companies').companies[1]!.id;
+    const otherAccount = call<{ accounts: { id: string }[] }>(
+      'GET',
+      `/companies/${otherId}/accounts`,
+    ).accounts[0]!.id;
+
+    const created = call<{ suggestion: any }>('POST', `/companies/${companyId}/ai/suggestions/account`, {
+      description: 'Abonnement logiciel',
+    });
+    expect(() =>
+      call('POST', `/companies/${companyId}/ai/suggestions/${created.suggestion.id}/decision`, {
+        decision: 'modified',
+        accountId: otherAccount,
+      }),
+    ).toThrowError(/plan comptable/i);
+  });
+
+  it('honours the kill switch, the per-module switch and the request cap', () => {
+    login();
+    const companyId = firstCompanyId();
+
+    call('PATCH', '/cabinet/ai/settings', { features: { accounting: false } });
+    expect(() =>
+      call('POST', `/companies/${companyId}/ai/suggestions/account`, { description: 'Loyer' }),
+    ).toThrowError(/désactivées pour ce module/i);
+
+    call('PATCH', '/cabinet/ai/settings', { features: { accounting: true }, enabled: false });
+    expect(() =>
+      call('POST', `/companies/${companyId}/ai/suggestions/account`, { description: 'Loyer' }),
+    ).toThrowError(/désactivée/i);
+
+    call('PATCH', '/cabinet/ai/settings', { enabled: true, monthlyRequestLimit: 1 });
+    const used = call<{ requests: number }>('GET', '/cabinet/ai/usage').requests;
+    if (used > 0) {
+      expect(() =>
+        call('POST', `/companies/${companyId}/ai/suggestions/account`, { description: 'Carburant' }),
+      ).toThrowError(/plafond/i);
+    }
+    call('PATCH', '/cabinet/ai/settings', { monthlyRequestLimit: 50 });
+  });
+
+  it('keeps AI settings away from non-administrators', () => {
+    call('POST', '/auth/login', {
+      email: 'a.ramgoolam@cabinet-demo.test',
+      password: 'DemoCollab2026',
+    });
+    expect(() => call('GET', '/cabinet/ai/settings')).toThrowError(/administration/i);
   });
 });

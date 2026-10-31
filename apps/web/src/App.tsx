@@ -16,6 +16,8 @@ import CabinetDashboardPage from './pages/cabinet/CabinetDashboard';
 import TasksPage from './pages/cabinet/Tasks';
 import TeamPage from './pages/cabinet/Team';
 import PreparedPage from './pages/prepared/Prepared';
+import AiSettingsPage from './pages/cabinet/AiSettings';
+import AiAssistantPage from './pages/cabinet/AiAssistant';
 import { MODULES, LEGACY_REDIRECTS, moduleByPath, type ModuleKey } from './modules';
 import { Spinner } from './components/ui';
 import { DemoBanner } from './components/DemoBanner';
@@ -177,6 +179,8 @@ export default function App() {
             <Route path="/cabinet/companies/:companyId" element={<DossierPage />} />
             <Route path="/cabinet/tasks" element={<TasksPage />} />
             <Route path="/cabinet/team" element={<TeamPage />} />
+            <Route path="/cabinet/ai-assistant" element={<AiAssistantPage />} />
+            <Route path="/cabinet/settings/ai" element={<AiSettingsPage />} />
 
             {/* Accounting (existing V0.1 screens, unchanged behaviour) */}
             <Route path="/accounting" element={<DashboardPage />} />

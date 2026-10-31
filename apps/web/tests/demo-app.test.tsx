@@ -189,3 +189,75 @@ describe('demo build (jsdom)', () => {
     await waitFor(() => expect(document.querySelector('.sidebar')?.className).not.toContain('open'));
   });
 });
+
+describe('demo build — Mauritius AI Engine screens', () => {
+  const fetchSpy = vi.fn();
+
+  beforeEach(() => {
+    resetDemo();
+    localStorage.clear();
+    fetchSpy.mockReset();
+    vi.stubGlobal('fetch', fetchSpy);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('renders the AI settings with the simulation banner and no key field in demo', async () => {
+    await login();
+    await navLink(/Paramètres IA/).click();
+    expect(await screen.findByRole('heading', { name: /Intelligence artificielle/i })).toBeTruthy();
+    expect(screen.getAllByText(/Simulation IA — aucune API externe utilisée/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Clé non requise|Clé configurée/i).length).toBeGreaterThan(0);
+    // The demo never offers to store a key.
+    const configure = screen.getAllByRole('button', { name: /Configurer|Remplacer/i })[0]!;
+    expect((configure as HTMLButtonElement).disabled).toBe(true);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('runs a full suggestion: propose, accept, rule saved, no entry posted', async () => {
+    await login();
+    await navLink(/Assistant comptable/).click();
+    expect(await screen.findByRole('heading', { name: /Assistant comptable/i })).toBeTruthy();
+
+    const description = screen.getByPlaceholderText(/Achat de fournitures de bureau/i);
+    fireEvent.change(description, {
+      target: { value: 'Achat de fournitures de bureau — 2 500 MUR' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Proposer un compte/i }));
+
+    const proposal = await screen.findByRole('heading', { name: /^Proposition$/i });
+    const card = proposal.closest('.card') as HTMLElement;
+    expect(within(card).getAllByText(/À vérifier/i).length).toBeGreaterThan(0);
+    expect(within(card).getByText(/Confiance/i)).toBeTruthy();
+
+    fireEvent.click(within(card).getByRole('button', { name: /^Accepter$/i }));
+    expect(await screen.findByText(/Décision enregistrée/i)).toBeTruthy();
+    expect(screen.getByText(/Aucune écriture comptable n’a été créée/i)).toBeTruthy();
+
+    // History and learned rule are visible, and nothing was posted.
+    await waitFor(() => expect(screen.getAllByText(/Acceptée/i).length).toBeGreaterThan(0));
+    expect(screen.getByText(/Règles apprises de ce dossier/i)).toBeTruthy();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('shows the AI error surface when the module is switched off', async () => {
+    await login();
+    await navLink(/Paramètres IA/).click();
+    await screen.findByRole('heading', { name: /Intelligence artificielle/i });
+    // Switch the accounting module off, then try the assistant.
+    const accounting = screen.getByLabelText(/^Comptabilité$/) as HTMLSelectElement;
+    fireEvent.change(accounting, { target: { value: 'no' } });
+    fireEvent.click(screen.getByRole('button', { name: /Enregistrer/i }));
+
+    await navLink(/Assistant comptable/).click();
+    await screen.findByRole('heading', { name: /Assistant comptable/i });
+    fireEvent.change(screen.getByPlaceholderText(/Achat de fournitures de bureau/i), {
+      target: { value: 'Carburant véhicule' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Proposer un compte/i }));
+    expect(await screen.findByText(/désactivées pour ce module/i)).toBeTruthy();
+  });
+});

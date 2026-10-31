@@ -444,7 +444,12 @@ body.demo-mode .modal-backdrop { padding-bottom: 64px; }
 .link-button:hover { text-decoration: underline; }
 .inline-form { display: flex; gap: 8px; margin-top: 8px; }
 .inline-form input { flex: 1; }
-.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+
+/* ------------------------------------------------------------------- AI */
+.suggestion-head { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; }
+.suggestion-account { font-size: 1.05rem; font-weight: 700; }
+.ai-step { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .banner-warning { background: var(--warning-bg); border: 1px solid #f0dca6; color: #6b4b00; }
 .muted { color: var(--muted); }
 .btn.disabled, .btn[aria-disabled='true'] { opacity: 0.45; pointer-events: none; }
