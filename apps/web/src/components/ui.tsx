@@ -129,21 +129,41 @@ export function Modal({
 }) {
   const { t } = useI18n();
   const dialogRef = useRef<HTMLDivElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
 
-  // Escape closes the dialog and focus returns to the triggering element.
+  // The close handler is usually an inline arrow: keep it in a ref so that a
+  // parent re-render (one per keystroke in a controlled field) does not re-run
+  // the focus effect below. Re-running it moved focus from the input to the
+  // dialog on every character, which made Android dismiss the virtual
+  // keyboard after the first letter.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  // Runs once per open/close. Escape closes; focus enters the dialog only if it
+  // is not already inside it, and returns to the triggering element on close.
   useEffect(() => {
     if (!open) return;
-    const previous = document.activeElement as HTMLElement | null;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') onCloseRef.current();
     };
     window.addEventListener('keydown', onKey);
-    dialogRef.current?.focus();
+
+    const dialog = dialogRef.current;
+    const active = document.activeElement as HTMLElement | null;
+    if (dialog && !(active && dialog.contains(active))) {
+      openerRef.current = active;
+      dialog.focus({ preventScroll: true });
+    }
+
     return () => {
       window.removeEventListener('keydown', onKey);
-      previous?.focus?.();
+      const opener = openerRef.current;
+      openerRef.current = null;
+      if (opener && document.contains(opener)) opener.focus({ preventScroll: true });
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   return (

@@ -357,7 +357,10 @@ body.demo-mode .modal-backdrop { padding-bottom: 64px; }
   .btn, .nav a, .topbar select, .icon-btn { min-height: 40px; }
   .nav a { padding: 11px 12px; }
   .form-row > * { flex: 1 1 140px; }
-  .modal-body, .modal { max-height: 88vh; }
+  .modal-body, .modal { max-height: 88dvh; }
+  /* Chrome on Android zooms the page when a field is focused below 16px, which
+     shifts the layout while the on-screen keyboard is open. */
+  input, select, textarea { font-size: 16px; }
   .page { padding: 14px; }
   .topbar { padding: 8px 12px; gap: 8px; }
   .topbar select { max-width: 150px; }
