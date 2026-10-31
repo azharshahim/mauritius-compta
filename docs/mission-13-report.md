@@ -37,9 +37,9 @@ Points structurels :
 * un ajustement réalisé unique par facture + règlement, une écriture unique par
   ajustement.
 
-Migration appliquée sur les bases de test PGlite (6/6 tests de migration). La CI
-PostgreSQL reste le juge final ; elle n’avait pas encore tourné au moment de ce
-rapport.
+Migration appliquée sur PGlite (6/6 tests de migration), sur PostgreSQL réel en
+CI (application + ré-application idempotente + seed fictif) et par la suite API
+complète exécutée sur PostgreSQL réel (job `API tests against real PostgreSQL`).
 
 ## 3. Taux de change
 
@@ -198,8 +198,9 @@ Aucune opération de démonstration n’est présentée comme enregistrée sur u
   ignorée sans base locale).
 * Typecheck API (application + tests), typecheck web (application + tests),
   `npm run build`, `npm run build:demo` et build API : verts localement.
-* La CI exécute en plus les migrations et les tests API contre un PostgreSQL réel ;
-  ce rapport ne préjuge pas de son résultat avant exécution.
+* CI GitHub verte sur PostgreSQL réel : migrations (application + idempotence +
+  seed), suite API complète et typecheck/build. Runs `41208339676` et
+  `41208333178`, commit `bd118cc`.
 * **Non vérifiés** : PostgreSQL réel en CI pour `0013` (la CI le fera), Chrome
   réel, Samsung Android physique, lecteur d’écran sur appareil.
 
