@@ -9,7 +9,10 @@
 > rapprochement** (missions 9–10) importe des relevés CSV/TSV/XLSX fictifs,
 > propose des correspondances, rapproche des règlements clients partiels
 > (n↔1, 1↔n) et exige une validation humaine — aucun rapprochement ni aucune
-> écriture automatique. Facturation (mission 6) :
+> écriture automatique. **Achats & Fournisseurs** (mission 11) gère les fiches
+> fournisseurs, factures d'achat, avoirs, règlements partiels/groupés et soldes
+> **par devise** ; la comptabilisation passe par les propositions existantes,
+> après validation puis comptabilisation humaines. Facturation (mission 6) :
 > **opérationnelle** — clients, devis, factures, avoirs, encaissements, balance âgée et PDF A4
 > générés par le serveur ; **aucun taux de TVA n'est fourni** et l'e-invoicing MRA reste
 > désactivé. Paie & RH : **préparée** (aucun calcul PAYE, CSG ou NSF). L'assistant comptable V2
@@ -375,6 +378,11 @@ données, **ni** secret, **ni** donnée réelle.
 | [`docs/mission-7-report.md`](docs/mission-7-report.md) | Rapport de mission 7 (assistant universel, paramètres société, TVA) |
 | [`docs/mission-9-report.md`](docs/mission-9-report.md) | Rapport de mission 9 (banque, rapprochement, Android) |
 | [`docs/mission-10-report.md`](docs/mission-10-report.md) | Rapport de mission 10 (rapprochement avancé, intégration Facturation, mobile) |
+| [`docs/mission-11-report.md`](docs/mission-11-report.md) | Rapport final de mission 11 (Achats & Fournisseurs, 16 points) |
+| [`docs/purchases-audit.md`](docs/purchases-audit.md) | Audit préalable, réutilisation du moteur et décisions |
+| [`docs/purchases-suppliers.md`](docs/purchases-suppliers.md) | Fournisseurs, factures d'achat, avoirs, TVA configurée, API |
+| [`docs/supplier-payments.md`](docs/supplier-payments.md) | Règlements partiels/groupés, acomptes, avoirs, banque, concurrence |
+| [`docs/supplier-accounting.md`](docs/supplier-accounting.md) | Propositions comptables, comptes, contrôles, immutabilité |
 | [`docs/advanced-reconciliation.md`](docs/advanced-reconciliation.md) | n↔1, 1↔n, partiels, blocages, lettrage et limites |
 | [`docs/bank-billing-integration.md`](docs/bank-billing-integration.md) | Banque ↔ Facturation, anti-doublons, comptabilisation existante |
 | [`docs/bank-import.md`](docs/bank-import.md) | Formats, colonnes, contrôles, idempotence, limites |
@@ -436,7 +444,7 @@ des permissions et des tables séparées par module :
 | Espace | Route | État |
 |---|---|---|
 | Cabinet | `/cabinet` | **opérationnel** : tableau de bord, dossiers clients, fiche dossier, tâches & échéances, collaborateurs |
-| Comptabilité | `/accounting` | **opérationnel** : fonctions V0.1.1 (plan comptable, écritures, grand livre, balance, états financiers, périodes, devises, audit) + **Banque & rapprochement** (import CSV/TSV/XLSX, rapprochement humain, propositions, rapport) |
+| Comptabilité | `/accounting` | **opérationnel** : fonctions V0.1.1 (plan comptable, écritures, grand livre, balance, états financiers, périodes, devises, audit) + **Banque & rapprochement** (import CSV/TSV/XLSX, rapprochement humain, propositions, rapport) + **Achats & Fournisseurs** (fournisseurs, factures d'achat, avoirs, règlements, échéancier par devise) |
 | Facturation | `/billing` | **opérationnel** : clients, devis, factures, avoirs, encaissements, balance âgée, PDF serveur ; e-invoicing MRA désactivé |
 | Paie & RH | `/payroll` | **préparé** : idem, aucun calcul PAYE/CSG/NSF |
 

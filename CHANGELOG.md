@@ -1,5 +1,53 @@
 # Journal des versions
 
+## Mission 11 — Achats & Fournisseurs (31 octobre 2026)
+
+> Aucune fusion, aucun déploiement OVH, aucune donnée réelle, aucun fournisseur
+> IA payant. PR nº1 laissée en brouillon ; `main` intact.
+
+### Ajouté
+
+- Migration `0011_purchases.sql` : fournisseurs, documents d'achat, lignes,
+  règlements, affectations de règlements et d'avoirs, événements, séquences de
+  numérotation, colonnes `bank_matches.purchase_payment_id|purchase_invoice_id`
+  et `attachments.purchase_document_id`.
+- Sous-ledger fournisseur : fiches, factures d'achat, avoirs, règlements
+  totaux/partiels/groupés, acomptes, soldes et échéancier **par devise**.
+- Numérotation atomique `ACH-AAAA-NNNN`, `AVF-AAAA-NNNN`, `RF-AAAA-NNNN`.
+- Propositions comptables via le moteur existant, cycle
+  Préparer → Vérifier → Valider → Comptabiliser, sans second grand livre.
+- TVA issue uniquement des taux configurés et vérifiés ; récupérabilité
+  explicite ; aucun taux ni règle MRA en dur.
+- Rapprochement bancaire fournisseur : candidats déterministes, lien idempotent
+  201/200, retrait confirmé, plafonds sous verrou.
+- Assistant : outils lecture seule pour fournisseurs, factures, dettes,
+  doublons et règlements.
+- Écran `/accounting/purchases` avec tableaux desktop et cartes mobiles,
+  export CSV, i18n FR/EN.
+- Démo schéma 9 : scénario A→H (80 000 ; partiel 30 000/50 000 ; groupé ;
+  avoir ; retard ; facture comptabilisée ; double règlement refusé ; EUR
+  distinct).
+- Tests : `purchases.test.ts` 31, démo 11, écran 1, concurrence PostgreSQL 3.
+- Documentation : audit, fournisseurs, règlements, comptabilisation, rapport
+  de mission 11.
+
+### Corrigé
+
+- La contrainte `journal_entries.source` conserve désormais `migration` et
+  `migration_opening` en plus de `purchase` (régression détectée par les tests
+  de migration existants).
+- Le libellé de navigation « Achats & OCR » devient « Achats & Fournisseurs ».
+- La route `/accounting/purchases` n'est plus une page « préparée ».
+
+### Limites déclarées
+
+- Interface Banque fournisseur partielle : liens disponibles par API, pas
+  encore exposés dans le panneau Banque.
+- Écarts de change, réévaluation, lettrage automatique : `NON IMPLÉMENTÉ`.
+- Conformité fiscale mauricienne, e-invoicing MRA et reverse charge :
+  `À VÉRIFIER` / `NON IMPLÉMENTÉ`.
+- Aucun test sur Samsung Android physique ; CI PostgreSQL réel après push.
+
 ## Mission 10 — rapprochement bancaire avancé & intégration Facturation (31 octobre 2026)
 
 > Aucune fusion, aucune connexion bancaire réelle, aucune dépense, aucun
