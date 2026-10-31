@@ -1,105 +1,107 @@
-# Rapport de tests — Mauritius Compta 0.1.1
+# Rapport de tests — Mauritius Compta 0.1.1 (mission 6)
 
-_Date : 30 octobre 2026._
+_Date : 31 octobre 2026._
 
 ## 1. Comment exécuter
 
 ```bash
 npm ci
-npm run typecheck   # TypeScript strict (API + interface)
-npm test            # Vitest, 77 tests
+npm run typecheck   # TypeScript strict (API + interface + tests)
+npm test            # Vitest : API puis interface
 npm run build       # compilation API + interface
-npm run verify      # les trois ci-dessus
+npm run build:demo  # bundle GitHub Pages (mode démo, sans réseau)
+npm run verify      # typecheck + tests + build
 ```
 
-Les tests s'exécutent par défaut sur **PGlite** : le véritable moteur PostgreSQL compilé en
-WebAssembly, exécuté en mémoire. Aucun service externe, aucun conteneur, aucune installation de
-PostgreSQL n'est nécessaire. Les migrations et les triggers PL/pgSQL sont réellement exécutés.
+Les tests API s'exécutent sur **PGlite** (PostgreSQL compilé en WebAssembly, en mémoire) : les
+migrations et les triggers PL/pgSQL sont réellement exécutés, sans service externe. Deux tâches
+CI complètent le dispositif :
 
-Deux tâches CI complètent ce dispositif :
+- `API tests against real PostgreSQL` : la même suite sur PostgreSQL 16, ce qui active les
+  4 tests de concurrence ;
+- `Migrations against real PostgreSQL` : migrations rejouées deux fois, seed et vérifications.
 
-- `API tests against real PostgreSQL` : la **même** suite tourne sur PostgreSQL 16, ce qui
-  active en plus les 4 tests de concurrence (`TEST_DATABASE_URL`) ;
-- `Migrations against real PostgreSQL` : migrations rejouées deux fois (idempotence), seed,
-  vérifications `psql`.
+## 2. Résultat global (exécution locale, 31 octobre 2026)
 
-## 2. Résultat global (exécution locale, PGlite)
+### API — `npm run test -w @mc/api`
 
-| Suite | Fichier | Tests | Résultat |
-|---|---|---|---|
-| Arithmétique monétaire, taux inverses, dates | `tests/money.test.ts` | 9 | ✅ |
-| Migrations PostgreSQL | `tests/migrations.test.ts` | 6 | ✅ |
-| Authentification / autorisation / langue | `tests/auth.test.ts` | 9 | ✅ |
-| Sociétés et isolation | `tests/companies.test.ts` | 6 | ✅ |
-| Plan comptable | `tests/accounts.test.ts` | 4 | ✅ |
-| Écritures, contrôles, multidevise | `tests/entries.test.ts` | 12 | ✅ |
-| Grand livre, balance, états financiers | `tests/reports.test.ts` | 10 | ✅ |
-| **Non-régressions V0.1.1** | `tests/regressions.test.ts` | **17** | ✅ |
-| Concurrence (PostgreSQL requis) | `tests/concurrency.test.ts` | 4 | ⏭️ ignorés sur PGlite |
-| **Total** | | **77** | **73 ✅ / 4 ⏭️** |
-
-Durée observée : ~12 s (PGlite), sur un environnement de CI standard.
-
-Sur PostgreSQL réel (tâche CI `API tests against real PostgreSQL`, commit `93a7b90`) :
-**77/77**, dont les 4 tests de concurrence — tâche verte en 30 s.
-
-## 3. Couverture des priorités du cahier des charges
-
-| # | Priorité demandée | Test(s) |
+| Fichier | Tests | Résultat |
 |---|---|---|
-| 1 | Équilibre débit/crédit | `entries.test.ts` (rejet d'écriture déséquilibrée), contrainte différée |
-| 2 | Précision et arrondi des montants | `money.test.ts`, `regressions.test.ts` (4 décimales max, arrondi à zéro refusé) |
-| 3 | Numérotation | `entries.test.ts`, `regressions.test.ts` (renumérotation), `concurrency.test.ts` (8 créations parallèles) |
-| 4 | Unicité des références | `regressions.test.ts` (doublon, casse, autre société), `concurrency.test.ts` |
-| 5 | Modification des brouillons | `regressions.test.ts` (devise, journal, exercice) |
-| 6 | Immutabilité des écritures validées | `entries.test.ts`, `regressions.test.ts` (DELETE SQL direct refusé) |
-| 7 | Contrepassations | `entries.test.ts`, `regressions.test.ts` (double contrepassation), `concurrency.test.ts` |
-| 8 | Périodes, clôture, réouverture | `entries.test.ts`, `regressions.test.ts` (société sans plan comptable) |
-| 9 | Soldes, grand livre, balance, états | `reports.test.ts`, `regressions.test.ts` (bilan équilibré en milieu d'historique, comptes désactivés) |
-| 10 | Devises | `entries.test.ts`, `regressions.test.ts` (devise inconnue, taux obligatoire, taux inverse exact) |
-| 11 | Traçabilité | `entries.test.ts` (audit), `regressions.test.ts` (journal append-only) |
-| 12 | Isolation multi-société | `companies.test.ts`, `regressions.test.ts` (trigger société sur pièces jointes) |
-| 13 | Migrations PostgreSQL | `migrations.test.ts`, CI « migrations » (double exécution) |
-| 14 | Sécurité | `auth.test.ts` (401/403, rôles, langue), `regressions.test.ts` (sessions invalidées, signature de fichier) |
-| 15 | Interface / langue / exports | `reports.test.ts` (CSV, PDF, langue), tests navigateur **fournis mais non exécutés** |
+| `tests/money.test.ts` | 9 | ✅ |
+| `tests/migrations.test.ts` | 6 | ✅ |
+| `tests/auth.test.ts` | 9 | ✅ |
+| `tests/companies.test.ts` | 6 | ✅ |
+| `tests/accounts.test.ts` | 4 | ✅ |
+| `tests/entries.test.ts` | 12 | ✅ |
+| `tests/reports.test.ts` | 10 | ✅ |
+| `tests/regressions.test.ts` | 17 | ✅ |
+| `tests/cabinet.test.ts` | 11 | ✅ |
+| `tests/billing.test.ts` | 17 | ✅ |
+| `tests/ai.test.ts` | 22 | ✅ |
+| `tests/ai-proposals.test.ts` | 16 | ✅ |
+| `tests/concurrency.test.ts` | 4 | ⏭️ ignorés sur PGlite |
+| **Total** | **143** | **139 ✅ / 4 ⏭️** |
 
-## 4. Tests de non-régression V0.1.1 (17)
+### Interface — `npm run test -w @mc/web`
 
-1. période comptable créée même sans plan comptable de démonstration ;
-2. renumérotation d'un brouillon changeant de journal/exercice ;
-3. taux obligatoire lors d'un passage en devise étrangère ;
-4. retour à la devise fonctionnelle sans taux ;
-5. devise non supportée refusée ;
-6. plus de 4 décimales refusées ;
-7. montant converti s'arrondissant à zéro refusé ;
-8. références uniques (insensible à la casse, par société) ;
-9. bilan équilibré lorsque la période commence en milieu d'historique ;
-10. comptes désactivés conservés dans le grand livre ;
-11. neutralisation des formules dans les CSV ;
-12. double contrepassation refusée ;
-13. validation d'un brouillon avec compte désactivé refusée ;
-14. signature binaire des pièces jointes vérifiée + suppression du fichier avec le brouillon ;
-15. isolation société et append-only vérifiés directement en SQL ;
-16. invalidation des sessions après changement de mot de passe ;
-17. taux inverse exact (8 décimales) et taux invalide en HTTP 400.
+| Fichier | Tests | Résultat |
+|---|---|---|
+| `tests/format.test.ts` | 4 | ✅ |
+| `tests/demo-engine.test.ts` | 22 | ✅ |
+| `tests/demo-app.test.tsx` | 11 | ✅ |
+| `tests/demo-billing.test.ts` | 13 | ✅ |
+| `tests/input-focus.test.tsx` | 10 | ✅ |
+| **Total** | **60** | **60 ✅** |
 
-## 5. Tests de concurrence (PostgreSQL réel)
+### Vérifications complémentaires
 
-| Test | Attendu |
-|---|---|
-| 8 écritures simultanées dans le même journal | 8 numéros distincts, format `SAL-AAAA-0001` |
-| 2 contrepassations simultanées | exactement une réussite (201), une en conflit (409), une seule ligne en base |
-| 2 écritures simultanées avec la même référence | une seule acceptée |
-| Balance après écritures parallèles | équilibrée |
+- `npm run typecheck` : 0 erreur (API, web, tests).
+- `npm run build:demo` : succès — 642 kB de JS, 16 kB de CSS.
+- CI GitHub Actions : runs `41156378284` (push) et `41156382220` (PR) verts.
+- Démo Pages : run `41156378229` vert (build + deploy).
 
-Ces tests sont **ignorés** lorsque `TEST_DATABASE_URL` n'est pas défini (PGlite est mono-connexion)
-et s'exécutent dans la tâche CI `postgres-tests`.
+## 3. Couverture fonctionnelle de la mission 6
 
-## 6. Ce qui n'est PAS testé (limites assumées)
+**Facturation (`tests/billing.test.ts`)** : CRUD clients, doublons certains vs homonymes,
+archivage sans suppression, articles, devis, conversion unique, numérotation séquentielle,
+verrouillage après émission, avoir partiel et refus d'un avoir excessif, encaissement partiel,
+trop-perçu, refus de double affectation et de dépassement, balance âgée, PDF réel généré,
+isolation entre sociétés, permissions de lecture/écriture.
 
-- **Aucun test navigateur exécuté** : environnement sans Chromium (voir `docs/browser-tests.md`).
-  Les 10 scénarios Playwright sont fournis, non exécutés, donc **non validés**.
-- Pas de test de charge ni de test de montée en charge.
-- Pas de test d'accessibilité automatisé (WCAG) — seule une revue manuelle des modales/navigation.
-- Pas de test de restitution après sinistre (sauvegarde/restauration) : procédure documentée
-  seulement.
+**Assistant V2 (`tests/ai-proposals.test.ts`)** : contrat complet, propositions déterministes
+(9 scénarios), comptes hors plan refusés, exercice fermé refusé, TVA non configurée,
+multidevise, validation humaine obligatoire, comptabilisation distincte, double
+comptabilisation refusée, idempotence, règles (priorité, versions, désactivation, conflits,
+isolation), absence d'écriture automatique.
+
+**Démo navigateur (`tests/demo-billing.test.ts`)** : mêmes parcours avec `localStorage`
+uniquement — listes fictives, conversion de devis, numérotation, verrouillage, avoir borné,
+PDF explicitement indisponible, balance âgée et solde client, encaissement partiel avec
+trop-perçu, proposition équilibrée, `post` impossible avant validation, comptabilisation unique,
+contrepartie hors plan refusée, règles versionnées et désactivables, isolation des dossiers.
+
+**Non-régression** : les 10 tests de focus (`input-focus.test.tsx`, correctif clavier Android)
+et les 22 tests de la démo historique restent verts.
+
+## 4. Tests ignorés et limites
+
+- `tests/concurrency.test.ts` (4 cas) : **ignorés** sans `TEST_DATABASE_URL` (PGlite ne
+  reproduit pas deux transactions concurrentes). Ils s'exécutent dans la CI PostgreSQL.
+- Tests Playwright (`apps/web/e2e`) : non exécutés ici (pas de Chromium dans l'environnement de
+  travail). La démo est donc validée par jsdom et par le workflow de publication, pas par une
+  session Chrome/Android réelle.
+- Le PDF n'est pas testé en mode démo : il est explicitement refusé (501) et le backend le
+  génère ; le contenu du PDF est vérifié par le test API (en-tête `%PDF`, taille > 1 ko).
+- Aucun fournisseur IA réel n'est testé : seul l'adaptateur simulé est actif, sans clé ni coût.
+
+## 5. Reproductibilité
+
+```bash
+npm ci
+npm run typecheck
+npm test
+npm run build:demo
+```
+
+Aucun secret, aucune base externe, aucun accès réseau ne sont nécessaires : les tests utilisent
+des données fictives et PGlite.

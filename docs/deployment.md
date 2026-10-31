@@ -190,12 +190,30 @@ chaque `push`.
 - `apps/api/**`, `.env*`, `apps/api/.data/**` (base PGlite), `node_modules`, secrets.
 - Le dossier publié est exactement `apps/web/dist` (HTML + JS + CSS + `404.html`).
 
-### Vérification (résultat du 31/10/2026, mission 4)
+### Données de la démo (schéma 4)
 
-`index 200` · bundle JS 200 (**460 465 octets**, quatre modules + cabinet présents) ·
-`404.html 200` ·
-lien profond `/entries` → 404 servi par notre page de redirection `#/entries`.
-Job `Verify the published HTTPS URL` : succès (run 41146643105).
+Le jeu fictif est chargé dans `localStorage` sous `mc.demo.state.v1` (schéma 4). Il contient
+deux clients, trois articles, un devis, deux factures (dont une partiellement réglée et
+créditée), un avoir, un encaissement, deux règles déterministes et une proposition d'écriture
+au statut « à vérifier ». Un changement de schéma force un rechargement propre du jeu fictif.
+
+- Aucun taux de TVA n'est fourni : la facturation affiche « aucun taux vérifié ».
+- **Aucun PDF n'est produit en démo** : l'appel renvoie `PDF_NOT_AVAILABLE_IN_DEMO` et
+  l'interface l'indique ; le PDF réel est généré par le backend (pdfkit).
+- **E-Invoicing MRA** : écran « préparé », jamais activé.
+- Assistant V2 : proposition → contrôles → validation humaine → comptabilisation distincte ;
+  la comptabilisation apparaît ensuite dans la comptabilité de démonstration.
+
+### Vérification (résultat du 31/10/2026, mission 6)
+
+Job `Verify the published HTTPS URL` : **succès** (run `41156378229`). Contrôles du workflow :
+page 200, bundle JS 200, bandeau « MODE DÉMONSTRATION », clé `mc.demo.state.v1`, quatre modules,
+cabinet, assistant IA, **écrans de facturation** (`Balance âgée`, `FAC-DEMO-0002`),
+**assistant V2** (`Écritures proposées`, `AI_PROPOSAL_NOT_VALIDATED`), `404.html` 200 et lien
+profond `/entries` redirigé.
+
+**Limite** : le workflow vérifie la publication HTTP et le contenu du bundle ; il n'ouvre pas de
+navigateur. Aucun test Chrome/Android réel n'a été exécuté pour cette mission.
 
 ```bash
 curl -sI https://azharshahim.github.io/mauritius-compta/            # 200 text/html

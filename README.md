@@ -5,10 +5,13 @@
 **Facturation** et **Paie & RH**.
 
 > **État des modules** — Cabinet : opérationnel (dossiers, tâches, collaborateurs,
-> permissions, assistant comptable IA). Comptabilité : moteur V0.1.1 conservé, inchangé.
-> Facturation et Paie : **préparées**, moteurs non développés (aucun calcul TVA, PAYE,
-> CSG ou NSF). Le moteur IA est **optionnel**, sans clé par défaut, et l'IA **ne
-> comptabilise jamais** à votre place.
+> permissions). Comptabilité : moteur V0.1.1 conservé, inchangé. Facturation (mission 6) :
+> **opérationnelle** — clients, devis, factures, avoirs, encaissements, balance âgée et PDF A4
+> générés par le serveur ; **aucun taux de TVA n'est fourni** et l'e-invoicing MRA reste
+> désactivé. Paie & RH : **préparée** (aucun calcul PAYE, CSG ou NSF). L'assistant comptable V2
+> propose des écritures équilibrées issues du plan comptable réel, exige une **validation
+> humaine** puis une **comptabilisation distincte** : aucune écriture n'est créée
+> automatiquement. Le moteur IA est **optionnel**, sans clé par défaut.
 > Voir [`docs/suite-architecture.md`](docs/suite-architecture.md) et
 > [`docs/cabinet-module.md`](docs/cabinet-module.md).
 
@@ -360,6 +363,7 @@ données, **ni** secret, **ni** donnée réelle.
 | [`docs/ai-cost-control.md`](docs/ai-cost-control.md) | Consommation, coûts exacts, budgets et plafonds |
 | [`docs/ai-account-suggestions.md`](docs/ai-account-suggestions.md) | Assistant de suggestion de compte et validation humaine |
 | [`docs/mission-5-report.md`](docs/mission-5-report.md) | Rapport de mission 5 |
+| [`docs/mission-6-report.md`](docs/mission-6-report.md) | Rapport de mission 6 (facturation, assistant V2) |
 | [`docs/audit-existing-apps.md`](docs/audit-existing-apps.md) | Audit des applications existantes du propriétaire (aucune modification) |
 | [`docs/mauritius-regulations/`](docs/mauritius-regulations/) | Veille réglementaire : comptabilité, TVA, IS, paie, données, sources, registre |
 
@@ -403,7 +407,7 @@ des permissions et des tables séparées par module :
 |---|---|---|
 | Cabinet | `/cabinet` | **opérationnel** : tableau de bord, dossiers clients, fiche dossier, tâches & échéances, collaborateurs |
 | Comptabilité | `/accounting` | **opérationnel** : toutes les fonctions V0.1.1 (plan comptable, écritures, grand livre, balance, états financiers, périodes, devises, audit) |
-| Facturation | `/billing` | **préparé** : tables et permissions en place, écrans annoncés, `501 NOT_IMPLEMENTED` |
+| Facturation | `/billing` | **opérationnel** : clients, devis, factures, avoirs, encaissements, balance âgée, PDF serveur ; e-invoicing MRA désactivé |
 | Paie & RH | `/payroll` | **préparé** : idem, aucun calcul PAYE/CSG/NSF |
 
 - Rôles : `cabinet_admin`, `manager`, `accountant`, `billing_clerk`, `payroll_manager`,

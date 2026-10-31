@@ -108,6 +108,11 @@ jobs:
           grep -q 'Simulation IA' /tmp/app.js
           grep -q 'Assistant comptable' /tmp/app.js
           grep -q 'Intelligence artificielle' /tmp/app.js
+          # Mission 6 : facturation réelle et assistant V2 présents dans le bundle publié
+          grep -q 'Balance âgée' /tmp/app.js
+          grep -q 'FAC-DEMO-0002' /tmp/app.js
+          grep -q 'Écritures proposées' /tmp/app.js
+          grep -q 'AI_PROPOSAL_NOT_VALIDATED' /tmp/app.js
           FOUR04=$(curl -s -o /tmp/404.html -w '%{http_code}' "$BASE/404.html")
           echo "404.html: $FOUR04"
           DEEP=$(curl -s -o /tmp/deep.html -w '%{http_code}' "$BASE/entries")

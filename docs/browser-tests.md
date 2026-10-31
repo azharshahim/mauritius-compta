@@ -172,3 +172,17 @@ tiroir de navigation mobile.
 | `apps/web/tests/demo-app.test.tsx` | +3 (10 au total) | écran Paramètres IA (bandeau de simulation, aucun champ de clé actif), parcours proposition → acceptation → règle, erreur quand le module est désactivé |
 
 Aucun de ces tests n'appelle le réseau : `fetch` est espionné et doit rester inutilisé.
+
+## 10. Écrans facturation et assistant V2 (mission 6)
+
+| Fichier | Tests | Couverture |
+|---|---|---|
+| `apps/web/tests/demo-billing.test.ts` | 13 | listes fictives, conversion de devis unique, numérotation et verrouillage, avoir borné, PDF explicitement indisponible, balance âgée et solde client, refus de dépassement d'affectation, encaissement partiel avec trop-perçu, proposition équilibrée sans écriture, validation humaine puis comptabilisation unique, contrepartie hors plan refusée, règles versionnées/désactivables, isolation par société |
+| `apps/web/tests/demo-app.test.tsx` | +1 | ouverture des écrans `/billing` (tableau de bord, factures, balance âgée) et de `/cabinet/ai-proposals` en jsdom ; la paie reste annoncée comme préparée |
+
+Aucun de ces tests n'appelle le réseau : `fetch` reste espionné et inutilisé. Le PDF n'est pas
+simulé : la démo renvoie `PDF_NOT_AVAILABLE_IN_DEMO` et l'écran l'affiche.
+
+> Limite : toujours **aucun navigateur réel** (Chrome, Samsung/Android) dans l'environnement de
+> travail. La publication GitHub Pages est vérifiée par le workflow (HTTP 200, bundle, chaînes
+> des écrans, `404.html`, lien profond), pas par une session graphique.

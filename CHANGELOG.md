@@ -1,5 +1,52 @@
 # Journal des versions
 
+## Mauritius Business Suite — 31 octobre 2026 (mission 6)
+
+> Facturation de bout en bout + assistant comptable V2. Cœur comptable et correctif clavier
+> Android conservés ; Paie & RH inchangée.
+
+### Ajouté — Facturation
+
+- Clients (CRUD, archivage, BRN/TVA/adresse/contacts/devise/conditions/compte collectif),
+  articles FR/EN, devis convertibles, factures, avoirs partiels, encaissements multi-factures
+  avec trop-perçu, solde client, balance âgée, détection déterministe de doublons.
+- Numérotation séquentielle atomique par société/type/année (`billing_number_sequences`),
+  verrouillage après émission, brouillon modifiable, audit de chaque étape.
+- PDF A4 FR/EN réellement générés par le serveur (`pdfkit`) : devis, factures, avoirs, reçus.
+- Aucun taux de TVA seedé : un taux daté et vérifié par un professionnel est requis
+  (`VAT_NOT_CONFIGURED`, `VAT_RATE_NOT_VERIFIED`, `VAT_RATE_NOT_APPLICABLE`).
+- E-invoicing MRA : **désactivé**, aucun envoi, aucune conformité revendiquée.
+
+### Ajouté — Assistant comptable V2
+
+- Proposition d'écriture complète (journal, date, libellé, référence, devise, taux, lignes
+  débit/crédit, justification, manques, alertes) sur neuf scénarios, comptes limités au plan
+  comptable réel.
+- Douze contrôles avant validation (équilibre, comptes, journal, exercice, date, devise/taux,
+  TVA, droits, doublon, société, document source, double comptabilisation).
+- Cycle strict Proposition → Vérification → Validation humaine → Comptabilisation ;
+  `validate` ne crée jamais d'écriture, `post` est une action distincte et unique.
+- Règles déterministes (six types) : priorité, versions, désactivation, historique, isolation
+  par société, explication de la règle utilisée, aucun conflit appliqué en silence.
+- Intégration Facturation → Comptabilité : propositions déterministes depuis les documents,
+  comptabilisation via le moteur comptable, traçabilité bidirectionnelle, idempotence garantie
+  par la base (référence unique, `accounting_entry_id` unique, verrous `FOR UPDATE`).
+
+### Ajouté — Interface et démonstration
+
+- Écrans `/billing` (tableau de bord, clients, devis, factures, avoirs, encaissements, balance
+  âgée) et `/cabinet/ai-proposals` (proposition éditable, contrôles, valider/rejeter/
+  comptabiliser, règles).
+- Démo GitHub Pages : schéma 4 avec facturation réelle, propositions, règles ; `localStorage`
+  uniquement, aucune clé, aucun appel externe, **aucun PDF simulé présenté comme réel**
+  (`PDF_NOT_AVAILABLE_IN_DEMO`).
+
+### Tests
+
+- API : 139 réussis / 4 ignorés (PostgreSQL réel). Web : 60 réussis, dont 13 nouveaux cas
+  facturation + assistant de la démo et un test d'écran « aucune écriture automatique ».
+- CI et publication Pages vertes (`41156378284`, `41156382220`, `41156378229`).
+
 ## Mauritius Business Suite — 31 octobre 2026 (mission 5)
 
 > Correctif Android + moteur IA multi-fournisseurs. Cœur comptable 0.1.1 conservé.
