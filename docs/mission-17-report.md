@@ -208,6 +208,21 @@ Les 11 tests ignorés sont ceux qui exigent une base PostgreSQL réelle ou un
 environnement de concurrence dédié ; la CI `postgres-tests` les exécute. Aucun
 test n’a été modifié pour masquer un échec.
 
+### CI GitHub Actions
+
+Commit `634e813`, poussé sur `arena/b0b62798-mauritius-compta` :
+
+| Workflow | Résultat | Lien |
+|---|---|---|
+| CI (push) | **succès** — migrations PostgreSQL, tests API PostgreSQL, typecheck/tests/build | [run 41224891019](https://github.com/azharshahim/mauritius-compta/actions/runs/41224891019) |
+| CI (pull request nº1) | **succès** | [run 41224895970](https://github.com/azharshahim/mauritius-compta/actions/runs/41224895970) |
+| Demo (GitHub Pages) | **succès** — build et déploiement de la démonstration | [run 41224891073](https://github.com/azharshahim/mauritius-compta/actions/runs/41224891073) |
+
+Les trois jobs de la CI sont verts : `Migrations against real PostgreSQL`,
+`API tests against real PostgreSQL`, `Typecheck, tests and build`. Les
+avertissements visibles concernent uniquement la dépréciation de Node 20 dans les
+actions et la migration d’image `ubuntu-latest` ; ils ne sont pas des échecs.
+
 ### Non testé
 
 - rendu papier réel dans Chrome Windows et Chrome Android ;
