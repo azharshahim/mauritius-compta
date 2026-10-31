@@ -24,6 +24,7 @@ import { payrollRoutes } from './modules/payroll/routes.js';
 import { aiRoutes } from './modules/ai/routes.js';
 import { migrationRoutes } from './modules/migration/routes.js';
 import { bankRoutes } from './modules/bank/routes.js';
+import { letteringRoutes } from './modules/lettering/routes.js';
 import type { UserRow } from './types.js';
 
 declare module 'fastify' {
@@ -194,6 +195,8 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
       // Bank statement import and reconciliation: proposals only, human
       // confirmation, never an automatic accounting entry.
       bankRoutes(secured, db, config);
+      // Ledger lettering (mission 12): posted lines only, additive groups.
+      letteringRoutes(secured, db);
     });
   }, { prefix: '/api' });
 

@@ -6,6 +6,12 @@ import { effectiveAccess, type ModuleContext } from '../../lib/permissions.js';
 import type { AccessLevel, ModuleName } from '../../types.js';
 import type { AIService } from './service.js';
 import { loadProposal, proposeManual, viewProposal } from './proposals.js';
+import {
+  explainLineLettering,
+  letteringReport,
+  listLettrableAccounts,
+  listLetteringLines,
+} from '../lettering/service.js';
 
 /**
  * Universal assistant - read-only tool registry (mission 7).
@@ -1114,6 +1120,176 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
                   (r) =>
                     `• ${r.payment_no ?? 'no number'} — ${r.supplier_name}, ${money(r.amount)} ${r.currency}, ${r.allocations} allocation(s)${r.accounting_entry_id ? ', posted' : ', not posted'}`,
                 ),
+        },
+      };
+    },
+  },
+
+  // ------------------------------------------------------- ledger lettering
+  {
+    key: 'lettering.unlettered',
+    module: 'accounting',
+    readOnly: true,
+    title: { fr: 'Lignes de tiers non lettrées', en: 'Unlettered third-party lines' },
+    description: {
+      fr: 'Liste en lecture seule les lignes comptabilisées de clients/fournisseurs qui gardent un restant à lettrer.',
+      en: 'Read-only list of posted customer/supplier lines that still have a remaining amount to letter.',
+    },
+    args: z
+      .object({
+        accountId: z.string().uuid().optional(),
+        limit: z.number().int().min(1).max(50).optional(),
+      })
+      .strict(),
+    async run(ctx, args) {
+      requireAccess(ctx, 'accounting', 'read');
+      const accounts = await listLettrableAccounts(ctx.db, ctx.companyId);
+      const selected = args.accountId ? accounts.filter((a: any) => a.id === args.accountId) : accounts;
+      const rows: any[] = [];
+      for (const account of selected.slice(0, 6)) {
+        const result = await listLetteringLines(ctx.db, ctx.companyId, {
+          accountId: account.id,
+          status: 'unlettered',
+          limit: 200,
+        });
+        rows.push(...result.lines.slice(0, (args.limit ?? 10) - rows.length));
+        if (rows.length >= (args.limit ?? 10)) break;
+      }
+      const limited = rows.slice(0, args.limit ?? 10);
+      return {
+        data: {
+          lines: limited.map((line) => ({
+            accountCode: line.accountCode,
+            entryNo: line.entryNo,
+            entryDate: line.entryDate,
+            reference: line.entryReference,
+            thirdParty: line.partnerName,
+            document: line.documentNo,
+            debit: line.debit,
+            credit: line.credit,
+            remaining: line.remaining,
+            currency: line.currency,
+            readOnly: true,
+          })),
+          note:
+            'Aucun lettrage n’est validé par l’assistant. La confirmation humaine reste obligatoire.',
+          readOnly: true,
+        },
+        rowCount: limited.length,
+        lines: {
+          fr: limited.length
+            ? limited.map(
+                (line) =>
+                  `${line.accountCode} · ${line.entryNo} · ${line.entryReference ?? line.entryDescription} · restant ${line.remaining} ${line.currency}`,
+              )
+            : ['Aucune ligne de tiers non lettrée n’a été trouvée.'],
+          en: limited.length
+            ? limited.map(
+                (line) =>
+                  `${line.accountCode} · ${line.entryNo} · ${line.entryReference ?? line.entryDescription} · remaining ${line.remaining} ${line.currency}`,
+              )
+            : ['No unlettered third-party line was found.'],
+        },
+      };
+    },
+  },
+  {
+    key: 'lettering.partial',
+    module: 'accounting',
+    readOnly: true,
+    title: { fr: 'Expliquer un lettrage partiel', en: 'Explain a partial lettering' },
+    description: {
+      fr: 'Explique, à partir du grand livre, pourquoi une ligne est partiellement lettrée et quel restant subsiste.',
+      en: 'Explains from the ledger why a line is partially lettered and what remains.',
+    },
+    args: z
+      .object({
+        lineId: z.string().uuid().optional(),
+        accountId: z.string().uuid().optional(),
+        limit: z.number().int().min(1).max(20).optional(),
+      })
+      .strict(),
+    async run(ctx, args) {
+      requireAccess(ctx, 'accounting', 'read');
+      if (args.lineId) {
+        const explanation = await explainLineLettering(ctx.db, ctx.companyId, args.lineId);
+        return {
+          data: explanation,
+          rowCount: 1,
+          lines: { fr: [explanation.explanation.fr], en: [explanation.explanation.en] },
+        };
+      }
+      const accounts = await listLettrableAccounts(ctx.db, ctx.companyId);
+      const selected = args.accountId ? accounts.filter((a: any) => a.id === args.accountId) : accounts;
+      const rows: any[] = [];
+      for (const account of selected.slice(0, 6)) {
+        const result = await listLetteringLines(ctx.db, ctx.companyId, {
+          accountId: account.id,
+          status: 'partial',
+          limit: 100,
+        });
+        rows.push(...result.lines.slice(0, (args.limit ?? 10) - rows.length));
+        if (rows.length >= (args.limit ?? 10)) break;
+      }
+      const limited = rows.slice(0, args.limit ?? 10);
+      return {
+        data: { partialLines: limited, readOnly: true },
+        rowCount: limited.length,
+        lines: {
+          fr: limited.length
+            ? limited.map(
+                (line) =>
+                  `${line.entryNo} (${line.accountCode}) : ${line.lettered} lettrés sur ${line.amount}, restant ${line.remaining} ${line.currency}.`,
+              )
+            : ['Aucune ligne partiellement lettrée n’a été trouvée.'],
+          en: limited.length
+            ? limited.map(
+                (line) =>
+                  `${line.entryNo} (${line.accountCode}): ${line.lettered} lettered of ${line.amount}, remaining ${line.remaining} ${line.currency}.`,
+              )
+            : ['No partially lettered line was found.'],
+        },
+      };
+    },
+  },
+  {
+    key: 'lettering.payments',
+    module: 'accounting',
+    readOnly: true,
+    title: { fr: 'Règlements à affecter', en: 'Payments to allocate' },
+    description: {
+      fr: 'Liste les règlements enregistrés dont la ligne comptable garde un restant non lettré.',
+      en: 'Lists recorded payments whose accounting line still has an unlettered remaining amount.',
+    },
+    args: z.object({ limit: z.number().int().min(1).max(50).optional() }).strict(),
+    async run(ctx, args) {
+      requireAccess(ctx, 'accounting', 'read');
+      const report = await letteringReport(ctx.db, ctx.companyId);
+      const rows = report.unletteredPayments
+        .filter((p: any) => p.status !== 'awaiting_accounting')
+        .slice(0, args.limit ?? 10);
+      return {
+        data: {
+          payments: rows,
+          awaitingAccounting: report.unletteredPayments.filter(
+            (p: any) => p.status === 'awaiting_accounting',
+          ).length,
+          readOnly: true,
+        },
+        rowCount: rows.length,
+        lines: {
+          fr: rows.length
+            ? rows.map(
+                (p: any) =>
+                  `${p.number} · ${p.paymentDate} · ${p.partnerName} · restant non lettré ${p.remaining} ${p.currency}`,
+              )
+            : ['Aucun règlement enregistré ne reste à affecter.'],
+          en: rows.length
+            ? rows.map(
+                (p: any) =>
+                  `${p.number} · ${p.paymentDate} · ${p.partnerName} · unlettered remaining ${p.remaining} ${p.currency}`,
+              )
+            : ['No recorded payment remains to be allocated.'],
         },
       };
     },

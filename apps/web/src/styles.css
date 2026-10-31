@@ -940,3 +940,46 @@ tr.total-row td { font-weight: 700; background: #f2f6fb; border-top: 2px solid v
   .modal-actions { flex-wrap: wrap; }
   .modal-actions .btn { flex: 1 1 auto; white-space: normal; }
 }
+
+/* --------------------------------------------------------------- Lettrage */
+.lettering-page { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.lettering-page .page-head { gap: 10px; flex-wrap: wrap; }
+.lettering-head-actions { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; max-width: 360px; }
+.lettering-filters { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 2fr) auto; gap: 10px; align-items: end; }
+.lettering-filters input, .lettering-filters select { min-width: 0; max-width: 100%; }
+.lettering-table .table { min-width: 860px; }
+.lettering-table .is-selected { background: #eef6ff; }
+.lettering-amount { width: 120px; max-width: 100%; }
+.lettering-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.lettering-suggestions { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.lettering-suggestions li { border: 1px solid var(--border, #d8dee9); border-radius: var(--radius-sm, 8px); padding: 10px 12px; min-width: 0; }
+.lettering-suggestion-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: space-between; }
+.lettering-suggestion-head strong { overflow-wrap: anywhere; }
+.lettering-reasons { margin: 6px 0; padding-left: 18px; font-size: 0.8rem; }
+.lettering-cards { display: none; list-style: none; margin: 0; padding: 0; gap: 10px; }
+.lettering-cards li { border: 1px solid var(--border, #d8dee9); border-radius: var(--radius-sm, 8px); padding: 10px 12px; min-width: 0; }
+.lettering-cards li.is-selected { border-color: #2b6cb0; background: #f2f8ff; }
+.lettering-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.lettering-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; font-size: 0.85rem; }
+.lettering-card-grid span:last-child { grid-column: span 2; }
+.lettering-events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lettering-events li { overflow-wrap: anywhere; border-bottom: 1px solid var(--border, #e3e8ef); padding-bottom: 5px; }
+.lettering-preview-lines { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lettering-preview-lines li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; border-bottom: 1px solid var(--border, #e3e8ef); padding-bottom: 5px; overflow-wrap: anywhere; }
+.lettering-summary { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.lettering-currency-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.lettering-currency { border: 1px solid var(--border, #d8dee9); border-radius: var(--radius-sm, 8px); padding: 10px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.checkbox-row { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; font-size: 0.85rem; }
+.section-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+@media (max-width: 900px) {
+  .lettering-filters { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .lettering-page .page-head h1 { font-size: 1.2rem; }
+  .lettering-head-actions { max-width: 100%; }
+  .lettering-filters { grid-template-columns: minmax(0, 1fr); }
+  .lettering-table { display: none; }
+  .lettering-cards { display: flex; flex-direction: column; }
+  .lettering-actions .btn { flex: 1 1 auto; white-space: normal; }
+  .lettering-summary { flex-direction: column; align-items: flex-start; }
+}

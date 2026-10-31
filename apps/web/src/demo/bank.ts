@@ -964,6 +964,119 @@ function viewBankImport(item: DemoBankImport) {
 /* Request handler                                                            */
 /* -------------------------------------------------------------------------- */
 
+
+function supplierCandidatesOf(state: DemoState, companyId: string, txn: DemoBankTransaction) {
+  const signed = amt(txn.amount);
+  const direction = signed < 0n ? 'out' : 'in';
+  const allocated = state.bankMatches
+    .filter((m) => m.transaction_id === txn.id && m.status === 'confirmed')
+    .reduce((sum, m) => sum + amt(m.amount), 0n);
+  const remaining = (signed < 0n ? -signed : signed) - allocated;
+  const candidates = state.purchasePayments
+    .filter((p) => p.company_id === companyId && p.status === 'recorded' && p.currency === txn.currency)
+    .map((payment) => {
+      const supplier = state.purchaseSuppliers.find((s) => s.id === payment.supplier_id);
+      const matched = state.bankMatches
+        .filter((m) => m.purchase_payment_id === payment.id && m.status === 'confirmed')
+        .reduce((sum, m) => sum + amt(m.amount), 0n);
+      const available = amt(payment.amount) - matched;
+      const linked = state.bankMatches.find(
+        (m) =>
+          m.transaction_id === txn.id &&
+          m.purchase_payment_id === payment.id &&
+          m.status === 'confirmed',
+      );
+      const suggested = linked
+        ? amt(linked.amount)
+        : available < (remaining > 0n ? remaining : 0n)
+          ? available
+          : remaining > 0n
+            ? remaining
+            : 0n;
+      const allocations = state.purchaseAllocations
+        .filter((a) => a.payment_id === payment.id && !a.cancelled_at)
+        .map((a) => {
+          const invoice = state.purchaseDocuments.find((d) => d.id === a.invoice_id);
+          const outstanding = invoice
+            ? amt(invoice.total_amount) - amt(invoice.amount_paid) - amt(invoice.credited_amount)
+            : 0n;
+          return {
+            invoiceId: a.invoice_id,
+            invoiceNumber: invoice?.doc_no ?? null,
+            supplierReference: invoice?.supplier_reference ?? '',
+            amount: a.amount,
+            invoiceTotal: invoice?.total_amount ?? '0.0000',
+            invoicePaid: invoice?.amount_paid ?? '0.0000',
+            invoiceCredited: invoice?.credited_amount ?? '0.0000',
+            invoiceOutstanding: formatScaled(outstanding > 0n ? outstanding : 0n),
+            currency: invoice?.currency ?? payment.currency,
+          };
+        });
+      const issues: { code: string; fr: string; en: string; blocking: boolean }[] = [];
+      if (direction === 'in') {
+        issues.push({
+          code: 'DIRECTION_MISMATCH',
+          fr: 'Un crédit bancaire ne peut pas financer un paiement fournisseur.',
+          en: 'A bank credit cannot fund a supplier payment.',
+          blocking: true,
+        });
+      }
+      if (available <= 0n) {
+        issues.push({
+          code: 'PAYMENT_FULLY_ALLOCATED',
+          fr: 'Ce règlement est déjà entièrement rapproché en banque.',
+          en: 'This payment is already fully reconciled in the bank.',
+          blocking: true,
+        });
+      }
+      if (remaining <= 0n) {
+        issues.push({
+          code: 'TRANSACTION_FULLY_ALLOCATED',
+          fr: 'Cette transaction bancaire est déjà entièrement affectée.',
+          en: 'This bank transaction is already fully allocated.',
+          blocking: true,
+        });
+      }
+      const reasons: { code: string; fr: string; en: string }[] = [];
+      if (txn.reference && payment.reference && txn.reference.toLowerCase() === payment.reference.toLowerCase()) {
+        reasons.push({
+          code: 'REFERENCE_MATCH',
+          fr: 'Référence bancaire identique à celle du règlement.',
+          en: 'Bank reference matches the payment reference.',
+        });
+      }
+      return {
+        paymentId: payment.id,
+        paymentNumber: payment.payment_no,
+        paymentDate: payment.payment_date,
+        kind: payment.kind,
+        amount: payment.amount,
+        currency: payment.currency,
+        method: payment.method,
+        reference: payment.reference,
+        supplierId: payment.supplier_id,
+        supplierName: supplier?.name ?? '',
+        unallocatedAmount: formatScaled(available > 0n ? available : 0n),
+        accountingEntryId: payment.accounting_entry_id,
+        accountingPosted: Boolean(payment.accounting_entry_id),
+        matchedAmount: formatScaled(matched),
+        availableAmount: formatScaled(available > 0n ? available : 0n),
+        suggestedAmount: formatScaled(suggested > 0n ? suggested : 0n),
+        confidence: reasons.length ? 0.75 : 0.3,
+        reasons,
+        issues,
+        allocations,
+        alreadyLinkedToTransaction: Boolean(linked),
+      };
+    });
+  return {
+    transactionRemaining: formatScaled(remaining > 0n ? remaining : 0n),
+    allocatedAmount: formatScaled(allocated),
+    direction,
+    candidates,
+  };
+}
+
 export function handleDemoBank(
   state: DemoState,
   companyId: string,
@@ -1148,6 +1261,111 @@ export function handleDemoBank(
         .sort((a, b) => (a.txn_date < b.txn_date ? 1 : -1))
         .map((t) => ({ ...t, bank_name: state.bankAccounts.find((b) => b.id === t.bank_account_id)?.name })),
     };
+  }
+
+  const supplierCandidatesMatch = /^\/transactions\/([^/]+)\/supplier-candidates$/.exec(path);
+  if (supplierCandidatesMatch && method === 'GET') {
+    const txn = state.bankTransactions.find(
+      (t) => t.id === supplierCandidatesMatch[1] && t.company_id === companyId,
+    );
+    if (!txn) throw new ApiError(404, 'BANK_TRANSACTION_NOT_FOUND', 'Transaction introuvable');
+    return supplierCandidatesOf(state, companyId, txn);
+  }
+
+  const supplierLinkMatch = /^\/transactions\/([^/]+)\/supplier-payments(?:\/([^/]+))?$/.exec(path);
+  if (supplierLinkMatch) {
+    const txn = state.bankTransactions.find(
+      (t) => t.id === supplierLinkMatch[1] && t.company_id === companyId,
+    );
+    if (!txn) throw new ApiError(404, 'BANK_TRANSACTION_NOT_FOUND', 'Transaction introuvable');
+    const paymentId = supplierLinkMatch[2];
+    if (method === 'POST' && !paymentId) {
+      if (payload.confirm !== true) {
+        throw new ApiError(400, 'BANK_CONFIRMATION_REQUIRED', 'Confirmation humaine explicite requise');
+      }
+      const payment = state.purchasePayments.find(
+        (p) => p.id === String(payload.paymentId ?? '') && p.company_id === companyId,
+      );
+      if (!payment) throw new ApiError(404, 'PURCHASE_PAYMENT_NOT_FOUND', 'Règlement fournisseur introuvable');
+      if (payment.status !== 'recorded') {
+        throw new ApiError(409, 'PURCHASE_PAYMENT_CANCELLED', 'Règlement fournisseur annulé');
+      }
+      if (payment.currency !== txn.currency) {
+        throw new ApiError(409, 'BANK_CURRENCY_MISMATCH', 'Devises incompatibles');
+      }
+      if (amt(txn.amount) >= 0n) {
+        throw new ApiError(409, 'BANK_DIRECTION_MISMATCH', 'Un encaissement ne finance pas un paiement fournisseur');
+      }
+      const requested = parseAmount(String(payload.amount ?? ''));
+      if (requested === null || requested <= 0n) {
+        throw new ApiError(400, 'BANK_INVALID_AMOUNT', 'Montant positif requis');
+      }
+      const existing = state.bankMatches.find(
+        (m) =>
+          m.transaction_id === txn.id &&
+          m.purchase_payment_id === payment.id &&
+          m.status === 'confirmed',
+      );
+      if (existing) {
+        if (amt(existing.amount) !== requested) {
+          throw new ApiError(409, 'BANK_LINK_ALREADY_EXISTS', 'Ce règlement est déjà lié pour un autre montant');
+        }
+        return { match: existing, transaction: txn, idempotent: true };
+      }
+      const txnAllocated = state.bankMatches
+        .filter((m) => m.transaction_id === txn.id && m.status === 'confirmed')
+        .reduce((sum, m) => sum + amt(m.amount), 0n);
+      const txnRemaining = (amt(txn.amount) < 0n ? -amt(txn.amount) : amt(txn.amount)) - txnAllocated;
+      if (requested > txnRemaining) {
+        throw new ApiError(409, 'BANK_AMOUNT_EXCEEDS_TRANSACTION', 'Montant supérieur au restant de la transaction');
+      }
+      const paymentMatched = state.bankMatches
+        .filter((m) => m.purchase_payment_id === payment.id && m.status === 'confirmed')
+        .reduce((sum, m) => sum + amt(m.amount), 0n);
+      const available = amt(payment.amount) - paymentMatched;
+      if (requested > available) {
+        throw new ApiError(409, 'BANK_AMOUNT_EXCEEDS_PAYMENT', 'Montant supérieur au restant du règlement');
+      }
+      const match: DemoBankMatch = {
+        id: id(),
+        company_id: companyId,
+        bank_account_id: txn.bank_account_id,
+        transaction_id: txn.id,
+        entry_id: null,
+        entry_line_id: null,
+        billing_payment_id: null,
+        purchase_payment_id: payment.id,
+        amount: formatScaled(requested),
+        note: payload.note ?? null,
+        status: 'confirmed',
+        kind: 'supplier_payment',
+        confidence: 1,
+        reasons: ['Lien humain confirmé — règlement fournisseur existant'],
+        created_at: new Date().toISOString(),
+        decided_at: new Date().toISOString(),
+        decided_by: null,
+      };
+      state.bankMatches.push(match);
+      txn.status = 'matched';
+      return { match, transaction: txn, idempotent: false };
+    }
+    if (method === 'DELETE' && paymentId) {
+      if (payload.confirm !== true) {
+        throw new ApiError(400, 'BANK_CONFIRMATION_REQUIRED', 'Confirmation humaine explicite requise');
+      }
+      const index = state.bankMatches.findIndex(
+        (m) =>
+          m.transaction_id === txn.id &&
+          m.purchase_payment_id === paymentId &&
+          m.status === 'confirmed',
+      );
+      if (index < 0) throw new ApiError(404, 'BANK_MATCH_NOT_FOUND', 'Rapprochement fournisseur introuvable');
+      state.bankMatches.splice(index, 1);
+      txn.status = state.bankMatches.some((m) => m.transaction_id === txn.id && m.status === 'confirmed')
+        ? 'matched'
+        : 'unmatched';
+      return { removed: true };
+    }
   }
 
   const billingCandidatesMatch = /^\/transactions\/([^/]+)\/billing-candidates$/.exec(path);

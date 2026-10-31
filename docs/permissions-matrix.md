@@ -117,3 +117,15 @@ Un comptable peut donc utiliser l'assistant sur ses dossiers sans jamais pouvoir
 modifier une clé API, ni changer le fournisseur, le budget ou les plafonds. Un gestionnaire
 paie n'a aucun accès IA sur la paie : les fonctionnalités de paie sont désactivées par défaut
 et non implémentées.
+
+## Mission 12 — lettrage
+
+| Action | `viewer` | `accountant` | `admin` / `owner` / `cabinet_admin` |
+|---|---|---|---|
+| Lire comptes, lignes, suggestions, rapports, exports | Oui (module comptabilité `read`) | Oui | Oui |
+| Prévisualiser un lettrage | Oui (aucune écriture) | Oui | Oui |
+| Créer un lettrage | Non | Oui (comptabilité `write`) | Oui |
+| Délettrer | Non | Non | Oui (permission spécifique + motif) |
+
+Le rôle global ne suffit pas : l’accès au module comptabilité est vérifié à
+chaque requête. Un `accountant` peut lettrer mais pas délettrer seul.

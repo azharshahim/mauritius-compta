@@ -12,7 +12,10 @@
 > écriture automatique. **Achats & Fournisseurs** (mission 11) gère les fiches
 > fournisseurs, factures d'achat, avoirs, règlements partiels/groupés et soldes
 > **par devise** ; la comptabilisation passe par les propositions existantes,
-> après validation puis comptabilisation humaines. Facturation (mission 6) :
+> après validation puis comptabilisation humaines. **Lettrage** (mission 12)
+> rapproche des lignes déjà comptabilisées, en partiel ou multiple, avec
+> suggestions explicables et délettrage motivé ; il ne modifie aucune écriture
+> et ne crée aucun paiement. Facturation (mission 6) :
 > **opérationnelle** — clients, devis, factures, avoirs, encaissements, balance âgée et PDF A4
 > générés par le serveur ; **aucun taux de TVA n'est fourni** et l'e-invoicing MRA reste
 > désactivé. Paie & RH : **préparée** (aucun calcul PAYE, CSG ou NSF). L'assistant comptable V2
@@ -383,6 +386,11 @@ données, **ni** secret, **ni** donnée réelle.
 | [`docs/purchases-suppliers.md`](docs/purchases-suppliers.md) | Fournisseurs, factures d'achat, avoirs, TVA configurée, API |
 | [`docs/supplier-payments.md`](docs/supplier-payments.md) | Règlements partiels/groupés, acomptes, avoirs, banque, concurrence |
 | [`docs/supplier-accounting.md`](docs/supplier-accounting.md) | Propositions comptables, comptes, contrôles, immutabilité |
+| [`docs/mission-12-report.md`](docs/mission-12-report.md) | Rapport final de mission 12 (lettrage, 16 points) |
+| [`docs/ledger-lettering.md`](docs/ledger-lettering.md) | Lettrage client/fournisseur, partiels, suggestions, rapports |
+| [`docs/lettering-security.md`](docs/lettering-security.md) | Isolation, permissions, verrous, immuabilité, délettrage |
+| [`docs/supplier-bank-ui.md`](docs/supplier-bank-ui.md) | Écran Banque ↔ Fournisseurs, confirmation et limites |
+| [`docs/lettering-user-guide.md`](docs/lettering-user-guide.md) | Guide utilisateur du lettrage |
 | [`docs/advanced-reconciliation.md`](docs/advanced-reconciliation.md) | n↔1, 1↔n, partiels, blocages, lettrage et limites |
 | [`docs/bank-billing-integration.md`](docs/bank-billing-integration.md) | Banque ↔ Facturation, anti-doublons, comptabilisation existante |
 | [`docs/bank-import.md`](docs/bank-import.md) | Formats, colonnes, contrôles, idempotence, limites |

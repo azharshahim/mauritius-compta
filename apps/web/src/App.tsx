@@ -18,6 +18,7 @@ import TasksPage from './pages/cabinet/Tasks';
 import TeamPage from './pages/cabinet/Team';
 import PreparedPage from './pages/prepared/Prepared';
 import PurchasesPage from './pages/accounting/Purchases';
+import LetteringPage from './pages/accounting/Lettering';
 import AiSettingsPage from './pages/cabinet/AiSettings';
 import AiAssistantPage from './pages/cabinet/AiAssistant';
 import AiProposalsPage from './pages/cabinet/AiProposals';
@@ -210,6 +211,7 @@ export default function App() {
             {/* Banking is operational (mission 9); the other routes remain
                 explicitly marked as prepared. */}
             <Route path="/accounting/purchases" element={<PurchasesPage />} />
+            <Route path="/accounting/lettering" element={<LetteringPage />} />
             <Route path="/accounting/banking" element={<BankPage />} />
             <Route path="/accounting/assets" element={<PreparedPage module="accounting" />} />
             <Route path="/accounting/ifrs" element={<PreparedPage module="accounting" />} />

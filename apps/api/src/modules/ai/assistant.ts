@@ -158,6 +158,9 @@ export type AssistantIntent =
   | 'supplier_balance'
   | 'supplier_duplicates'
   | 'supplier_payments'
+  | 'lettering_unlettered'
+  | 'lettering_partial'
+  | 'lettering_payments'
   | 'help';
 
 const has = (text: string, pattern: RegExp) => pattern.test(text);
@@ -166,6 +169,21 @@ export function detectIntent(raw: string): { intent: AssistantIntent; query?: st
   const text = raw.toLowerCase().replace(/[’']/g, "'").replace(/\s+/g, ' ').trim();
 
   if (has(text, /\b(paie|payroll|bulletin|payslip|paye|csg|nsf)\b/)) return { intent: 'payroll_status' };
+
+  // Ledger lettering (mission 12). The assistant only explains and lists:
+  // it can never validate, reverse or alter a lettering.
+  if (has(text, /(lettr|lettering)/)) {
+    if (has(text, /(partiel|partial|explique|explain|pourquoi|why|d[ée]tail)/)) {
+      return { intent: 'lettering_partial' };
+    }
+    if (has(text, /(r[èe]glement|payment|affecter|allocate)/)) {
+      return { intent: 'lettering_payments' };
+    }
+    return { intent: 'lettering_unlettered' };
+  }
+  if (has(text, /(affecter|unapplied|non affect[ée]|not allocated)/)) {
+    return { intent: 'lettering_payments' };
+  }
 
   // Supplier cycle (mission 11). These intents win over generic "facture" or
   // "règlement" wording so the assistant never answers a purchase question with
@@ -734,6 +752,14 @@ function planTool(
       return { key: 'purchases.duplicates', args: {} };
     case 'supplier_payments':
       return { key: 'purchases.payments.recent', args: { limit: 10 } };
+    case 'lettering_unlettered':
+      return { key: 'lettering.unlettered', args: { limit: 20 } };
+    case 'lettering_partial':
+      return ctx.objectRef?.type === 'entry'
+        ? { key: 'lettering.partial', args: { limit: 10 } }
+        : { key: 'lettering.partial', args: { limit: 10 } };
+    case 'lettering_payments':
+      return { key: 'lettering.payments', args: { limit: 10 } };
     case 'proposal_prepare': {
       const amount = extractAmount(text);
       return {

@@ -34,6 +34,7 @@ import {
 } from './migration';
 import { handleDemoBank, seedDemoBank } from './bank';
 import { handleDemoPurchases, seedDemoPurchases } from './purchases';
+import { handleDemoLettering, seedDemoLettering } from './lettering';
 import {
   IMPORT_FIELDS,
   IMPORT_KIND_LABELS,
@@ -577,10 +578,11 @@ export interface DemoBankMatch {
   entry_line_id: string | null;
   billing_payment_id: string | null;
   billing_invoice_id?: string | null;
+  purchase_payment_id?: string | null;
   amount: string;
   note?: string | null;
   status: 'proposed' | 'confirmed' | 'rejected';
-  kind: 'entry' | 'invoice' | 'internal_transfer';
+  kind: 'entry' | 'invoice' | 'internal_transfer' | 'supplier_payment';
   confidence: number;
   reasons: string[];
   created_at: string;
@@ -749,6 +751,49 @@ export interface DemoPurchaseEvent {
   created_at: string;
 }
 
+export interface DemoLettering {
+  id: string;
+  company_id: string;
+  account_id: string;
+  code: string;
+  status: 'active' | 'reversed';
+  method: 'manual' | 'suggested';
+  currency: string;
+  source_currency: string;
+  amount: string;
+  total_debit: string;
+  total_credit: string;
+  rationale: string | null;
+  request_key: string | null;
+  created_by: string | null;
+  created_at: string;
+  reversed_by: string | null;
+  reversed_at: string | null;
+  reversal_reason: string | null;
+}
+
+export interface DemoLetteringLine {
+  id: string;
+  company_id: string;
+  lettering_id: string;
+  journal_line_id: string;
+  entry_id: string;
+  account_id: string;
+  side: 'debit' | 'credit';
+  amount: string;
+}
+
+export interface DemoLetteringEvent {
+  id: string;
+  company_id: string;
+  lettering_id: string;
+  action: 'created' | 'reversed' | 'suggested';
+  actor_id: string | null;
+  reason: string | null;
+  details: Record<string, unknown>;
+  created_at: string;
+}
+
 export interface DemoState {
   schema: number;
   users: DemoUser[];
@@ -802,6 +847,10 @@ export interface DemoState {
   purchaseCreditAllocations: DemoPurchaseCreditAllocation[];
   purchaseEvents: DemoPurchaseEvent[];
   purchaseSequences: Record<string, number>;
+  letterings: DemoLettering[];
+  letteringLines: DemoLetteringLine[];
+  letteringEvents: DemoLetteringEvent[];
+  letteringSequences: Record<string, number>;
 }
 
 /* ------------------------------------------------------------------ money */
@@ -1781,7 +1830,7 @@ function seedState(): DemoState {
   });
 
   const seeded: DemoState = {
-    schema: 9,
+    schema: 10,
     users: [demoUser, ...collaborators],
     session: null,
     companies: [company, ...extraCompanies],
@@ -1857,9 +1906,14 @@ function seedState(): DemoState {
     purchaseCreditAllocations: [],
     purchaseEvents: [],
     purchaseSequences: {},
+    letterings: [],
+    letteringLines: [],
+    letteringEvents: [],
+    letteringSequences: {},
   };
   seedDemoBank(seeded);
   seedDemoPurchases(seeded);
+  seedDemoLettering(seeded);
   return seeded;
 }
 
@@ -1885,7 +1939,7 @@ export function loadState(): DemoState {
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as DemoState;
-        if (parsed && parsed.schema === 9) {
+        if (parsed && parsed.schema === 10) {
           state = parsed;
           return state;
         }
@@ -6013,6 +6067,28 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
         }
       }
       throw new ApiError(404, 'NOT_FOUND', 'Route de migration inconnue');
+    }
+
+    // --------------------------------------------- ledger lettering (12)
+    if (rest.startsWith('/lettering')) {
+      const member = s.members.find(
+        (m) => m.company_id === companyId && m.user_id === requireUser().id,
+      );
+      if (!member) throw new ApiError(404, 'COMPANY_NOT_FOUND', 'Société introuvable');
+      const writers = ['owner', 'admin', 'accountant', 'manager', 'cabinet_admin'];
+      if (method !== 'GET' && !writers.includes(member.role)) {
+        throw new ApiError(403, 'FORBIDDEN', 'Rôle comptable requis pour le lettrage');
+      }
+      if (method === 'POST' && /\/(reverse)$/.test(rest) && !['owner', 'admin', 'cabinet_admin'].includes(member.role)) {
+        throw new ApiError(403, 'FORBIDDEN', 'Permission administrateur requise pour délettrer');
+      }
+      const result = handleDemoLettering(s, companyId, method, rest, Object.fromEntries(query.entries()), payload, requireUser().id);
+      if (result === undefined) throw new ApiError(404, 'NOT_FOUND', 'Route de lettrage inconnue');
+      if (method !== 'GET') {
+        audit(companyId, 'lettering.request', 'ledger_lettering', null, { path: rest, method });
+        persist();
+      }
+      return result as T;
     }
 
     // ------------------------------------- purchases & suppliers (11)

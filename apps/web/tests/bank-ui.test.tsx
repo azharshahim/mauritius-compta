@@ -144,9 +144,26 @@ describe('banque & rapprochement (démo)', () => {
     const radio = label.querySelector('input[type="radio"]') as HTMLInputElement;
     fireEvent.click(radio);
     fireEvent.click(screen.getAllByLabelText(/Je vérifie la proposition/i)[0]!);
-    fireEvent.click(screen.getByRole('button', { name: /Associer ce règlement/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Associer ce règlement$/i }));
 
     expect((await screen.findAllByText(/Règlement associé/i)).length).toBeGreaterThan(0);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('affiche les règlements fournisseurs liés depuis le panneau Banque (mission 12)', async () => {
+    await login();
+    window.location.hash = '#/accounting/banking';
+    await screen.findByRole('heading', { name: /Banque & rapprochement/i });
+    fireEvent.click(screen.getByRole('tab', { name: /Transactions/i }));
+    await screen.findAllByText(/Scénario B — règlement partiel/i);
+    const row = screen
+      .getAllByRole('row')
+      .find((candidate) => candidate.textContent?.includes('Scénario B — règlement partiel'))!;
+    fireEvent.click(withinRow(row, /Ouvrir/i));
+    expect(await screen.findByText(/Règlements fournisseurs liés/i)).toBeTruthy();
+    expect(screen.getByText(/Restant fournisseur à affecter sur la transaction/i)).toBeTruthy();
+    expect(screen.getByText(/Aucun paiement ni écriture n’est créé/i)).toBeTruthy();
+    expect(document.querySelectorAll('input[name="supplier-payment"]').length).toBeGreaterThan(0);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

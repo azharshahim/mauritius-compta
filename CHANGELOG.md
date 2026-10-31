@@ -1,5 +1,47 @@
 # Journal des versions
 
+## Mission 12 — Lettrage comptable & finalisation Banque ↔ Fournisseurs (31 octobre 2026)
+
+> Aucune fusion, aucun déploiement OVH, aucune donnée réelle, aucun fournisseur
+> IA payant. PR nº1 laissée en brouillon ; `main` intact.
+
+### Ajouté
+
+- Migration additive `0012_reconciliation_lettering.sql` : groupes de lettrage,
+  lignes affectées, événements, séquences, index uniques, triggers d’isolation
+  société/cabinet et d’immuabilité.
+- Lettrage de lignes **déjà comptabilisées** : client complet
+  (100 000 = 40 000 + 35 000 + 25 000), fournisseur partiel
+  (80 000/30 000 → 50 000 restants), 1↔N, N↔1, facture + avoir + solde.
+- Codes uniques `LET-AAAA-NNNN`, verrous PostgreSQL, anti-double lettrage,
+  idempotence par `request_key`, rollback complet.
+- Suggestions déterministes explicables (montant, raisons, confiance,
+  ambiguïtés), sans validation automatique.
+- Délettrage sécurisé : permission administrateur, motif obligatoire,
+  confirmation, historique conservé, période clôturée bloquée, aucun impact
+  bancaire.
+- Rapports par devise et exports CSV : lignes non lettrées, factures
+  totalement/partiellement lettrées, règlements non lettrés, écarts
+  commercial/comptable.
+- Écran `Comptabilité → Lettrage` FR/EN, tableau desktop et cartes Android,
+  onglets lettrage / historique / rapports.
+- Panneau Banque : bloc **Règlements fournisseurs liés** avec candidats,
+  confirmation, retrait motivé et idempotence, sans nouvel écriture ni paiement.
+- Assistant : outils lecture seule `lettering.unlettered`, `lettering.partial`,
+  `lettering.payments`.
+- Démo schéma **10**, scénarios A→I entièrement fictifs.
+- Tests : API 30 (dont concurrence PostgreSQL), démo 8, interface 3,
+  Banque fournisseur 1.
+- Documentation : rapport de mission 12, lettrage, sécurité, interface Banque,
+  guide utilisateur, README, tests.
+
+### Limites déclarées
+
+- Concurrence réelle exécutée uniquement dans le job PostgreSQL de la CI.
+- Aucun test sur Samsung Android physique ni Chrome réel.
+- Aucun lettrage automatique, aucun change, aucune réouverture de période.
+- Règles comptables/fiscales mauriciennes détaillées : `À VÉRIFIER`.
+
 ## Mission 11 — Achats & Fournisseurs (31 octobre 2026)
 
 > Aucune fusion, aucun déploiement OVH, aucune donnée réelle, aucun fournisseur

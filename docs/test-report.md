@@ -2,7 +2,31 @@
 
 _Date : 31 octobre 2026._
 
-## 0. Mise à jour mission 10 — état le plus récent
+## 0. Mise à jour mission 12 — état le plus récent
+
+| Suite | Résultat |
+|---|---|
+| API (PGlite) | **291 réussis | 11 ignorés** |
+| Web (jsdom) | **152 réussis / 17 fichiers** |
+| Migrations | **6 / 6** |
+| Typecheck / build / build:demo | verts |
+
+Nouveaux fichiers mission 12 : `apps/api/tests/lettering.test.ts` (**30 cas**,
+dont 1 de concurrence ignoré sans PostgreSQL réel),
+`apps/web/tests/demo-lettering.test.ts` (**8**),
+`apps/web/tests/lettering-ui.test.tsx` (**3**), et un cas Banque fournisseur
+ajouté à `apps/web/tests/bank-ui.test.tsx`.
+
+**Limites.** Les tests de concurrence ne s’exécutent que dans le job GitHub
+Actions `postgres-tests` (`TEST_DATABASE_URL`). Aucun test sur Samsung Android
+physique ni sur Chrome réel n’a été effectué dans cet environnement : les
+vérifications mobiles sont des tests DOM/CSS. Les règles fiscales mauriciennes
+ne sont ni testées ni affirmées.
+
+Les sections historiques ci-dessous (mission 10) sont conservées pour la
+traçabilité ; leurs chiffres ne sont plus l’état courant.
+
+## 0 bis. Mise à jour mission 10
 
 | Suite | Résultat |
 |---|---|

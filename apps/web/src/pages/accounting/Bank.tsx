@@ -93,6 +93,20 @@ const L = {
     billingBlocked: 'Non proposé',
     billingPartialWarning: 'Affectation partielle : le restant dû de la facture reste affiché.',
     billingNoAllocation: 'Ce règlement n’est affecté à aucune facture : il ne peut pas prouver un règlement.',
+    supplierTitle: 'Règlements fournisseurs liés',
+    supplierEmpty: 'Aucun règlement fournisseur enregistré pour cette devise.',
+    supplierRemaining: 'Restant fournisseur à affecter sur la transaction',
+    supplierAmount: 'Montant à affecter',
+    supplierLink: 'Associer ce règlement fournisseur',
+    supplierLinked: 'Règlement fournisseur associé',
+    supplierInvoices: 'Factures fournisseurs concernées',
+    supplierOutstanding: 'Restant dû',
+    supplierPosted: 'Comptabilisé',
+    supplierNotPosted: 'Non comptabilisé',
+    supplierUnlink: 'Retirer le rapprochement fournisseur',
+    supplierBlocked: 'Non proposé',
+    supplierNoAllocation: 'Ce règlement fournisseur n’est affecté à aucune facture : il ne peut pas prouver un paiement.',
+    supplierSecurity: 'Aucun paiement ni écriture n’est créé. Le rapprochement bancaire reste distinct du lettrage comptable.',
     advancedReport: 'Traçabilité détaillée',
     advancedInvoices: 'Factures et restants dus',
     advancedAllocations: 'Affectations confirmées',
@@ -217,6 +231,20 @@ const L = {
     billingBlocked: 'Not proposed',
     billingPartialWarning: 'Partial allocation: the invoice outstanding balance stays visible.',
     billingNoAllocation: 'This payment is not allocated to any invoice: it cannot prove a settlement.',
+    supplierTitle: 'Linked supplier payments',
+    supplierEmpty: 'No supplier payment recorded in this currency.',
+    supplierRemaining: 'Supplier remaining to allocate on the transaction',
+    supplierAmount: 'Amount to allocate',
+    supplierLink: 'Link this supplier payment',
+    supplierLinked: 'Linked supplier payment',
+    supplierInvoices: 'Related supplier invoices',
+    supplierOutstanding: 'Outstanding',
+    supplierPosted: 'Posted to accounting',
+    supplierNotPosted: 'Not posted',
+    supplierUnlink: 'Remove supplier reconciliation',
+    supplierBlocked: 'Not proposed',
+    supplierNoAllocation: 'This supplier payment is not allocated to any invoice: it cannot prove a payment.',
+    supplierSecurity: 'No payment or entry is created. Bank reconciliation remains separate from ledger lettering.',
     advancedReport: 'Detailed traceability',
     advancedInvoices: 'Invoices and outstanding balances',
     advancedAllocations: 'Confirmed allocations',
@@ -370,6 +398,32 @@ interface BillingCandidates {
   candidates: BillingCandidate[];
 }
 
+interface SupplierCandidate {
+  paymentId: string;
+  paymentNumber: string | null;
+  paymentDate: string;
+  amount: string;
+  currency: string;
+  supplierName: string;
+  reference: string | null;
+  accountingPosted: boolean;
+  matchedAmount: string;
+  availableAmount: string;
+  suggestedAmount: string;
+  confidence: number;
+  reasons: { code: string; fr: string; en: string }[];
+  issues: { code: string; fr: string; en: string; blocking: boolean }[];
+  allocations: { invoiceId: string; invoiceNumber: string | null; amount: string; invoiceOutstanding: string }[];
+  alreadyLinkedToTransaction: boolean;
+}
+
+interface SupplierCandidates {
+  transactionRemaining: string;
+  allocatedAmount: string;
+  direction: 'in' | 'out';
+  candidates: SupplierCandidate[];
+}
+
 interface Detail {
   transaction: BankTxn;
   bankAccount: BankAccount;
@@ -377,6 +431,7 @@ interface Detail {
   account: AccountSuggestion;
   internalTransfer: { transactionId: string; bankAccountId: string; days: number } | null;
   billing: BillingCandidates;
+  supplier?: SupplierCandidates;
   existingMatches: { id: string; status: string; reasons: string[]; billing_payment_id?: string | null }[];
   proposals: {
     id: string;
@@ -530,6 +585,9 @@ export default function BankPage() {
   const [advanced, setAdvanced] = useState<AdvancedReport | null>(null);
   const [selectedPayment, setSelectedPayment] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [supplierCandidates, setSupplierCandidates] = useState<SupplierCandidates | null>(null);
+  const [selectedSupplierPayment, setSelectedSupplierPayment] = useState('');
+  const [supplierAmount, setSupplierAmount] = useState('');
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [reviewed, setReviewed] = useState(false);
@@ -725,8 +783,19 @@ export default function BankPage() {
     setSelectedPayment('');
     setPaymentAmount('');
     try {
-      const res = await api.get<Detail>(`/companies/${companyId}/bank/transactions/${id}`);
+      const [res, suppliers] = await Promise.all([
+        api.get<Detail>(`/companies/${companyId}/bank/transactions/${id}`),
+        api
+          .get<SupplierCandidates>(`/companies/${companyId}/bank/transactions/${id}/supplier-candidates`)
+          .catch(() => null),
+      ]);
       setDetail(res);
+      setSupplierCandidates(suppliers);
+      const preferredSupplier = suppliers?.candidates.find(
+        (c) => !c.alreadyLinkedToTransaction && !c.issues.some((i) => i.blocking),
+      );
+      setSelectedSupplierPayment(preferredSupplier?.paymentId ?? '');
+      setSupplierAmount(preferredSupplier?.suggestedAmount ?? '');
       const preferred =
         res.billing.candidates.find((c) => !c.alreadyLinkedToTransaction && !c.issues.some((i) => i.blocking)) ??
         res.billing.candidates[0];
@@ -738,6 +807,44 @@ export default function BankPage() {
         setSelectedLines([res.match.candidates[0]!.lineId]);
       }
       setNewRule((r) => ({ ...r, name: `Règle — ${res.transaction.label.slice(0, 40)}`, labelPattern: res.transaction.label.slice(0, 60), accountId: res.account.accountId ?? '' }));
+    } catch (err) {
+      setError(errorMessage(err, tr.loadError).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmSupplier = async () => {
+    if (!detail || !selectedSupplierPayment || !reviewed) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(
+        `/companies/${companyId}/bank/transactions/${detail.transaction.id}/supplier-payments`,
+        { paymentId: selectedSupplierPayment, amount: supplierAmount.trim(), confirm: true },
+      );
+      setNotice(`${tr.supplierLink} ✓`);
+      setReviewed(false);
+      await Promise.all([openTxn(detail.transaction.id), loadTxns(), load()]);
+    } catch (err) {
+      setError(errorMessage(err, tr.loadError).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const unlinkSupplier = async (paymentId: string) => {
+    if (!detail || !reviewed) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.del(
+        `/companies/${companyId}/bank/transactions/${detail.transaction.id}/supplier-payments/${paymentId}`,
+        { confirm: true, reason: 'Retrait humain depuis l’écran Banque' },
+      );
+      setNotice(`${tr.supplierUnlink} ✓`);
+      setReviewed(false);
+      await Promise.all([openTxn(detail.transaction.id), loadTxns()]);
     } catch (err) {
       setError(errorMessage(err, tr.loadError).message);
     } finally {
@@ -1419,6 +1526,126 @@ export default function BankPage() {
                         </label>
                       );
                     })}
+                </div>
+              )}
+
+              {supplierCandidates && (
+                <div className="bank-supplier-section">
+                  <h4>{tr.supplierTitle}</h4>
+                  <p className="muted small">
+                    {tr.supplierRemaining} : {money(supplierCandidates.transactionRemaining)}{' '}
+                    {detail.transaction.currency} · {tr.supplierSecurity}
+                  </p>
+                  {supplierCandidates.candidates.filter((c) => c.alreadyLinkedToTransaction).map((candidate) => (
+                    <div key={candidate.paymentId} className="bank-billing-card is-linked">
+                      <div className="bank-txn-card-head">
+                        <strong>
+                          {candidate.paymentNumber} · {money(candidate.amount)} {candidate.currency}
+                        </strong>
+                        <Badge kind={candidate.accountingPosted ? 'success' : 'warning'}>
+                          {candidate.accountingPosted ? tr.supplierPosted : tr.supplierNotPosted}
+                        </Badge>
+                      </div>
+                      <p>
+                        {candidate.supplierName} · {tr.supplierLinked} : {money(candidate.matchedAmount)} /{' '}
+                        {money(candidate.amount)}
+                      </p>
+                      <p className="muted small">
+                        {tr.supplierInvoices} :{' '}
+                        {candidate.allocations
+                          .map(
+                            (a) =>
+                              `${a.invoiceNumber ?? a.invoiceId} — ${money(a.amount)} (${tr.supplierOutstanding} ${money(a.invoiceOutstanding)})`,
+                          )
+                          .join(' · ') || tr.supplierNoAllocation}
+                      </p>
+                      <div className="bank-actions">
+                        <Button
+                          variant="danger"
+                          onClick={() => void unlinkSupplier(candidate.paymentId)}
+                          disabled={busy || !reviewed}
+                        >
+                          {tr.supplierUnlink}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  {supplierCandidates.candidates.filter((c) => !c.alreadyLinkedToTransaction).length === 0 ? (
+                    <p className="muted">{tr.supplierEmpty}</p>
+                  ) : (
+                    <div className="bank-matches">
+                      {supplierCandidates.candidates
+                        .filter((c) => !c.alreadyLinkedToTransaction)
+                        .map((candidate) => {
+                          const blocked = candidate.issues.some((i) => i.blocking);
+                          return (
+                            <label
+                              key={candidate.paymentId}
+                              className={`bank-candidate bank-billing-card${blocked ? ' is-blocked' : ''}`}
+                            >
+                              <input
+                                type="radio"
+                                name="supplier-payment"
+                                checked={selectedSupplierPayment === candidate.paymentId}
+                                disabled={blocked || busy}
+                                onChange={() => {
+                                  setSelectedSupplierPayment(candidate.paymentId);
+                                  setSupplierAmount(candidate.suggestedAmount);
+                                }}
+                              />
+                              <span className="bank-billing-main">
+                                <strong>
+                                  {candidate.paymentNumber} · {money(candidate.amount)} {candidate.currency}
+                                </strong>{' '}
+                                <span className="muted">
+                                  {candidate.supplierName} · {candidate.paymentDate}
+                                </span>
+                                <span className="muted small">
+                                  {tr.supplierInvoices} :{' '}
+                                  {candidate.allocations
+                                    .map(
+                                      (a) =>
+                                        `${a.invoiceNumber ?? a.invoiceId} (${tr.supplierOutstanding} ${money(a.invoiceOutstanding)})`,
+                                    )
+                                    .join(' · ') || tr.supplierNoAllocation}
+                                </span>
+                                <span className="muted small">
+                                  {candidate.accountingPosted ? tr.supplierPosted : tr.supplierNotPosted} ·{' '}
+                                  {locale === 'fr' ? 'Confiance' : 'Confidence'}{' '}
+                                  {Math.round(candidate.confidence * 100)} %
+                                </span>
+                                {candidate.issues.map((issue) => (
+                                  <span
+                                    key={issue.code}
+                                    className={`small ${issue.blocking ? 'finding-error' : 'finding-warning'}`}
+                                  >
+                                    {issue.blocking ? `${tr.supplierBlocked} — ` : ''}
+                                    {locale === 'fr' ? issue.fr : issue.en}
+                                  </span>
+                                ))}
+                              </span>
+                            </label>
+                          );
+                        })}
+                    </div>
+                  )}
+                  <div className="bank-form">
+                    <Field label={tr.supplierAmount}>
+                      <input
+                        inputMode="decimal"
+                        value={supplierAmount}
+                        onChange={(e) => setSupplierAmount(e.target.value)}
+                        placeholder="0.0000"
+                      />
+                    </Field>
+                    <Button
+                      variant="primary"
+                      onClick={() => void confirmSupplier()}
+                      disabled={busy || !reviewed || !selectedSupplierPayment}
+                    >
+                      {tr.supplierLink}
+                    </Button>
+                  </div>
                 </div>
               )}
 
