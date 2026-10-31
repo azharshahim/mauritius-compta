@@ -85,9 +85,9 @@ un lot sans écriture partielle ; la reprise repart des contrôles serveur.
 
 | Suite | Commande | Résultat |
 |---|---|---|
-| API complète | `npm test -w @mc/api` | **184 réussis, 4 ignorés** |
+| API complète | `npm test -w @mc/api` | **185 réussis, 4 ignorés** |
 | Migration API | `npx vitest run tests/migration.test.ts` | **23 réussis** |
-| Assistant API | `npx vitest run tests/assistant.test.ts` | 24 réussis (dont outil migration) |
+| Assistant API | `npx vitest run tests/assistant.test.ts` | 23 réussis (dont outil migration) |
 | Web complète | `npm test -w @mc/web` | **97 réussis, 10 fichiers** |
 | Démo migration | `npx vitest run tests/demo-migration.test.ts` | **12 réussis** |
 | UI migration (jsdom) | `npx vitest run tests/migration-ui.test.tsx` | **3 réussis** |
@@ -140,11 +140,12 @@ simulé : bannière permanente, `localStorage`, réinitialisation possible.
 
 ## 14. Fichiers fictifs livrés
 
-`apps/web/public/samples/` : `plan-comptable-fictif.csv`,
+`apps/web/public/samples/` (9 fichiers) : `plan-comptable-fictif.csv`,
 `plan-comptable-fictif.xlsx`, `balance-ouverture-fictive.csv`,
-`journal-fictif-fr.csv`, `journal-fictif-en.tsv`, `export-sage-fictif.csv`,
-`export-sap-fictif.csv`, `fichier-volontairement-incorrect.csv` (+ un
-`LISEZ-MOI.txt`). Tous les codes sont hors du plan de démonstration (séries 8100+).
+`journal-fictif.csv`, `clients-fictifs.csv`, `export-sage-fictif.csv`,
+`export-sap-fictif.csv`, `export-sap-fictif-semicolon.csv`,
+`fichier-incorrect.csv`. Tous les codes sont hors du plan de démonstration
+(séries 8100+).
 
 ## 15. Sécurité
 

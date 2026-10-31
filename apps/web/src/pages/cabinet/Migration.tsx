@@ -635,6 +635,7 @@ export default function MigrationPage() {
                     ['export-sap-fictif.csv', 'migration.samples.sap'],
                     ['fichier-incorrect.csv', 'migration.samples.invalid'],
                     ['plan-comptable-fictif.xlsx', 'migration.samples.excel'],
+                    ['clients-fictifs.csv', 'migration.samples.customers'],
                   ].map(([file, key]) => (
                     <li key={file}>
                       <a href={`${import.meta.env.BASE_URL}samples/${file}`} download>

@@ -135,7 +135,7 @@ navigation, focus jamais volé.
 
 | Suite | Commande | Résultat |
 | --- | --- | --- |
-| API | `npm test -w @mc/api` | **184 réussis, 4 ignorés** (concurrence PostgreSQL réel) |
+| API | `npm test -w @mc/api` | **185 réussis, 4 ignorés** (concurrence PostgreSQL réel) |
 | Migrations | `apps/api/tests/migration.test.ts` | **23 réussis** |
 | Web | `npm test -w @mc/web` | **97 réussis** (10 fichiers) |
 | Typecheck | `npm run typecheck` | 0 erreur (API + web, strict) |

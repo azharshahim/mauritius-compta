@@ -81,11 +81,12 @@ par défaut. Les autres feuilles ne sont jamais importées implicitement.
 | `plan-comptable-fictif.csv` | plan comptable FR (8 comptes) | 8 créations |
 | `plan-comptable-fictif.xlsx` | 2 feuilles, 4 comptes | 4 créations |
 | `balance-ouverture-fictive.csv` | balance équilibrée 370 000 / 370 000 | 1 écriture d'ouverture |
-| `journal-fictif-fr.csv` | 3 écritures équilibrées, dont une en EUR | 3 écritures |
-| `journal-fictif-en.tsv` | en-têtes EN, tabulations | 3 écritures |
+| `journal-fictif.csv` | 3 écritures équilibrées, dont une en EUR avec taux explicite | 3 écritures |
+| `clients-fictifs.csv` | 2 clients fictifs (nom, BRN, courriel, délais) | import clients si le modèle est compatible |
 | `export-sage-fictif.csv` | colonnes Sage (`Compte`, `N° pièce`) | 2 écritures |
 | `export-sap-fictif.csv` | colonnes SAP + indicateur D/C | 2 écritures |
-| `fichier-volontairement-incorrect.csv` | date invalide, écriture déséquilibrée, compte inconnu | **import bloqué, 0 écriture** |
+| `export-sap-fictif-semicolon.csv` | même export SAP, séparateur `;` et BOM | 2 écritures |
+| `fichier-incorrect.csv` | date invalide, écriture déséquilibrée, compte inconnu | **import bloqué, 0 écriture** |
 
 Génération reproductible : `node scripts/generate-migration-samples.mjs`
 (les codes commencent à 8100 pour ne pas entrer en collision avec le dossier de démo).

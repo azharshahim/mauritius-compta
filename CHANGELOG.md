@@ -44,7 +44,7 @@
 
 - Migration additive `0008_migration.sql` : `migration_jobs`, `uploads`,
   `templates`, `findings`, `batches`, `records`, `events`.
-- API : **184 réussis, 4 ignorés** (dont 23 tests de migration) ;
+- API : **185 réussis, 4 ignorés** (dont 23 tests de migration) ;
   web : **97 réussis** (10 fichiers) ; typecheck strict 0 erreur ; build démo OK.
 - CI PostgreSQL réel : les 20 scénarios obligatoires de migration sont exécutés
   (CSV FR/EN, XLSX multi-feuilles, colonnes manquantes, dates invalides,
