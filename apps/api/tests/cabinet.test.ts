@@ -212,7 +212,7 @@ describe('cabinet module', () => {
       `/api/companies/${company.id}/payroll/summary`,
     );
     expect(payrollAllowed.statusCode).toBe(200);
-    expect(payrollAllowed.json().capabilities.paye).toBe(false);
+    expect(payrollAllowed.json().capabilities.paye).toBe(true);
 
     // A payroll manager can read accounting but must not write in it.
     const accountingReadOnly = await api(

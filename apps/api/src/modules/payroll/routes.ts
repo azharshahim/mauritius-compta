@@ -8,11 +8,13 @@ import { badRequest, notFound } from '../../lib/errors.js';
 import { payrollPdf } from './pdf.js';
 import { MigrationParseError, parseUpload } from '../migration/parse.js';
 import {
+  approveCalculationForTest,
   calculatePeriod,
   changePeriodStatus,
   checkEmployeeDuplicates,
   createAbsence,
   createContract,
+  createEdfDeclaration,
   createEmployee,
   createLeaveRule,
   createPayItem,
@@ -25,6 +27,7 @@ import {
   createVariable,
   decideAbsence,
   finalisePayslip,
+  listEdfDeclarations,
   generatePayslip,
   getCalculation,
   getEmployee,
@@ -43,6 +46,9 @@ import {
   listTimeEntries,
   listVariables,
   payrollDashboard,
+  payrollReturnCsv,
+  payrollReturnSummary,
+  requestExpertReview,
   requiredRulesStatus,
   updateEmployee,
   validateRule,
@@ -83,6 +89,20 @@ const EmployeeSchema = z.object({
   emergencyContactPhone: z.string().trim().max(50).nullish(),
   emergencyContactRelation: z.string().trim().max(80).nullish(),
   notes: z.string().trim().max(2000).nullish(),
+  payFrequency: z.enum(['daily', 'weekly', 'fortnightly', 'half_monthly', 'monthly']).optional(),
+  workerType: z.enum(['full_time', 'part_time', 'piece_rate', 'atypical']).optional(),
+  payeCategory: z.enum(['standard', 'director', 'board_member', 'pensioner']).optional(),
+  taxResidency: z.enum(['resident', 'non_resident']).optional(),
+  isPublicSector: z.boolean().optional(),
+  publicSectorPrb: z.boolean().optional(),
+  isHouseholdWorker: z.boolean().optional(),
+  csgExempt: z.boolean().optional(),
+  csgExemptReason: z.string().trim().max(500).nullish(),
+  nsfExempt: z.boolean().optional(),
+  nsfExemptReason: z.string().trim().max(500).nullish(),
+  trainingLevyExempt: z.boolean().optional(),
+  additionalRemunerationExcluded: z.boolean().optional(),
+  additionalRemunerationExclusionReason: z.string().trim().max(500).nullish(),
   allowDuplicate: z.boolean().optional(),
 }).strict();
 
@@ -423,7 +443,8 @@ export function payrollRoutes(app: FastifyInstance, db: Db) {
     return {
       rules: await listRules(db, companyId),
       required: await requiredRulesStatus(db, companyId, q.date ?? new Date().toISOString().slice(0, 10)),
-      statutoryEngineImplemented: false,
+      statutoryEngineImplemented: true,
+      statutoryFinalisationEnabled: false,
     };
   });
 
@@ -443,6 +464,34 @@ export function payrollRoutes(app: FastifyInstance, db: Db) {
       sourceReference: z.string().trim().max(500).nullish(),
     }).strict(), req.body);
     return { rule: await validateRule(db, await actor(req, companyId, 'write'), ruleId, input) };
+  });
+
+  // ---------------------------------------------------------------------- EDF
+  app.get('/companies/:companyId/payroll/edf', async (req) => {
+    const { companyId } = req.params as { companyId: string };
+    await actor(req, companyId);
+    const q = req.query as Record<string, string | undefined>;
+    return { declarations: await listEdfDeclarations(db, companyId, q.employeeId, q.taxYearStart) };
+  });
+
+  app.post('/companies/:companyId/payroll/edf', async (req, reply) => {
+    const { companyId } = req.params as { companyId: string };
+    const input = parse(z.object({
+      employeeId: z.string().uuid(),
+      taxYearStart: DateSchema,
+      declarationDate: DateSchema,
+      effectiveFrom: DateSchema,
+      dependentCount: z.number().int().min(0).max(20),
+      otherReliefs: AmountSchema.optional(),
+      documentRef: z.string().trim().max(300).nullish(),
+      sourceReference: z.string().trim().max(500).nullish(),
+      notes: z.string().trim().max(2000).nullish(),
+    }).strict(), req.body);
+    const declaration = await createEdfDeclaration(db, await actor(req, companyId, 'write'), {
+      ...input,
+      otherReliefs: input.otherReliefs ?? '0',
+    });
+    return reply.code(201).send({ declaration });
   });
 
   // ------------------------------------------------------------------ periods
@@ -587,6 +636,21 @@ export function payrollRoutes(app: FastifyInstance, db: Db) {
     return { calculation: await getCalculation(db, companyId, calculationId) };
   });
 
+  app.post('/companies/:companyId/payroll/calculations/:calculationId/request-review', async (req) => {
+    const { companyId, calculationId } = req.params as { companyId: string; calculationId: string };
+    const input = parse(z.object({ note: z.string().trim().max(2000).default('') }).strict(), req.body ?? {});
+    return { calculation: await requestExpertReview(db, await actor(req, companyId, 'write'), calculationId, { note: input.note ?? '' }) };
+  });
+
+  app.post('/companies/:companyId/payroll/calculations/:calculationId/approve-for-test', async (req) => {
+    const { companyId, calculationId } = req.params as { companyId: string; calculationId: string };
+    const input = parse(z.object({
+      confirm: z.literal(true),
+      note: z.string().trim().min(10).max(2000),
+    }).strict(), req.body);
+    return { calculation: await approveCalculationForTest(db, await actor(req, companyId), calculationId, input) };
+  });
+
   app.get('/companies/:companyId/payroll/payslips', async (req) => {
     const { companyId } = req.params as { companyId: string };
     await actor(req, companyId);
@@ -672,6 +736,8 @@ export function payrollRoutes(app: FastifyInstance, db: Db) {
       payePayableAccountId: z.string().uuid().nullish(),
       csgPayableAccountId: z.string().uuid().nullish(),
       nsfPayableAccountId: z.string().uuid().nullish(),
+      statutoryArEnabled: z.boolean().optional(),
+      statutoryBonusEnabled: z.boolean().optional(),
       notes: z.string().trim().max(2000).nullish(),
     }).strict(), req.body);
     for (const accountId of [
@@ -685,21 +751,38 @@ export function payrollRoutes(app: FastifyInstance, db: Db) {
     const res = await db.query<any>(
       `INSERT INTO payroll_settings
         (company_id, cabinet_id, salary_expense_account_id, salary_payable_account_id,
-         paye_payable_account_id, csg_payable_account_id, nsf_payable_account_id, notes, updated_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+         paye_payable_account_id, csg_payable_account_id, nsf_payable_account_id,
+         statutory_ar_enabled, statutory_bonus_enabled, notes, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,COALESCE($8,false),COALESCE($9,false),$10,$11)
        ON CONFLICT (company_id) DO UPDATE SET
          salary_expense_account_id = EXCLUDED.salary_expense_account_id,
          salary_payable_account_id = EXCLUDED.salary_payable_account_id,
          paye_payable_account_id = EXCLUDED.paye_payable_account_id,
          csg_payable_account_id = EXCLUDED.csg_payable_account_id,
          nsf_payable_account_id = EXCLUDED.nsf_payable_account_id,
+         statutory_ar_enabled = COALESCE($8, payroll_settings.statutory_ar_enabled),
+         statutory_bonus_enabled = COALESCE($9, payroll_settings.statutory_bonus_enabled),
          notes = EXCLUDED.notes, updated_by = EXCLUDED.updated_by, updated_at = now()
        RETURNING *`,
       [companyId, a.cabinetId, input.salaryExpenseAccountId || null, input.salaryPayableAccountId || null,
         input.payePayableAccountId || null, input.csgPayableAccountId || null, input.nsfPayableAccountId || null,
+        input.statutoryArEnabled ?? null, input.statutoryBonusEnabled ?? null,
         input.notes || null, a.userId],
     );
     return { settings: res.rows[0], accountingTransferImplemented: false };
+  });
+
+  app.get('/companies/:companyId/payroll/periods/:periodId/mra-return', async (req) => {
+    const { companyId, periodId } = req.params as { companyId: string; periodId: string };
+    return payrollReturnSummary(db, await actor(req, companyId), periodId);
+  });
+
+  app.get('/companies/:companyId/payroll/periods/:periodId/mra-return.csv', async (req, reply) => {
+    const { companyId, periodId } = req.params as { companyId: string; periodId: string };
+    const summary = await payrollReturnSummary(db, await actor(req, companyId), periodId);
+    reply.header('content-type', 'text/csv; charset=utf-8');
+    reply.header('content-disposition', `attachment; filename="MRA-PREPARATION-${summary.period.year}-${String(summary.period.month).padStart(2, '0')}.csv"`);
+    return payrollReturnCsv(summary);
   });
 
   app.get('/companies/:companyId/payroll/periods/:periodId/accounting-preview', async (req) => {

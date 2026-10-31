@@ -61,25 +61,37 @@ export function payrollPdf(input: {
       doc.text(String(line.amount), { width: 100, align: 'right' });
     }
     doc.moveDown();
+    const shown = (value: unknown) => (value === null || value === undefined ? 'NOT CALCULATED' : String(value));
     const rows: [string, unknown][] = [
+      ['Additional Remuneration / Rémunération additionnelle', totals.additionalRemuneration],
+      ['Taxable emoluments / Émoluments imposables', totals.taxableEmoluments],
       ['Gross / Brut', totals.gross],
-      ['Deductions / Retenues', totals.deductions],
-      ['Net arithmetic / Net arithmétique', totals.netArithmetic],
-      ['PAYE', '—'],
-      ['CSG', '—'],
-      ['NSF', '—'],
-      ['Net payable / Net à payer', 'NON CALCULÉ'],
+      ['PAYE', totals.paye],
+      ['CSG employee / CSG salarié', totals.csgEmployee],
+      ['NSF employee / NSF salarié', totals.nsfEmployee],
+      ['Other deductions / Autres retenues', totals.deductions],
+      ['Net after statutory / Net après cotisations', totals.netAfterStatutory],
+      ['NET PAYABLE / NET À PAYER', totals.netPayable],
+      ['CSG employer / CSG employeur', totals.csgEmployer],
+      ['NSF employer / NSF employeur', totals.nsfEmployer],
+      ['Training levy / Levy de formation', totals.trainingLevy],
+      ['Employer cost / Coût employeur', totals.employerCost],
     ];
     for (const [label, value] of rows) {
-      doc.fontSize(10).text(`${label} : ${value ?? '—'}`, { align: 'right' });
+      doc.fontSize(9).text(`${label} : ${shown(value)}`, { align: 'right' });
     }
     doc.moveDown();
     doc.fontSize(8).fillColor('#8a6100').text(
       locale === 'en'
-        ? 'PAYE, CSG, NSF and employer contributions are not calculated: no Mauritian rule has been expert-validated and the statutory engine is not implemented. The arithmetic net is not a legal net payable.'
-        : 'PAYE, CSG, NSF et cotisations employeur ne sont pas calculés : aucune règle mauricienne n’est validée par un expert et le moteur réglementaire n’est pas implémenté. Le net arithmétique n’est pas un net à payer légal.',
+        ? `Status ${snapshot.statutoryStatus ?? 'UNKNOWN'} — PAYE basis ${snapshot.payeBasis ?? '—'}. Rules are sourced but not expert-approved; this is a simulation, not a legal payslip, and the net payable is never a payment instruction.`
+        : `Statut ${snapshot.statutoryStatus ?? 'INCONNU'} — base PAYE ${snapshot.payeBasis ?? '—'}. Les règles sont sourcées mais non approuvées par un expert ; ceci est une simulation, pas un bulletin légal, et le net à payer n’est jamais un ordre de paiement.`,
       { align: 'left' },
     );
+    if (Array.isArray(snapshot.rulesApplied)) {
+      doc.fontSize(7).fillColor('#5b6b7c').text(
+        snapshot.rulesApplied.map((r: any) => `${r.ruleCode} v${r.version ?? '?'} (${r.status})`).join(' · '),
+      );
+    }
     for (const warning of snapshot.warnings ?? []) {
       doc.text(`• ${warning.code}: ${warning.message}`);
     }

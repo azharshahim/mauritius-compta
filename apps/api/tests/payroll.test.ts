@@ -118,7 +118,7 @@ describe('payroll preparation and RH (mission 14)', () => {
     await createEmp('A001');
     await createEmp('B002');
     await createEmp('C003');
-    await createEmp('D004', { hireDate: '2026-07-16' });
+    await createEmp('D004', { hireDate: '2026-01-16' });
     await createEmp('E005');
     await createEmp('F006');
     await createEmp('G007');
@@ -134,8 +134,8 @@ describe('payroll preparation and RH (mission 14)', () => {
     await contract(employees.A001.id, { baseSalary: '30000' });
     contractB = await contract(employees.B002.id, { baseSalary: '250', salaryPeriod: 'hourly', workPattern: 'part_time' });
     await contract(employees.C003.id, { baseSalary: '12000', workPattern: 'part_time' });
-    await contract(employees.D004.id, { baseSalary: '30000', effectiveFrom: '2026-07-16' });
-    contractE1 = await contract(employees.E005.id, { baseSalary: '20000', effectiveFrom: '2024-01-15', effectiveTo: '2026-07-15' });
+    await contract(employees.D004.id, { baseSalary: '30000', effectiveFrom: '2026-01-16' });
+    contractE1 = await contract(employees.E005.id, { baseSalary: '20000', effectiveFrom: '2024-01-15', effectiveTo: '2026-01-15' });
     await contract(employees.F006.id, { baseSalary: '18000' });
     await contract(employees.G007.id, { baseSalary: '22000' });
     await contract(employees.H008.id, { baseSalary: '26000' });
@@ -144,14 +144,14 @@ describe('payroll preparation and RH (mission 14)', () => {
     contractK = await contract(employees.K011.id, {
       baseSalary: '21000', contractType: 'fixed_term', effectiveTo: '2026-12-31',
     });
-    await contract(employees.L012.id, { effectiveFrom: '2026-07-01', baseSalary: '20000' });
+    await contract(employees.L012.id, { effectiveFrom: '2026-01-01', baseSalary: '20000' });
 
     // Dated amendment for E: 24000 from 16 July 2026.
     await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/contracts`, {
       employeeId: employees.E005.id,
       contractType: 'permanent',
       workPattern: 'full_time',
-      effectiveFrom: '2026-07-16',
+      effectiveFrom: '2026-01-16',
       baseSalary: '24000',
       salaryPeriod: 'monthly',
       currency: 'MUR',
@@ -160,13 +160,13 @@ describe('payroll preparation and RH (mission 14)', () => {
     });
 
     const time = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/time`, {
-      employeeId: employees.B002.id, workDate: '2026-07-06', hoursWorked: '8', overtimeHours: '2',
+      employeeId: employees.B002.id, workDate: '2026-01-06', hoursWorked: '8', overtimeHours: '2',
     });
     expect(time.statusCode, time.body).toBe(201);
 
     const leave = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/leave`, {
-      employeeId: employees.F006.id, leaveType: 'unpaid', startDate: '2026-07-20',
-      endDate: '2026-07-22', days: '3', reason: 'Congé non rémunéré fictif',
+      employeeId: employees.F006.id, leaveType: 'unpaid', startDate: '2026-01-20',
+      endDate: '2026-01-22', days: '3', reason: 'Congé non rémunéré fictif',
     });
     expect(leave.statusCode, leave.body).toBe(201);
     const approved = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/leave/${leave.json().absence.id}/decision`, {
@@ -201,7 +201,7 @@ describe('payroll preparation and RH (mission 14)', () => {
     expect(assigned.statusCode, assigned.body).toBe(201);
 
     const createdPeriod = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/periods`, {
-      year: 2026, month: 7,
+      year: 2026, month: 1,
     });
     expect(createdPeriod.statusCode, createdPeriod.body).toBe(201);
     period = createdPeriod.json().period;
@@ -306,14 +306,14 @@ describe('payroll preparation and RH (mission 14)', () => {
 
   it('rejects a duplicate time entry for one employee and date', async () => {
     const res = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/time`, {
-      employeeId: employees.B002.id, workDate: '2026-07-06', hoursWorked: '8',
+      employeeId: employees.B002.id, workDate: '2026-01-06', hoursWorked: '8',
     });
     expect(res.statusCode).toBe(409);
     expect(res.json().error.code).toBe('PAYROLL_TIME_DUPLICATE');
   });
 
   it('imports time from a CSV file and skips the existing employee/date pair', async () => {
-    const csv = 'employeeNumber;workDate;hoursWorked;overtimeHours;latenessMinutes\nB002;06/07/2026;8;0;0\nG007;2026-07-07;7.5;1;15';
+    const csv = 'employeeNumber;workDate;hoursWorked;overtimeHours;latenessMinutes\nB002;06/01/2026;8;0;0\nG007;2026-01-07;7.5;1;15';
     const res = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/time/import-file`, {
       fileName: 'temps-fictif.csv', contentText: csv,
     });
@@ -459,18 +459,22 @@ describe('payroll preparation and RH (mission 14)', () => {
     const i = periodCalc.calculations.find((c: any) => c.employee_number === 'I009');
     expect(i.deductions).toBe('2000.0000');
     expect(i.net_arithmetic).toBe('22000.0000');
-    expect(i.paye).toBeNull();
-    expect(i.csg).toBeNull();
-    expect(i.nsf).toBeNull();
+    expect(i.paye).not.toBeNull();
+    expect(i.csg_employee).not.toBeNull();
+    expect(i.nsf_employee).not.toBeNull();
+    expect(i.net_payable).toBeNull();
     expect(i.statutory_complete).toBe(false);
+    expect(i.status).toBe('expert_review_pending');
   });
 
-  it('blocks every calculation when required rules are not expert-validated', () => {
-    expect(periodCalc.blocked).toBe(true);
+  it('keeps every calculation out of finalisation while rules are not expert-validated', () => {
+    expect(periodCalc.blocked).toBe(false);
+    expect(periodCalc.expertReviewPending).toBe(true);
     expect(periodCalc.statutoryComplete).toBe(false);
-    expect(periodCalc.missingRules.some((r: any) => r.ruleCode === 'PAYE')).toBe(true);
-    expect(periodCalc.missingEngine).toBe('PAYROLL_STATUTORY_ENGINE_NOT_IMPLEMENTED');
-    expect(periodCalc.calculations.every((c: any) => c.status === 'blocked')).toBe(true);
+    expect(periodCalc.missingRules).toHaveLength(0);
+    expect(periodCalc.engine).toBe('mission15_v1');
+    expect(periodCalc.calculations.every((c: any) => ['expert_review_pending', 'review_required'].includes(c.status))).toBe(true);
+    expect(periodCalc.finalisationBlocked).toBe(true);
   });
 
   it('shows approved unpaid leave as a warning, not as an invented deduction', () => {
@@ -559,15 +563,20 @@ describe('payroll preparation and RH (mission 14)', () => {
   });
 
   // 34-40 rules, security, isolation ---------------------------------------
-  it('creates placeholders with no rate and refuses validation without source', async () => {
+  it('seeds official-source rules without pretending an expert validated them', async () => {
     const rules = await api(ctx, owner.cookie, 'GET', `/api/companies/${company.id}/payroll/rules`);
     expect(rules.statusCode, rules.body).toBe(200);
     const paye = rules.json().rules.find((r: any) => r.rule_code === 'PAYE');
-    expect(paye.rate).toBeNull();
-    expect(paye.status).toBe('UNVERIFIED');
-    const refused = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/rules/${paye.id}/validate`, { confirm: true });
+    expect(paye.rate).toBe('20.00000000');
+    expect(paye.status).toBe('RESEARCHED');
+    expect(paye.source_url).toContain('mra.mu');
+    const refused = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/rules/${paye.id}/validate`, {});
     expect(refused.statusCode).toBe(400);
-    expect(refused.json().error.code).toBe('PAYROLL_RULE_NOT_VALIDATED');
+    const confirmed = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/rules/${paye.id}/validate`, {
+      confirm: true, note: 'Fictional test review — not a legal approval.',
+    });
+    expect(confirmed.statusCode, confirmed.body).toBe(200);
+    expect(confirmed.json().rule.status).toBe('EXPERT_VALIDATED');
   });
 
   it('validates a documented non-required test rule through a traceable action', async () => {
@@ -661,11 +670,12 @@ describe('payroll preparation and RH (mission 14)', () => {
     const res = await api(ctx, owner.cookie, 'GET', `/api/companies/${company.id}/payroll/dashboard`);
     expect(res.statusCode, res.body).toBe(200);
     expect(res.json().capabilities.arithmeticCalculation).toBe(true);
-    expect(res.json().capabilities.statutoryCalculation).toBe(false);
+    expect(res.json().capabilities.statutoryCalculation).toBe(true);
     expect(res.json().capabilities.finalPayslips).toBe(false);
-    expect(res.json().capabilities.paye).toBe(false);
+    expect(res.json().capabilities.paye).toBe(true);
     expect(res.json().statutoryComplete).toBe(false);
-    expect(res.json().rules.find((r: any) => r.ruleCode === 'PAYE').rate).toBeNull();
+    expect(['RESEARCHED', 'EXPERT_VALIDATED']).toContain(res.json().rules.find((r: any) => r.ruleCode === 'PAYE').status);
+    expect(res.json().capabilities.finalPayslips).toBe(false);
   });
 
   it('keeps concurrent period creation idempotent on a real database', async () => {

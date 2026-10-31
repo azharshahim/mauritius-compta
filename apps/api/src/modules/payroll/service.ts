@@ -3,6 +3,11 @@ import type { Db } from '../../db/index.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { formatAmount, parseAmount } from '../../lib/money.js';
 import { writeAudit } from '../../lib/audit.js';
+import {
+  computeAdditionalRemuneration, computeCsg, computeCumulativePaye, computeNsf, scaleBandThreshold,
+  computePayeWithoutEdf, computeTrainingLevy,
+  type NsfLimits, type PayFrequency, type PayeBand,
+} from './statutory.js';
 
 /**
  * Payroll foundation - mission 14.
@@ -15,7 +20,11 @@ import { writeAudit } from '../../lib/audit.js';
  */
 
 const MONEY_ZERO = 0n;
-const REQUIRED_RULE_CODES = ['PAYE', 'CSG', 'NSF'] as const;
+const REQUIRED_RULE_CODES = [
+  'PAYE', 'PAYE_NO_EDF', 'CSG_PRIVATE', 'NSF_RATES', 'NSF_LIMITS', 'TRAINING_LEVY',
+] as const;
+const AR_RULE_CODE = 'ADDITIONAL_REMUNERATION';
+const BONUS_RULE_CODE = 'EOY_BONUS';
 const RULE_STATUSES = ['UNVERIFIED', 'RESEARCHED', 'REVIEW_REQUIRED', 'EXPERT_VALIDATED', 'DEPRECATED'] as const;
 const LEAVE_TYPES = ['annual', 'sick', 'unpaid', 'maternity', 'paternity', 'other'] as const;
 type LeaveType = (typeof LEAVE_TYPES)[number];
@@ -97,6 +106,11 @@ const employeeSelect = `
          e.email, e.phone, e.employment_status, e.hire_date, e.termination_date,
          e.department, e.job_title, e.work_location, e.manager_employee_id, e.cost_centre,
          e.payroll_currency, e.payment_method, e.bank_name, e.bank_account_last4,
+         e.pay_frequency, e.worker_type, e.paye_category, e.tax_residency,
+         e.is_public_sector, e.public_sector_prb, e.is_household_worker,
+         e.csg_exempt, e.csg_exempt_reason, e.nsf_exempt, e.nsf_exempt_reason,
+         e.training_levy_exempt, e.additional_remuneration_excluded,
+         e.additional_remuneration_exclusion_reason,
          e.statutory_id_last4, e.statutory_ref_last4,
          e.emergency_contact_name, e.emergency_contact_phone, e.emergency_contact_relation,
          e.notes, e.created_at, e.updated_at,
@@ -186,6 +200,20 @@ export interface EmployeeInput {
   emergencyContactPhone?: string | null;
   emergencyContactRelation?: string | null;
   notes?: string | null;
+  payFrequency?: 'daily' | 'weekly' | 'fortnightly' | 'half_monthly' | 'monthly';
+  workerType?: 'full_time' | 'part_time' | 'piece_rate' | 'atypical';
+  payeCategory?: 'standard' | 'director' | 'board_member' | 'pensioner';
+  taxResidency?: 'resident' | 'non_resident';
+  isPublicSector?: boolean;
+  publicSectorPrb?: boolean;
+  isHouseholdWorker?: boolean;
+  csgExempt?: boolean;
+  csgExemptReason?: string | null;
+  nsfExempt?: boolean;
+  nsfExemptReason?: string | null;
+  trainingLevyExempt?: boolean;
+  additionalRemunerationExcluded?: boolean;
+  additionalRemunerationExclusionReason?: string | null;
   allowDuplicate?: boolean;
 }
 
@@ -276,6 +304,26 @@ export async function createEmployee(db: Db, actor: PayrollActor, input: Employe
     employeeNumber: row.employee_number,
     duplicateOverride: duplicates.length > 0,
   });
+  const profile: Partial<EmployeeInput> = {};
+  if (input.payFrequency) profile.payFrequency = input.payFrequency;
+  if (input.workerType) profile.workerType = input.workerType;
+  if (input.payeCategory) profile.payeCategory = input.payeCategory;
+  if (input.taxResidency) profile.taxResidency = input.taxResidency;
+  if (input.isPublicSector !== undefined) profile.isPublicSector = input.isPublicSector;
+  if (input.publicSectorPrb !== undefined) profile.publicSectorPrb = input.publicSectorPrb;
+  if (input.isHouseholdWorker !== undefined) profile.isHouseholdWorker = input.isHouseholdWorker;
+  if (input.csgExempt !== undefined) profile.csgExempt = input.csgExempt;
+  if (input.csgExemptReason !== undefined) profile.csgExemptReason = input.csgExemptReason;
+  if (input.nsfExempt !== undefined) profile.nsfExempt = input.nsfExempt;
+  if (input.nsfExemptReason !== undefined) profile.nsfExemptReason = input.nsfExemptReason;
+  if (input.trainingLevyExempt !== undefined) profile.trainingLevyExempt = input.trainingLevyExempt;
+  if (input.additionalRemunerationExcluded !== undefined) {
+    profile.additionalRemunerationExcluded = input.additionalRemunerationExcluded;
+  }
+  if (input.additionalRemunerationExclusionReason !== undefined) {
+    profile.additionalRemunerationExclusionReason = input.additionalRemunerationExclusionReason;
+  }
+  if (Object.keys(profile).length > 0) return updateEmployee(db, actor, row.id, profile);
   return employeeView(row);
 }
 
@@ -354,6 +402,22 @@ export async function updateEmployee(
   if (input.emergencyContactPhone !== undefined) put('emergency_contact_phone', input.emergencyContactPhone || null);
   if (input.emergencyContactRelation !== undefined) put('emergency_contact_relation', input.emergencyContactRelation || null);
   if (input.notes !== undefined) put('notes', input.notes || null);
+  if (input.payFrequency !== undefined) put('pay_frequency', input.payFrequency);
+  if (input.workerType !== undefined) put('worker_type', input.workerType);
+  if (input.payeCategory !== undefined) put('paye_category', input.payeCategory);
+  if (input.taxResidency !== undefined) put('tax_residency', input.taxResidency);
+  if (input.isPublicSector !== undefined) put('is_public_sector', input.isPublicSector);
+  if (input.publicSectorPrb !== undefined) put('public_sector_prb', input.publicSectorPrb);
+  if (input.isHouseholdWorker !== undefined) put('is_household_worker', input.isHouseholdWorker);
+  if (input.csgExempt !== undefined) put('csg_exempt', input.csgExempt);
+  if (input.csgExemptReason !== undefined) put('csg_exempt_reason', input.csgExemptReason || null);
+  if (input.nsfExempt !== undefined) put('nsf_exempt', input.nsfExempt);
+  if (input.nsfExemptReason !== undefined) put('nsf_exempt_reason', input.nsfExemptReason || null);
+  if (input.trainingLevyExempt !== undefined) put('training_levy_exempt', input.trainingLevyExempt);
+  if (input.additionalRemunerationExcluded !== undefined) put('additional_remuneration_excluded', input.additionalRemunerationExcluded);
+  if (input.additionalRemunerationExclusionReason !== undefined) {
+    put('additional_remuneration_exclusion_reason', input.additionalRemunerationExclusionReason || null);
+  }
   if (!fields.length) return getEmployee(db, actor.companyId, id);
   put('updated_by', actor.userId);
   put('updated_at', nowIso());
@@ -916,28 +980,421 @@ export async function createLeaveRule(
 }
 
 // ---------------------------------------------------------------------------
+// Employee Declaration Forms (EDF)
+// ---------------------------------------------------------------------------
+
+const DEPENDENT_DEDUCTIONS: Record<number, string> = {
+  0: '0', 1: '110000', 2: '190000', 3: '275000', 4: '355000',
+};
+
+export function taxYearStartFor(date: string): string {
+  const year = Number(date.slice(0, 4));
+  const month = Number(date.slice(5, 7));
+  return `${month >= 7 ? year : year - 1}-07-01`;
+}
+
+export function dependentDeductionFor(count: number): string {
+  if (!Number.isInteger(count) || count < 0 || count > 20) {
+    throw badRequest('VALIDATION_ERROR', 'Dependent count must be an integer between 0 and 20');
+  }
+  return DEPENDENT_DEDUCTIONS[Math.min(count, 4)]!;
+}
+
+export async function listEdfDeclarations(
+  db: Db, companyId: string, employeeId?: string, taxYearStart?: string,
+) {
+  const params: unknown[] = [companyId];
+  let where = 'd.company_id = $1';
+  if (employeeId) { params.push(employeeId); where += ` AND d.employee_id = $${params.length}`; }
+  if (taxYearStart) { params.push(taxYearStart); where += ` AND d.tax_year_start = $${params.length}`; }
+  const res = await db.query<any>(
+    `SELECT d.*, e.employee_number, e.full_name
+       FROM payroll_edf_declarations d JOIN payroll_employees e ON e.id = d.employee_id
+      WHERE ${where} ORDER BY e.employee_number, d.tax_year_start DESC, d.revision DESC`,
+    params,
+  );
+  return res.rows;
+}
+
+export async function createEdfDeclaration(
+  db: Db, actor: PayrollActor,
+  input: {
+    employeeId: string; taxYearStart: string; declarationDate: string; effectiveFrom: string;
+    dependentCount: number; otherReliefs?: string | number; documentRef?: string | null;
+    sourceReference?: string | null; notes?: string | null;
+  },
+) {
+  requireWriter(actor);
+  const taxYearStart = isoDate(input.taxYearStart, 'taxYearStart');
+  if (taxYearStart.slice(5, 10) !== '07-01') {
+    throw badRequest('VALIDATION_ERROR', 'A Mauritius tax year must start on 1 July');
+  }
+  if (taxYearStart < '2025-07-01') {
+    throw badRequest('PAYROLL_EDF_RULE_NOT_AVAILABLE',
+      'The verified 2025/26 dependent deduction table does not cover earlier tax years');
+  }
+  const declarationDate = isoDate(input.declarationDate, 'declarationDate');
+  const effectiveFrom = isoDate(input.effectiveFrom, 'effectiveFrom');
+  if (effectiveFrom < taxYearStart) {
+    throw badRequest('VALIDATION_ERROR', 'The EDF effective date cannot precede the tax year');
+  }
+  const employee = await db.query<any>(
+    'SELECT id FROM payroll_employees WHERE id = $1 AND company_id = $2',
+    [input.employeeId, actor.companyId],
+  );
+  if (!employee.rows[0]) throw notFound('PAYROLL_EMPLOYEE_NOT_FOUND', 'Employee not found');
+  return db.transaction(async (tx) => {
+    const current = await tx.query<any>(
+      `SELECT * FROM payroll_edf_declarations
+        WHERE company_id = $1 AND employee_id = $2 AND tax_year_start = $3
+        ORDER BY revision DESC FOR UPDATE`,
+      [actor.companyId, input.employeeId, taxYearStart],
+    );
+    const latest = current.rows[0];
+    if (latest && effectiveFrom < latest.effective_from) {
+      throw conflict('PAYROLL_EDF_EFFECTIVE_DATE',
+        'An EDF amendment cannot be backdated before the active declaration; use a new tax year or preserve history');
+    }
+    const revision = Number(latest?.revision ?? 0) + 1;
+    const dependentDeduction = money(dependentDeductionFor(input.dependentCount));
+    const other = money(input.otherReliefs ?? 0);
+    if (other < 0n) throw badRequest('VALIDATION_ERROR', 'Other reliefs cannot be negative');
+    const total = dependentDeduction + other;
+    if (latest) {
+      await tx.query(
+        `UPDATE payroll_edf_declarations SET status = 'superseded', updated_at = now()
+          WHERE id = $1 AND company_id = $2`,
+        [latest.id, actor.companyId],
+      );
+    }
+    const inserted = await tx.query<any>(
+      `INSERT INTO payroll_edf_declarations
+        (cabinet_id, company_id, employee_id, tax_year_start, declaration_date, effective_from,
+         dependent_count, dependent_deduction, other_reliefs, total_reliefs, status, document_ref,
+         source_reference, notes, revision, supersedes_id, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'submitted',$11,$12,$13,$14,$15,$16) RETURNING *`,
+      [actor.cabinetId, actor.companyId, input.employeeId, taxYearStart, declarationDate,
+        effectiveFrom, input.dependentCount, fmt(dependentDeduction), fmt(other), fmt(total),
+        input.documentRef?.trim() || null, input.sourceReference?.trim() || null,
+        input.notes?.trim() || null, revision, latest?.id ?? null, actor.userId],
+    );
+    await audit(tx, actor, 'payroll.edf.create', 'payroll_edf_declaration', inserted.rows[0]!.id, {
+      employeeId: input.employeeId, taxYearStart, revision, totalReliefs: fmt(total),
+      supersedes: latest?.id ?? null,
+    });
+    return inserted.rows[0];
+  });
+}
+
+/**
+ * Rebuilds the cumulative EDF reliefs period by period from the applicable
+ * version. A fresh EDF only affects subsequent pay periods; history is kept.
+ */
+export async function cumulativeEdfReliefs(
+  db: Db, companyId: string, employeeId: string, taxYearStart: string,
+  periodEnd: string, frequency: string,
+) {
+  const denominator = frequency === 'monthly' ? 13
+    : frequency === 'fortnightly' ? 28
+    : frequency === 'weekly' ? 56 : null;
+  if (!denominator) {
+    return {
+      hasEdf: false, cumulativeReliefs: 0n, periodsElapsed: 0,
+      basis: 'EDF_FREQUENCY_NOT_IMPLEMENTED',
+      versions: [] as { id: string; effectiveFrom: string; reliefs: string }[],
+    };
+  }
+  const rows = await db.query<any>(
+    `SELECT id, effective_from, total_reliefs, revision FROM payroll_edf_declarations
+      WHERE company_id = $1 AND employee_id = $2 AND tax_year_start = $3
+        AND status IN ('submitted', 'superseded')
+      ORDER BY effective_from, revision`,
+    [companyId, employeeId, taxYearStart],
+  );
+  if (rows.rows.length === 0) {
+    return { hasEdf: false, cumulativeReliefs: 0n, periodsElapsed: 0, basis: 'NO_EDF', versions: [] };
+  }
+  let periods = 0;
+  let reliefs = 0n;
+  const used = new Map<string, { id: string; effectiveFrom: string; reliefs: string }>();
+  const step: number = frequency === 'fortnightly' ? 14 : 7;
+  let cursor = taxYearStart;
+  let guard = 0;
+  while (cursor <= periodEnd && guard++ < 60) {
+    const periodEndCursor = frequency === 'monthly'
+      ? monthBounds(Number(cursor.slice(0, 4)), Number(cursor.slice(5, 7))).end
+      : addDays(cursor, step - 1);
+    const applicable = [...rows.rows].reverse().find((row) => row.effective_from <= periodEndCursor);
+    if (applicable) {
+      const share = divRound(money(applicable.total_reliefs), BigInt(denominator));
+      reliefs += share;
+      used.set(applicable.id, {
+        id: applicable.id, effectiveFrom: applicable.effective_from,
+        reliefs: fmt(money(applicable.total_reliefs)),
+      });
+    }
+    periods += 1;
+    if (periodEndCursor >= periodEnd) break;
+    cursor = frequency === 'monthly'
+      ? addDays(monthBounds(Number(periodEndCursor.slice(0, 4)), Number(periodEndCursor.slice(5, 7))).end, 1)
+      : addDays(cursor, step);
+  }
+  return {
+    hasEdf: true, cumulativeReliefs: reliefs, periodsElapsed: periods,
+    basis: 'EDF_CUMULATIVE',
+    versions: [...used.values()],
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Dated regulatory rules
 // ---------------------------------------------------------------------------
 
+interface RuleSeed {
+  ruleCode: string;
+  nameEn: string;
+  nameFr: string;
+  legalSource: string;
+  sourceReference: string;
+  sourceUrl: string;
+  article: string;
+  publicationDate: string;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  rate: string | null;
+  threshold: string | null;
+  cap: string | null;
+  rounding: string;
+  required: boolean;
+  formula: string;
+  parameters: Record<string, unknown>;
+  notes: string;
+}
+
+/**
+ * Official-source seeds. A seed is RESEARCHED (source identified and formula
+ * implemented), never EXPERT_VALIDATED. The source text values live in
+ * `parameters`; changing one requires a new version row, never an update.
+ */
+const RULE_SEEDS: RuleSeed[] = [
+  {
+    ruleCode: 'PAYE', nameEn: 'PAYE progressive cumulative bands',
+    nameFr: 'PAYE — tranches progressives cumulatives',
+    legalSource: 'Mauritius Revenue Authority — Guide on PAYE, December 2025, Table B and Fourteenth Schedule (Income Tax Regulations 1996)',
+    sourceReference: 'PAYE Guide Dec 2025 §1 and §6, Table B / Table C',
+    sourceUrl: 'https://www.mra.mu/download/PayeGuide.pdf',
+    article: 'Finance Act 2025 progressive rates as from July 2025; Fourteenth Schedule',
+    publicationDate: '2025-12-01', effectiveFrom: '2025-07-01',
+    rate: '20', threshold: '500000', cap: null,
+    rounding: 'Cumulative tax rounded down to the nearest rupee',
+    required: true,
+    formula: 'Cumulative chargeable income = cumulative emoluments − cumulative EDF reliefs; first 500,000 at 0%, next 500,000 at 10%, remainder at 20%; cumulative PAYE less tax already withheld',
+    parameters: {
+      bands: [{ upto: '500000', rate: '0' }, { upto: '1000000', rate: '10' }, { upto: null, rate: '20' }],
+      annualReliefDivisorMonthly: 13,
+    },
+    notes: 'Bands are annual and scaled by elapsed pay periods with the official 1/13, 1/28 and 1/56 fractions. No Fair Share Contribution is included.',
+  },
+  {
+    ruleCode: 'PAYE_NO_EDF', nameEn: 'PAYE flat rate where no EDF is furnished',
+    nameFr: 'PAYE — taux forfaitaire sans EDF',
+    legalSource: 'Mauritius Revenue Authority — Guide on PAYE, December 2025, §5.9.1',
+    sourceReference: 'PAYE Guide Dec 2025 §5.9.1',
+    sourceUrl: 'https://www.mra.mu/download/PayeGuide.pdf',
+    article: 'Employee has not submitted an EDF; emoluments exceed Rs 38,462 per month',
+    publicationDate: '2025-12-01', effectiveFrom: '2025-07-01', effectiveTo: '2026-06-30',
+    rate: '15', threshold: '38462', cap: null,
+    rounding: 'Rounded down to the nearest rupee',
+    required: true,
+    formula: 'If monthly emoluments exceed 38,462 and no EDF is furnished, withhold 15% flat unless the employee elected 20%',
+    parameters: { employeeElectionRate: '20' },
+    notes: 'The 20% employee election is implemented as an explicit employee flag; it is never inferred.',
+  },
+  {
+    ruleCode: 'CSG_PRIVATE', nameEn: 'CSG — private-sector employee and employer rates',
+    nameFr: 'CSG — taux salarié et employeur du secteur privé',
+    legalSource: 'Mauritius Revenue Authority — Contribution Sociale Généralisée page (Social Contribution and Social Benefits Act 2021)',
+    sourceReference: 'MRA CSG page §The Contributions, rate table',
+    sourceUrl: 'https://mra.mu/index.php/business/csg',
+    article: 'Employee other than a Public Sector employee; basic wage/salary or prescribed bonus threshold Rs 50,000',
+    publicationDate: '2021-09-01', effectiveFrom: '2021-09-01',
+    rate: '6', threshold: '50000', cap: null,
+    rounding: 'No statutory rounding rule found; exact percentage to 4 decimals, review required',
+    required: true,
+    formula: 'Basic wage/salary ≤ 50,000: employee 1.5%, employer 3%. Above 50,000: employee 3%, employer 6%. Public-sector categories are not implemented.',
+    parameters: {
+      lowEmployeeRate: '1.5', lowEmployerRate: '3',
+      highEmployeeRate: '3', highEmployerRate: '6',
+    },
+    notes: 'Public-sector PRB/non-PRB variants, CSG Income Allowance and prescribed-bonus cumulative rate selection are outside this implemented private-sector rule.',
+  },
+  {
+    ruleCode: 'NSF_RATES', nameEn: 'NSF contribution rates',
+    nameFr: 'NSF — taux de cotisation',
+    legalSource: 'Mauritius Revenue Authority — NPF/NSF Contributions and Training Levy page',
+    sourceReference: 'MRA NPF/NSF page §Contribution Rates 2. NSF Contribution',
+    sourceUrl: 'https://www.mra.mu/employers/npf-nsf-contributions',
+    article: 'National Savings Fund Act; employee and employer shares',
+    publicationDate: '2026-07-01', effectiveFrom: '2021-09-01',
+    rate: '2.5', threshold: null, cap: null,
+    rounding: 'No statutory rounding rule found; exact percentage to 4 decimals, review required',
+    required: true,
+    formula: 'Employee 1%, employer 2.5% of the NSF assessable basic wage within the dated minimum/maximum table',
+    parameters: { employeeRate: '1', employerRate: '2.5' },
+    notes: 'NPF prior to September 2020 is a separate historical domain and is not applied.',
+  },
+  {
+    ruleCode: 'NSF_LIMITS', nameEn: 'NSF minimum and maximum assessable wage (2025-2026)',
+    nameFr: 'NSF — salaire cotisable minimum et maximum (2025-2026)',
+    legalSource: 'Mauritius Revenue Authority — Guide to Employers on Pension Contributions, October 2025',
+    sourceReference: 'MRA NPF/NSF/CSG/Levy Guide Oct 2025 §Wages or salaries, table effective 1 July 2025',
+    sourceUrl: 'https://www.mra.mu/download/GuideToEmployersNPFNSF.pdf',
+    article: 'NSF minimum and maximum basic wage by pay period',
+    publicationDate: '2025-10-01', effectiveFrom: '2025-07-01', effectiveTo: '2026-06-30',
+    rate: null, threshold: null, cap: '28570',
+    rounding: 'Assessable wage table, no rounding',
+    required: true,
+    formula: 'Clamp the basic wage between the household/non-household minimum and the maximum for the pay frequency',
+    parameters: {
+      limitsByFrequency: {
+        daily: { minHousehold: '108', minOther: '169', max: '1099' },
+        weekly: { minHousehold: '645', minOther: '1015', max: '6593' },
+        fortnightly: { minHousehold: '1290', minOther: '2031', max: '13186' },
+        half_monthly: { minHousehold: '1398', minOther: '2200', max: '14285' },
+        monthly: { minHousehold: '2795', minOther: '4400', max: '28570' },
+      },
+    },
+    notes: 'Table transcribed from the October 2025 official guide. Prior years require separate dated versions.',
+  },
+  {
+    ruleCode: 'NSF_LIMITS', nameEn: 'NSF minimum and maximum assessable wage from 1 July 2026',
+    nameFr: 'NSF — salaire cotisable minimum et maximum à partir du 1er juillet 2026',
+    legalSource: 'Mauritius Revenue Authority — NPF/NSF Contributions and Training Levy page',
+    sourceReference: 'MRA NPF/NSF page §Wages or salaries, table effective 1 July 2026',
+    sourceUrl: 'https://www.mra.mu/employers/npf-nsf-contributions',
+    article: 'NSF minimum and maximum basic wage by pay period effective 1 July 2026',
+    publicationDate: '2026-07-01', effectiveFrom: '2026-07-01',
+    rate: null, threshold: null, cap: '29710',
+    rounding: 'Assessable wage table, no rounding',
+    required: true,
+    formula: 'Clamp the basic wage between the household/non-household minimum and the maximum for the pay frequency',
+    parameters: {
+      limitsByFrequency: {
+        daily: { minHousehold: '112', minOther: '176', max: '1143' },
+        weekly: { minHousehold: '672', minOther: '1057', max: '6856' },
+        fortnightly: { minHousehold: '1343', minOther: '2114', max: '13712' },
+        half_monthly: { minHousehold: '1455', minOther: '2290', max: '14855' },
+        monthly: { minHousehold: '2910', minOther: '4580', max: '29710' },
+      },
+    },
+    notes: 'Current table transcribed from the MRA page on 31 October 2026. No universal monthly ceiling is applied to other frequencies.',
+  },
+  {
+    ruleCode: 'TRAINING_LEVY', nameEn: 'HRDC Training Levy',
+    nameFr: 'Levy de formation HRDC',
+    legalSource: 'Mauritius Revenue Authority — NPF/NSF Contributions and Training Levy page',
+    sourceReference: 'MRA NPF/NSF page §Contribution Rates 3. HRDC Training Levy',
+    sourceUrl: 'https://www.mra.mu/employers/npf-nsf-contributions',
+    article: 'Human Resource Development Act; employer-only levy on total basic wage or salary',
+    publicationDate: '2021-07-01', effectiveFrom: '2021-07-01',
+    rate: '1.5', threshold: null, cap: null,
+    rounding: 'No statutory rounding rule found; exact percentage to 4 decimals, review required',
+    required: true,
+    formula: 'Employer pays 1.5% of the full basic wage/salary; NSF ceilings do not apply; household workers excluded',
+    parameters: {},
+    notes: 'Historical 1% regimes (2019-2021) require separate dated versions before use.',
+  },
+  {
+    ruleCode: AR_RULE_CODE, nameEn: 'Additional Remuneration 2026',
+    nameFr: 'Rémunération additionnelle 2026',
+    legalSource: 'Workers’ Rights (Additional Remuneration) (2026) Regulations 2026, GN No. 7 of 2026',
+    sourceReference: 'GN No. 7 of 2026, regulations 3, 4 and 5; Government Gazette No. 4 of 17 January 2026',
+    sourceUrl: 'https://www.mra.mu/download/GN15WRA.pdf',
+    article: 'Regulation 3(2)(a), 3(2)(b), 5',
+    publicationDate: '2026-01-17', effectiveFrom: '2026-01-01',
+    rate: '3.7', threshold: '17110', cap: '635',
+    rounding: 'Part-time percentage rounded up to the next rupee; amount capped at Rs 635',
+    required: false,
+    formula: 'Full-time ≤ Rs 50,000: Rs 635/month. Part-time < Rs 17,110: 3.7% rounded up. Part-time 17,110–50,000: Rs 635. Piece rates: 3.7% capped at 635, not calculated without the schedule.',
+    parameters: {
+      fullTimeAmount: '635', globalThreshold: '50000', partTimeThreshold: '17110',
+      partTimeRate: '3.7', maximum: '635',
+    },
+    notes: 'Only enabled when the employer explicitly activates the 2026 switch. Excluded public-officer/PRB categories require an employee declaration.',
+  },
+  {
+    ruleCode: BONUS_RULE_CODE, nameEn: 'Statutory end-of-year bonus',
+    nameFr: 'Bonus statutaire de fin d’année',
+    legalSource: 'Workers’ Rights Act 2019 (consolidated as at 9 August 2025), section 54',
+    sourceReference: 'Section 54(1)(a) — bonus equivalent to one twelfth of earnings for the year',
+    sourceUrl: 'https://lawsofmauritius.govmu.org/portal/viewlegislationdocument/web/?doctitle=&docnumber=QWN0IDIwIG9mIDIwMTk%3D&doctype=act',
+    article: 'Section 54, End of year bonus',
+    publicationDate: '2025-08-09', effectiveFrom: '2019-10-24',
+    rate: '8.33333333', threshold: null, cap: null,
+    rounding: 'No statutory rounding rule found; exact one-twelfth to 4 decimals',
+    required: false,
+    formula: 'Bonus = 1/12 of earnings for the year; employee must remain in continuous employment to 31 December (or meet the termination/resignation conditions)',
+    parameters: { fraction: '1/12', highEarnerThreshold: '100000' },
+    notes: 'Preview only. Payment timing, 75% December rule and high-earner gratuity regime are documented but not automated in Mission 15.',
+  },
+];
+
+function sourceFingerprint(seed: RuleSeed): string {
+  return createHash('sha256').update(JSON.stringify({
+    ruleCode: seed.ruleCode, sourceUrl: seed.sourceUrl, sourceReference: seed.sourceReference,
+    effectiveFrom: seed.effectiveFrom, effectiveTo: seed.effectiveTo ?? null,
+    parameters: seed.parameters,
+  })).digest('hex');
+}
+
+/** Seeds or refreshes the official-source rule metadata for one company. */
 export async function ensureRulePlaceholders(db: Db, actor: PayrollActor) {
-  for (const code of REQUIRED_RULE_CODES) {
-    const exists = await db.query(
-      'SELECT 1 FROM payroll_rules WHERE company_id = $1 AND upper(rule_code) = $2 LIMIT 1',
-      [actor.companyId, code],
+  for (const seed of RULE_SEEDS) {
+    const fingerprint = sourceFingerprint(seed);
+    const existing = await db.query<any>(
+      `SELECT * FROM payroll_rules WHERE company_id = $1 AND upper(rule_code) = $2
+          AND effective_from = $3::date ORDER BY version DESC LIMIT 1`,
+      [actor.companyId, seed.ruleCode, seed.effectiveFrom ?? null],
     );
-    if (exists.rowCount) continue;
+    const row = existing.rows[0];
+    if (row) {
+      // Never modify a validated historical version in place. Only refresh an
+      // untouched seed whose structured parameters were empty (mission 14 rows).
+      if (Object.keys((row.parameters as Record<string, unknown>) ?? {}).length === 0) {
+        await db.query(
+          `UPDATE payroll_rules SET parameters = $3::jsonb, formula = $4, article = $5,
+                  source_url = COALESCE(source_url, $6), source_fingerprint = $7,
+                  implementation_status = 'IMPLEMENTED', implemented_at = now(),
+                  status = CASE WHEN status = 'UNVERIFIED' THEN 'RESEARCHED' ELSE status END,
+                  updated_at = now()
+            WHERE id = $1 AND company_id = $2`,
+          [row.id, actor.companyId, JSON.stringify(seed.parameters), seed.formula,
+            seed.article, seed.sourceUrl, fingerprint],
+        );
+      }
+      continue;
+    }
+    const versionRes = await db.query<{ version: number }>(
+      `SELECT COALESCE(MAX(version),0) AS version FROM payroll_rules
+        WHERE company_id = $1 AND upper(rule_code) = $2`,
+      [actor.companyId, seed.ruleCode],
+    );
+    const version = Number(versionRes.rows[0]?.version ?? 0) + 1;
     await db.query(
       `INSERT INTO payroll_rules
-        (cabinet_id, company_id, rule_code, name_en, name_fr, status, required_for_calculation,
-         version, notes, created_by)
-       VALUES ($1,$2,$3,$4,$5,'UNVERIFIED',true,1,$6,$7)`,
-      [
-        actor.cabinetId, actor.companyId, code,
-        code === 'PAYE' ? 'PAYE (placeholder - no rate)' : code === 'CSG' ? 'CSG (placeholder - no rate)' : 'NSF (placeholder - no rate)',
-        code === 'PAYE' ? 'PAYE (paramètre - aucun taux)' : code === 'CSG' ? 'CSG (paramètre - aucun taux)' : 'NSF (paramètre - aucun taux)',
-        'Placeholder created by the application. It carries no rate, no threshold and no legal source until an expert validates it.',
-        actor.userId,
-      ],
+        (cabinet_id, company_id, rule_code, name_en, name_fr, legal_source, source_reference,
+         source_url, effective_from, effective_to, calculation_basis, rate, threshold_amount,
+         cap_amount, rounding_policy, status, required_for_calculation, version, test_cases,
+         notes, created_by, parameters, formula, article, publication_date, accessed_at,
+         source_fingerprint, implemented_at, implementation_status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'RESEARCHED',$16,$17,
+               '[]'::jsonb,$18,$19,$20::jsonb,$21,$22,$23,$24,$25,now(),'IMPLEMENTED')`,
+      [actor.cabinetId, actor.companyId, seed.ruleCode, seed.nameEn, seed.nameFr,
+        seed.legalSource, seed.sourceReference, seed.sourceUrl, seed.effectiveFrom,
+        seed.effectiveTo ?? null, seed.formula, seed.rate, seed.threshold, seed.cap,
+        seed.rounding, seed.required, version, seed.notes, actor.userId,
+        JSON.stringify(seed.parameters), seed.formula, seed.article, seed.publicationDate,
+        '2026-10-31', fingerprint],
     );
   }
 }
@@ -959,6 +1416,10 @@ export interface RuleInput {
   legalSource?: string | null;
   sourceReference?: string | null;
   sourceUrl?: string | null;
+  sourceFingerprint?: string | null;
+  article?: string | null;
+  publicationDate?: string | null;
+  parameters?: unknown;
   effectiveFrom?: string | null;
   effectiveTo?: string | null;
   employeeCategory?: string | null;
@@ -982,23 +1443,43 @@ export async function createRule(db: Db, actor: PayrollActor, input: RuleInput) 
   if (input.rate !== null && input.rate !== undefined && input.rate !== '' && money(input.rate) < 0n) {
     throw badRequest('VALIDATION_ERROR', 'A rule rate cannot be negative');
   }
-  const existing = await db.query<{ version: number }>(
-    'SELECT version FROM payroll_rules WHERE company_id = $1 AND upper(rule_code) = upper($2) ORDER BY version DESC LIMIT 1',
+  if (!input.effectiveFrom) {
+    throw badRequest('VALIDATION_ERROR', 'An explicit effective date is required: rules never apply retroactively by default');
+  }
+  const effectiveFrom = input.effectiveFrom;
+  return db.transaction(async (tx) => {
+  const existing = await tx.query<any>(
+    'SELECT * FROM payroll_rules WHERE company_id = $1 AND upper(rule_code) = upper($2) ORDER BY version DESC LIMIT 1',
     [actor.companyId, input.ruleCode.trim()],
   );
-  const version = (existing.rows[0]?.version ?? 0) + 1;
-  const res = await db.query<any>(
+  const previous = existing.rows[0];
+  if (previous && effectiveFrom <= previous.effective_from) {
+    throw conflict('PAYROLL_RULE_VERSION_OVERLAP', 'A new rule version must start after the previous version; historical periods are never recalculated silently');
+  }
+  const version = (previous?.version ?? 0) + 1;
+  if (previous) {
+    await tx.query(
+      `UPDATE payroll_rules SET effective_to = ($3::date - INTERVAL '1 day')::date, updated_at = now()
+        WHERE id = $1 AND company_id = $2 AND (effective_to IS NULL OR effective_to > $3::date)`,
+      [previous.id, actor.companyId, effectiveFrom],
+    );
+  }
+  const res = await tx.query<any>(
     `INSERT INTO payroll_rules
       (cabinet_id, company_id, rule_code, name_en, name_fr, legal_source, source_reference, source_url,
+       source_fingerprint, article, publication_date, parameters,
        effective_from, effective_to, employee_category, employer_category, calculation_basis, rate,
        threshold_amount, cap_amount, exemption_amount, rounding_policy, status,
-       required_for_calculation, version, test_cases, notes, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'UNVERIFIED',$19,$20,$21::jsonb,$22,$23)
+       required_for_calculation, version, test_cases, notes, created_by, accessed_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,'UNVERIFIED',$23,$24,$25::jsonb,$26,$27,now())
      RETURNING *`,
     [
       actor.cabinetId, actor.companyId, input.ruleCode.trim().toUpperCase(), input.nameEn.trim(),
       input.nameFr.trim(), input.legalSource?.trim() || null, input.sourceReference?.trim() || null,
-      input.sourceUrl?.trim() || null, input.effectiveFrom || null, input.effectiveTo || null,
+      input.sourceUrl?.trim() || null, input.sourceFingerprint?.trim() || null,
+      input.article?.trim() || null, input.publicationDate || null,
+      JSON.stringify(input.parameters ?? {}),
+      effectiveFrom, input.effectiveTo || null,
       input.employeeCategory?.trim() || null, input.employerCategory?.trim() || null,
       input.calculationBasis?.trim() || null,
       input.rate === null || input.rate === undefined || input.rate === '' ? null : fmt(money(input.rate)),
@@ -1009,10 +1490,11 @@ export async function createRule(db: Db, actor: PayrollActor, input: RuleInput) 
       JSON.stringify(input.testCases ?? []), input.notes?.trim() || null, actor.userId,
     ],
   );
-  await audit(db, actor, 'payroll.rule.create', 'payroll_rule', res.rows[0]!.id, {
-    ruleCode: input.ruleCode, version, status: 'UNVERIFIED',
+  await audit(tx, actor, 'payroll.rule.create', 'payroll_rule', res.rows[0]!.id, {
+    ruleCode: input.ruleCode, version, status: 'UNVERIFIED', effectiveFrom,
   });
   return res.rows[0];
+  });
 }
 
 export async function validateRule(
@@ -1034,8 +1516,12 @@ export async function validateRule(
     if (!source || !reference || !row.effective_from) {
       throw badRequest('PAYROLL_RULE_NOT_VALIDATED', 'A legal source, a reference and an effective date are required before validation');
     }
-    if (row.required_for_calculation && row.rate === null) {
-      throw badRequest('PAYROLL_RULE_NOT_VALIDATED', 'A required rule cannot be validated without an explicit documented rate');
+    const hasParameters = row.parameters && Object.keys(row.parameters).length > 0;
+    if (row.required_for_calculation && row.rate === null && !hasParameters) {
+      throw badRequest('PAYROLL_RULE_NOT_VALIDATED', 'A required rule cannot be validated without an explicit documented rate or structured parameters');
+    }
+    if (row.required_for_calculation && (!row.source_url || !row.source_fingerprint)) {
+      throw badRequest('PAYROLL_RULE_NOT_VALIDATED', 'An official URL and a source fingerprint must be recorded before expert validation');
     }
     const updated = await tx.query<any>(
       `UPDATE payroll_rules SET status = 'EXPERT_VALIDATED', legal_source = $2, source_reference = $3,
@@ -1053,7 +1539,8 @@ export async function validateRule(
 export async function requiredRulesStatus(db: Db, companyId: string, onDate: string) {
   const res = await db.query<any>(
     `SELECT DISTINCT ON (upper(rule_code)) upper(rule_code) AS rule_code, id, status, name_en, name_fr,
-            rate, effective_from, validated_at
+            rate, effective_from, effective_to, validated_at, parameters, legal_source,
+            source_reference, source_url, source_fingerprint, version, rounding_policy
        FROM payroll_rules
       WHERE company_id = $1 AND required_for_calculation = true
         AND (effective_from IS NULL OR effective_from <= $2::date)
@@ -1065,13 +1552,25 @@ export async function requiredRulesStatus(db: Db, companyId: string, onDate: str
   const byCode = new Map(res.rows.map((r) => [r.rule_code, r]));
   return REQUIRED_RULE_CODES.map((code) => {
     const row = byCode.get(code);
+    const sourceComplete = Boolean(row?.legal_source && row?.source_reference && row?.source_url);
+    const parametersComplete = Boolean(row && ((row.parameters && Object.keys(row.parameters).length > 0) || row.rate !== null));
+    const usable = Boolean(row && sourceComplete && parametersComplete &&
+      ['RESEARCHED', 'REVIEW_REQUIRED', 'EXPERT_VALIDATED'].includes(row.status));
     return {
       ruleCode: code,
       found: Boolean(row),
+      usable,
       validated: row?.status === 'EXPERT_VALIDATED',
+      expertValidated: row?.status === 'EXPERT_VALIDATED',
       status: row?.status ?? 'MISSING',
       rate: row?.rate ?? null,
       effectiveFrom: row?.effective_from ?? null,
+      effectiveTo: row?.effective_to ?? null,
+      version: row?.version ?? null,
+      parameters: row?.parameters ?? {},
+      sourceComplete,
+      parametersComplete,
+      rounding: row?.rounding_policy ?? null,
     };
   });
 }
@@ -1366,6 +1865,55 @@ function pickContract(contracts: any[], date: string) {
   ) ?? null;
 }
 
+async function loadEffectiveRules(db: Db, companyId: string, onDate: string) {
+  const res = await db.query<any>(
+    `SELECT DISTINCT ON (upper(rule_code)) *
+       FROM payroll_rules
+      WHERE company_id = $1 AND status <> 'DEPRECATED'
+        AND (effective_from IS NULL OR effective_from <= $2::date)
+        AND (effective_to IS NULL OR effective_to >= $2::date)
+      ORDER BY upper(rule_code), version DESC, effective_from DESC NULLS LAST`,
+    [companyId, onDate],
+  );
+  return new Map<string, any>(res.rows.map((row) => [String(row.rule_code).toUpperCase(), row]));
+}
+
+function ageAt(dateOfBirth: string | null, onDate: string): number | null {
+  if (!dateOfBirth) return null;
+  const [by, bm, bd] = dateOfBirth.slice(0, 10).split('-').map(Number);
+  const [oy, om, od] = onDate.slice(0, 10).split('-').map(Number);
+  if (!by || !bm || !bd || !oy || !om || !od) return null;
+  let age = oy - by;
+  if (om < bm || (om === bm && od < bd)) age -= 1;
+  return age;
+}
+
+function payPeriodsElapsed(taxYearStart: string, periodEnd: string, frequency: PayFrequency): number {
+  if (frequency === 'monthly') {
+    const [sy = 0, sm = 1] = taxYearStart.slice(0, 7).split('-').map(Number);
+    const [ey = 0, em = 1] = periodEnd.slice(0, 7).split('-').map(Number);
+    return Math.max(1, (ey - sy) * 12 + (em - sm) + 1);
+  }
+  const days = daysInclusive(taxYearStart, periodEnd);
+  const step = frequency === 'fortnightly' ? 14 : 7;
+  return Math.max(1, Math.ceil(days / step));
+}
+
+function rulesSnapshot(rules: Map<string, any>, codes: string[]) {
+  return codes.map((code) => {
+    const rule = rules.get(code);
+    return {
+      ruleCode: code,
+      version: rule?.version ?? null,
+      status: rule?.status ?? 'MISSING',
+      effectiveFrom: rule?.effective_from ?? null,
+      sourceUrl: rule?.source_url ?? null,
+      sourceReference: rule?.source_reference ?? null,
+      rounding: rule?.rounding_policy ?? null,
+    };
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Calculation
 // ---------------------------------------------------------------------------
@@ -1408,10 +1956,16 @@ export async function calculatePeriod(
     );
     const version = Number(versionRes.rows[0]?.version ?? 0) + 1;
     const rules = await requiredRulesStatus(tx, actor.companyId, period.end_date);
-    const missingRules = rules.filter((r) => !r.validated).map((r) => ({
-      ruleCode: r.ruleCode, status: r.status, reason: r.found ? 'NOT_EXPERT_VALIDATED' : 'MISSING',
+    const missingRules = rules.filter((r) => !r.usable).map((r) => ({
+      ruleCode: r.ruleCode, status: r.status,
+      reason: !r.found ? 'MISSING' : !r.sourceComplete ? 'SOURCE_INCOMPLETE'
+        : !r.parametersComplete ? 'PARAMETERS_MISSING' : 'NOT_SOURCE_VERIFIED',
     }));
-    const statutoryEngineMissing = true;
+    const allRulesExpertValidated = rules.every((r) => r.expertValidated);
+    const effectiveRules = await loadEffectiveRules(tx, actor.companyId, period.end_date);
+    const settingsRes = await tx.query<any>('SELECT * FROM payroll_settings WHERE company_id = $1', [actor.companyId]);
+    const settings = settingsRes.rows[0] ?? {};
+    const taxYearStart = taxYearStartFor(period.end_date);
     const dayCount = BigInt(daysInclusive(period.start_date, period.end_date));
     const calculations: any[] = [];
 
@@ -1572,15 +2126,255 @@ export async function calculatePeriod(
         });
       }
 
+      const employeeMissing: { ruleCode: string; status: string; reason: string }[] = [...missingRules];
+      const reviewReasons: { code: string; message: string }[] = [];
+      const effectiveCodes: string[] = [...REQUIRED_RULE_CODES];
+      if (settings.statutory_ar_enabled) effectiveCodes.push(AR_RULE_CODE);
+
+      if (currency !== 'MUR') {
+        employeeMissing.push({ ruleCode: 'CURRENCY', status: 'NOT_IMPLEMENTED', reason: 'NON_MUR_PAYROLL_NOT_IMPLEMENTED' });
+      }
+      if (employee.paye_category && employee.paye_category !== 'standard') {
+        employeeMissing.push({ ruleCode: 'PAYE_CATEGORY', status: 'NOT_IMPLEMENTED', reason: 'DIRECTOR_OR_PENSIONER_PAYE_NOT_IMPLEMENTED' });
+      }
+      if (employee.is_public_sector) {
+        employeeMissing.push({ ruleCode: 'CSG_PUBLIC_SECTOR', status: 'MISSING', reason: 'PUBLIC_SECTOR_CSG_NOT_IMPLEMENTED' });
+      }
+      if (employee.country_of_residence && employee.country_of_residence !== 'Mauritius') {
+        reviewReasons.push({ code: 'NON_RESIDENT_REVIEW', message: 'Non-resident status must be evidenced and reviewed; reliefs are not inferred.' });
+      }
+
+      // Additional Remuneration 2026 (opt-in). It is part of the basic wage
+      // under the 2026 regulations and is therefore shown before PAYE/CSG/NSF.
+      let additionalRemuneration = 0n;
+      const arRule = effectiveRules.get(AR_RULE_CODE);
+      if (settings.statutory_ar_enabled) {
+        if (!arRule || arRule.status === 'UNVERIFIED') {
+          employeeMissing.push({ ruleCode: AR_RULE_CODE, status: arRule?.status ?? 'MISSING', reason: 'ADDITIONAL_REMUNERATION_RULE_UNAVAILABLE' });
+        } else {
+          const p = arRule.parameters ?? {};
+          const ar = computeAdditionalRemuneration({
+            effectiveFrom: String(p.effectiveFrom ?? arRule.effective_from ?? '2026-01-01'),
+            periodEnd: period.end_date,
+            workerType: employee.worker_type === 'piece_rate' ? 'piece_rate'
+              : firstContract?.work_pattern === 'part_time' ? 'part_time'
+              : (employee.worker_type ?? 'full_time'),
+            monthlyBasicWage: base,
+            excluded: Boolean(employee.additional_remuneration_excluded),
+            enabled: true,
+            fullTimeAmount: String(p.fullTimeAmount ?? '635'),
+            partTimeThreshold: String(p.partTimeThreshold ?? '17110'),
+            partTimeRate: String(p.partTimeRate ?? '3.7'),
+            maximum: String(p.maximum ?? '635'),
+            globalThreshold: String(p.globalThreshold ?? '50000'),
+          });
+          additionalRemuneration = ar.value;
+          if (additionalRemuneration > 0n) {
+            lines.push({
+              lineType: 'earning', code: 'AR2026',
+              labelEn: 'Additional Remuneration 2026', labelFr: 'Rémunération additionnelle 2026',
+              amount: additionalRemuneration, source: 'statutory_rule', note: ar.trace.join(' '),
+            });
+            earnings += additionalRemuneration;
+          }
+          if (!additionalRemuneration && employee.worker_type === 'piece_rate') {
+            reviewReasons.push({ code: 'AR_PIECE_RATE_NOT_CALCULATED', message: 'Piece-rate additional remuneration requires the relevant rate schedule.' });
+          }
+        }
+      }
+
+      const basicWage = base + additionalRemuneration;
       const gross = base + earnings;
+      if (earnings - additionalRemuneration > 0n) {
+        reviewReasons.push({
+          code: 'CSG_BONUS_BASE_REVIEW',
+          message: 'Additional earnings are excluded from the CSG base; prescribed-bonus cumulative rate selection is not implemented.',
+        });
+      }
       const netArithmetic = gross + reimbursements - deductions;
-      const missing = [
-        ...missingRules,
-        ...(statutoryEngineMissing
-          ? [{ ruleCode: 'STATUTORY_ENGINE', status: 'NOT_IMPLEMENTED', reason: 'PAYROLL_STATUTORY_ENGINE_NOT_IMPLEMENTED' }]
-          : []),
-      ];
-      const status = missing.length ? 'blocked' : 'simulated';
+      const statutoryBlocked = employeeMissing.length > 0;
+
+      // Prior pay periods of the same tax year drive cumulative PAYE.
+      const prior = await tx.query<any>(
+        `SELECT DISTINCT ON (c.period_id) c.gross, c.paye, c.status, p.start_date, p.end_date
+           FROM payroll_calculations c JOIN payroll_periods p ON p.id = c.period_id
+          WHERE c.company_id = $1 AND c.employee_id = $2
+            AND p.start_date >= $3::date AND p.end_date < $4::date
+          ORDER BY c.period_id, c.version DESC`,
+        [actor.companyId, employee.id, taxYearStart, period.start_date],
+      );
+      const priorUsable = prior.rows.filter((row) => !['blocked', 'rules_incomplete'].includes(row.status));
+      const priorGross = priorUsable.reduce((sum, row) => sum + money(row.gross), 0n);
+      const previousWithheld = priorUsable.reduce((sum, row) => sum + money(row.paye), 0n);
+      if (prior.rows.some((row) => row.paye === null && !['blocked', 'rules_incomplete'].includes(row.status))) {
+        employeeMissing.push({ ruleCode: 'PRIOR_STATUTORY', status: 'MISSING', reason: 'PRIOR_CALCULATION_WITHOUT_STATUTORY_RESULT' });
+      }
+
+      let paye: bigint | null = null;
+      let csgEmployee: bigint | null = null;
+      let csgEmployer: bigint | null = null;
+      let nsfEmployee: bigint | null = null;
+      let nsfEmployer: bigint | null = null;
+      let trainingLevy: bigint | null = null;
+      let edfBasis = 'NOT_EVALUATED';
+
+      if (!statutoryBlocked) {
+        const frequency = (employee.pay_frequency ?? 'monthly') as PayFrequency;
+        const edf = await cumulativeEdfReliefs(
+          tx, actor.companyId, employee.id, taxYearStart, period.end_date, frequency,
+        );
+        const payeRule = effectiveRules.get('PAYE');
+        const noEdfRule = effectiveRules.get('PAYE_NO_EDF');
+        if (!payeRule || !noEdfRule) {
+          employeeMissing.push({ ruleCode: 'PAYE', status: 'MISSING', reason: 'PAYE_RULE_UNAVAILABLE' });
+        } else if (frequency === 'daily') {
+          paye = 0n;
+          edfBasis = 'DAILY_PAY_EXCLUDED_FROM_PAYE';
+          reviewReasons.push({ code: 'DAILY_PAY_EXCLUDED', message: 'Daily-paid workers are excluded from PAYE operation; annual liability remains the employee’s responsibility.' });
+        } else if (['monthly', 'weekly', 'fortnightly'].includes(frequency)) {
+          const cumulativeEmoluments = priorGross + gross;
+          const fscThreshold = scaleBandThreshold(
+            12_000_000n * 10_000n,
+            payPeriodsElapsed(taxYearStart, period.end_date, frequency),
+          );
+          if (cumulativeEmoluments > fscThreshold) {
+            employeeMissing.push({ ruleCode: 'FAIR_SHARE_CONTRIBUTION', status: 'MISSING', reason: 'FAIR_SHARE_CONTRIBUTION_NOT_IMPLEMENTED' });
+          } else if (edf.hasEdf) {
+            const bands = (payeRule.parameters?.bands ?? []) as PayeBand[];
+            const cumulativeReliefs = employee.tax_residency === 'non_resident' ? 0n : edf.cumulativeReliefs;
+            const computed = computeCumulativePaye({
+              cumulativeEmoluments,
+              cumulativeReliefs,
+              periodsElapsed: edf.periodsElapsed,
+              previousWithheld,
+              bands,
+            });
+            paye = computed.value.currentPaye;
+            edfBasis = employee.tax_residency === 'non_resident' ? 'NON_RESIDENT_NO_RELIEFS' : edf.basis;
+            if (employee.tax_residency === 'non_resident') {
+              reviewReasons.push({ code: 'NON_RESIDENT_NO_RELIEFS', message: 'EDF reliefs ignored for a non-resident as required by the PAYE guide.' });
+            }
+          } else if (frequency !== 'monthly') {
+            employeeMissing.push({ ruleCode: 'PAYE_NO_EDF', status: 'MISSING', reason: 'NO_EDF_NON_MONTHLY_NOT_VERIFIED' });
+          } else {
+            const computed = computePayeWithoutEdf({
+              periodEmoluments: gross,
+              threshold: String(noEdfRule.threshold_amount ?? '38462'),
+              rate: String(noEdfRule.rate ?? '15'),
+            });
+            paye = computed.value;
+            edfBasis = computed.value > 0n ? 'NO_EDF_FLAT_15' : 'NO_EDF_AT_OR_BELOW_THRESHOLD';
+          }
+        } else {
+          employeeMissing.push({ ruleCode: 'PAYE_FREQUENCY', status: 'NOT_IMPLEMENTED', reason: 'PAYE_HALF_MONTHLY_NOT_VERIFIED' });
+        }
+
+        // CSG: private-sector rule only. Public sector, exempt categories and
+        // prescribed-bonus cumulative rates require separate verified handling.
+        const csgRule = effectiveRules.get('CSG_PRIVATE');
+        if (employee.csg_exempt) {
+          csgEmployee = 0n; csgEmployer = 0n;
+          reviewReasons.push({ code: 'CSG_EXEMPT_DECLARED', message: employee.csg_exempt_reason ?? 'CSG exemption declared by the employer.' });
+        } else if (!csgRule) {
+          employeeMissing.push({ ruleCode: 'CSG_PRIVATE', status: 'MISSING', reason: 'CSG_RULE_UNAVAILABLE' });
+        } else {
+          const p = csgRule.parameters ?? {};
+          const c = computeCsg({
+            amount: basicWage,
+            threshold: String(csgRule.threshold_amount ?? '50000'),
+            lowEmployeeRate: String(p.lowEmployeeRate ?? '1.5'),
+            lowEmployerRate: String(p.lowEmployerRate ?? '3'),
+            highEmployeeRate: String(p.highEmployeeRate ?? '3'),
+            highEmployerRate: String(p.highEmployerRate ?? '6'),
+          });
+          csgEmployee = c.value.employee;
+          csgEmployer = c.value.employer;
+        }
+
+        // NSF: age evidence is mandatory; missing date of birth blocks rather
+        // than assuming the employee is over 18 and under 65.
+        const age = ageAt(employee.date_of_birth, period.end_date);
+        const nsfRates = effectiveRules.get('NSF_RATES');
+        const nsfLimitsRule = effectiveRules.get('NSF_LIMITS');
+        if (employee.nsf_exempt) {
+          nsfEmployee = 0n; nsfEmployer = 0n;
+          reviewReasons.push({ code: 'NSF_EXEMPT_DECLARED', message: employee.nsf_exempt_reason ?? 'NSF exemption declared by the employer.' });
+        } else if (age === null) {
+          employeeMissing.push({ ruleCode: 'NSF_AGE', status: 'MISSING', reason: 'DATE_OF_BIRTH_REQUIRED' });
+        } else if (age < 18 || age >= 65) {
+          nsfEmployee = 0n; nsfEmployer = 0n;
+        } else if (!nsfRates || !nsfLimitsRule) {
+          employeeMissing.push({ ruleCode: 'NSF_RATES', status: 'MISSING', reason: 'NSF_RULE_UNAVAILABLE' });
+        } else {
+          const limits = (nsfLimitsRule.parameters?.limitsByFrequency ?? {})[frequency] as NsfLimits | undefined;
+          if (!limits) {
+            employeeMissing.push({ ruleCode: 'NSF_LIMITS', status: 'MISSING', reason: `NSF_LIMITS_${frequency.toUpperCase()}_MISSING` });
+          } else {
+            const n = computeNsf({
+              basicWage,
+              frequency,
+              limits,
+              household: Boolean(employee.is_household_worker),
+              employeeRate: String(nsfRates.parameters?.employeeRate ?? '1'),
+              employerRate: String(nsfRates.parameters?.employerRate ?? '2.5'),
+            });
+            nsfEmployee = n.value.employee;
+            nsfEmployer = n.value.employer;
+          }
+        }
+
+        // Training Levy is employer-only and uses the full basic wage.
+        const levyRule = effectiveRules.get('TRAINING_LEVY');
+        if (!levyRule) {
+          employeeMissing.push({ ruleCode: 'TRAINING_LEVY', status: 'MISSING', reason: 'TRAINING_LEVY_RULE_UNAVAILABLE' });
+        } else {
+          const exempt = Boolean(employee.training_levy_exempt || employee.is_household_worker ||
+            (age !== null && (age < 18 || age >= 70)));
+          trainingLevy = computeTrainingLevy({
+            basicWage, rate: String(levyRule.rate ?? '1.5'), exempt,
+          }).value;
+        }
+
+        if (employeeMissing.length > 0) {
+          paye = null; csgEmployee = null; csgEmployer = null;
+          nsfEmployee = null; nsfEmployer = null; trainingLevy = null;
+        }
+      }
+
+      const blockedNow = employeeMissing.length > 0;
+      const allExpert = allRulesExpertValidated &&
+        (!settings.statutory_ar_enabled || effectiveRules.get(AR_RULE_CODE)?.status === 'EXPERT_VALIDATED');
+      const statutoryComplete = !blockedNow && allExpert;
+      const employerContributions = (csgEmployer ?? 0n) + (nsfEmployer ?? 0n) + (trainingLevy ?? 0n);
+      const netAfterStatutory = paye === null ? null
+        : netArithmetic - paye - (csgEmployee ?? 0n) - (nsfEmployee ?? 0n);
+      const netPayable = statutoryComplete ? netAfterStatutory : null;
+      const status = blockedNow ? 'rules_incomplete'
+        : reviewReasons.length > 0 ? 'review_required'
+        : allExpert ? 'calculated' : 'expert_review_pending';
+      const statutoryStatus = blockedNow ? 'RULES_INCOMPLETE'
+        : allExpert ? 'CALCULATED' : 'EXPERT_REVIEW_PENDING';
+      if (paye !== null) {
+        lines.push({ lineType: 'deduction', code: 'PAYE', labelEn: 'PAYE withheld', labelFr: 'PAYE retenu', amount: paye, source: 'statutory_rule' });
+      }
+      if (csgEmployee !== null && csgEmployee > 0n) {
+        lines.push({ lineType: 'deduction', code: 'CSG_EE', labelEn: 'CSG employee', labelFr: 'CSG salarié', amount: csgEmployee, source: 'statutory_rule' });
+      }
+      if (nsfEmployee !== null && nsfEmployee > 0n) {
+        lines.push({ lineType: 'deduction', code: 'NSF_EE', labelEn: 'NSF employee', labelFr: 'NSF salarié', amount: nsfEmployee, source: 'statutory_rule' });
+      }
+      if (csgEmployer !== null && csgEmployer > 0n) {
+        lines.push({ lineType: 'employer', code: 'CSG_ER', labelEn: 'CSG employer', labelFr: 'CSG employeur', amount: csgEmployer, source: 'statutory_rule' });
+      }
+      if (nsfEmployer !== null && nsfEmployer > 0n) {
+        lines.push({ lineType: 'employer', code: 'NSF_ER', labelEn: 'NSF employer', labelFr: 'NSF employeur', amount: nsfEmployer, source: 'statutory_rule' });
+      }
+      if (trainingLevy !== null && trainingLevy > 0n) {
+        lines.push({ lineType: 'employer', code: 'TRAINING_LEVY', labelEn: 'HRDC Training Levy', labelFr: 'Levy de formation HRDC', amount: trainingLevy, source: 'statutory_rule' });
+      }
+      const rulesApplied = rulesSnapshot(effectiveRules, effectiveCodes);
+      const ruleVersionLabel = rulesApplied.map((r) => `${r.ruleCode}=v${r.version ?? '?'}/${r.status}`).join(',');
+
       const inputHash = hash(JSON.stringify({
         periodId, employeeId: employee.id, version, contracts: contracts.rows.map((c) => ({
           id: c.id, from: c.effective_from, to: c.effective_to, salary: c.base_salary,
@@ -1588,24 +2382,40 @@ export async function calculatePeriod(
         })),
         variables: variables.rows.map((v) => ({ id: v.id, amount: v.amount, status: v.status })),
         allowances: allowances.rows.map((a) => ({ id: a.id, amount: a.amount })),
-        absences: absences.rows, rules: rules.map((r) => ({ code: r.ruleCode, status: r.status, rate: r.rate })),
+        absences: absences.rows, rules: rulesApplied,
+        edfBasis, additionalRemuneration: fmt(additionalRemuneration),
       }));
       const calculationRes = await tx.query<any>(
         `INSERT INTO payroll_calculations
           (cabinet_id, company_id, period_id, employee_id, version, status, currency, contract_id,
            base_amount, proration_days, period_days, earnings, gross, deductions, net_arithmetic,
            paye, csg, nsf, employer_contributions, statutory_complete, missing_rules, warnings,
-           input_hash, rule_version, calculated_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NULL,NULL,NULL,NULL,false,
-                 $16::jsonb,$17::jsonb,$18,$19,$20) RETURNING *`,
+           input_hash, rule_version, calculated_by, taxable_emoluments, basic_wage, paye_basis,
+           csg_employee, csg_employer, nsf_employee, nsf_employer, training_levy,
+           additional_remuneration, employer_cost, net_after_statutory, net_payable,
+           statutory_status, edf_basis, rules_applied, review_reasons)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
+                 $21::jsonb,$22::jsonb,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40::jsonb,$41::jsonb)
+         RETURNING *`,
         [
           actor.cabinetId, actor.companyId, periodId, employee.id, version, status, currency,
           firstContract?.id ?? null, fmt(base),
           activeDates.length === Number(dayCount) ? null : `${activeDates.length}.0000`, Number(dayCount),
           fmt(earnings), fmt(gross), fmt(deductions), fmt(netArithmetic),
-          JSON.stringify(missing), JSON.stringify(warnings), inputHash,
-          `rules:${rules.map((r) => `${r.ruleCode}=${r.status}`).join(',')};engine=not_implemented`,
-          actor.userId,
+          paye === null ? null : fmt(paye), csgEmployee === null ? null : fmt(csgEmployee),
+          nsfEmployee === null ? null : fmt(nsfEmployee),
+          (csgEmployer === null && nsfEmployer === null && trainingLevy === null) ? null : fmt(employerContributions),
+          statutoryComplete, JSON.stringify(employeeMissing), JSON.stringify(warnings), inputHash,
+          `rules:${ruleVersionLabel};engine=mission15`, actor.userId,
+          fmt(gross), fmt(basicWage), edfBasis,
+          csgEmployee === null ? null : fmt(csgEmployee), csgEmployer === null ? null : fmt(csgEmployer),
+          nsfEmployee === null ? null : fmt(nsfEmployee), nsfEmployer === null ? null : fmt(nsfEmployer),
+          trainingLevy === null ? null : fmt(trainingLevy), fmt(additionalRemuneration),
+          (csgEmployer === null || nsfEmployer === null || trainingLevy === null) ? null
+            : fmt(gross + reimbursements + employerContributions),
+          netAfterStatutory === null ? null : fmt(netAfterStatutory),
+          netPayable === null ? null : fmt(netPayable),
+          statutoryStatus, edfBasis, JSON.stringify(rulesApplied), JSON.stringify(reviewReasons),
         ],
       );
       const calculation = {
@@ -1626,24 +2436,28 @@ export async function calculatePeriod(
       calculations.push(calculation);
     }
 
-    const newStatus = calculations.some((c) => c.status === 'blocked') ? 'blocked' : 'calculated';
+    const newStatus = calculations.some((c) => c.status === 'rules_incomplete') ? 'blocked' : 'calculated';
     await tx.query(
       `UPDATE payroll_periods SET status = $2, calculated_at = now(), version = $3, updated_at = now()
         WHERE id = $1`,
       [periodId, newStatus, version],
     );
     await audit(tx, actor, 'payroll.period.calculate', 'payroll_period', periodId, {
-      version, employees: calculations.length, blocked: calculations.filter((c) => c.status === 'blocked').length,
+      version, employees: calculations.length,
+      blocked: calculations.filter((c) => c.status === 'rules_incomplete').length,
+      expertReviewPending: calculations.filter((c) => c.status === 'expert_review_pending').length,
       missingRules: missingRules.map((r) => r.ruleCode),
     });
     return {
       period: (await tx.query<any>('SELECT * FROM payroll_periods WHERE id = $1', [periodId])).rows[0],
       version,
       calculations,
-      blocked: calculations.some((c) => c.status === 'blocked'),
-      statutoryComplete: false,
+      blocked: calculations.some((c) => c.status === 'rules_incomplete'),
+      statutoryComplete: calculations.length > 0 && calculations.every((c) => c.statutory_complete),
+      expertReviewPending: calculations.some((c) => ['expert_review_pending', 'review_required'].includes(c.status)),
       missingRules,
-      missingEngine: 'PAYROLL_STATUTORY_ENGINE_NOT_IMPLEMENTED',
+      engine: 'mission15_v1',
+      finalisationBlocked: true,
     };
   });
 }
@@ -1713,11 +2527,20 @@ export async function generatePayslip(db: Db, actor: PayrollActor, calculationId
       currency: calculation.currency,
       lines: calculation.lines,
       totals: {
-        base: calculation.base_amount, gross: calculation.gross,
+        base: calculation.base_amount, additionalRemuneration: calculation.additional_remuneration,
+        taxableEmoluments: calculation.taxable_emoluments, gross: calculation.gross,
         deductions: calculation.deductions, netArithmetic: calculation.net_arithmetic,
-        paye: null, csg: null, nsf: null, netPayable: null,
+        paye: calculation.paye, csgEmployee: calculation.csg_employee,
+        nsfEmployee: calculation.nsf_employee, netAfterStatutory: calculation.net_after_statutory,
+        netPayable: calculation.net_payable,
+        csgEmployer: calculation.csg_employer, nsfEmployer: calculation.nsf_employer,
+        trainingLevy: calculation.training_levy, employerCost: calculation.employer_cost,
       },
-      status: 'blocked',
+      status: calculation.status === 'rules_incomplete' ? 'blocked' : 'simulation',
+      statutoryStatus: calculation.statutory_status,
+      payeBasis: calculation.paye_basis,
+      rulesApplied: calculation.rules_applied,
+      reviewReasons: calculation.review_reasons,
       missingRules: calculation.missing_rules,
       warnings: calculation.warnings,
       calculationVersion: calculation.version,
@@ -1829,14 +2652,137 @@ export async function payrollDashboard(db: Db, actor: PayrollActor) {
     missingContracts: missingContracts.rows,
     rules,
     calculationAvailable: true,
-    statutoryComplete: false,
+    statutoryComplete: rules.every((r: any) => r.expertValidated),
     capabilities: {
       employees: true, contracts: true, time: true, leave: true, variables: true,
-      arithmeticCalculation: true, statutoryCalculation: false, finalPayslips: false,
+      arithmeticCalculation: true, statutoryCalculation: true, finalPayslips: false,
       statutoryDeclarations: false, accountingTransfer: false,
-      paye: false, csg: false, nsf: false, employerContributions: false,
+      paye: true, csg: true, nsf: true, employerContributions: true,
     },
     notice:
-      'Les totaux arithmétiques sont calculés. PAYE, CSG, NSF et cotisations employeur restent bloqués : aucune règle mauricienne n’est validée et le moteur réglementaire n’est pas implémenté.',
+      'PAYE, CSG, NSF et Training Levy sont calculés à partir de règles sourcées, mais aucune n’est validée par un expert. Les bulletins restent des simulations et la finalisation est bloquée.',
   };
+}
+
+// ---------------------------------------------------------------------------
+// Mission 15: review gates and MRA preparation (never submission)
+// ---------------------------------------------------------------------------
+
+export async function approveCalculationForTest(
+  db: Db, actor: PayrollActor, calculationId: string,
+  input: { confirm: true; note: string },
+) {
+  requireAdmin(actor);
+  if (!input.confirm) throw badRequest('PAYROLL_REVIEW_REQUIRED', 'Explicit confirmation is required');
+  const note = input.note?.trim();
+  if (!note || note.length < 10) {
+    throw badRequest('PAYROLL_REVIEW_REQUIRED', 'A review note of at least 10 characters is required');
+  }
+  return db.transaction(async (tx) => {
+    const current = await tx.query<any>(
+      `SELECT c.*, p.status AS period_status FROM payroll_calculations c
+         JOIN payroll_periods p ON p.id = c.period_id
+        WHERE c.company_id = $1 AND c.id = $2 FOR UPDATE`,
+      [actor.companyId, calculationId],
+    );
+    const row = current.rows[0];
+    if (!row) throw notFound('PAYROLL_CALCULATION_NOT_FOUND', 'Calculation not found');
+    if (row.status === 'rules_incomplete') {
+      throw conflict('PAYROLL_RULES_NOT_VALIDATED', 'A calculation with incomplete rules cannot be approved, even for testing');
+    }
+    if (row.status === 'approved_for_test') {
+      return row;
+    }
+    const updated = await tx.query<any>(
+      `UPDATE payroll_calculations SET status = 'approved_for_test', statutory_status = 'APPROVED_FOR_TEST',
+              approved_for_test_at = now(), approved_for_test_by = $3, approved_for_test_note = $4,
+              updated_at = now()
+        WHERE id = $1 AND company_id = $2 RETURNING *`,
+      [calculationId, actor.companyId, actor.userId, note],
+    );
+    await audit(tx, actor, 'payroll.calculation.approve_for_test', 'payroll_calculation', calculationId, {
+      from: row.status, note, version: row.version,
+    });
+    return updated.rows[0];
+  });
+}
+
+export async function requestExpertReview(
+  db: Db, actor: PayrollActor, calculationId: string,
+  input: { note: string },
+) {
+  requireWriter(actor);
+  return db.transaction(async (tx) => {
+    const current = await tx.query<any>(
+      'SELECT * FROM payroll_calculations WHERE company_id = $1 AND id = $2 FOR UPDATE',
+      [actor.companyId, calculationId],
+    );
+    const row = current.rows[0];
+    if (!row) throw notFound('PAYROLL_CALCULATION_NOT_FOUND', 'Calculation not found');
+    if (row.status === 'rules_incomplete') {
+      throw conflict('PAYROLL_RULES_NOT_VALIDATED', 'Rules must be complete before an expert review can be requested');
+    }
+    const updated = await tx.query<any>(
+      `UPDATE payroll_calculations SET status = 'expert_review_pending',
+              statutory_status = 'EXPERT_REVIEW_PENDING', updated_at = now()
+        WHERE id = $1 AND company_id = $2 RETURNING *`,
+      [calculationId, actor.companyId],
+    );
+    await audit(tx, actor, 'payroll.calculation.review.request', 'payroll_calculation', calculationId, {
+      note: input.note?.trim() || null,
+    });
+    return updated.rows[0];
+  });
+}
+
+export async function payrollReturnSummary(db: Db, actor: PayrollActor, periodId: string) {
+  const period = await db.query<any>(
+    'SELECT * FROM payroll_periods WHERE company_id = $1 AND id = $2',
+    [actor.companyId, periodId],
+  );
+  const row = period.rows[0];
+  if (!row) throw notFound('PAYROLL_PERIOD_NOT_FOUND', 'Payroll period not found');
+  const totals = await db.query<any>(
+    `SELECT count(*)::int AS employees,
+            COALESCE(SUM(c.gross),0)::text AS gross,
+            COALESCE(SUM(c.paye),0)::text AS paye,
+            COALESCE(SUM(c.csg_employee),0)::text AS csg_employee,
+            COALESCE(SUM(c.csg_employer),0)::text AS csg_employer,
+            COALESCE(SUM(c.nsf_employee),0)::text AS nsf_employee,
+            COALESCE(SUM(c.nsf_employer),0)::text AS nsf_employer,
+            COALESCE(SUM(c.training_levy),0)::text AS training_levy,
+            count(*) FILTER (WHERE c.status = 'rules_incomplete')::int AS incomplete,
+            count(*) FILTER (WHERE c.status = 'approved_for_test')::int AS approved_for_test
+       FROM payroll_calculations c
+      WHERE c.company_id = $1 AND c.period_id = $2
+        AND c.version = (SELECT MAX(version) FROM payroll_calculations x WHERE x.period_id = c.period_id)`,
+    [actor.companyId, periodId],
+  );
+  const t = totals.rows[0] ?? {};
+  return {
+    period: { id: row.id, year: row.period_year, month: row.period_month, start: row.start_date, end: row.end_date, status: row.status },
+    ...t,
+    submission: 'NOT_SUBMITTED',
+    status: 'PREPARATION_ONLY',
+    notice: 'This summary is a local preparation aid. It is not an MRA return, has not been validated against MRA file specifications, and must not be submitted as-is.',
+  };
+}
+
+export function payrollReturnCsv(summary: any): string {
+  const rows: string[][] = [
+    ['PREPARATION ONLY - NOT SUBMITTED TO MRA'],
+    ['Period', `${summary.period.year}-${String(summary.period.month).padStart(2, '0')}`],
+    ['Field', 'Amount (MUR)'],
+    ['Gross emoluments', summary.gross],
+    ['PAYE withheld', summary.paye],
+    ['CSG employee', summary.csg_employee],
+    ['CSG employer', summary.csg_employer],
+    ['NSF employee', summary.nsf_employee],
+    ['NSF employer', summary.nsf_employer],
+    ['Training levy', summary.training_levy],
+    ['Employees', String(summary.employees)],
+    ['Calculations with incomplete rules', String(summary.incomplete)],
+    ['Status', summary.status],
+  ];
+  return rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
 }
