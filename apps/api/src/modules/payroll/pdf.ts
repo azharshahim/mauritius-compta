@@ -96,11 +96,6 @@ export function payrollPdf(input: {
         .text(`${text(input.payslipNo)} · ${tr('Page', 'Page')} ${pageNo}`, LEFT + 250, y + 7, {
           width: WIDTH - 250, align: 'right', lineBreak: false,
         });
-      doc.fontSize(6.3).fillColor(MUTED)
-        .text(tr(
-          'Fictional demonstration document. It is not an official payslip and is not a payment instruction.',
-          'Document de démonstration fictif. Il ne constitue ni un bulletin officiel ni un ordre de paiement.',
-        ), LEFT, y + 15, { width: WIDTH, lineBreak: false });
     };
 
     const newPage = () => {
