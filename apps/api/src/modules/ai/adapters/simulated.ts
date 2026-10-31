@@ -8,6 +8,7 @@ import {
   categoryForDescription,
   chooseAccount,
   parseAccountBlock,
+  simulateJournalProposal,
 } from '../simulation.js';
 
 /**
@@ -28,6 +29,10 @@ export function createSimulatedAdapter(options: { enabled: boolean }): AIAdapter
     async complete(request: AICompletionRequest): Promise<AICompletion> {
       if (!options.enabled) {
         throw new AIProviderError('AI_PROVIDER_NOT_ALLOWED', 'Simulated provider is disabled');
+      }
+
+      if (request.responseSchema?.name === 'journal_entry_proposal') {
+        return simulateJournalAnswer(request);
       }
 
       const accounts = parseAccountBlock(request.user);
@@ -73,6 +78,25 @@ export function createSimulatedAdapter(options: { enabled: boolean }): AIAdapter
           outputTokens: 80,
         },
       };
+    },
+  };
+}
+
+/** Deterministic full-entry answer: balanced, grounded, never a rate. */
+function simulateJournalAnswer(request: AICompletionRequest): AICompletion {
+  const answer = simulateJournalProposal(request.user);
+  if (answer.lines.length === 0) {
+    // An explicitly incomplete answer: the engine surfaces `missing` instead of
+    // inventing accounts or amounts.
+    answer.confidence = 0.1;
+  }
+  return {
+    text: JSON.stringify(answer),
+    model: request.model,
+    providerRequestId: 'simulated',
+    usage: {
+      inputTokens: Math.ceil(request.user.length / 4),
+      outputTokens: 140,
     },
   };
 }

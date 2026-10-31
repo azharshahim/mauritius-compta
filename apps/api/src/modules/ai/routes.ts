@@ -22,6 +22,25 @@ import {
   suggestAccount,
 } from './suggestions.js';
 import { AI_FEATURES, featureByKey } from './types.js';
+import {
+  listProposals,
+  loadProposal,
+  postProposal,
+  proposeFromBilling,
+  proposeManual,
+  proposalDuplicates,
+  rejectProposal,
+  updateProposal,
+  validateProposal,
+  viewProposal,
+} from './proposals.js';
+import {
+  assertRuleType,
+  disableRule as disableEntryRule,
+  listRuleHistory,
+  listRules as listEntryRules,
+  saveRule,
+} from './rules.js';
 
 /**
  * Mauritius AI Engine - HTTP surface.
@@ -79,6 +98,76 @@ const decisionBody = z.object({
   createRule: z.boolean().optional(),
   keyword: z.string().trim().min(3).max(60).optional(),
 });
+
+
+const entryProposalBody = z
+  .object({
+    description: z.string().trim().min(5).max(500),
+    amount: z
+      .union([z.string().regex(/^\d{1,15}(\.\d{1,4})?$/), z.number().min(0).max(1e15)])
+      .refine((value) => Number(value) > 0, { message: 'An amount greater than zero is required' }),
+    currency: z.string().length(3).toUpperCase().optional(),
+    entryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    reference: z.string().trim().max(100).nullable().optional(),
+  })
+  .strict();
+
+const fromBillingBody = z
+  .object({ documentId: z.string().uuid().optional(), paymentId: z.string().uuid().optional() })
+  .strict()
+  .refine((v) => Boolean(v.documentId) !== Boolean(v.paymentId), {
+    message: 'Exactly one of documentId / paymentId is required',
+  });
+
+const proposalUpdateBody = z
+  .object({
+    journalId: z.string().uuid().optional(),
+    entryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    reference: z.string().trim().max(100).nullable().optional(),
+    description: z.string().trim().min(3).max(300).optional(),
+    currency: z.string().length(3).toUpperCase().optional(),
+    exchangeRate: z
+      .union([z.string().regex(/^\d{1,6}(\.\d{1,8})?$/), z.number().positive()])
+      .nullable()
+      .optional(),
+    lines: z
+      .array(
+        z
+          .object({
+            accountId: z.string().uuid(),
+            description: z.string().trim().max(300).nullable().optional(),
+            debit: z.union([z.string(), z.number()]).nullable().optional(),
+            credit: z.union([z.string(), z.number()]).nullable().optional(),
+          })
+          .strict(),
+      )
+      .min(2)
+      .max(200)
+      .optional(),
+  })
+  .strict();
+
+const validateBody = z.object({ acceptWarnings: z.boolean().optional() }).strict();
+const rejectBody = z.object({ note: z.string().trim().max(500).nullable().optional() }).strict();
+
+const ruleBody = z
+  .object({
+    ruleType: z.enum(['counterparty', 'bank_label', 'expense_category', 'billing_item', 'payment_method', 'journal']),
+    matchKey: z.string().trim().min(2).max(120),
+    matchLabel: z.string().trim().max(120).nullable().optional(),
+    accountId: z.string().uuid().nullable().optional(),
+    counterAccountId: z.string().uuid().nullable().optional(),
+    journalId: z.string().uuid().nullable().optional(),
+    accountSide: z.enum(['debit', 'credit']).optional(),
+    priority: z.number().int().min(1).max(1000).optional(),
+    notes: z.string().trim().max(500).nullable().optional(),
+  })
+  .strict();
+
+function dec(value: string | number | null | undefined): string | null {
+  if (value === undefined || value === null) return null;
+  return typeof value === 'number' ? value.toFixed(4) : value;
+}
 
 function amountToDecimal(value: string | number | undefined): string | null {
   if (value === undefined) return null;
@@ -378,6 +467,218 @@ export function aiRoutes(app: FastifyInstance, db: Db, config: Config): void {
     const removed = await deleteRule(db, cabinetId, companyId, ruleId, user.id);
     if (!removed) throw notFound('NOT_FOUND', 'Rule not found');
     return { deleted: true };
+  });
+
+
+  // ------------------------------------------------- AI journal proposals V2
+  // The lifecycle is explicit: propose -> (human) validate -> (human) post.
+  // Nothing is ever posted automatically and no provider can write an entry.
+  app.post('/companies/:companyId/ai/entry-proposals', async (req, reply) => {
+    const user = req.user!;
+    const { companyId } = req.params as { companyId: string };
+    await requireModuleAccess(db, user.id, companyId, 'accounting', 'write');
+    const { cabinetId } = await cabinetForCompanyUser(db, companyId, user.id);
+    const body = parse(entryProposalBody, req.body);
+    const result = await proposeManual(db, service, {
+      cabinetId,
+      companyId,
+      userId: user.id,
+      description: body.description,
+      amount: dec(body.amount),
+      currency: body.currency ?? null,
+      entryDate: body.entryDate ?? null,
+      reference: body.reference ?? null,
+    });
+    const duplicates = await proposalDuplicates(
+      db,
+      companyId,
+      {
+        entry_date: result.proposal.entryDate,
+        description: result.proposal.description,
+        reference: result.proposal.reference,
+      },
+      result.proposal.totals.debit,
+    ).catch(() => ({ level: 'none' as const, matches: [] }));
+    return reply.code(201).send({
+      proposal: result.proposal,
+      ruleApplied: result.ruleApplied,
+      duplicates,
+      entryCreated: false,
+    });
+  });
+
+  app.post('/companies/:companyId/ai/entry-proposals/from-billing', async (req, reply) => {
+    const user = req.user!;
+    const { companyId } = req.params as { companyId: string };
+    await requireModuleAccess(db, user.id, companyId, 'accounting', 'write');
+    const { cabinetId } = await cabinetForCompanyUser(db, companyId, user.id);
+    const body = parse(fromBillingBody, req.body);
+    const result = await proposeFromBilling(db, service, {
+      cabinetId,
+      companyId,
+      userId: user.id,
+      documentId: body.documentId,
+      paymentId: body.paymentId,
+    });
+    return reply.code(result.reused ? 200 : 201).send({
+      proposal: result.proposal,
+      reused: result.reused,
+      entryCreated: false,
+    });
+  });
+
+  app.get('/companies/:companyId/ai/entry-proposals', async (req) => {
+    const user = req.user!;
+    const { companyId } = req.params as { companyId: string };
+    await requireModuleAccess(db, user.id, companyId, 'accounting', 'read');
+    const { cabinetId } = await cabinetForCompanyUser(db, companyId, user.id);
+    const query = req.query as { limit?: string } | undefined;
+    const limit = Number(query?.limit ?? 30);
+    return {
+      proposals: await listProposals(db, cabinetId, companyId, Number.isFinite(limit) ? limit : 30),
+      lifecycle: ['proposed', 'validated', 'posted'],
+      neverPostsAutomatically: true,
+    };
+  });
+
+  app.get('/companies/:companyId/ai/entry-proposals/:proposalId', async (req) => {
+    const user = req.user!;
+    const { companyId, proposalId } = req.params as { companyId: string; proposalId: string };
+    await requireModuleAccess(db, user.id, companyId, 'accounting', 'read');
+    const { cabinetId } = await cabinetForCompanyUser(db, companyId, user.id);
+    const loaded = await loadProposal(db, cabinetId, companyId, proposalId);
+    return {
+      proposal: await viewProposal(db, cabinetId, companyId, loaded.proposal, loaded.lines),
+    };
+  });
+
+  app.put('/companies/:companyId/ai/entry-proposals/:proposalId', async (req) => {
+    const user = req.user!;
+    const { companyId, proposalId } = req.params as { companyId: string; proposalId: string };
+    await requireModuleAccess(db, user.id, companyId, 'accounting', 'write');
+    const { cabinetId } = await cabinetForCompanyUser(db, companyId, user.id);
+    const body = parse(proposalUpdateBody, req.body);
+    const proposal = await updateProposal(db, cabinetId, companyId, proposalId, user.id, {
+      journalId: body.journalId,
+      entryDate: body.entryDate,
+      reference: body.reference,
+      description: body.description,
+      currency: body.currency,
+      exchangeRate: body.exchangeRate === undefined || body.exchangeRate === null ? body.exchangeRate : String(body.exchangeRate),
+      lines: body.lines?.map((l) => ({
+        accountId: l.accountId,
+        description: l.description ?? null,
+        debit: dec(l.debit),
+        credit: dec(l.credit),
+      })),
+    });
+    return { proposal, entryCreated: false };
+  });
+
+  app.post('/companies/:companyId/ai/entry-proposals/:proposalId/validate', async (req) => {
+    const user = req.user!;
+    const { companyId, proposalId } = req.params as { companyId: string; proposalId: string };
+    await requireModuleAccess(db, user.id, companyId, 'accounting', 'write');
+    const { cabinetId } = await cabinetForCompanyUser(db, companyId, user.id);
+    const body = parse(validateBody, req.body ?? {});
+    const result = await validateProposal(db, cabinetId, companyId, proposalId, user.id, {
+      acceptWarnings: body.acceptWarnings ?? false,
+    });
+    if (result.entryCreated !== false) {
+      throw forbidden('The AI engine cannot create accounting entries', 'AI_ENTRY_FORBIDDEN');
+    }
+    return result;
+  });
+
+  app.post('/companies/:companyId/ai/entry-proposals/:proposalId/reject', async (req) => {
+    const user = req.user!;
+    const { companyId, proposalId } = req.params as { companyId: string; proposalId: string };
+    await requireModuleAccess(db, user.id, companyId, 'accounting', 'write');
+    const { cabinetId } = await cabinetForCompanyUser(db, companyId, user.id);
+    const body = parse(rejectBody, req.body ?? {});
+    return {
+      proposal: await rejectProposal(db, cabinetId, companyId, proposalId, user.id, body.note ?? null),
+      entryCreated: false,
+    };
+  });
+
+  /** The distinct action that actually writes the entry, through the engine. */
+  app.post('/companies/:companyId/ai/entry-proposals/:proposalId/post', async (req) => {
+    const user = req.user!;
+    const { companyId, proposalId } = req.params as { companyId: string; proposalId: string };
+    await requireModuleAccess(db, user.id, companyId, 'accounting', 'write');
+    const { cabinetId } = await cabinetForCompanyUser(db, companyId, user.id);
+    const result = await postProposal(db, {
+      cabinetId,
+      companyId,
+      proposalId,
+      userId: user.id,
+      ip: clientIp(req),
+    });
+    return result;
+  });
+
+  // ---------------------------------------------------- learned entry rules
+  app.get('/companies/:companyId/ai/entry-rules', async (req) => {
+    const user = req.user!;
+    const { companyId } = req.params as { companyId: string };
+    await requireModuleAccess(db, user.id, companyId, 'accounting', 'read');
+    const { cabinetId } = await cabinetForCompanyUser(db, companyId, user.id);
+    const q = req.query as { includeInactive?: string } | undefined;
+    return {
+      rules: await listEntryRules(db, cabinetId, companyId, {
+        includeInactive: q?.includeInactive === 'true',
+      }),
+      notice:
+        'Règles déterministes validées par un humain. Aucune donnée d’une autre société n’est utilisée et aucun modèle n’est entraîné.',
+    };
+  });
+
+  app.post('/companies/:companyId/ai/entry-rules', async (req, reply) => {
+    const user = req.user!;
+    const { companyId } = req.params as { companyId: string };
+    await requireModuleAccess(db, user.id, companyId, 'accounting', 'write');
+    const { cabinetId } = await cabinetForCompanyUser(db, companyId, user.id);
+    const body = parse(ruleBody, req.body);
+    const rule = await saveRule(db, {
+      cabinetId,
+      companyId,
+      userId: user.id,
+      ruleType: assertRuleType(body.ruleType),
+      matchKey: body.matchKey,
+      matchLabel: body.matchLabel ?? null,
+      accountId: body.accountId ?? null,
+      counterAccountId: body.counterAccountId ?? null,
+      journalId: body.journalId ?? null,
+      accountSide: body.accountSide,
+      priority: body.priority,
+      notes: body.notes ?? null,
+    });
+    return reply.code(201).send({ rule });
+  });
+
+  app.post('/companies/:companyId/ai/entry-rules/:ruleId/disable', async (req) => {
+    const user = req.user!;
+    const { companyId, ruleId } = req.params as { companyId: string; ruleId: string };
+    await requireModuleAccess(db, user.id, companyId, 'accounting', 'write');
+    const { cabinetId } = await cabinetForCompanyUser(db, companyId, user.id);
+    const disabled = await disableEntryRule(db, cabinetId, companyId, ruleId, user.id);
+    if (!disabled) throw notFound('AI_RULE_NOT_FOUND', 'Rule not found or already inactive');
+    return { disabled: true, deleted: false };
+  });
+
+  app.get('/companies/:companyId/ai/entry-rules/history', async (req) => {
+    const user = req.user!;
+    const { companyId } = req.params as { companyId: string };
+    await requireModuleAccess(db, user.id, companyId, 'accounting', 'read');
+    const { cabinetId } = await cabinetForCompanyUser(db, companyId, user.id);
+    const q = req.query as { ruleType?: string; matchKey?: string } | undefined;
+    if (!q?.ruleType || !q?.matchKey) {
+      throw badRequest('AI_RULE_INVALID', 'ruleType and matchKey are required');
+    }
+    return {
+      history: await listRuleHistory(db, cabinetId, companyId, assertRuleType(q.ruleType), q.matchKey),
+    };
   });
 
   // -------------------------------------------------------- future automation

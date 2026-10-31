@@ -287,7 +287,10 @@ describe('cabinet module', () => {
     expect(Array.isArray(body.openTasks)).toBe(true);
   });
 
-  it('keeps billing as an announced foundation, never a fake feature', async () => {
+  it('exposes an operational billing module without claiming MRA e-invoicing', async () => {
+    // Mission 6 replaced the mission-4 foundation: the chain is live, while
+    // MRA e-invoicing stays explicitly unavailable and nothing is posted to
+    // accounting automatically.
     const documents = await api(
       ctx,
       owner.cookie,
@@ -295,7 +298,7 @@ describe('cabinet module', () => {
       `/api/companies/${company.id}/billing/documents`,
     );
     expect(documents.statusCode).toBe(200);
-    expect(documents.json().available).toBe(false);
+    expect(documents.json().available).toBe(true);
 
     const summary = await api(
       ctx,
@@ -305,12 +308,26 @@ describe('cabinet module', () => {
     );
     expect(summary.json().capabilities.vatComputation).toBe(false);
     expect(summary.json().capabilities.mraEInvoicing).toBe(false);
+    expect(summary.json().capabilities.postingToAccounting).toBe(true);
+
+    const customer = await api(
+      ctx,
+      owner.cookie,
+      'POST',
+      `/api/companies/${company.id}/billing/customers`,
+      { name: 'Client fictif', brn: 'BRN-CAB-0001' },
+    );
+    expect(customer.statusCode).toBe(201);
 
     const created = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/billing/documents`, {
-      customerName: 'Client fictif',
+      kind: 'quote',
+      customerId: customer.json().customer.id,
+      issueDate: '2025-09-15',
+      lines: [{ description: 'Ligne fictive', quantity: '1', unitPrice: '100.00', vatTreatment: 'exempt' }],
     });
-    expect(created.statusCode).toBe(501);
-    expect(created.json().error.code).toBe('NOT_IMPLEMENTED');
+    expect(created.statusCode).toBe(201);
+    expect(created.json().document.number).toBeNull();
+    expect(created.json().document.status).toBe('draft');
   });
 
   it('lists the team across dossiers', async () => {

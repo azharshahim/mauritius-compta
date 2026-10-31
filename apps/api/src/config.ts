@@ -39,7 +39,7 @@ const EnvSchema = z.object({
   AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120_000).default(20_000),
   AI_MAX_RETRIES: z.coerce.number().int().min(0).max(2).default(1),
   AI_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).max(600).default(20),
-  AI_MAX_INPUT_CHARS: z.coerce.number().int().min(100).max(20_000).default(2000),
+  AI_MAX_INPUT_CHARS: z.coerce.number().int().min(100).max(200_000).default(12_000),
   AI_ALLOW_SIMULATED: bool(true),
   AI_ALLOW_PRIVATE_BASE_URL: bool(false),
 });

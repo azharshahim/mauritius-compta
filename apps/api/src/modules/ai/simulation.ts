@@ -99,3 +99,200 @@ export function ruleKeyword(description: string): string {
   const words = normalise(description).split(' ').filter((w) => w.length >= 3);
   return words.slice(0, 3).join(' ').slice(0, 60);
 }
+
+// ---------------------------------------------------------------------------
+// Full journal entry proposal (mission 6) - deterministic, offline, no cost.
+// ---------------------------------------------------------------------------
+
+function operationFromPrompt(prompt: string): string {
+  const match = /OP[ÉE]RATION\s*:\s*(.+)/i.exec(prompt);
+  return (match?.[1] ?? '').trim().slice(0, 300);
+}
+
+function promptBlock(prompt: string, tag: string): string[] {
+  const re = new RegExp(`\\[${tag}\\]([\\s\\S]*?)\\[\\/${tag}\\]`, 'i');
+  const block = re.exec(prompt);
+  if (!block?.[1]) return [];
+  return block[1]
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
+function parseRoleCodes(prompt: string): Record<string, string> {
+  const roles: Record<string, string> = {};
+  for (const line of promptBlock(prompt, 'COMPTES RÔLES')) {
+    const [role, code] = line.split('=').map((p) => p.trim());
+    if (role && code) roles[role] = code;
+  }
+  return roles;
+}
+
+function parseJournalCodes(prompt: string): string[] {
+  return promptBlock(prompt, 'JOURNAUX AUTORISÉS')
+    .filter((l) => l.includes('|'))
+    .map((l) => l.split('|')[0]!.trim())
+    .filter(Boolean);
+}
+
+function parsePromptAmount(prompt: string): string | null {
+  const match = /MONTANT INDIQU[ÉE]\s*:\s*([0-9]+(?:\.[0-9]{1,4})?)/i.exec(prompt);
+  return match?.[1] ?? null;
+}
+
+function parsePromptDate(prompt: string): string | null {
+  const match = /DATE COMPTABLE PAR D[ÉE]FAUT\s*:\s*(\d{4}-\d{2}-\d{2})/i.exec(prompt);
+  return match?.[1] ?? null;
+}
+
+function parsePromptCurrency(prompt: string): string | null {
+  const match = /DEVISE\s*:\s*([A-Z]{3})/i.exec(prompt);
+  return match?.[1]?.toUpperCase() ?? null;
+}
+
+/**
+ * Builds a balanced two-line entry from keywords, the supplied chart and the
+ * role codes of the prompt. No rate, no tax and no amount is ever invented: the
+ * amount must be present in the prompt, otherwise the answer is explicitly
+ * incomplete.
+ */
+export function simulateJournalProposal(prompt: string): {
+  journalCode: string | null;
+  entryDate: string | null;
+  description: string;
+  currency: string | null;
+  lines: { accountCode: string; debit: string | null; credit: string | null; description: string }[];
+  rationale: string;
+  confidence: number;
+  missing: string[];
+  warnings: string[];
+} {
+  const description = operationFromPrompt(prompt) || 'Opération';
+  const accounts = parseAccountBlock(prompt);
+  const roles = parseRoleCodes(prompt);
+  const journals = parseJournalCodes(prompt);
+  const amount = parsePromptAmount(prompt);
+  const currency = parsePromptCurrency(prompt);
+  const entryDate = parsePromptDate(prompt);
+  const warnings: string[] = [];
+  const missing: string[] = [];
+
+  const pickJournal = (preferred: string): string | null =>
+    journals.find((j) => j.toUpperCase() === preferred) ?? journals[0] ?? null;
+
+  const expense =
+    accounts.find((a) => a.type === 'expense' && /frais bancaire|charges bancaires|bank charge|commission/i.test(a.name)) ??
+    chooseAccount(description, accounts) ??
+    accounts.find((a) => a.type === 'expense') ??
+    null;
+
+  if (!amount) missing.push('Aucun montant fourni : l’écriture ne peut pas être chiffrée.');
+  if (!currency) missing.push('Aucune devise fournie.');
+  if (missing.length > 0 || !amount) {
+    return {
+      journalCode: null,
+      entryDate,
+      description,
+      currency,
+      lines: [],
+      rationale: 'Données insuffisantes : aucun montant ou aucune devise fiable fourni.',
+      confidence: 0.1,
+      missing,
+      warnings,
+    };
+  }
+
+  const text = description.toLowerCase();
+  const client = roles['client'] ?? null;
+  const fournisseur = roles['fournisseur'] ?? null;
+  const banque = roles['banque'] ?? null;
+  const produits = roles['produits'] ?? null;
+  const vatMention = /tva|vat|taxe/i.test(description);
+  if (vatMention) {
+    warnings.push(
+      'TVA mentionnée : aucun taux n’est configuré ni fourni au simulateur. Aucun montant de taxe n’est calculé.',
+    );
+    missing.push('Taux de TVA vérifié (configuration absente) et montant de taxe à confirmer.');
+  }
+
+  let journalCode: string | null = null;
+  let debitCode: string | null = null;
+  let creditCode: string | null = null;
+  let rationale = '';
+
+  if (/avoir/.test(text) && produits && client) {
+    journalCode = pickJournal('SAL');
+    debitCode = produits;
+    creditCode = client;
+    rationale = 'Avoir : annulation de produit au débit et réduction de la créance client au crédit.';
+  } else if (/encaissement|r[èe]glement client|re[çc]u client|payment received|received from customer/.test(text) && banque && client) {
+    journalCode = pickJournal('BQ');
+    debitCode = banque;
+    creditCode = client;
+    rationale = 'Encaissement client : banque au débit, créance client au crédit.';
+  } else if (/frais bancaire|bank charge|commission|agios/.test(text) && banque) {
+    journalCode = pickJournal('BQ');
+    debitCode = expense?.code ?? null;
+    creditCode = banque;
+    rationale = 'Frais bancaires : charge au débit, compte bancaire au crédit.';
+    if (expense) warnings.push(`Compte de charge ${expense.code} proposé par défaut : à vérifier par un humain.`);
+  } else if (/facture client|vente|prestation|invoice to customer|sales invoice|client facture/.test(text) && client && produits) {
+    journalCode = pickJournal('SAL');
+    debitCode = client;
+    creditCode = produits;
+    rationale = 'Facture client : créance au débit, produit au crédit.';
+  } else if (/pr[ée]l[èe]vement|prelevement|virement|standing order|direct debit|paiement fournisseur/.test(text) && expense && banque) {
+    journalCode = pickJournal('BQ');
+    debitCode = expense.code;
+    creditCode = banque;
+    rationale = 'Prélèvement bancaire : charge au débit, banque au crédit.';
+  } else if (expense) {
+    journalCode = pickJournal(/fournisseur|achat|facture/.test(text) ? 'PUR' : 'PUR');
+    debitCode = expense.code;
+    creditCode = /pay[ée]|r[ée]gl[ée]|paid|cash|caisse/.test(text) && banque ? banque : fournisseur;
+    rationale = 'Achat / charge : compte de charge au débit, dette fournisseur (ou banque si réglé) au crédit.';
+  }
+
+  if (!journalCode || !debitCode || !creditCode) {
+    return {
+      journalCode: null,
+      entryDate,
+      description,
+      currency,
+      lines: [],
+      rationale: 'Les comptes nécessaires (charge, tiers, banque) sont absents du plan comptable fourni.',
+      confidence: 0.1,
+      missing: ['Comptes requis absents du plan comptable : intervention humaine nécessaire.'],
+      warnings,
+    };
+  }
+
+  if (debitCode === creditCode) {
+    return {
+      journalCode: null,
+      entryDate,
+      description,
+      currency,
+      lines: [],
+      rationale: 'La même contrepartie serait utilisée au débit et au crédit : proposition refusée.',
+      confidence: 0.1,
+      missing: ['Contrepartie distincte requise.'],
+      warnings,
+    };
+  }
+
+  return {
+    journalCode,
+    entryDate,
+    description,
+    currency,
+    lines: [
+      { accountCode: debitCode, debit: amount, credit: null, description },
+      { accountCode: creditCode, debit: null, credit: amount, description },
+    ],
+    rationale,
+    confidence: 0.72,
+    missing,
+    warnings,
+  };
+}

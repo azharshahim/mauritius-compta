@@ -153,6 +153,14 @@ export const AI_FEATURES: AIFeatureDefinition[] = [
     humanValidation: true,
   },
   {
+    key: 'journal_proposal',
+    module: 'accounting',
+    label: { fr: 'Écriture comptable complète', en: 'Full journal entry proposal' },
+    implemented: true,
+    requiresDocument: false,
+    humanValidation: true,
+  },
+  {
     key: 'purchase_invoice_extraction',
     module: 'accounting',
     label: { fr: 'OCR de factures fournisseurs', en: 'Purchase invoice OCR' },
@@ -164,7 +172,8 @@ export const AI_FEATURES: AIFeatureDefinition[] = [
     key: 'duplicate_detection',
     module: 'accounting',
     label: { fr: 'Détection de doublons', en: 'Duplicate detection' },
-    implemented: false,
+    // Deterministic comparison first (mission 6): no provider call is needed.
+    implemented: true,
     requiresDocument: false,
     humanValidation: true,
   },
