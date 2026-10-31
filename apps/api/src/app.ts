@@ -26,6 +26,7 @@ import { migrationRoutes } from './modules/migration/routes.js';
 import { bankRoutes } from './modules/bank/routes.js';
 import { letteringRoutes } from './modules/lettering/routes.js';
 import { fxRoutes } from './modules/fx/routes.js';
+import { equityRoutes } from './modules/equity/routes.js';
 import type { UserRow } from './types.js';
 
 declare module 'fastify' {
@@ -199,6 +200,9 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
       // Ledger lettering (mission 12): posted lines only, additive groups.
       letteringRoutes(secured, db);
       fxRoutes(secured, db);
+      // Equity register, annual closing and result allocation (mission 19):
+      // human approval before any irreversible posting.
+      equityRoutes(secured, db);
     });
   }, { prefix: '/api' });
 
