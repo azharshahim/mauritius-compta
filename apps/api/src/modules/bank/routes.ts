@@ -30,6 +30,11 @@ import {
   unlinkBankBillingPayment,
 } from './billing.js';
 import { bankReconciliationReport, bankReconciliationReportCsv } from './reports.js';
+import {
+  linkBankSupplierPayment,
+  supplierPaymentCandidates,
+  unlinkBankSupplierPayment,
+} from './purchases.js';
 
 const AccountSchema = z
   .object({
@@ -64,6 +69,15 @@ const MatchSchema = z
   .strict();
 
 const BillingLinkSchema = z
+  .object({
+    paymentId: z.string().uuid(),
+    amount: z.string().regex(/^\d{1,15}(\.\d{1,4})?$/),
+    confirm: z.literal(true),
+    note: z.string().max(500).nullish(),
+  })
+  .strict();
+
+const SupplierLinkSchema = z
   .object({
     paymentId: z.string().uuid(),
     amount: z.string().regex(/^\d{1,15}(\.\d{1,4})?$/),
@@ -258,6 +272,52 @@ export function bankRoutes(app: FastifyInstance, db: Db, config: Config): void {
         req.body ?? {},
       );
       return unlinkBankBillingPayment(
+        db,
+        { userId: req.user!.id, companyId, ip: req.ip },
+        transactionId!,
+        paymentId,
+        body.confirm,
+        body.reason ?? null,
+      );
+    },
+  );
+
+  app.get(
+    '/companies/:companyId/bank/transactions/:transactionId/supplier-candidates',
+    async (req) => {
+      const { companyId, transactionId } = params(req);
+      await requireCompany(db, req.user!.id, companyId, 'viewer');
+      return supplierPaymentCandidates(db, companyId, transactionId!);
+    },
+  );
+
+  app.post(
+    '/companies/:companyId/bank/transactions/:transactionId/supplier-payments',
+    async (req, reply) => {
+      const { companyId, transactionId } = params(req);
+      await requireCompany(db, req.user!.id, companyId, 'accountant');
+      const body = parse(SupplierLinkSchema, req.body);
+      const result = await linkBankSupplierPayment(
+        db,
+        { userId: req.user!.id, companyId, ip: req.ip },
+        transactionId!,
+        body,
+      );
+      return reply.code(result.idempotent ? 200 : 201).send(result);
+    },
+  );
+
+  app.delete(
+    '/companies/:companyId/bank/transactions/:transactionId/supplier-payments/:paymentId',
+    async (req) => {
+      const { companyId, transactionId } = params(req);
+      await requireCompany(db, req.user!.id, companyId, 'accountant');
+      const { paymentId } = req.params as { paymentId: string };
+      const body = parse(
+        z.object({ confirm: z.literal(true), reason: z.string().max(500).nullish() }).strict(),
+        req.body ?? {},
+      );
+      return unlinkBankSupplierPayment(
         db,
         { userId: req.user!.id, companyId, ip: req.ip },
         transactionId!,

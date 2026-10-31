@@ -30,7 +30,14 @@ import { normalise } from './simulation.js';
  *    posting impossible even under concurrency.
  */
 
-export type SourceKind = 'manual' | 'billing_invoice' | 'billing_credit_note' | 'billing_payment';
+export type SourceKind =
+  | 'manual'
+  | 'billing_invoice'
+  | 'billing_credit_note'
+  | 'billing_payment'
+  | 'purchase_invoice'
+  | 'purchase_credit_note'
+  | 'purchase_payment';
 
 export interface ProposalRow {
   id: string;
@@ -306,6 +313,20 @@ async function sourceRow(tx: Db, proposal: ProposalRow) {
       [proposal.source_id, proposal.company_id],
     );
     return res.rows[0] ? { ...res.rows[0], table: 'billing_documents' as const } : null;
+  }
+  if (proposal.source_kind === 'purchase_payment') {
+    const res = await tx.query<any>(
+      'SELECT id, payment_no AS number, status, accounting_entry_id, supplier_id, amount, currency FROM purchase_payments WHERE id = $1 AND company_id = $2',
+      [proposal.source_id, proposal.company_id],
+    );
+    return res.rows[0] ? { ...res.rows[0], table: 'purchase_payments' as const } : null;
+  }
+  if (proposal.source_kind === 'purchase_invoice' || proposal.source_kind === 'purchase_credit_note') {
+    const res = await tx.query<any>(
+      'SELECT id, doc_no AS number, status, kind, accounting_entry_id, supplier_id, total_amount, currency FROM purchase_documents WHERE id = $1 AND company_id = $2',
+      [proposal.source_id, proposal.company_id],
+    );
+    return res.rows[0] ? { ...res.rows[0], table: 'purchase_documents' as const } : null;
   }
   return null;
 }
@@ -640,7 +661,7 @@ export async function listProposals(
 // Insert helpers
 // ---------------------------------------------------------------------------
 
-interface NewProposal {
+export interface NewProposal {
   cabinetId: string;
   companyId: string;
   userId: string;
@@ -662,7 +683,7 @@ interface NewProposal {
   lines: { accountId: string; description: string | null; debit: bigint; credit: bigint; ruleId?: string | null }[];
 }
 
-async function insertProposal(tx: Db, data: NewProposal): Promise<ProposalRow> {
+export async function insertProposal(tx: Db, data: NewProposal): Promise<ProposalRow> {
   const inserted = await tx.query<ProposalRow>(
     `INSERT INTO ai_entry_proposals
        (cabinet_id, company_id, source_kind, source_id, journal_id, entry_date, reference, description,
@@ -712,7 +733,7 @@ async function insertProposal(tx: Db, data: NewProposal): Promise<ProposalRow> {
   return proposal;
 }
 
-async function defaultJournal(
+export async function defaultJournal(
   tx: Db,
   companyId: string,
   preferredTypes: string[],
@@ -1460,6 +1481,32 @@ export async function postProposal(
         if (payment.accounting_entry_id) {
           throw conflict('ACCOUNTING_ALREADY_POSTED', 'This payment is already posted to accounting');
         }
+      } else if (proposal.source_kind === 'purchase_payment') {
+        const locked = await tx.query<any>(
+          'SELECT * FROM purchase_payments WHERE id = $1 AND company_id = $2 FOR UPDATE',
+          [proposal.source_id, params.companyId],
+        );
+        const payment = locked.rows[0];
+        if (!payment) throw notFound('PURCHASE_PAYMENT_NOT_FOUND', 'Supplier payment not found');
+        if (payment.status !== 'recorded') {
+          throw conflict('PURCHASE_PAYMENT_CANCELLED', 'A cancelled supplier payment cannot be posted');
+        }
+        if (payment.accounting_entry_id) {
+          throw conflict('ACCOUNTING_ALREADY_POSTED', 'This supplier payment is already posted to accounting');
+        }
+      } else if (proposal.source_kind === 'purchase_invoice' || proposal.source_kind === 'purchase_credit_note') {
+        const locked = await tx.query<any>(
+          'SELECT * FROM purchase_documents WHERE id = $1 AND company_id = $2 FOR UPDATE',
+          [proposal.source_id, params.companyId],
+        );
+        const document = locked.rows[0];
+        if (!document) throw notFound('PURCHASE_DOCUMENT_NOT_FOUND', 'Purchase document not found');
+        if (document.accounting_entry_id) {
+          throw conflict('ACCOUNTING_ALREADY_POSTED', 'This purchase document is already posted to accounting');
+        }
+        if (document.status !== 'validated') {
+          throw conflict('PURCHASE_DOCUMENT_NOT_VALIDATED', 'The purchase document is not validated');
+        }
       } else {
         const locked = await tx.query<any>(
           'SELECT * FROM billing_documents WHERE id = $1 AND company_id = $2 FOR UPDATE',
@@ -1502,7 +1549,11 @@ export async function postProposal(
         debit: parseAmount(l.debit) > 0n ? l.debit : null,
         credit: parseAmount(l.credit) > 0n ? l.credit : null,
       })),
-      source: proposal.source_kind === 'manual' ? 'ai' : 'billing',
+      source: proposal.source_kind === 'manual'
+        ? 'ai'
+        : proposal.source_kind.startsWith('purchase_')
+          ? 'purchase'
+          : 'billing',
     });
 
     await tx.query(
@@ -1513,7 +1564,14 @@ export async function postProposal(
     );
 
     if (proposal.source_kind !== 'manual' && proposal.source_id) {
-      const table = proposal.source_kind === 'billing_payment' ? 'billing_payments' : 'billing_documents';
+      const table =
+        proposal.source_kind === 'billing_payment'
+          ? 'billing_payments'
+          : proposal.source_kind === 'purchase_payment'
+            ? 'purchase_payments'
+            : proposal.source_kind.startsWith('purchase_')
+              ? 'purchase_documents'
+              : 'billing_documents';
       const updated = await tx.query(
         `UPDATE ${table} SET accounting_entry_id = $1, updated_at = now()
           WHERE id = $2 AND company_id = $3 AND accounting_entry_id IS NULL`,
@@ -1522,6 +1580,17 @@ export async function postProposal(
       if (updated.rowCount === 0) {
         // The unique link already existed: never leave an orphan entry behind.
         throw conflict('ACCOUNTING_ALREADY_POSTED', 'This source is already linked to an accounting entry');
+      }
+      if (proposal.source_kind === 'purchase_payment') {
+        // Mission 11: the bank link points at the one entry just posted; it
+        // never creates a second one.
+        await tx.query(
+          `UPDATE bank_matches
+              SET entry_id = $1, updated_at = now()
+            WHERE company_id = $2 AND purchase_payment_id = $3
+              AND status = 'confirmed' AND entry_id IS NULL`,
+          [posted.entry.id, params.companyId, proposal.source_id],
+        );
       }
       if (proposal.source_kind === 'billing_payment') {
         // Mission 10: keep bank <-> payment traceability in the same

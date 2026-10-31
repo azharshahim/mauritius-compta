@@ -19,6 +19,7 @@ import { reportRoutes } from './modules/reports/routes.js';
 import { attachmentRoutes } from './modules/attachments/routes.js';
 import { cabinetRoutes } from './modules/cabinet/routes.js';
 import { billingRoutes } from './modules/billing/routes.js';
+import { purchaseRoutes } from './modules/purchases/routes.js';
 import { payrollRoutes } from './modules/payroll/routes.js';
 import { aiRoutes } from './modules/ai/routes.js';
 import { migrationRoutes } from './modules/migration/routes.js';
@@ -181,6 +182,8 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
       // Payroll as prepared (501) foundations with their own permissions.
       cabinetRoutes(secured, db);
       billingRoutes(secured, db);
+      // Purchases & suppliers (mission 11): subledger + human-posted proposals.
+      purchaseRoutes(secured, db);
       payrollRoutes(secured, db);
       // Mauritius AI Engine: provider-agnostic orchestration, BYOK, budgets.
       aiRoutes(secured, db, config);

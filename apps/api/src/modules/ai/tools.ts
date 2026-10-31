@@ -815,6 +815,309 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
     },
   },
 
+  // ------------------------------------------------------- purchases (mission 11)
+  {
+    key: 'purchases.suppliers.search',
+    module: 'accounting',
+    readOnly: true,
+    title: { fr: 'Rechercher les fournisseurs', en: 'Search suppliers' },
+    description: {
+      fr: 'Liste les fournisseurs du dossier actif et leur solde par devise.',
+      en: 'Lists the active dossier suppliers and their balance by currency.',
+    },
+    args: z
+      .object({ query: z.string().trim().max(120).optional(), limit: z.number().int().min(1).max(50).optional() })
+      .strict(),
+    async run(ctx, args) {
+      requireAccess(ctx, 'accounting', 'read');
+      const search = args.query ? `%${args.query}%` : null;
+      const limit = args.limit ?? 10;
+      const res = await ctx.db.query<any>(
+        `SELECT s.id, s.name, s.reference, s.country, s.preferred_currency,
+                COALESCE(SUM(CASE WHEN d.kind = 'invoice' AND d.status = 'validated'
+                  THEN GREATEST(d.total_amount - d.amount_paid - d.credited_amount, 0) ELSE 0 END), 0)::text AS outstanding,
+                MIN(d.currency) AS currency
+           FROM purchase_suppliers s
+           LEFT JOIN purchase_documents d ON d.supplier_id = s.id AND d.company_id = s.company_id
+          WHERE s.company_id = $1 AND s.is_active
+            AND ($2::text IS NULL OR s.name ILIKE $2 OR s.reference ILIKE $2 OR s.tax_number ILIKE $2)
+          GROUP BY s.id
+          ORDER BY s.name LIMIT $3`,
+        [ctx.companyId, search, limit],
+      );
+      return {
+        data: { suppliers: res.rows },
+        rowCount: res.rows.length,
+        lines: {
+          fr:
+            res.rows.length === 0
+              ? ['Aucun fournisseur actif ne correspond à cette recherche.']
+              : res.rows.map(
+                  (r) =>
+                    `• ${r.name}${r.reference ? ` (${r.reference})` : ''} — ${r.country}${r.currency ? `, solde ${money(r.outstanding)} ${r.currency}` : ', aucun solde ouvert'}`,
+                ),
+          en:
+            res.rows.length === 0
+              ? ['No active supplier matches this search.']
+              : res.rows.map(
+                  (r) =>
+                    `• ${r.name}${r.reference ? ` (${r.reference})` : ''} — ${r.country}${r.currency ? `, balance ${money(r.outstanding)} ${r.currency}` : ', no open balance'}`,
+                ),
+        },
+        actions: [
+          {
+            kind: 'navigation',
+            title: { fr: 'Ouvrir Achats & Fournisseurs', en: 'Open Purchases & Suppliers' },
+            description: { fr: 'Consulter les fiches et les soldes fournisseurs.', en: 'View supplier records and balances.' },
+            dataUsed: ['purchase_suppliers', 'purchase_documents'],
+            expected: { fr: 'Aucune modification.', en: 'No change.' },
+            risks: [],
+            examineHref: '/accounting/purchases?tab=suppliers',
+          },
+        ],
+      };
+    },
+  },
+  {
+    key: 'purchases.invoices.search',
+    module: 'accounting',
+    readOnly: true,
+    title: { fr: 'Rechercher les factures fournisseurs', en: 'Search supplier invoices' },
+    description: {
+      fr: 'Factures d’achat validées, échéances et restant dû exact.',
+      en: 'Validated purchase invoices, due dates and exact outstanding.',
+    },
+    args: z
+      .object({
+        query: z.string().trim().max(120).optional(),
+        overdueOnly: z.boolean().optional(),
+        limit: z.number().int().min(1).max(50).optional(),
+      })
+      .strict(),
+    async run(ctx, args) {
+      requireAccess(ctx, 'accounting', 'read');
+      const search = args.query ? `%${args.query}%` : null;
+      const limit = args.limit ?? 10;
+      const res = await ctx.db.query<any>(
+        `SELECT d.id, d.doc_no, d.supplier_reference, d.issue_date, d.due_date, d.currency,
+                d.total_amount::text, d.amount_paid::text, d.credited_amount::text,
+                (d.total_amount - d.amount_paid - d.credited_amount)::text AS outstanding,
+                d.payment_status, d.accounting_entry_id, s.name AS supplier_name
+           FROM purchase_documents d
+           JOIN purchase_suppliers s ON s.id = d.supplier_id AND s.company_id = d.company_id
+          WHERE d.company_id = $1 AND d.kind = 'invoice' AND d.status = 'validated'
+            AND d.total_amount - d.amount_paid - d.credited_amount > 0
+            AND ($2::text IS NULL OR s.name ILIKE $2 OR d.doc_no ILIKE $2 OR d.supplier_reference ILIKE $2)
+            AND ($3::boolean IS NOT TRUE OR (d.due_date IS NOT NULL AND d.due_date < CURRENT_DATE))
+          ORDER BY d.due_date NULLS LAST, d.issue_date
+          LIMIT $4`,
+        [ctx.companyId, search, args.overdueOnly === true, limit],
+      );
+      return {
+        data: { invoices: res.rows },
+        rowCount: res.rows.length,
+        lines: {
+          fr:
+            res.rows.length === 0
+              ? ['Aucune facture fournisseur ouverte ne correspond à cette recherche.']
+              : [
+                  `${res.rows.length} facture(s) fournisseur ouverte(s) :`,
+                  ...res.rows.map(
+                    (r) =>
+                      `• ${r.doc_no ?? 'brouillon'} — ${r.supplier_name}, ${r.currency} ${money(r.outstanding)} restant, échéance ${r.due_date ?? 'non renseignée'}${r.accounting_entry_id ? ', comptabilisée' : ', non comptabilisée'}`,
+                  ),
+                ],
+          en:
+            res.rows.length === 0
+              ? ['No open supplier invoice matches this search.']
+              : [
+                  `${res.rows.length} open supplier invoice(s):`,
+                  ...res.rows.map(
+                    (r) =>
+                      `• ${r.doc_no ?? 'draft'} — ${r.supplier_name}, ${r.currency} ${money(r.outstanding)} outstanding, due ${r.due_date ?? 'not set'}${r.accounting_entry_id ? ', posted' : ', not posted'}`,
+                  ),
+                ],
+        },
+        actions: [
+          {
+            kind: 'navigation',
+            title: { fr: 'Ouvrir les factures d’achat', en: 'Open purchase invoices' },
+            description: { fr: 'Consulter les échéances et restants dus.', en: 'View due dates and outstanding balances.' },
+            dataUsed: ['purchase_documents', 'purchase_suppliers'],
+            expected: { fr: 'Aucune modification.', en: 'No change.' },
+            risks: [],
+            examineHref: '/accounting/purchases?tab=invoices',
+          },
+        ],
+      };
+    },
+  },
+  {
+    key: 'purchases.aging',
+    module: 'accounting',
+    readOnly: true,
+    title: { fr: 'Dettes fournisseurs par échéance', en: 'Supplier debt by due date' },
+    description: {
+      fr: 'Restant dû, échu et à échoir, séparés par devise sans addition entre devises.',
+      en: 'Outstanding, overdue and upcoming amounts, separated by currency.',
+    },
+    args: z.object({ days: z.number().int().min(1).max(365).optional() }).strict(),
+    async run(ctx, args) {
+      requireAccess(ctx, 'accounting', 'read');
+      const days = args.days ?? 30;
+      const res = await ctx.db.query<any>(
+        `SELECT d.currency,
+                COALESCE(SUM(GREATEST(d.total_amount - d.amount_paid - d.credited_amount, 0)), 0)::text AS outstanding,
+                COALESCE(SUM(CASE WHEN d.due_date < CURRENT_DATE
+                  THEN GREATEST(d.total_amount - d.amount_paid - d.credited_amount, 0) ELSE 0 END), 0)::text AS overdue,
+                COALESCE(SUM(CASE WHEN d.due_date >= CURRENT_DATE
+                  AND d.due_date <= CURRENT_DATE + ($2::int || ' days')::interval
+                  THEN GREATEST(d.total_amount - d.amount_paid - d.credited_amount, 0) ELSE 0 END), 0)::text AS due_soon,
+                count(*)::text AS invoices
+           FROM purchase_documents d
+          WHERE d.company_id = $1 AND d.kind = 'invoice' AND d.status = 'validated'
+            AND d.total_amount - d.amount_paid - d.credited_amount > 0
+          GROUP BY d.currency ORDER BY d.currency`,
+        [ctx.companyId, days],
+      );
+      return {
+        data: { currencies: res.rows, days },
+        rowCount: res.rows.length,
+        lines: {
+          fr:
+            res.rows.length === 0
+              ? ['Aucune dette fournisseur ouverte.']
+              : [
+                  `Dettes fournisseurs ouvertes (${days} jours) :`,
+                  ...res.rows.map(
+                    (r) =>
+                      `• ${r.currency} — ${money(r.outstanding)} restant, ${money(r.overdue)} échu, ${money(r.due_soon)} à échoir, ${r.invoices} facture(s).`,
+                  ),
+                  'Les devises ne sont jamais additionnées.',
+                ],
+          en:
+            res.rows.length === 0
+              ? ['No open supplier debt.']
+              : [
+                  `Open supplier debt (${days} days):`,
+                  ...res.rows.map(
+                    (r) =>
+                      `• ${r.currency} — ${money(r.outstanding)} outstanding, ${money(r.overdue)} overdue, ${money(r.due_soon)} due soon, ${r.invoices} invoice(s).`,
+                  ),
+                  'Currencies are never added together.',
+                ],
+        },
+        actions: [
+          {
+            kind: 'navigation',
+            title: { fr: 'Ouvrir l’échéancier fournisseurs', en: 'Open supplier aging' },
+            description: { fr: 'Filtrer et exporter le rapport.', en: 'Filter and export the report.' },
+            dataUsed: ['purchase_documents'],
+            expected: { fr: 'Aucune modification.', en: 'No change.' },
+            risks: [],
+            examineHref: '/accounting/purchases?tab=aging',
+          },
+        ],
+      };
+    },
+  },
+  {
+    key: 'purchases.duplicates',
+    module: 'accounting',
+    readOnly: true,
+    title: { fr: 'Factures fournisseurs potentiellement en double', en: 'Potential duplicate purchase invoices' },
+    description: {
+      fr: 'Signale les mêmes montants et dates pour un fournisseur ; ne fusionne rien.',
+      en: 'Flags identical amounts and dates for a supplier; merges nothing.',
+    },
+    args: emptyArgs,
+    async run(ctx) {
+      requireAccess(ctx, 'accounting', 'read');
+      const res = await ctx.db.query<any>(
+        `SELECT s.name AS supplier_name, d.currency, d.total_amount::text,
+                d.issue_date, count(*)::text AS occurrences,
+                string_agg(COALESCE(d.doc_no, 'brouillon'), ', ' ORDER BY d.created_at) AS documents
+           FROM purchase_documents d
+           JOIN purchase_suppliers s ON s.id = d.supplier_id AND s.company_id = d.company_id
+          WHERE d.company_id = $1 AND d.status <> 'cancelled'
+          GROUP BY s.name, d.currency, d.total_amount, d.issue_date
+         HAVING count(*) > 1
+          ORDER BY d.issue_date DESC LIMIT 20`,
+        [ctx.companyId],
+      );
+      return {
+        data: { groups: res.rows },
+        rowCount: res.rows.length,
+        lines: {
+          fr:
+            res.rows.length === 0
+              ? ['Aucun doublon potentiel détecté sur le montant et la date.']
+              : [
+                  'Doublons potentiels (aucune fusion automatique) :',
+                  ...res.rows.map(
+                    (r) =>
+                      `• ${r.supplier_name} — ${r.currency} ${money(r.total_amount)} le ${r.issue_date}, ${r.documents}`,
+                  ),
+                ],
+          en:
+            res.rows.length === 0
+              ? ['No potential duplicate by amount and date.']
+              : [
+                  'Potential duplicates (no automatic merge):',
+                  ...res.rows.map(
+                    (r) =>
+                      `• ${r.supplier_name} — ${r.currency} ${money(r.total_amount)} on ${r.issue_date}, ${r.documents}`,
+                  ),
+                ],
+        },
+      };
+    },
+  },
+  {
+    key: 'purchases.payments.recent',
+    module: 'accounting',
+    readOnly: true,
+    title: { fr: 'Règlements fournisseurs récents', en: 'Recent supplier payments' },
+    description: {
+      fr: 'Règlements enregistrés, leurs affectations et leur état comptable.',
+      en: 'Recorded payments, their allocations and accounting state.',
+    },
+    args: z.object({ limit: z.number().int().min(1).max(50).optional() }).strict(),
+    async run(ctx, args) {
+      requireAccess(ctx, 'accounting', 'read');
+      const res = await ctx.db.query<any>(
+        `SELECT p.payment_no, p.payment_date, p.amount::text, p.currency, p.kind, p.reference,
+                p.accounting_entry_id, s.name AS supplier_name,
+                (SELECT count(*)::text FROM purchase_payment_allocations a
+                  WHERE a.payment_id = p.id AND a.cancelled_at IS NULL) AS allocations
+           FROM purchase_payments p
+           JOIN purchase_suppliers s ON s.id = p.supplier_id AND s.company_id = p.company_id
+          WHERE p.company_id = $1 AND p.status = 'recorded'
+          ORDER BY p.payment_date DESC, p.created_at DESC LIMIT $2`,
+        [ctx.companyId, args.limit ?? 10],
+      );
+      return {
+        data: { payments: res.rows },
+        rowCount: res.rows.length,
+        lines: {
+          fr:
+            res.rows.length === 0
+              ? ['Aucun règlement fournisseur enregistré.']
+              : res.rows.map(
+                  (r) =>
+                    `• ${r.payment_no ?? 'sans numéro'} — ${r.supplier_name}, ${money(r.amount)} ${r.currency}, ${r.allocations} affectation(s)${r.accounting_entry_id ? ', comptabilisé' : ', non comptabilisé'}`,
+                ),
+          en:
+            res.rows.length === 0
+              ? ['No recorded supplier payment.']
+              : res.rows.map(
+                  (r) =>
+                    `• ${r.payment_no ?? 'no number'} — ${r.supplier_name}, ${money(r.amount)} ${r.currency}, ${r.allocations} allocation(s)${r.accounting_entry_id ? ', posted' : ', not posted'}`,
+                ),
+        },
+      };
+    },
+  },
   // -------------------------------------------------------------- payroll
   {
     key: 'payroll.status',

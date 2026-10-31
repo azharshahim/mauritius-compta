@@ -129,7 +129,7 @@ export interface EntryRow {
   currency: string;
   exchange_rate: string;
   status: 'draft' | 'posted';
-  source: 'manual' | 'reversal' | 'opening' | 'billing' | 'ai';
+  source: 'manual' | 'reversal' | 'opening' | 'billing' | 'purchase' | 'ai';
   reversal_of_entry_id: string | null;
   posted_at: string | null;
   created_at: string;

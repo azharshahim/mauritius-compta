@@ -256,6 +256,140 @@ suite('concurrency (real PostgreSQL)', () => {
     expect(Number(total.rows[0]!.total)).toBeLessThanOrEqual(60000);
   });
 
+  const createSupplierInvoice = async (amount: string) => {
+    const supplier = await api(ctx, cookie, 'POST', `/api/companies/${companyId}/purchases/suppliers`, {
+      name: `Fournisseur concurrence ${++scenarioSeq} (fictif)`,
+      reference: `FOUR-RACE-${scenarioSeq}`,
+      country: 'MU',
+    });
+    expect(supplier.statusCode).toBe(201);
+    const doc = await api(ctx, cookie, 'POST', `/api/companies/${companyId}/purchases/documents`, {
+      kind: 'invoice',
+      supplierId: supplier.json().supplier.id,
+      supplierReference: `FACT-RACE-${scenarioSeq}`,
+      issueDate: '2025-09-03',
+      dueDate: '2025-09-30',
+      currency: 'MUR',
+      lines: [
+        {
+          description: 'Charge concurrente fictive',
+          quantity: '1',
+          unitPrice: amount,
+          accountId: accountByCode(accounts, '6100').id,
+          vatTreatment: 'out_of_scope',
+        },
+      ],
+    });
+    expect(doc.statusCode).toBe(201);
+    const validated = await api(
+      ctx,
+      cookie,
+      'POST',
+      `/api/companies/${companyId}/purchases/documents/${doc.json().document.id}/validate`,
+    );
+    expect(validated.statusCode).toBe(200);
+    return { supplierId: supplier.json().supplier.id, invoice: validated.json().document };
+  };
+
+  it('never allocates two racing supplier payments beyond the invoice amount', async () => {
+    const { supplierId, invoice } = await createSupplierInvoice('80000.00');
+    const makePayment = () =>
+      api(ctx, cookie, 'POST', `/api/companies/${companyId}/purchases/payments`, {
+        supplierId,
+        paymentDate: '2025-09-04',
+        amount: '80000.00',
+        currency: 'MUR',
+        method: 'bank_transfer',
+        reference: `RACE-SUP-${++scenarioSeq}`,
+        allocations: [{ invoiceId: invoice.id, amount: '80000.00' }],
+      });
+    const results = await Promise.all([makePayment(), makePayment()]);
+    expect(results.map((r) => r.statusCode).sort()).toEqual([201, 409]);
+    const paid = await ctx.db.query<{ total: string }>(
+      `SELECT COALESCE(SUM(amount), 0)::text AS total FROM purchase_payment_allocations
+        WHERE invoice_id = $1 AND cancelled_at IS NULL`,
+      [invoice.id],
+    );
+    expect(Number(paid.rows[0]!.total)).toBeLessThanOrEqual(80000);
+  });
+
+  it('links one supplier payment to one bank transaction only once', async () => {
+    const { supplierId, invoice } = await createSupplierInvoice('30000.00');
+    const pay = await api(ctx, cookie, 'POST', `/api/companies/${companyId}/purchases/payments`, {
+      supplierId,
+      paymentDate: '2025-09-05',
+      amount: '30000.00',
+      currency: 'MUR',
+      method: 'bank_transfer',
+      reference: `RACE-LINK-${++scenarioSeq}`,
+      allocations: [{ invoiceId: invoice.id, amount: '30000.00' }],
+    });
+    expect(pay.statusCode).toBe(201);
+    const txn = await importTxn('-30000.00', 'Concurrence fournisseur lien');
+    const link = () =>
+      api(ctx, cookie, 'POST', `/api/companies/${companyId}/bank/transactions/${txn.id}/supplier-payments`, {
+        paymentId: pay.json().payment.id,
+        amount: '30000.00',
+        confirm: true,
+      });
+    const results = await Promise.all([link(), link()]);
+    expect(results.map((r) => r.statusCode).sort()).toEqual([200, 201]);
+    const rows = await ctx.db.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM bank_matches
+        WHERE transaction_id = $1 AND purchase_payment_id = $2 AND status = 'confirmed'`,
+      [txn.id, pay.json().payment.id],
+    );
+    expect(rows.rows[0]!.n).toBe(1);
+  });
+
+  it('never allocates two racing credit notes beyond the invoice amount', async () => {
+    const { supplierId, invoice } = await createSupplierInvoice('50000.00');
+    const makeCredit = async () => {
+      const created = await api(ctx, cookie, 'POST', `/api/companies/${companyId}/purchases/documents`, {
+        kind: 'credit_note',
+        supplierId,
+        supplierReference: `AVOIR-RACE-${++scenarioSeq}`,
+        issueDate: '2025-09-06',
+        currency: 'MUR',
+        sourceDocumentId: invoice.id,
+        lines: [
+          {
+            description: 'Avoir concurrent fictif',
+            quantity: '1',
+            unitPrice: '50000.00',
+            accountId: accountByCode(accounts, '6100').id,
+            vatTreatment: 'out_of_scope',
+          },
+        ],
+      });
+      expect(created.statusCode).toBe(201);
+      const validated = await api(
+        ctx,
+        cookie,
+        'POST',
+        `/api/companies/${companyId}/purchases/documents/${created.json().document.id}/validate`,
+      );
+      expect(validated.statusCode).toBe(200);
+      return validated.json().document.id;
+    };
+    const first = await makeCredit();
+    const second = await makeCredit();
+    const allocate = (creditNoteId: string) =>
+      api(ctx, cookie, 'POST', `/api/companies/${companyId}/purchases/credit-notes/${creditNoteId}/allocations`, {
+        invoiceId: invoice.id,
+        amount: '50000.00',
+        confirm: true,
+      });
+    const results = await Promise.all([allocate(first), allocate(second)]);
+    expect(results.map((r) => r.statusCode).sort()).toEqual([201, 409]);
+    const credited = await ctx.db.query<{ total: string }>(
+      `SELECT COALESCE(SUM(amount), 0)::text AS total FROM purchase_credit_allocations
+        WHERE invoice_id = $1 AND cancelled_at IS NULL`,
+      [invoice.id],
+    );
+    expect(Number(credited.rows[0]!.total)).toBeLessThanOrEqual(50000);
+  });
+
   it('keeps the trial balance balanced with parallel postings', async () => {
     const tb = await api(
       ctx,

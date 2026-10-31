@@ -154,6 +154,10 @@ export type AssistantIntent =
   | 'trial_balance'
   | 'proposal_check'
   | 'proposal_prepare'
+  | 'supplier_invoices'
+  | 'supplier_balance'
+  | 'supplier_duplicates'
+  | 'supplier_payments'
   | 'help';
 
 const has = (text: string, pattern: RegExp) => pattern.test(text);
@@ -162,6 +166,28 @@ export function detectIntent(raw: string): { intent: AssistantIntent; query?: st
   const text = raw.toLowerCase().replace(/[’']/g, "'").replace(/\s+/g, ' ').trim();
 
   if (has(text, /\b(paie|payroll|bulletin|payslip|paye|csg|nsf)\b/)) return { intent: 'payroll_status' };
+
+  // Supplier cycle (mission 11). These intents win over generic "facture" or
+  // "règlement" wording so the assistant never answers a purchase question with
+  // customer data.
+  if (has(text, /(doublon|duplicate|deux fois)/) && has(text, /(fournisseur|supplier|achat|purchase)/)) {
+    return { intent: 'supplier_duplicates' };
+  }
+  if (
+    has(text, /(solde|balance|dette|dettes|outstanding|aging|[ée]ch[ée]ance)/) &&
+    has(text, /(fournisseur|supplier|achat|purchase)/)
+  ) {
+    return { intent: 'supplier_balance' };
+  }
+  if (
+    has(text, /(r[èe]glement|paiement|payment|virement|acompte)/) &&
+    has(text, /(fournisseur|supplier|achat|purchase)/)
+  ) {
+    return { intent: 'supplier_payments' };
+  }
+  if (has(text, /(facture|invoice|avoir|credit note)/) && has(text, /(fournisseur|supplier|achat|purchase)/)) {
+    return { intent: 'supplier_invoices', query: extractQuery(raw) };
+  }
 
   // "Prepare an entry for this purchase" must win over generic invoice search.
   if (
@@ -700,6 +726,14 @@ function planTool(
       return ctx.objectRef?.type === 'proposal'
         ? { key: 'accounting.proposal.check', args: { proposalId: ctx.objectRef.id } }
         : { key: 'billing.approvals.pending', args: {} };
+    case 'supplier_invoices':
+      return { key: 'purchases.invoices.search', args: { ...(query ? { query } : {}), limit: 10 } };
+    case 'supplier_balance':
+      return { key: 'purchases.aging', args: { days: 30 } };
+    case 'supplier_duplicates':
+      return { key: 'purchases.duplicates', args: {} };
+    case 'supplier_payments':
+      return { key: 'purchases.payments.recent', args: { limit: 10 } };
     case 'proposal_prepare': {
       const amount = extractAmount(text);
       return {
@@ -765,7 +799,7 @@ function composeReply(
       ].join('\n')
     : [
         'This request is not supported by the assistant yet.',
-        'Supported requests: unpaid invoices, invoice search, customer balance, recent payments, cabinet tasks (including overdue), deadlines, accessible companies, account search, trial balance, proposal check, entry preparation, payroll status.',
+        'Supported requests: unpaid invoices, invoice search, customer balance, recent payments, supplier invoices and payments, supplier debt by currency, potential supplier duplicates, cabinet tasks (including overdue), deadlines, accessible companies, account search, trial balance, proposal check, entry preparation, payroll status.',
         'No data was invented and no operation was executed.',
       ].join('\n');
 }

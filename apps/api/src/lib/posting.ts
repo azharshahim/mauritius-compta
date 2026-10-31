@@ -37,6 +37,7 @@ export type PostingSource =
   | 'reversal'
   | 'opening'
   | 'billing'
+  | 'purchase'
   | 'ai'
   | 'migration'
   | 'migration_opening';

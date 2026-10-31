@@ -372,7 +372,16 @@ export async function loadBillingContext(tx: Db, companyId: string): Promise<Com
 
 export function accountForRole(
   ctx: CompanyBillingContext,
-  role: 'receivable' | 'revenue' | 'vatOutput' | 'vatInput' | 'bank' | 'cash' | 'payable' | 'otherLiabilities',
+  role:
+    | 'receivable'
+    | 'revenue'
+    | 'vatOutput'
+    | 'vatInput'
+    | 'bank'
+    | 'cash'
+    | 'payable'
+    | 'otherLiabilities'
+    | 'prepayment',
 ): { id: string; code: string; name: string } | null {
   const code =
     role === 'receivable'
@@ -389,11 +398,17 @@ export function accountForRole(
                 ? '1000'
                 : role === 'payable'
                   ? '2000'
-                  : '2100';
+                  : role === 'prepayment'
+                    ? '1150'
+                    : '2100';
   const direct = ctx.accountsByCode.get(code);
   if (direct && direct.is_active) return direct;
   const type =
-    role === 'receivable' ? 'asset' : role === 'revenue' ? 'revenue' : role === 'bank' || role === 'cash' ? 'asset' : 'liability';
+    role === 'receivable' || role === 'prepayment' || role === 'bank' || role === 'cash'
+    ? 'asset'
+    : role === 'revenue'
+      ? 'revenue'
+      : 'liability';
   const candidate = ctx.accounts.find((a) => a.is_active && a.type === type);
   return candidate ?? null;
 }

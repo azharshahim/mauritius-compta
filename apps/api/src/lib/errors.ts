@@ -165,7 +165,38 @@ export type ErrorCode =
   | 'BANK_TRANSACTION_PARTIALLY_ALLOCATED'
   | 'PAYMENT_NOT_ALLOCATED'
   | 'PAYMENT_CANCELLED'
-  | 'PAYMENT_RECONCILED';
+  | 'PAYMENT_RECONCILED'
+  // Purchases & suppliers (mission 11)
+  | 'SUPPLIER_NOT_FOUND'
+  | 'SUPPLIER_INACTIVE'
+  | 'SUPPLIER_DUPLICATE'
+  | 'ACCOUNT_INACTIVE'
+  | 'PURCHASE_ACCOUNT_INVALID'
+  | 'PURCHASE_EXCHANGE_RATE_REQUIRED'
+  | 'PURCHASE_EXCHANGE_RATE_INVALID'
+  | 'PURCHASE_VAT_RECOVERABILITY_REQUIRED'
+  | 'PURCHASE_DOCUMENT_NOT_FOUND'
+  | 'PURCHASE_DOCUMENT_LOCKED'
+  | 'PURCHASE_DOCUMENT_NOT_VALIDATED'
+  | 'PURCHASE_DOCUMENT_NOT_NUMBERED'
+  | 'PURCHASE_DOCUMENT_EMPTY'
+  | 'PURCHASE_DUE_DATE_REQUIRED'
+  | 'PURCHASE_DUPLICATE'
+  | 'PURCHASE_SUPPLIER_MISMATCH'
+  | 'PURCHASE_CURRENCY_MISMATCH'
+  | 'PURCHASE_ACCOUNTING_POSTED'
+  | 'PURCHASE_BANK_RECONCILED'
+  | 'PURCHASE_HAS_ALLOCATIONS'
+  | 'PURCHASE_PAYMENT_NOT_FOUND'
+  | 'PURCHASE_PAYMENT_CANCELLED'
+  | 'PURCHASE_PAYMENT_NOT_NUMBERED'
+  | 'PURCHASE_PAYMENT_RECONCILED'
+  | 'PURCHASE_ALLOCATION_EXCEEDS_PAYMENT'
+  | 'PURCHASE_PAYMENT_UNALLOCATED'
+  | 'PURCHASE_ALLOCATION_EXCEEDS_INVOICE'
+  | 'PURCHASE_CREDIT_EXCEEDS_AVAILABLE'
+  | 'PURCHASE_ALLOCATION_NOT_FOUND'
+  | 'BANK_TRANSACTION_ALREADY_ALLOCATED';
 export class AppError extends Error {
   readonly code: ErrorCode;
   readonly status: number;
@@ -186,7 +217,8 @@ export const forbidden = (message?: string, code: ErrorCode = 'FORBIDDEN') =>
   new AppError(code, 403, message);
 export const notFound = (code: ErrorCode, message?: string) =>
   new AppError(code, 404, message);
-export const conflict = (code: ErrorCode, message?: string) => new AppError(code, 409, message);
+export const conflict = (code: ErrorCode, message?: string, details?: unknown) =>
+  new AppError(code, 409, message, details);
 export const notImplemented = (code: ErrorCode, message?: string) =>
   new AppError(code, 501, message);
 
