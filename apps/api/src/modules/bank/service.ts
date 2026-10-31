@@ -9,6 +9,7 @@ import { parseUpload, type ParsedFile, type SheetData } from '../migration/parse
 import { sha256, sha256Bytes } from '../migration/hash.js';
 import { autoBankMapping, suggestBankMapping, type BankColumnSuggestion, type BankFieldKey } from './profiles.js';
 import { buildBankPreview, type BankPreview } from './engine.js';
+import { billingPaymentCandidates, transactionAllocatedAmount } from './billing.js';
 import {
   findInternalTransfer,
   suggestAccount,
@@ -639,7 +640,8 @@ export async function getBankTransactionDetail(db: Db, companyId: string, transa
   if (!txn) throw notFound('BANK_TRANSACTION_NOT_FOUND', 'Bank transaction not found');
   const account = await bankAccountOfCompany(db, companyId, txn.bank_account_id);
   const suggestion = await suggestionPayload(db, companyId, account, txn);
-  return { transaction: txn, bankAccount: account, ...suggestion };
+  const billing = await billingPaymentCandidates(db, companyId, transactionId);
+  return { transaction: txn, bankAccount: account, ...suggestion, billing };
 }
 
 export async function confirmBankMatch(
@@ -662,6 +664,12 @@ export async function confirmBankMatch(
   if (txn.status === 'matched') throw conflict('BANK_ALREADY_MATCHED', 'This transaction is already reconciled');
   if (txn.status === 'cancelled' || txn.status === 'excluded') {
     throw conflict('BANK_TRANSACTION_CLOSED', 'This transaction is closed');
+  }
+  if ((await transactionAllocatedAmount(db, txn.id)) > 0n) {
+    throw conflict(
+      'BANK_TRANSACTION_PARTIALLY_ALLOCATED',
+      'This transaction already has confirmed billing allocations: remove them before matching ledger lines',
+    );
   }
   const account = await bankAccountOfCompany(db, actor.companyId, txn.bank_account_id);
 
@@ -700,8 +708,8 @@ export async function confirmBankMatch(
       await tx.query(
         `INSERT INTO bank_matches
            (cabinet_id, company_id, bank_account_id, transaction_id, entry_id, entry_line_id,
-            status, kind, confidence, reasons, created_by, decided_by, decided_at)
-         VALUES ($1,$2,$3,$4,$5,$6,'confirmed','entry',1,$7::jsonb,$8,$8,now())`,
+            amount, status, kind, confidence, reasons, created_by, decided_by, decided_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,'confirmed','entry',1,$8::jsonb,$9,$9,now())`,
         [
           account.cabinet_id,
           actor.companyId,
@@ -709,6 +717,11 @@ export async function confirmBankMatch(
           txn.id,
           line.entryId,
           line.lineId,
+          formatAmount(
+            (parseAmount(line.debit) ?? 0n) - (parseAmount(line.credit) ?? 0n) < 0n
+              ? (parseAmount(line.credit) ?? 0n) - (parseAmount(line.debit) ?? 0n)
+              : (parseAmount(line.debit) ?? 0n) - (parseAmount(line.credit) ?? 0n),
+          ),
           JSON.stringify([{ fr: 'Validation humaine explicite', en: 'Explicit human confirmation' }]),
           actor.userId,
         ],
@@ -734,13 +747,27 @@ export async function excludeBankTransaction(
   transactionId: string,
   reason: string | null,
 ): Promise<BankTransactionRow> {
-  const res = await db.query<BankTransactionRow>(
-    `UPDATE bank_transactions SET status = 'excluded', updated_at = now()
-      WHERE id = $1 AND company_id = $2 AND status <> 'matched' RETURNING *`,
+  const existing = await db.query<BankTransactionRow>(
+    'SELECT * FROM bank_transactions WHERE id = $1 AND company_id = $2',
     [transactionId, actor.companyId],
   );
-  const txn = res.rows[0];
-  if (!txn) throw notFound('BANK_TRANSACTION_NOT_FOUND', 'Transaction not found or already reconciled');
+  const foundTxn = existing.rows[0];
+  if (!foundTxn) throw notFound('BANK_TRANSACTION_NOT_FOUND', 'Transaction not found');
+  if (foundTxn.status === 'matched' || foundTxn.status === 'partially_matched') {
+    throw conflict('BANK_ALREADY_MATCHED', 'This transaction is already reconciled');
+  }
+  if ((await transactionAllocatedAmount(db, foundTxn.id)) > 0n) {
+    throw conflict(
+      'BANK_TRANSACTION_PARTIALLY_ALLOCATED',
+      'Confirmed billing allocations must be removed before excluding this transaction',
+    );
+  }
+  const res = await db.query<BankTransactionRow>(
+    `UPDATE bank_transactions SET status = 'excluded', updated_at = now()
+      WHERE id = $1 AND company_id = $2 RETURNING *`,
+    [transactionId, actor.companyId],
+  );
+  const txn = res.rows[0]!;
   await event(db, actor, 'bank_transaction', txn.id, 'match.rejected', { reason: reason ?? null });
   return txn;
 }
@@ -754,6 +781,12 @@ export async function createBankProposal(
   const detail = await getBankTransactionDetail(db, actor.companyId, transactionId);
   const txn = detail.transaction;
   if (txn.status === 'matched') throw conflict('BANK_ALREADY_MATCHED', 'Transaction already reconciled');
+  if (txn.status === 'partially_matched' || (await transactionAllocatedAmount(db, txn.id)) > 0n) {
+    throw conflict(
+      'BANK_TRANSACTION_PARTIALLY_ALLOCATED',
+      'This transaction is already allocated to a billing payment',
+    );
+  }
   const accountId = input.accountId ?? detail.account.accountId;
   if (!accountId) {
     throw badRequest('BANK_ACCOUNT_DECISION_REQUIRED', 'No suitable account exists: choose one manually');
@@ -842,6 +875,12 @@ export async function acceptBankProposal(
   const txn = txnRes.rows[0];
   if (!txn) throw notFound('BANK_TRANSACTION_NOT_FOUND', 'Transaction not found');
   if (txn.status === 'matched') throw conflict('BANK_ALREADY_MATCHED', 'Transaction already reconciled');
+  if ((await transactionAllocatedAmount(db, txn.id)) > 0n) {
+    throw conflict(
+      'BANK_TRANSACTION_PARTIALLY_ALLOCATED',
+      'This transaction is already allocated to a billing payment',
+    );
+  }
   const account = await bankAccountOfCompany(db, actor.companyId, proposal.bank_account_id);
 
   const company = await db.query<{ functional_currency: string }>(
@@ -895,8 +934,8 @@ export async function acceptBankProposal(
     await tx.query(
       `INSERT INTO bank_matches
          (cabinet_id, company_id, bank_account_id, transaction_id, entry_id, entry_line_id,
-          status, kind, confidence, reasons, created_by, decided_by, decided_at)
-       VALUES ($1,$2,$3,$4,$5,$6,'confirmed','entry',1,$7::jsonb,$8,$8,now())`,
+          amount, status, kind, confidence, reasons, created_by, decided_by, decided_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'confirmed','entry',1,$8::jsonb,$9,$9,now())`,
       [
         account.cabinet_id,
         actor.companyId,
@@ -904,6 +943,7 @@ export async function acceptBankProposal(
         txn.id,
         result.entry.id,
         line.rows[0]?.id ?? null,
+        formatAmount(amount),
         JSON.stringify([{ fr: 'Proposition acceptée par un humain', en: 'Proposal accepted by a human' }]),
         actor.userId,
       ],

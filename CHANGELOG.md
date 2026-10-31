@@ -1,5 +1,57 @@
 # Journal des versions
 
+## Mission 10 — rapprochement bancaire avancé & intégration Facturation (31 octobre 2026)
+
+> Aucune fusion, aucune connexion bancaire réelle, aucune dépense, aucun
+> fournisseur IA payant. PR nº1 laissée en brouillon.
+
+### Ajouté
+
+- Migration `0010_bank_billing.sql` : montant par affectation bancaire,
+  facture liée, note, horodatage, index uniques partiels, statut
+  `partially_matched`.
+- Rapprochement d'une transaction avec un **règlement client existant**,
+  partiel ou total ; plusieurs transactions pour une facture (n↔1) et une
+  transaction pour plusieurs règlements/factures (1↔n).
+- Candidats déterministes : restants exacts, factures, confiance, anomalies,
+  état comptable.
+- Confirmation idempotente, plafonds sous verrou, refus des mélanges
+  règlement/ligne comptable/proposition/exclusion.
+- Retrait d'une affectation sans suppression d'historique (`rejected`).
+- Rapport détaillé et CSV : affectations, règlements, factures, restants dus,
+  validateurs, écritures.
+- Mise à jour de `bank_matches.entry_id` dans la transaction de
+  comptabilisation existante.
+- Écran Transactions : tableau desktop complet, cartes mobiles sans débordement,
+  montants/devise/statuts entiers, panneau de détail et actions de
+  rapprochement.
+- Démo A→G : trois virements, partiel 30 000/80 000, virement groupé, règlement
+  déjà comptabilisé, double tentative, ambiguïté, virement interne.
+- Tests : API +18, web +4, démo +2, concurrence PostgreSQL +3.
+- Documentation : `mission-10-report.md`, `advanced-reconciliation.md`,
+  `bank-billing-integration.md`, mises à jour banque/README/tests.
+
+### Corrigé
+
+- `bank_matches.billing_payment_id` est désormais réellement écrit.
+- Une transaction partiellement affectée ne peut plus être exclue, rapprochée
+  une seconde fois sur une ligne comptable ni faire l'objet d'une proposition
+  concurrente.
+- L'annulation d'un règlement déjà rapproché en banque est refusée
+  (`PAYMENT_RECONCILED`).
+- Les montants de rapprochement ne sont plus implicites : `amount` est
+  obligatoire et contrôlé en décimal exact.
+
+### Limites déclarées
+
+- Factures/avoirs fournisseurs, remboursements clients et lettrage de grand
+  livre : `NON IMPLÉMENTÉ`.
+- Devises différentes et écarts de change : refusés, aucun taux inventé.
+- Frais bancaires non nets d'un règlement.
+- Aucun test sur Samsung Android physique ; vérification par styles/DOM.
+- CI PostgreSQL réel exécutée après push ; voir le rapport final.
+
+
 ## Correctif mission 9 — sélection des fichiers sur Samsung Android (31 octobre 2026)
 
 > Corrige le grisement des CSV/TSV/TXT/XLSX dans le sélecteur Android des

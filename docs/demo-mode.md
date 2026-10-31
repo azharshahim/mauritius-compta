@@ -51,7 +51,10 @@ Caractéristiques techniques :
 - Tableau de bord, sélecteur de société, période analysée.
 - **Importation & migration** (mission 8) : six étapes, fichiers CSV/TSV/XLSX
   fictifs téléchargeables, correspondances, contrôles, prévisualisation,
-  confirmation explicite, rapport ; stockage local uniquement (schéma 7).
+  confirmation explicite, rapport ; stockage local uniquement (schéma 8).
+- Mission 10 : scénarios fictifs A→G (n↔1, partiel, groupé, déjà comptabilisé,
+  double tentative, ambiguïté, virement interne), cartes mobiles et rapport
+  détaillé ; le navigateur ne comptabilise jamais.
 - **Banque & rapprochement** (mission 9) : deux comptes fictifs (MUR `•••• 1234`,
   EUR `•••• 9876`), transactions, factures/écritures existantes, import CSV/XLSX,
   quatre relevés fictifs, rapprochement humain, propositions, règles et

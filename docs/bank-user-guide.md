@@ -66,9 +66,33 @@ rapport indique les soldes, les rapprochements et les écarts. Il n'est marqué
 **Rapproché** que si aucun écart inexpliqué ne subsiste. Téléchargez le CSV
 pour le classeur de travail. Aucun PDF n'est promis pour ce rapport.
 
+## 7. Rapprocher un règlement client (mission 10)
+
+1. Ouvrir une transaction non rapprochée.
+2. Dans « Règlements clients liés », vérifier le restant à affecter et les
+   factures candidates avec leur restant dû.
+3. Choisir un règlement, saisir le montant exact, cocher la confirmation
+   humaine puis « Associer ce règlement ».
+4. Le rapprochement ne comptabilise rien. Si le règlement n'est pas encore
+   comptabilisé, le bouton « Comptabiliser ce règlement » utilise le moteur
+   existant ; les avertissements ne sont jamais forcés.
+5. Pour corriger une erreur, « Retirer le rapprochement » conserve l'historique
+   (`rejected`) et remet la transaction dans son état antérieur.
+
+Une facture partiellement réglée reste marquée partielle avec son restant dû
+exact, même si une transaction est entièrement rapprochée.
+
 ## Limites
 
 OFX, PDF/OCR et les connexions bancaires ne sont pas implémentés. Les cas
 1↔n sont acceptés après sélection humaine ; les cas n↔1, partiels et écarts de
 change sont bloqués en revue humaine. Voir `docs/bank-import.md` et
 `docs/bank-reconciliation.md`.
+
+- Factures fournisseurs, avoirs fournisseurs et remboursements clients :
+  **non implémentés**.
+- Lettrage de grand livre : **non implémenté** ; ne pas confondre avec
+  l'affectation d'un règlement à une facture.
+- Devises différentes / écarts de change : refusés, aucun taux inventé.
+- Vérification sur Samsung Android physique : non réalisée dans
+  l'environnement de développement.

@@ -75,6 +75,35 @@ const L = {
     transfer: 'Virement interne possible : vérification humaine requise.',
     matchStatus: 'Statut du rapprochement',
     statusUnmatched: 'Non rapproché',
+    statusPartial: 'Partiellement affectée',
+    billingTitle: 'Règlements clients liés',
+    billingEmpty: 'Aucun règlement client enregistré pour cette devise.',
+    billingRemaining: 'Restant à affecter sur la transaction',
+    billingAmount: 'Montant à affecter',
+    billingLink: 'Associer ce règlement',
+    billingLinked: 'Règlement associé',
+    billingInvoices: 'Factures concernées',
+    billingOutstanding: 'Restant dû',
+    billingPosted: 'Comptabilisé',
+    billingNotPosted: 'Non comptabilisé',
+    billingPost: 'Comptabiliser ce règlement',
+    billingPostHint: 'Action humaine distincte, via le moteur comptable existant. Le rapprochement bancaire ne comptabilise rien.',
+    billingUnlink: 'Retirer le rapprochement',
+    billingUnlinkConfirm: 'Confirmer le retrait (l’historique est conservé)',
+    billingBlocked: 'Non proposé',
+    billingPartialWarning: 'Affectation partielle : le restant dû de la facture reste affiché.',
+    billingNoAllocation: 'Ce règlement n’est affecté à aucune facture : il ne peut pas prouver un règlement.',
+    advancedReport: 'Traçabilité détaillée',
+    advancedInvoices: 'Factures et restants dus',
+    advancedAllocations: 'Affectations confirmées',
+    advancedOpen: 'Transactions ouvertes',
+    advancedPartial: 'Partiellement affectées',
+    advancedInvoiceStatus: 'Statut de paiement',
+    advancedOutstanding: 'Restant dû',
+    advancedEntry: 'Écriture comptable',
+    advancedUser: 'Validé par',
+    advancedAt: 'Validé le',
+    advancedDownload: 'Télécharger le CSV détaillé',
     statusProposed: 'Correspondance proposée',
     statusMatched: 'Rapproché',
     statusReview: 'À examiner',
@@ -170,6 +199,35 @@ const L = {
     transfer: 'Possible internal transfer: human review required.',
     matchStatus: 'Reconciliation status',
     statusUnmatched: 'Unreconciled',
+    statusPartial: 'Partially allocated',
+    billingTitle: 'Linked customer payments',
+    billingEmpty: 'No customer payment recorded in this currency.',
+    billingRemaining: 'Remaining to allocate on the transaction',
+    billingAmount: 'Amount to allocate',
+    billingLink: 'Link this payment',
+    billingLinked: 'Linked payment',
+    billingInvoices: 'Related invoices',
+    billingOutstanding: 'Outstanding',
+    billingPosted: 'Posted to accounting',
+    billingNotPosted: 'Not posted',
+    billingPost: 'Post this payment',
+    billingPostHint: 'Separate human action through the existing accounting engine. Bank reconciliation posts nothing.',
+    billingUnlink: 'Remove reconciliation',
+    billingUnlinkConfirm: 'Confirm removal (history is kept)',
+    billingBlocked: 'Not proposed',
+    billingPartialWarning: 'Partial allocation: the invoice outstanding balance stays visible.',
+    billingNoAllocation: 'This payment is not allocated to any invoice: it cannot prove a settlement.',
+    advancedReport: 'Detailed traceability',
+    advancedInvoices: 'Invoices and outstanding balances',
+    advancedAllocations: 'Confirmed allocations',
+    advancedOpen: 'Open transactions',
+    advancedPartial: 'Partially allocated',
+    advancedInvoiceStatus: 'Payment status',
+    advancedOutstanding: 'Outstanding',
+    advancedEntry: 'Accounting entry',
+    advancedUser: 'Confirmed by',
+    advancedAt: 'Confirmed at',
+    advancedDownload: 'Download detailed CSV',
     statusProposed: 'Match proposed',
     statusMatched: 'Reconciled',
     statusReview: 'To review',
@@ -274,13 +332,52 @@ interface BankImportRow {
   bank_account_id: string;
 }
 
+interface BillingCandidate {
+  paymentId: string;
+  paymentNumber: string;
+  paymentDate: string;
+  amount: string;
+  currency: string;
+  method: string;
+  reference: string | null;
+  customerName: string;
+  accountingEntryId: string | null;
+  accountingPosted: boolean;
+  matchedAmount: string;
+  availableAmount: string;
+  suggestedAmount: string;
+  confidence: number;
+  reasons: { code: string; fr: string; en: string }[];
+  issues: { code: string; fr: string; en: string; blocking: boolean }[];
+  allocations: {
+    invoiceId: string;
+    invoiceNumber: string | null;
+    amount: string;
+    invoiceTotal: string;
+    invoicePaid: string;
+    invoiceCredited: string;
+    invoiceOutstanding: string;
+    invoiceStatus: string;
+    invoicePaymentStatus: string;
+    currency: string;
+  }[];
+  alreadyLinkedToTransaction: boolean;
+}
+
+interface BillingCandidates {
+  transactionRemaining: string;
+  allocatedAmount: string;
+  candidates: BillingCandidate[];
+}
+
 interface Detail {
   transaction: BankTxn;
   bankAccount: BankAccount;
   match: MatchSuggestion;
   account: AccountSuggestion;
   internalTransfer: { transactionId: string; bankAccountId: string; days: number } | null;
-  existingMatches: { id: string; status: string; reasons: string[] }[];
+  billing: BillingCandidates;
+  existingMatches: { id: string; status: string; reasons: string[]; billing_payment_id?: string | null }[];
   proposals: {
     id: string;
     status: string;
@@ -320,6 +417,59 @@ interface Report {
   validatedBy: string | null;
 }
 
+interface AdvancedReport {
+  generatedAt: string;
+  bankAccount: { id: string; name: string; bankName: string; currency: string };
+  summary: {
+    transactionCount: number;
+    matchedCount: number;
+    partiallyMatchedCount: number;
+    openCount: number;
+    allocatedTotal: string;
+    unallocatedTotal: string;
+    postedPaymentCount: number;
+    unpostedPaymentCount: number;
+    invoicesPaid: number;
+    invoicesPartial: number;
+    invoicesUnpaid: number;
+    invoicesOverpaid: number;
+    allocationCount: number;
+    outstandingByCurrency: { currency: string; amount: string; count: number }[];
+  };
+  allocations: {
+    matchId: string;
+    transactionDate: string;
+    transactionLabel: string;
+    transactionReference: string | null;
+    transactionAmount: string;
+    allocatedAmount: string;
+    transactionRemaining: string;
+    paymentNumber: string | null;
+    paymentAmount: string | null;
+    paymentMatchedAmount: string | null;
+    paymentAvailableAmount: string | null;
+    accountingEntryNo: string | null;
+    accountingPosted: boolean;
+    invoices: { invoiceId: string; invoiceNumber: string | null; amount: string; total: string; outstanding: string; paymentStatus: string }[];
+    decidedAt: string | null;
+    decidedBy: string | null;
+    note: string | null;
+  }[];
+  invoices: {
+    invoiceId: string;
+    invoiceNumber: string | null;
+    customerName: string;
+    currency: string;
+    total: string;
+    paid: string;
+    credited: string;
+    outstanding: string;
+    paymentStatus: string;
+    documentStatus: string;
+    accountingPosted: boolean;
+  }[];
+}
+
 const money = (value: string) =>
   new Intl.NumberFormat('fr-MU', { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(
     Number(value),
@@ -338,10 +488,18 @@ async function fileToBase64(file: File): Promise<string> {
 
 function statusBadge(
   status: string,
-  tr: { statusMatched: string; statusProposed: string; statusReview: string; statusExcluded: string; statusUnmatched: string },
+  tr: {
+    statusMatched: string;
+    statusPartial: string;
+    statusProposed: string;
+    statusReview: string;
+    statusExcluded: string;
+    statusUnmatched: string;
+  },
 ) {
   const map: Record<string, { kind: 'success' | 'warning' | 'danger' | 'info' | 'neutral'; label: string }> = {
     matched: { kind: 'success', label: tr.statusMatched },
+    partially_matched: { kind: 'warning', label: tr.statusPartial },
     proposed: { kind: 'info', label: tr.statusProposed },
     review: { kind: 'warning', label: tr.statusReview },
     excluded: { kind: 'danger', label: tr.statusExcluded },
@@ -369,6 +527,9 @@ export default function BankPage() {
   const [rules, setRules] = useState<Rule[]>([]);
   const [imports, setImports] = useState<BankImportRow[]>([]);
   const [report, setReport] = useState<Report | null>(null);
+  const [advanced, setAdvanced] = useState<AdvancedReport | null>(null);
+  const [selectedPayment, setSelectedPayment] = useState('');
+  const [paymentAmount, setPaymentAmount] = useState('');
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [reviewed, setReviewed] = useState(false);
@@ -432,6 +593,14 @@ export default function BankPage() {
       if (to) params.set('to', to);
       const res = await api.get<{ report: Report | null }>(`/companies/${companyId}/bank/report?${params}`);
       setReport(res.report);
+      try {
+        const detailed = await api.get<{ report: AdvancedReport | null }>(
+          `/companies/${companyId}/bank/reconciliation-report?${params}`,
+        );
+        setAdvanced(detailed.report);
+      } catch {
+        setAdvanced(null);
+      }
     } catch (err) {
       setError(errorMessage(err, tr.loadError).message);
     }
@@ -553,9 +722,16 @@ export default function BankPage() {
     setSelectedLines([]);
     setReviewed(false);
     setExchangeRate('');
+    setSelectedPayment('');
+    setPaymentAmount('');
     try {
       const res = await api.get<Detail>(`/companies/${companyId}/bank/transactions/${id}`);
       setDetail(res);
+      const preferred =
+        res.billing.candidates.find((c) => !c.alreadyLinkedToTransaction && !c.issues.some((i) => i.blocking)) ??
+        res.billing.candidates[0];
+      setSelectedPayment(preferred?.paymentId ?? '');
+      setPaymentAmount(preferred?.suggestedAmount ?? '');
       if (res.match.split) {
         setSelectedLines(res.match.split.lineIds);
       } else if (res.match.candidates.length === 1) {
@@ -581,6 +757,74 @@ export default function BankPage() {
       setNotice(`${tr.confirmMatch} ✓`);
       setDetail(null);
       await Promise.all([loadTxns(), load()]);
+    } catch (err) {
+      setError(errorMessage(err, tr.loadError).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmBilling = async () => {
+    if (!detail || !selectedPayment || !reviewed) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(
+        `/companies/${companyId}/bank/transactions/${detail.transaction.id}/billing-payments`,
+        {
+          paymentId: selectedPayment,
+          amount: paymentAmount.trim(),
+          confirm: true,
+        },
+      );
+      setNotice(`${tr.billingLink} ✓`);
+      setReviewed(false);
+      await Promise.all([openTxn(detail.transaction.id), loadTxns()]);
+    } catch (err) {
+      setError(errorMessage(err, tr.loadError).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const postBillingPayment = async (paymentId: string) => {
+    if (!detail || !reviewed) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const proposal = await api.post<{ proposal?: { id: string }; reused?: boolean }>(
+        `/companies/${companyId}/ai/entry-proposals/from-billing`,
+        { paymentId },
+      );
+      const proposalId = proposal.proposal?.id;
+      if (!proposalId) throw new Error(tr.billingPost);
+      await api.post(`/companies/${companyId}/ai/entry-proposals/${proposalId}/validate`, {});
+      await api.post(`/companies/${companyId}/ai/entry-proposals/${proposalId}/post`, {});
+      setNotice(`${tr.billingPost} ✓`);
+      setReviewed(false);
+      await Promise.all([openTxn(detail.transaction.id), loadTxns(), load()]);
+    } catch (err) {
+      const message = errorMessage(err, tr.loadError).message;
+      setError(
+        `${message} — ${locale === 'fr' ? 'aucune comptabilisation forcée ; utilisez l’assistant comptable pour traiter les avertissements.' : 'no posting was forced; use the accounting assistant to handle warnings.'}`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const unlinkBilling = async (paymentId: string) => {
+    if (!detail || !reviewed) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.del(
+        `/companies/${companyId}/bank/transactions/${detail.transaction.id}/billing-payments/${paymentId}`,
+        { confirm: true, reason: 'Retrait humain depuis l’écran Banque' },
+      );
+      setNotice(`${tr.billingUnlink} ✓`);
+      setReviewed(false);
+      await Promise.all([openTxn(detail.transaction.id), loadTxns()]);
     } catch (err) {
       setError(errorMessage(err, tr.loadError).message);
     } finally {
@@ -671,8 +915,26 @@ export default function BankPage() {
     }
   };
 
-  const downloadReport = () => {
+  const downloadReport = async () => {
     if (!report) return;
+    try {
+      const params = new URLSearchParams({ bankAccountId: accountId, lang: locale });
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+      const text = await api.get<string>(
+        `/companies/${companyId}/bank/reconciliation-report.csv?${params}`,
+      );
+      const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'rapprochement-bancaire-detaille.csv';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      return;
+    } catch {
+      // Fall back to the summary already on screen, never to invented rows.
+    }
     const rows = [
       ['Rapport de rapprochement bancaire'],
       ['Banque', report.bankAccount.bankName],
@@ -980,36 +1242,60 @@ export default function BankPage() {
           {txns.length === 0 ? (
             <p className="muted">{tr.noTxns}</p>
           ) : (
-            <div className="table-wrap">
-              <table className="table bank-table">
-                <thead>
-                  <tr>
-                    <th>{tr.txnDate}</th>
-                    <th>{tr.label}</th>
-                    <th>{tr.ref}</th>
-                    <th>{tr.amount}</th>
-                    <th>{tr.status}</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {txns.map((txn) => (
-                    <tr key={txn.id}>
-                      <td>{txn.txn_date}</td>
-                      <td>{txn.label}</td>
-                      <td>{txn.reference ?? '—'}</td>
-                      <td className={txn.amount.startsWith('-') ? 'amount-out' : 'amount-in'}>{money(txn.amount)}</td>
-                      <td>{statusBadge(txn.status, tr)}</td>
-                      <td>
-                        <Button variant="ghost" onClick={() => void openTxn(txn.id)}>
-                          {tr.open}
-                        </Button>
-                      </td>
+            <>
+              <div className="table-wrap bank-txn-table">
+                <table className="table bank-table">
+                  <thead>
+                    <tr>
+                      <th>{tr.txnDate}</th>
+                      <th>{tr.label}</th>
+                      <th>{tr.ref}</th>
+                      <th>{tr.amount}</th>
+                      <th>{tr.status}</th>
+                      <th />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {txns.map((txn) => (
+                      <tr key={txn.id}>
+                        <td>{txn.txn_date}</td>
+                        <td>{txn.label}</td>
+                        <td>{txn.reference ?? '—'}</td>
+                        <td className={txn.amount.startsWith('-') ? 'amount-out' : 'amount-in'}>
+                          {money(txn.amount)} {txn.currency}
+                        </td>
+                        <td>{statusBadge(txn.status, tr)}</td>
+                        <td>
+                          <Button variant="ghost" onClick={() => void openTxn(txn.id)}>
+                            {tr.open}
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <ul className="bank-txn-cards">
+                {txns.map((txn) => (
+                  <li key={txn.id} className="bank-txn-card">
+                    <div className="bank-txn-card-head">
+                      <span className="bank-txn-date">{txn.txn_date}</span>
+                      {statusBadge(txn.status, tr)}
+                    </div>
+                    <p className="bank-txn-label">{txn.label}</p>
+                    <p className={txn.amount.startsWith('-') ? 'amount-out' : 'amount-in'}>
+                      {money(txn.amount)} {txn.currency}
+                    </p>
+                    <p className="bank-txn-ref">
+                      {tr.ref} : {txn.reference ?? '—'}
+                    </p>
+                    <Button variant="ghost" onClick={() => void openTxn(txn.id)}>
+                      {tr.open}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
 
           {detail && (
@@ -1025,6 +1311,139 @@ export default function BankPage() {
               {detail.internalTransfer && (
                 <div className="alert alert-warning">{tr.transfer}</div>
               )}
+
+              <h4>{tr.billingTitle}</h4>
+              <p className="muted small">
+                {tr.billingRemaining} : {money(detail.billing.transactionRemaining)}{' '}
+                {detail.transaction.currency}
+              </p>
+
+              {detail.billing.candidates.filter((c) => c.alreadyLinkedToTransaction).map((candidate) => (
+                <div key={candidate.paymentId} className="bank-billing-card is-linked">
+                  <div className="bank-txn-card-head">
+                    <strong>
+                      {candidate.paymentNumber} · {money(candidate.amount)} {candidate.currency}
+                    </strong>
+                    <Badge kind={candidate.accountingPosted ? 'success' : 'warning'}>
+                      {candidate.accountingPosted ? tr.billingPosted : tr.billingNotPosted}
+                    </Badge>
+                  </div>
+                  <p>
+                    {candidate.customerName} · {tr.billingLinked} : {money(candidate.matchedAmount)} /{' '}
+                    {money(candidate.amount)}
+                  </p>
+                  <p className="muted small">
+                    {tr.billingInvoices} :{' '}
+                    {candidate.allocations
+                      .map(
+                        (a) =>
+                          `${a.invoiceNumber ?? a.invoiceId} — ${money(a.amount)} (${tr.billingOutstanding} ${money(a.invoiceOutstanding)})`,
+                      )
+                      .join(' · ')}
+                  </p>
+                  <div className="bank-actions">
+                    {!candidate.accountingPosted && (
+                      <Button
+                        variant="primary"
+                        onClick={() => void postBillingPayment(candidate.paymentId)}
+                        disabled={busy || !reviewed}
+                      >
+                        {tr.billingPost}
+                      </Button>
+                    )}
+                    <Button
+                      variant="danger"
+                      onClick={() => void unlinkBilling(candidate.paymentId)}
+                      disabled={busy || !reviewed}
+                    >
+                      {tr.billingUnlink}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+
+              {detail.billing.candidates.filter((c) => !c.alreadyLinkedToTransaction).length === 0 ? (
+                <p className="muted">{tr.billingEmpty}</p>
+              ) : (
+                <div className="bank-matches">
+                  {detail.billing.candidates
+                    .filter((c) => !c.alreadyLinkedToTransaction)
+                    .map((candidate) => {
+                      const blocked = candidate.issues.some((i) => i.blocking);
+                      return (
+                        <label
+                          key={candidate.paymentId}
+                          className={`bank-candidate bank-billing-card${blocked ? ' is-blocked' : ''}`}
+                        >
+                          <input
+                            type="radio"
+                            name="billing-payment"
+                            checked={selectedPayment === candidate.paymentId}
+                            disabled={blocked || busy}
+                            onChange={() => {
+                              setSelectedPayment(candidate.paymentId);
+                              setPaymentAmount(candidate.suggestedAmount);
+                            }}
+                          />
+                          <span className="bank-billing-main">
+                            <strong>
+                              {candidate.paymentNumber} · {money(candidate.amount)} {candidate.currency}
+                            </strong>{' '}
+                            <span className="muted">
+                              {candidate.customerName} · {candidate.paymentDate}
+                            </span>
+                            <span className="muted small">
+                              {tr.billingInvoices} :{' '}
+                              {candidate.allocations
+                                .map(
+                                  (a) =>
+                                    `${a.invoiceNumber ?? a.invoiceId} (${tr.billingOutstanding} ${money(a.invoiceOutstanding)})`,
+                                )
+                                .join(' · ')}
+                            </span>
+                            <span className="muted small">
+                              {candidate.accountingPosted ? tr.billingPosted : tr.billingNotPosted} ·{' '}
+                              {locale === 'fr' ? 'Confiance' : 'Confidence'}{' '}
+                              {Math.round(candidate.confidence * 100)} %
+                            </span>
+                            {candidate.issues.map((issue) => (
+                              <span
+                                key={issue.code}
+                                className={`small ${issue.blocking ? 'finding-error' : 'finding-warning'}`}
+                              >
+                                {issue.blocking ? `${tr.billingBlocked} — ` : ''}
+                                {locale === 'fr' ? issue.fr : issue.en}
+                              </span>
+                            ))}
+                          </span>
+                        </label>
+                      );
+                    })}
+                </div>
+              )}
+
+              <div className="bank-form">
+                <Field label={tr.billingAmount}>
+                  <input
+                    inputMode="decimal"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    placeholder="0.0000"
+                  />
+                </Field>
+                <Button
+                  variant="primary"
+                  onClick={() => void confirmBilling()}
+                  disabled={busy || !reviewed || !selectedPayment || !paymentAmount.trim()}
+                >
+                  {tr.billingLink}
+                </Button>
+              </div>
+              <p className="muted small">{tr.billingPostHint}</p>
+              <label className="bank-review">
+                <input type="checkbox" checked={reviewed} onChange={(e) => setReviewed(e.target.checked)} />
+                {tr.confirmHuman}
+              </label>
 
               <h4>{tr.suggestions}</h4>
               {detail.match.status === 'none' ? (
@@ -1290,7 +1709,143 @@ export default function BankPage() {
                   <li key={e.code}>{locale === 'fr' ? e.fr : e.en}</li>
                 ))}
               </ul>
-              <Button onClick={downloadReport}>{tr.download}</Button>
+              {advanced && (
+                <div className="bank-advanced-report">
+                  <h4>{tr.advancedReport}</h4>
+                  <div className="bank-counts">
+                    <div className="bank-count">
+                      <strong>{advanced.summary.matchedCount}</strong>
+                      <span>{tr.statusMatched}</span>
+                    </div>
+                    <div className="bank-count warn">
+                      <strong>{advanced.summary.partiallyMatchedCount}</strong>
+                      <span>{tr.advancedPartial}</span>
+                    </div>
+                    <div className="bank-count">
+                      <strong>{advanced.summary.openCount}</strong>
+                      <span>{tr.advancedOpen}</span>
+                    </div>
+                    <div className="bank-count">
+                      <strong>{advanced.summary.allocatedTotal}</strong>
+                      <span>{tr.amount} affecté</span>
+                    </div>
+                    <div className="bank-count">
+                      <strong>{advanced.summary.postedPaymentCount}</strong>
+                      <span>{tr.billingPosted}</span>
+                    </div>
+                    <div className="bank-count">
+                      <strong>{advanced.summary.unpostedPaymentCount}</strong>
+                      <span>{tr.billingNotPosted}</span>
+                    </div>
+                  </div>
+                  {advanced.summary.outstandingByCurrency.map((row) => (
+                    <p key={row.currency} className="muted small">
+                      {tr.advancedOutstanding} {row.currency} : {money(row.amount)} ({row.count}{' '}
+                      {locale === 'fr' ? 'facture(s)' : 'invoice(s)'})
+                    </p>
+                  ))}
+
+                  <h5>{tr.advancedAllocations}</h5>
+                  {advanced.allocations.length === 0 ? (
+                    <p className="muted">{tr.noMatch}</p>
+                  ) : (
+                    <div className="table-wrap">
+                      <table className="table">
+                        <thead>
+                          <tr>
+                            <th>{tr.txnDate}</th>
+                            <th>{tr.label}</th>
+                            <th>{tr.amount}</th>
+                            <th>{tr.billingAmount}</th>
+                            <th>{tr.billingInvoices}</th>
+                            <th>{tr.advancedEntry}</th>
+                            <th>{tr.advancedUser}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {advanced.allocations.map((a) => (
+                            <tr key={a.matchId}>
+                              <td>{a.transactionDate}</td>
+                              <td>
+                                {a.transactionLabel}
+                                <br />
+                                <span className="muted small">{a.paymentNumber ?? '—'}</span>
+                              </td>
+                              <td className="num">{money(a.transactionAmount)}</td>
+                              <td className="num">
+                                {money(a.allocatedAmount)}
+                                <br />
+                                <span className="muted small">
+                                  {tr.billingRemaining} {money(a.transactionRemaining)}
+                                </span>
+                              </td>
+                              <td>
+                                {a.invoices.map((i) => (
+                                  <div key={i.invoiceId}>
+                                    {i.invoiceNumber ?? i.invoiceId} — {tr.advancedOutstanding}{' '}
+                                    {money(i.outstanding)}
+                                  </div>
+                                ))}
+                              </td>
+                              <td>
+                                {a.accountingEntryNo ?? '—'}
+                                <br />
+                                <span className={a.accountingPosted ? 'finding-info' : 'finding-warning'}>
+                                  {a.accountingPosted ? tr.billingPosted : tr.billingNotPosted}
+                                </span>
+                              </td>
+                              <td>
+                                {a.decidedBy ?? '—'}
+                                <br />
+                                <span className="muted small">
+                                  {a.decidedAt
+                                    ? new Date(a.decidedAt).toLocaleString(
+                                        locale === 'fr' ? 'fr-FR' : 'en-GB',
+                                      )
+                                    : '—'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  <h5>{tr.advancedInvoices}</h5>
+                  <div className="table-wrap">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>{locale === 'fr' ? 'Numéro' : 'Number'}</th>
+                          <th>{locale === 'fr' ? 'Client' : 'Customer'}</th>
+                          <th>{tr.amount}</th>
+                          <th>{tr.advancedInvoiceStatus}</th>
+                          <th>{tr.advancedOutstanding}</th>
+                          <th>{tr.advancedEntry}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {advanced.invoices.map((invoice) => (
+                          <tr key={invoice.invoiceId}>
+                            <td>{invoice.invoiceNumber ?? invoice.invoiceId}</td>
+                            <td>{invoice.customerName}</td>
+                            <td className="num">
+                              {money(invoice.total)} {invoice.currency}
+                            </td>
+                            <td>{invoice.paymentStatus}</td>
+                            <td className="num">
+                              {money(invoice.outstanding)} {invoice.currency}
+                            </td>
+                            <td>{invoice.accountingPosted ? tr.billingPosted : tr.billingNotPosted}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+              <Button onClick={() => void downloadReport()}>{tr.advancedDownload}</Button>
             </div>
           )}
         </Card>

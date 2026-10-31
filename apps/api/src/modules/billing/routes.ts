@@ -2213,6 +2213,17 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
           'This payment is posted to accounting: reverse the journal entry instead of cancelling it',
         );
       }
+      const reconciled = await tx.query(
+        `SELECT 1 FROM bank_matches
+          WHERE billing_payment_id = $1 AND status = 'confirmed' LIMIT 1`,
+        [paymentId],
+      );
+      if (reconciled.rowCount && reconciled.rowCount > 0) {
+        throw conflict(
+          'PAYMENT_RECONCILED',
+          'This payment is linked to a confirmed bank reconciliation: unreconcile it first',
+        );
+      }
       await tx.query(
         `UPDATE billing_payments SET status = 'cancelled', updated_at = now() WHERE id = $1 AND company_id = $2`,
         [paymentId, companyId],

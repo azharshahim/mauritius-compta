@@ -6,9 +6,10 @@
 
 > **État des modules** — Cabinet : opérationnel (dossiers, tâches, collaborateurs,
 > permissions). Comptabilité : moteur V0.1.1 conservé, inchangé ; **Banque &
-> rapprochement** (mission 9) importe des relevés CSV/TSV/XLSX fictifs, propose
-> des correspondances et exige une validation humaine — aucun rapprochement ni
-> aucune écriture automatique. Facturation (mission 6) :
+> rapprochement** (missions 9–10) importe des relevés CSV/TSV/XLSX fictifs,
+> propose des correspondances, rapproche des règlements clients partiels
+> (n↔1, 1↔n) et exige une validation humaine — aucun rapprochement ni aucune
+> écriture automatique. Facturation (mission 6) :
 > **opérationnelle** — clients, devis, factures, avoirs, encaissements, balance âgée et PDF A4
 > générés par le serveur ; **aucun taux de TVA n'est fourni** et l'e-invoicing MRA reste
 > désactivé. Paie & RH : **préparée** (aucun calcul PAYE, CSG ou NSF). L'assistant comptable V2
@@ -302,22 +303,25 @@ Sous Windows, les mêmes commandes fonctionnent (PowerShell ou `cmd.exe`).
 
 ```bash
 npm run typecheck   # TypeScript strict, API + interface
-npm test            # API + web : 336 tests passés | 4 ignorés (340)
+npm test            # API + web : 358 tests passés | 7 ignorés (365)
 npm run build       # build de production
 npm run verify      # les trois ci-dessus, dans l'ordre
 ```
 
 - **PostgreSQL réel** : `TEST_DATABASE_URL=postgresql://… npm test` exécute la même suite
-  **et** les 4 tests de concurrence (numérotation parallèle, double contrepassation,
-  référence concurrente, équilibre de la balance).
+  **et** les 7 tests de concurrence (numérotation parallèle, double contrepassation,
+  référence concurrente, équilibre de la balance, et trois courses de rapprochement
+  bancaire mission 10).
 - **Navigateur (Chromium)** : `npm run test:e2e:install -w @mc/web` puis
   `npm run test:e2e -w @mc/web` (voir [`docs/browser-tests.md`](docs/browser-tests.md)).
   Ces tests **n'ont pas pu être exécutés dans l'environnement d'audit** (aucun binaire
   Chromium disponible) : ne pas les considérer comme validés tant qu'ils n'ont pas tourné.
-- **Tests web (jsdom)** : `npm run test -w @mc/web` → **123 tests** (démo comptable,
-  facturation, IA, migration, banque, clavier Android, formatage). `npm test` exécute
-  l'API **et** le web : **336 tests passés | 4 ignorés (340)** au total ; les 4 ignorés
-  sont les tests de concurrence qui exigent un vrai PostgreSQL (exécutés en CI).
+- **Tests web (jsdom)** : `npm run test -w @mc/web` → **127 tests** (démo comptable,
+  facturation, IA, migration, banque, scénarios A→G, clavier Android, formatage).
+  `npm test` exécute l'API **et** le web : **358 tests passés | 7 ignorés (365)** au
+  total ; les 7 ignorés sont les tests de concurrence qui exigent un vrai PostgreSQL
+  (exécutés en CI). Aucun appareil Samsung physique n'est disponible : la limite est
+  déclarée dans les rapports.
 - **Clavier Android** : `apps/web/tests/input-focus.test.tsx` saisit caractère par caractère
   dans tous les formulaires et vérifie que le champ garde le focus et n'est jamais démonté.
 - Détail des scénarios et des résultats : [`docs/test-report.md`](docs/test-report.md),
@@ -370,6 +374,9 @@ données, **ni** secret, **ni** donnée réelle.
 | [`docs/mission-6-report.md`](docs/mission-6-report.md) | Rapport de mission 6 (facturation, assistant V2) |
 | [`docs/mission-7-report.md`](docs/mission-7-report.md) | Rapport de mission 7 (assistant universel, paramètres société, TVA) |
 | [`docs/mission-9-report.md`](docs/mission-9-report.md) | Rapport de mission 9 (banque, rapprochement, Android) |
+| [`docs/mission-10-report.md`](docs/mission-10-report.md) | Rapport de mission 10 (rapprochement avancé, intégration Facturation, mobile) |
+| [`docs/advanced-reconciliation.md`](docs/advanced-reconciliation.md) | n↔1, 1↔n, partiels, blocages, lettrage et limites |
+| [`docs/bank-billing-integration.md`](docs/bank-billing-integration.md) | Banque ↔ Facturation, anti-doublons, comptabilisation existante |
 | [`docs/bank-import.md`](docs/bank-import.md) | Formats, colonnes, contrôles, idempotence, limites |
 | [`docs/bank-reconciliation.md`](docs/bank-reconciliation.md) | Rapprochement 1↔1/1↔n, cas bloqués, rapport |
 | [`docs/bank-ai-suggestions.md`](docs/bank-ai-suggestions.md) | Suggestions déterministes, règles, salaires, limites IA |

@@ -1523,6 +1523,18 @@ export async function postProposal(
         // The unique link already existed: never leave an orphan entry behind.
         throw conflict('ACCOUNTING_ALREADY_POSTED', 'This source is already linked to an accounting entry');
       }
+      if (proposal.source_kind === 'billing_payment') {
+        // Mission 10: keep bank <-> payment traceability in the same
+        // transaction as the posting. A linked bank match never creates a
+        // second entry; it only points at the one just posted.
+        await tx.query(
+          `UPDATE bank_matches
+              SET entry_id = $1, updated_at = now()
+            WHERE company_id = $2 AND billing_payment_id = $3
+              AND status = 'confirmed' AND entry_id IS NULL`,
+          [posted.entry.id, params.companyId, proposal.source_id],
+        );
+      }
       if (table === 'billing_documents') {
         const doc = await tx.query<any>(
           'SELECT kind, source_document_id FROM billing_documents WHERE id = $1',

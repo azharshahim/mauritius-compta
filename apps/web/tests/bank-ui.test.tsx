@@ -98,9 +98,10 @@ describe('banque & rapprochement (démo)', () => {
         'true',
       ),
     );
-    expect(await screen.findByText(/Virement salaires août/i)).toBeTruthy();
-    expect(screen.getAllByText(/Virement salaires août/i)).toHaveLength(1);
-    expect(await screen.findByText(/Frais de tenue de compte/i)).toBeTruthy();
+    expect((await screen.findAllByText(/Virement salaires août/i)).length).toBeGreaterThanOrEqual(1);
+    expect(document.querySelectorAll('.bank-txn-card').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/Rapproché|Non rapproché|Partiellement affectée/).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/Frais de tenue de compte/i)).length).toBeGreaterThanOrEqual(1);
 
     const rows = screen.getAllByRole('row');
     const salaryRow = rows.find((row) => row.textContent?.includes('Virement salaires août'))!;
@@ -122,6 +123,38 @@ describe('banque & rapprochement (démo)', () => {
     expect(await screen.findByText(/Format non pris en charge/i)).toBeTruthy();
     expect(screen.queryByRole('heading', { name: /Synthèse/i })).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('associe un règlement client depuis le panneau de détail (scénario B)', async () => {
+    await login();
+    window.location.hash = '#/accounting/banking';
+    await screen.findByRole('heading', { name: /Banque & rapprochement/i });
+    fireEvent.click(screen.getByRole('tab', { name: /Transactions/i }));
+    await screen.findAllByText(/Scénario B — règlement partiel/i);
+
+    const row = screen
+      .getAllByRole('row')
+      .find((candidate) => candidate.textContent?.includes('Scénario B — règlement partiel'))!;
+    fireEvent.click(withinRow(row, /Ouvrir/i));
+    expect(await screen.findByText(/Règlements clients liés/i)).toBeTruthy();
+    expect(screen.getByText(/Restant à affecter sur la transaction/i)).toBeTruthy();
+
+    const paymentNumber = await screen.findByText(/REC-DEMO-B1/);
+    const label = paymentNumber.closest('label')!;
+    const radio = label.querySelector('input[type="radio"]') as HTMLInputElement;
+    fireEvent.click(radio);
+    fireEvent.click(screen.getAllByLabelText(/Je vérifie la proposition/i)[0]!);
+    fireEvent.click(screen.getByRole('button', { name: /Associer ce règlement/i }));
+
+    expect((await screen.findAllByText(/Règlement associé/i)).length).toBeGreaterThan(0);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('affiche des cartes mobiles et masque le tableau étroit sous 640 px', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src', 'styles.css'), 'utf8');
+    expect(css).toMatch(/\.bank-txn-cards \{ display: none;/);
+    expect(css).toMatch(/@media \(max-width: 640px\)[\s\S]*\.bank-txn-table \{ display: none; \}[\s\S]*\.bank-txn-cards \{ display: flex;/);
+    expect(css).toMatch(/\.bank-txn-card \.amount-in[\s\S]*white-space: normal/);
   });
 
   it('garde un indicateur Démo compact et accessible dans l’en-tête', async () => {

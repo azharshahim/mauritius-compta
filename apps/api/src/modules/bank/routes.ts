@@ -24,6 +24,12 @@ import {
   rejectBankProposal,
   saveBankRule,
 } from './service.js';
+import {
+  billingPaymentCandidates,
+  linkBankBillingPayment,
+  unlinkBankBillingPayment,
+} from './billing.js';
+import { bankReconciliationReport, bankReconciliationReportCsv } from './reports.js';
 
 const AccountSchema = z
   .object({
@@ -52,6 +58,15 @@ const UploadSchema = z
 const MatchSchema = z
   .object({
     lineIds: z.array(z.string().uuid()).min(1).max(20),
+    confirm: z.literal(true),
+    note: z.string().max(500).nullish(),
+  })
+  .strict();
+
+const BillingLinkSchema = z
+  .object({
+    paymentId: z.string().uuid(),
+    amount: z.string().regex(/^\d{1,15}(\.\d{1,4})?$/),
     confirm: z.literal(true),
     note: z.string().max(500).nullish(),
   })
@@ -92,7 +107,9 @@ const DateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const ListQuerySchema = z
   .object({
     bankAccountId: z.string().uuid().optional(),
-    status: z.enum(['unmatched', 'proposed', 'matched', 'review', 'excluded', 'cancelled']).optional(),
+    status: z
+      .enum(['unmatched', 'proposed', 'matched', 'partially_matched', 'review', 'excluded', 'cancelled'])
+      .optional(),
     from: DateString.optional(),
     to: DateString.optional(),
     limit: z.coerce.number().int().min(1).max(500).optional(),
@@ -205,6 +222,52 @@ export function bankRoutes(app: FastifyInstance, db: Db, config: Config): void {
     return getBankTransactionDetail(db, companyId, transactionId!);
   });
 
+  app.get(
+    '/companies/:companyId/bank/transactions/:transactionId/billing-candidates',
+    async (req) => {
+      const { companyId, transactionId } = params(req);
+      await requireCompany(db, req.user!.id, companyId, 'viewer');
+      return billingPaymentCandidates(db, companyId, transactionId!);
+    },
+  );
+
+  app.post(
+    '/companies/:companyId/bank/transactions/:transactionId/billing-payments',
+    async (req, reply) => {
+      const { companyId, transactionId } = params(req);
+      await requireCompany(db, req.user!.id, companyId, 'accountant');
+      const body = parse(BillingLinkSchema, req.body);
+      const result = await linkBankBillingPayment(
+        db,
+        { userId: req.user!.id, companyId, ip: req.ip },
+        transactionId!,
+        body,
+      );
+      return reply.code(result.idempotent ? 200 : 201).send(result);
+    },
+  );
+
+  app.delete(
+    '/companies/:companyId/bank/transactions/:transactionId/billing-payments/:paymentId',
+    async (req) => {
+      const { companyId, transactionId } = params(req);
+      await requireCompany(db, req.user!.id, companyId, 'accountant');
+      const { paymentId } = req.params as { paymentId: string };
+      const body = parse(
+        z.object({ confirm: z.literal(true), reason: z.string().max(500).nullish() }).strict(),
+        req.body ?? {},
+      );
+      return unlinkBankBillingPayment(
+        db,
+        { userId: req.user!.id, companyId, ip: req.ip },
+        transactionId!,
+        paymentId,
+        body.confirm,
+        body.reason ?? null,
+      );
+    },
+  );
+
   app.post('/companies/:companyId/bank/transactions/:transactionId/matches', async (req) => {
     const { companyId, transactionId } = params(req);
     await requireCompany(db, req.user!.id, companyId, 'accountant');
@@ -286,6 +349,29 @@ export function bankRoutes(app: FastifyInstance, db: Db, config: Config): void {
     return {
       report: await bankReport(db, companyId, q.bankAccountId, q.from, q.to),
     };
+  });
+
+  app.get('/companies/:companyId/bank/reconciliation-report', async (req) => {
+    const { companyId } = params(req);
+    await requireCompany(db, req.user!.id, companyId, 'viewer');
+    const q = parse(ListQuerySchema, req.query);
+    if (!q.bankAccountId) return { report: null };
+    return {
+      report: await bankReconciliationReport(db, companyId, q.bankAccountId, q.from, q.to),
+    };
+  });
+
+  app.get('/companies/:companyId/bank/reconciliation-report.csv', async (req, reply) => {
+    const { companyId } = params(req);
+    await requireCompany(db, req.user!.id, companyId, 'viewer');
+    const q = parse(ListQuerySchema, req.query);
+    if (!q.bankAccountId) return reply.code(400).send({ error: 'bankAccountId is required' });
+    const locale = q.lang === 'en' ? 'en' : 'fr';
+    const report = await bankReconciliationReport(db, companyId, q.bankAccountId, q.from, q.to);
+    return reply
+      .header('content-type', 'text/csv; charset=utf-8')
+      .header('content-disposition', 'attachment; filename="bank-reconciliation-advanced.csv"')
+      .send(bankReconciliationReportCsv(report, locale));
   });
 
   app.get('/companies/:companyId/bank/report.csv', async (req, reply) => {

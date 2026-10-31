@@ -556,7 +556,14 @@ export interface DemoBankTransaction {
   balance: string | null;
   external_id: string | null;
   fingerprint: string;
-  status: 'unmatched' | 'proposed' | 'matched' | 'review' | 'excluded' | 'cancelled';
+  status:
+    | 'unmatched'
+    | 'proposed'
+    | 'matched'
+    | 'partially_matched'
+    | 'review'
+    | 'excluded'
+    | 'cancelled';
   created_at: string;
 }
 
@@ -568,6 +575,9 @@ export interface DemoBankMatch {
   entry_id: string | null;
   entry_line_id: string | null;
   billing_payment_id: string | null;
+  billing_invoice_id?: string | null;
+  amount: string;
+  note?: string | null;
   status: 'proposed' | 'confirmed' | 'rejected';
   kind: 'entry' | 'invoice' | 'internal_transfer';
   confidence: number;
@@ -1639,7 +1649,7 @@ function seedState(): DemoState {
   });
 
   const seeded: DemoState = {
-    schema: 7,
+    schema: 8,
     users: [demoUser, ...collaborators],
     session: null,
     companies: [company, ...extraCompanies],
@@ -1734,7 +1744,7 @@ export function loadState(): DemoState {
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as DemoState;
-        if (parsed && parsed.schema === 7) {
+        if (parsed && parsed.schema === 8) {
           state = parsed;
           return state;
         }

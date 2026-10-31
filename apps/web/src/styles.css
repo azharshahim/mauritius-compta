@@ -862,6 +862,19 @@ tr.total-row td { font-weight: 700; background: #f2f6fb; border-top: 2px solid v
 .amount-in { color: #2f855a; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .amount-out { color: #9b2c2c; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bank-report { display: flex; flex-direction: column; gap: 10px; }
+.bank-txn-cards { display: none; list-style: none; margin: 0; padding: 0; gap: 10px; }
+.bank-txn-card { border: 1px solid var(--border, #d8dee9); border-radius: var(--radius-sm, 8px); padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.bank-txn-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.bank-txn-date { font-weight: 700; font-variant-numeric: tabular-nums; }
+.bank-txn-label { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.bank-txn-ref { margin: 0; color: var(--muted, #5b6778); font-size: 0.8rem; overflow-wrap: anywhere; }
+.bank-txn-card .btn { align-self: flex-start; margin-top: 4px; }
+.bank-billing-card { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 0; }
+.bank-billing-card .bank-billing-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
+.bank-billing-card.is-linked { border: 1px solid #2f855a; border-radius: var(--radius-sm, 8px); padding: 10px; }
+.bank-billing-card.is-blocked { opacity: 0.62; }
+.bank-advanced-report { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.bank-advanced-report h5 { margin: 8px 0 0; }
 
 @media (max-width: 900px) {
   .bank-grid { grid-template-columns: minmax(0, 1fr); }
@@ -870,4 +883,12 @@ tr.total-row td { font-weight: 700; background: #f2f6fb; border-top: 2px solid v
   .bank-page .page-head h1 { font-size: 1.2rem; }
   .bank-tab { min-height: 40px; }
   .bank-actions .btn { flex: 1 1 auto; }
+  .bank-txn-table { display: none; }
+  .bank-txn-cards { display: flex; flex-direction: column; }
+  .bank-detail, .bank-report, .bank-advanced-report { min-width: 0; max-width: 100%; }
+  .bank-detail h3, .bank-detail h4, .bank-detail p { overflow-wrap: anywhere; }
+  .bank-form { grid-template-columns: minmax(0, 1fr); }
+  .bank-form .btn { width: 100%; white-space: normal; }
+  .bank-billing-card .bank-actions .btn { flex: 1 1 100%; white-space: normal; }
+  .bank-txn-card .amount-in, .bank-txn-card .amount-out { white-space: normal; }
 }

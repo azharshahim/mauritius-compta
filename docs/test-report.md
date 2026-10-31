@@ -1,6 +1,26 @@
-# Rapport de tests — Mauritius Compta 0.1.1 (mission 6)
+# Rapport de tests — Mauritius Compta 0.1.1
 
 _Date : 31 octobre 2026._
+
+## 0. Mise à jour mission 10 — état le plus récent
+
+| Suite | Résultat |
+|---|---|
+| API (PGlite) | **231 réussis | 7 ignorés** (concurrence PostgreSQL) |
+| Web (jsdom) | **127 réussis / 13 fichiers** |
+| Total | **358 réussis | 7 ignorés (365)** |
+
+Nouveaux fichiers : `apps/api/tests/bank-billing.test.ts` (18),
+`apps/web/tests/bank-ui.test.tsx` (2 cas mission 10 ajoutés),
+`apps/web/tests/demo-bank.test.ts` (2 cas mission 10 ajoutés).
+Les tests de concurrence mission 10 sont dans `tests/concurrency.test.ts`
+(**7 cas au total, ignorés sans `TEST_DATABASE_URL`**) et s'exécutent dans le
+job GitHub Actions PostgreSQL 16. Aucun appareil Samsung physique n'est
+disponible : les tests mobiles sont des tests de styles/DOM, pas des tests
+matériels.
+
+Les sections historiques ci-dessous (mission 6) sont conservées pour la
+traçabilité ; leurs chiffres ne sont plus l'état courant.
 
 ## 1. Comment exécuter
 

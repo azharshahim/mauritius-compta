@@ -14,7 +14,8 @@ l'acceptation — jamais le rapprochement — qui passe par `postEntryTx`.
 |---|---|
 | `unmatched` | non rapprochée, aucune décision |
 | `proposed` | une correspondance a été proposée, pas validée |
-| `matched` | rapprochement **confirmé par un humain** |
+| `matched` | rapprochement **confirmé par un humain**, montant entièrement affecté |
+| `partially_matched` | une partie du montant est affectée à un ou plusieurs règlements (mission 10) |
 | `review` | cas ambigu ou complexe, décision humaine requise |
 | `excluded` | écarté par un humain (écart, doublon externe, opération ignorée) |
 | `cancelled` | annulé (réservé) |
@@ -112,3 +113,34 @@ implémentée pour ce rapport, plutôt que de produire un faux PDF.
 
 Ces limitations sont affichées dans l'interface (`notImplemented`) et ne sont
 pas présentées comme des fonctions de production.
+
+
+## Mission 10 — rapprochement d'un règlement client
+
+Depuis la mission 10, une transaction peut être affectée à un **règlement
+client déjà enregistré**, partiellement ou totalement. Le montant est stocké
+dans `bank_matches.amount` ; `billing_payment_id` et éventuellement
+`billing_invoice_id` portent la traçabilité. Une transaction peut financer
+plusieurs règlements (statut `partially_matched` jusqu'au total) et un
+règlement peut être financé par plusieurs transactions (n ↔ 1).
+
+Le rapprochement **ne comptabilise pas** : la comptabilisation du règlement
+reste l'action distincte `from-billing → validate → post`. Voir
+[`bank-billing-integration.md`](bank-billing-integration.md) et
+[`advanced-reconciliation.md`](advanced-reconciliation.md).
+
+Limites : les lignes comptables restent rapprochées en totalité, les devises
+différentes sont refusées, et le lettrage de grand livre n'existe pas.
+
+## Endpoints mission 10
+
+| Méthode | Route | Permission |
+|---|---|---|
+| GET | `/companies/:id/bank/transactions/:txnId/billing-candidates` | viewer |
+| POST | `/companies/:id/bank/transactions/:txnId/billing-payments` | accountant |
+| DELETE | `/companies/:id/bank/transactions/:txnId/billing-payments/:paymentId` | accountant |
+| GET | `/companies/:id/bank/reconciliation-report` | viewer |
+| GET | `/companies/:id/bank/reconciliation-report.csv` | viewer |
+
+Les corps et codes d'erreur sont détaillés dans
+[`bank-billing-integration.md`](bank-billing-integration.md).

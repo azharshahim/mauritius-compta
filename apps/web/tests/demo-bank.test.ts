@@ -74,18 +74,19 @@ describe('démo banque — comptes et import', () => {
     expect(res.preview.summary.alreadyImported).toBe(6);
     expect(res.preview.blocksImport).toBe(false);
     expect(res.preview.transactions[1].amount).toBe('125000.0000');
-    expect(transactions()).toHaveLength(7); // seules les 7 opérations MUR de démo existent
+    expect(transactions().length).toBeGreaterThanOrEqual(16); // opérations MUR de démo + scénarios A→G
   });
 
   test('importe CSV puis réimporte sans doublon', () => {
+    const before = transactions().length;
     const first = importFile('releve-bancaire-fictif.csv');
     expect(first.imported).toBe(2);
     expect(first.reimport).toBe(false);
-    expect(transactions()).toHaveLength(9);
+    expect(transactions()).toHaveLength(before + 2);
     const second = importFile('releve-bancaire-fictif.csv');
     expect(second.reimport).toBe(true);
     expect(second.imported).toBe(0);
-    expect(transactions()).toHaveLength(9);
+    expect(transactions()).toHaveLength(before + 2);
   });
 
   test('importe un XLSX réellement zippé', () => {
@@ -181,6 +182,93 @@ describe('démo banque — rapprochement et propositions', () => {
     }
     const payroll = call<any>('GET', `/companies/${company}/payroll/employees`);
     expect(payroll.employees ?? []).toHaveLength(0);
+  });
+
+  test('scénarios A→G : trois virements, partiel, groupé, déjà comptabilisé, doublon, ambigu, interne', () => {
+    const byRef = (ref: string) => transactions().find((t) => t.reference === ref)!;
+
+    const a1 = call<any>('GET', `/companies/${company}/bank/transactions/${byRef('SCEN-A1').id}`);
+    const a1Pay = a1.billing.candidates.find((c: any) => c.paymentNumber === 'REC-DEMO-A1');
+    expect(a1Pay.suggestedAmount).toBe('40000.0000');
+    const linkedA1 = call<any>('POST', `/companies/${company}/bank/transactions/${byRef('SCEN-A1').id}/billing-payments`, {
+      paymentId: a1Pay.paymentId,
+      amount: '40000.0000',
+      confirm: true,
+    });
+    expect(linkedA1.transaction.status).toBe('matched');
+
+    const b = call<any>('GET', `/companies/${company}/bank/transactions/${byRef('SCEN-B1').id}`);
+    const bPay = b.billing.candidates.find((c: any) => c.paymentNumber === 'REC-DEMO-B1');
+    expect(bPay.allocations[0].invoiceOutstanding).toBe('50000.0000');
+    call('POST', `/companies/${company}/bank/transactions/${byRef('SCEN-B1').id}/billing-payments`, {
+      paymentId: bPay.paymentId,
+      amount: '30000.0000',
+      confirm: true,
+    });
+
+    const c = call<any>('GET', `/companies/${company}/bank/transactions/${byRef('SCEN-C').id}`);
+    const cPay = c.billing.candidates.find((x: any) => x.paymentNumber === 'REC-DEMO-C1');
+    expect(cPay.allocations).toHaveLength(2);
+    call('POST', `/companies/${company}/bank/transactions/${byRef('SCEN-C').id}/billing-payments`, {
+      paymentId: cPay.paymentId,
+      amount: '100000.0000',
+      confirm: true,
+    });
+
+    const d = call<any>('GET', `/companies/${company}/bank/transactions/${byRef('SCEN-D').id}`);
+    const dPay = d.billing.candidates.find((x: any) => x.paymentNumber === 'REC-DEMO-D1');
+    expect(dPay.accountingPosted).toBe(true);
+    const linkedD = call<any>('POST', `/companies/${company}/bank/transactions/${byRef('SCEN-D').id}/billing-payments`, {
+      paymentId: dPay.paymentId,
+      amount: '12000.0000',
+      confirm: true,
+    });
+    expect(linkedD.payment.accountingEntryId).toBeTruthy();
+
+    const e = call<any>('GET', `/companies/${company}/bank/transactions/${byRef('SCEN-E').id}`);
+    const ePay = e.billing.candidates.find((x: any) => x.paymentNumber === 'REC-DEMO-E1');
+    expect(ePay.alreadyLinkedToTransaction).toBe(true);
+    const again = call<any>('POST', `/companies/${company}/bank/transactions/${byRef('SCEN-E').id}/billing-payments`, {
+      paymentId: ePay.paymentId,
+      amount: '15000.0000',
+      confirm: true,
+    });
+    expect(again.idempotent).toBe(true);
+    expect(() =>
+      call('POST', `/companies/${company}/bank/transactions/${byRef('SCEN-E').id}/billing-payments`, {
+        paymentId: ePay.paymentId,
+        amount: '5000.0000',
+        confirm: true,
+      }),
+    ).toThrow(/autre montant/i);
+
+    const f = call<any>('GET', `/companies/${company}/bank/transactions/${byRef('SCEN-F').id}`);
+    const ambiguous = f.billing.candidates.filter(
+      (x: any) => x.paymentNumber === 'REC-DEMO-F1' || x.paymentNumber === 'REC-DEMO-F2',
+    );
+    expect(ambiguous).toHaveLength(2);
+    expect(ambiguous.every((x: any) => !x.alreadyLinkedToTransaction)).toBe(true);
+
+    const g = call<any>('GET', `/companies/${company}/bank/transactions/${byRef('SCEN-G-OUT').id}`);
+    expect(g.internalTransfer).toBeTruthy();
+    expect(g.billing.candidates.every((x: any) => x.issues.some((i: any) => i.code === 'DIRECTION_MISMATCH'))).toBe(true);
+  });
+
+  test('rapporte les affectations et les restants dus sans arrondi', () => {
+    const report = call<any>(
+      'GET',
+      `/companies/${company}/bank/reconciliation-report?bankAccountId=${mur}`,
+    ).report;
+    expect(report).toBeTruthy();
+    expect(report.summary.transactionCount).toBeGreaterThan(0);
+    expect(report.summary.allocatedTotal).toMatch(/\.\d{4}$/);
+    expect(report.summary.outstandingByCurrency[0].amount).toMatch(/\.\d{4}$/);
+    const csv = call<string>(
+      'GET',
+      `/companies/${company}/bank/reconciliation-report.csv?bankAccountId=${mur}&lang=fr`,
+    );
+    expect(csv).toContain('Affectations confirmées');
+    expect(csv).toContain('FAC-DEMO-B');
   });
 
   test('exclut une transaction puis la retrouve dans cet état', () => {

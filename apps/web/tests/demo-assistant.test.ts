@@ -55,7 +55,8 @@ describe('démonstration — assistant IA universel', () => {
     const answer = res.messages[1]!.content;
     expect(answer).toContain('FAC-DEMO-0001');
     expect(answer).toContain('FAC-DEMO-0002');
-    expect(answer).toMatch(/7\s?000|11\s?000/);
+    expect(answer).toMatch(/61\s?000/);
+    expect(answer).toContain('FAC-DEMO-B');
     expect(answer).toMatch(/Aucune écriture comptable/);
   });
 
