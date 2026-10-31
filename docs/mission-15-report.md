@@ -24,8 +24,8 @@ The register contains row-level evidence and official URLs. Principal sources: M
 
 | Area | Formula | Official source |
 |---|---|---|
-| PAYE | cumulative progressive bands, per-period threshold `ceil(annual/13)` to rupee × elapsed periods, capped at annual; 13th month = annual; down-to-rupee; no refund | MRA Guide on PAYE Dec 2025, cumulative table |
-| No EDF | 15% flat above 38,462 monthly | MRA Guide on PAYE §5.9.1 |
+| PAYE | cumulative progressive bands; per-period threshold `ceil(annual/13)` to the rupee × elapsed periods, capped at the annual threshold, and `periods ≥ 12` uses the annual threshold; down-to-rupee; no refund | MRA Guide on PAYE Dec 2025, cumulative table |
+| No EDF | 15% flat above 38,462 monthly | MRA PAYE rates table — https://www.mra.mu/download/PayrollTaxes.pdf |
 | EDF | 1/13 monthly, 1/28 fortnightly, 1/56 weekly; dependent table 0/110/190/275/355 k | MRA Employment Guide Dec 2025; EDF page |
 | CSG | ≤ 50,000: 1.5%/3%; > 50,000: 3%/6% | MRA CSG page |
 | NSF | 1%/2.5% on dated min/max per frequency | MRA NPF/NSF page; Oct 2025 guide |
