@@ -892,3 +892,51 @@ tr.total-row td { font-weight: 700; background: #f2f6fb; border-top: 2px solid v
   .bank-billing-card .bank-actions .btn { flex: 1 1 100%; white-space: normal; }
   .bank-txn-card .amount-in, .bank-txn-card .amount-out { white-space: normal; }
 }
+
+/* ---------------------------------------------------- Achats & Fournisseurs */
+.purchases-page { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.purchases-page .page-head { gap: 10px; }
+.purchase-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.purchase-tab { border: 1px solid var(--border, #d8dee9); background: transparent; color: inherit; border-radius: 999px; padding: 7px 12px; font: inherit; font-size: 0.85rem; cursor: pointer; min-height: 36px; }
+.purchase-tab.active { background: var(--accent, #1f4e79); border-color: var(--accent, #1f4e79); color: #fff; }
+.purchase-tab:focus-visible { outline: 2px solid var(--accent, #1f4e79); outline-offset: 2px; }
+.purchase-line { display: grid; grid-template-columns: minmax(0, 1.7fr) repeat(2, minmax(0, 0.7fr)) minmax(0, 1.4fr) minmax(0, 1fr); gap: 8px; align-items: end; border-bottom: 1px dashed var(--border, #d8dee9); padding: 8px 0; }
+.purchase-line-remove { display: flex; align-items: flex-end; }
+.purchase-cards { display: none; }
+.purchase-card { border: 1px solid var(--border, #d8dee9); border-radius: var(--radius-sm, 8px); padding: 10px 12px; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.purchase-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.purchase-card-row { display: flex; justify-content: space-between; gap: 10px; font-size: 0.86rem; min-width: 0; }
+.purchase-card-row span:last-child { text-align: right; overflow-wrap: anywhere; }
+.purchase-card-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.purchase-card-actions .btn { flex: 1 1 auto; white-space: normal; }
+.allocation-list { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 14px; }
+.allocation-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--border, #d8dee9); border-radius: var(--radius-sm, 8px); padding: 8px 10px; }
+.allocation-row label { min-width: 0; overflow-wrap: anywhere; }
+.allocation-row input[type='text'], .allocation-row input:not([type]) { max-width: 140px; }
+.aging-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.aging-totals .metric { border: 1px solid var(--border, #d8dee9); border-radius: var(--radius-sm, 8px); padding: 10px; display: flex; flex-direction: column; gap: 2px; }
+.aging-group { margin-top: 14px; }
+.aging-group h3 { font-size: 0.98rem; margin: 0 0 6px; overflow-wrap: anywhere; }
+.row-overdue td { background: rgba(197, 48, 48, 0.06); }
+.purchase-table td, .purchase-table th { white-space: nowrap; }
+.detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 14px; }
+
+@media (max-width: 900px) {
+  .purchase-line { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .purchase-line-remove { grid-column: 1 / -1; }
+}
+@media (max-width: 640px) {
+  .purchases-page .page-head h1 { font-size: 1.2rem; }
+  .purchases-page .page-head .page-actions { width: 100%; }
+  .purchases-page .page-head .page-actions .btn { flex: 1 1 auto; }
+  .purchase-tab { min-height: 40px; flex: 1 1 auto; }
+  .purchase-table { display: none; }
+  .purchase-cards { display: flex; flex-direction: column; gap: 10px; }
+  .purchase-line { grid-template-columns: minmax(0, 1fr); }
+  .purchase-line .btn { width: 100%; white-space: normal; }
+  .purchase-card, .allocation-row, .aging-group { min-width: 0; max-width: 100%; }
+  .allocation-row { align-items: stretch; }
+  .allocation-row input { width: 100%; max-width: none; }
+  .modal-actions { flex-wrap: wrap; }
+  .modal-actions .btn { flex: 1 1 auto; white-space: normal; }
+}

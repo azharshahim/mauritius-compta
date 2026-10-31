@@ -33,6 +33,7 @@ import {
   type DemoMigrationTemplate,
 } from './migration';
 import { handleDemoBank, seedDemoBank } from './bank';
+import { handleDemoPurchases, seedDemoPurchases } from './purchases';
 import {
   IMPORT_FIELDS,
   IMPORT_KIND_LABELS,
@@ -107,7 +108,7 @@ export interface DemoEntry {
   currency: string;
   exchange_rate: string;
   status: 'draft' | 'posted';
-  source: 'manual' | 'reversal' | 'billing' | 'ai' | 'migration' | 'migration_opening';
+  source: 'manual' | 'reversal' | 'billing' | 'purchase' | 'ai' | 'migration' | 'migration_opening';
   reversal_of_entry_id: string | null;
   posted_at: string | null;
   created_at: string;
@@ -453,7 +454,7 @@ export interface DemoBillingAllocation {
 export interface DemoEntryProposal {
   id: string;
   company_id: string;
-  source_kind: 'manual' | 'billing_invoice' | 'billing_credit_note' | 'billing_payment';
+  source_kind: 'manual' | 'billing_invoice' | 'billing_credit_note' | 'billing_payment' | 'purchase_invoice' | 'purchase_credit_note' | 'purchase_payment';
   source_id: string | null;
   journal_id: string | null;
   entry_date: string;
@@ -625,6 +626,129 @@ export interface DemoBankProposal {
   decided_at: string | null;
 }
 
+/* ----------------------------------------------------- purchases (11) */
+
+export interface DemoPurchaseSupplier {
+  id: string;
+  company_id: string;
+  name: string;
+  reference: string | null;
+  country: string;
+  address_line1: string | null;
+  city: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  registration_number: string | null;
+  tax_number: string | null;
+  preferred_currency: string | null;
+  payment_terms_days: number | null;
+  payable_account_id: string | null;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DemoPurchaseLine {
+  id: string;
+  document_id: string;
+  company_id: string;
+  line_no: number;
+  description: string;
+  quantity: string;
+  unit_price: string;
+  account_id: string;
+  vat_treatment: 'standard' | 'zero_rated' | 'exempt' | 'out_of_scope';
+  vat_rate: string | null;
+  vat_rate_id: string | null;
+  vat_recoverable: boolean | null;
+  net_amount: string;
+  tax_amount: string;
+  line_total: string;
+}
+
+export interface DemoPurchaseDocument {
+  id: string;
+  company_id: string;
+  supplier_id: string;
+  kind: 'invoice' | 'credit_note';
+  doc_no: string | null;
+  supplier_reference: string;
+  issue_date: string;
+  received_date: string | null;
+  due_date: string | null;
+  currency: string;
+  exchange_rate: string;
+  subtotal: string;
+  tax_total: string;
+  total_amount: string;
+  amount_paid: string;
+  credited_amount: string;
+  status: 'draft' | 'validated' | 'cancelled';
+  payment_status: 'unpaid' | 'partial' | 'paid';
+  source_document_id: string | null;
+  reason: string | null;
+  notes: string | null;
+  sequence_year: number | null;
+  sequence_no: number | null;
+  accounting_entry_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DemoPurchasePayment {
+  id: string;
+  company_id: string;
+  supplier_id: string;
+  payment_no: string | null;
+  kind: 'payment' | 'advance';
+  payment_date: string;
+  amount: string;
+  currency: string;
+  exchange_rate: string;
+  method: string;
+  reference: string | null;
+  unallocated_amount: string;
+  status: 'recorded' | 'cancelled';
+  sequence_year: number | null;
+  sequence_no: number | null;
+  accounting_entry_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DemoPurchaseAllocation {
+  id: string;
+  company_id: string;
+  payment_id: string;
+  invoice_id: string;
+  amount: string;
+  cancelled_at: string | null;
+}
+
+export interface DemoPurchaseCreditAllocation {
+  id: string;
+  company_id: string;
+  credit_note_id: string;
+  invoice_id: string;
+  amount: string;
+  reason: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+}
+
+export interface DemoPurchaseEvent {
+  id: string;
+  company_id: string;
+  document_id: string | null;
+  payment_id: string | null;
+  action: string;
+  details: Record<string, unknown> | null;
+  actor_id: string | null;
+  created_at: string;
+}
+
 export interface DemoState {
   schema: number;
   users: DemoUser[];
@@ -670,6 +794,14 @@ export interface DemoState {
   bankMatches: DemoBankMatch[];
   bankRules: DemoBankRule[];
   bankProposals: DemoBankProposal[];
+  purchaseSuppliers: DemoPurchaseSupplier[];
+  purchaseDocuments: DemoPurchaseDocument[];
+  purchaseLines: DemoPurchaseLine[];
+  purchasePayments: DemoPurchasePayment[];
+  purchaseAllocations: DemoPurchaseAllocation[];
+  purchaseCreditAllocations: DemoPurchaseCreditAllocation[];
+  purchaseEvents: DemoPurchaseEvent[];
+  purchaseSequences: Record<string, number>;
 }
 
 /* ------------------------------------------------------------------ money */
@@ -1649,7 +1781,7 @@ function seedState(): DemoState {
   });
 
   const seeded: DemoState = {
-    schema: 8,
+    schema: 9,
     users: [demoUser, ...collaborators],
     session: null,
     companies: [company, ...extraCompanies],
@@ -1717,8 +1849,17 @@ function seedState(): DemoState {
     bankMatches: [],
     bankRules: [],
     bankProposals: [],
+    purchaseSuppliers: [],
+    purchaseDocuments: [],
+    purchaseLines: [],
+    purchasePayments: [],
+    purchaseAllocations: [],
+    purchaseCreditAllocations: [],
+    purchaseEvents: [],
+    purchaseSequences: {},
   };
   seedDemoBank(seeded);
+  seedDemoPurchases(seeded);
   return seeded;
 }
 
@@ -1744,7 +1885,7 @@ export function loadState(): DemoState {
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as DemoState;
-        if (parsed && parsed.schema === 8) {
+        if (parsed && parsed.schema === 9) {
           state = parsed;
           return state;
         }
@@ -3727,12 +3868,7 @@ function demoProposalChecks(p: DemoEntryProposal): {
   });
   const rates = s.taxRates.filter((r) => r.company_id === p.company_id && r.verified);
   const vatOk = !vatLine || rates.length > 0;
-  const source =
-    p.source_kind === 'billing_payment'
-      ? s.billingPayments.find((x) => x.id === p.source_id)
-      : p.source_kind === 'manual'
-        ? null
-        : s.billingDocuments.find((x) => x.id === p.source_id);
+  const source = demoProposalSource(s, p.source_kind, p.source_id);
   const alreadyPosted = Boolean(p.entry_id) || Boolean((source as any)?.accounting_entry_id);
   const todayIso = new Date().toISOString().slice(0, 10);
 
@@ -3844,6 +3980,20 @@ function demoProposalChecks(p: DemoEntryProposal): {
   ];
 }
 
+function demoProposalSource(
+  s: DemoState,
+  kind: DemoEntryProposal['source_kind'],
+  sourceId: string | null,
+): { id: string; accounting_entry_id: string | null; doc_no?: string | null; payment_no?: string | null; status?: string } | null {
+  if (kind === 'manual') return null;
+  if (kind === 'billing_payment') return s.billingPayments.find((x) => x.id === sourceId) ?? null;
+  if (kind === 'purchase_invoice' || kind === 'purchase_credit_note') {
+    return s.purchaseDocuments.find((x) => x.id === sourceId) ?? null;
+  }
+  if (kind === 'purchase_payment') return s.purchasePayments.find((x) => x.id === sourceId) ?? null;
+  return s.billingDocuments.find((x) => x.id === sourceId) ?? null;
+}
+
 function demoProposalView(p: DemoEntryProposal) {
   const s = loadState();
   const lines = proposalLinesOf(p.id).map((l) => {
@@ -3863,12 +4013,7 @@ function demoProposalView(p: DemoEntryProposal) {
   const debit = lines.reduce((acc, l) => acc + amount(l.debit), 0n);
   const credit = lines.reduce((acc, l) => acc + amount(l.credit), 0n);
   const journal = s.journals.find((j) => j.id === p.journal_id);
-  const source =
-    p.source_kind === 'billing_payment'
-      ? s.billingPayments.find((x) => x.id === p.source_id)
-      : p.source_kind === 'manual'
-        ? null
-        : s.billingDocuments.find((x) => x.id === p.source_id);
+  const source = demoProposalSource(s, p.source_kind, p.source_id);
   return {
     id: p.id,
     sourceKind: p.source_kind,
@@ -4342,12 +4487,7 @@ function demoPostProposal(companyId: string, proposalId: string): Record<string,
   const journal = s.journals.find((j) => j.id === proposal.journal_id && j.company_id === companyId);
   if (!journal) throw new ApiError(400, 'AI_PROPOSAL_INVALID', 'Journal invalide');
 
-  const source =
-    proposal.source_kind === 'billing_payment'
-      ? s.billingPayments.find((p) => p.id === proposal.source_id)
-      : proposal.source_kind === 'manual'
-        ? null
-        : s.billingDocuments.find((d) => d.id === proposal.source_id);
+  const source = demoProposalSource(s, proposal.source_kind, proposal.source_id);
   if (proposal.source_kind !== 'manual') {
     if (!source) throw new ApiError(409, 'AI_PROPOSAL_INVALID', 'Document source introuvable');
     if ((source as any).accounting_entry_id) {
@@ -4369,7 +4509,7 @@ function demoPostProposal(companyId: string, proposalId: string): Record<string,
   assertOpenPeriod(companyId, proposal.entry_date);
   if (proposal.source_kind !== 'manual' && proposal.reference) {
     const clash = s.entries.some(
-      (e) => e.company_id === companyId && e.source === 'billing' && (e.reference ?? '').toLowerCase() === proposal.reference!.toLowerCase(),
+      (e) => e.company_id === companyId && ['billing', 'purchase'].includes(e.source) && (e.reference ?? '').toLowerCase() === proposal.reference!.toLowerCase(),
     );
     if (clash) throw new ApiError(409, 'ACCOUNTING_ALREADY_POSTED', 'Référence déjà comptabilisée');
   }
@@ -4385,7 +4525,11 @@ function demoPostProposal(companyId: string, proposalId: string): Record<string,
     currency: prepared.currency,
     exchange_rate: prepared.fxRate,
     status: 'posted',
-    source: proposal.source_kind === 'manual' ? 'ai' : 'billing',
+    source: proposal.source_kind === 'manual'
+      ? 'ai'
+      : proposal.source_kind.startsWith('purchase_')
+        ? 'purchase'
+        : 'billing',
     reversal_of_entry_id: null,
     posted_at: now(),
     created_at: now(),
@@ -5869,6 +6013,25 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
         }
       }
       throw new ApiError(404, 'NOT_FOUND', 'Route de migration inconnue');
+    }
+
+    // ------------------------------------- purchases & suppliers (11)
+    if (rest.startsWith('/purchases')) {
+      const member = s.members.find(
+        (m) => m.company_id === companyId && m.user_id === requireUser().id,
+      );
+      const writers = ['owner', 'admin', 'accountant', 'manager', 'cabinet_admin'];
+      if (!member) throw new ApiError(404, 'COMPANY_NOT_FOUND', 'Société introuvable');
+      if (method !== 'GET' && !writers.includes(member.role)) {
+        throw new ApiError(403, 'FORBIDDEN', 'Rôle comptable requis pour les achats');
+      }
+      const result = handleDemoPurchases(s, companyId, method, rest, query, payload);
+      if (result === undefined) throw new ApiError(404, 'NOT_FOUND', 'Route achats inconnue');
+      if (method !== 'GET') {
+        audit(companyId, 'purchases.request', 'purchase', null, { path: rest, method });
+        persist();
+      }
+      return result as T;
     }
 
     // ------------------------------------------- bank & reconciliation (9)
