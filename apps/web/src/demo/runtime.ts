@@ -36,6 +36,14 @@ import { handleDemoBank, seedDemoBank } from './bank';
 import { handleDemoPurchases, seedDemoPurchases } from './purchases';
 import { handleDemoLettering, seedDemoLettering } from './lettering';
 import { handleDemoFx, seedDemoFx } from './fx';
+import {
+  handleDemoEquity,
+  seedDemoEquity,
+  type DemoEquityAllocation,
+  type DemoEquityAllocationLine,
+  type DemoEquityMovement,
+  type DemoFiscalClosing,
+} from './equity';
 import { handleDemoPayroll, payrollCsv, payrollReturnCsv, demoDeclarationCsv, demoAccountingTransferCsv, seedDemoPayroll } from './payroll';
 import {
   IMPORT_FIELDS,
@@ -111,7 +119,7 @@ export interface DemoEntry {
   currency: string;
   exchange_rate: string;
   status: 'draft' | 'posted';
-  source: 'manual' | 'reversal' | 'billing' | 'purchase' | 'ai' | 'migration' | 'migration_opening';
+  source: 'manual' | 'reversal' | 'billing' | 'purchase' | 'ai' | 'migration' | 'migration_opening' | 'equity' | 'closing' | 'equity_allocation';
   reversal_of_entry_id: string | null;
   posted_at: string | null;
   created_at: string;
@@ -855,6 +863,12 @@ export interface DemoState {
   letteringSequences: Record<string, number>;
   /** Mission 13 — fictional multi-currency state (demo only). */
   fx?: unknown;
+  /** Mission 19 — equity register, annual closing and documented allocation. */
+  equitySequences?: Record<string, number>;
+  equityMovements?: DemoEquityMovement[];
+  fiscalClosings?: DemoFiscalClosing[];
+  equityAllocations?: DemoEquityAllocation[];
+  equityAllocationLines?: DemoEquityAllocationLine[];
 }
 
 /* ------------------------------------------------------------------ money */
@@ -1850,7 +1864,7 @@ function seedState(): DemoState {
   });
 
   const seeded: DemoState = {
-    schema: 12,
+    schema: 13,
     users: [demoUser, ...collaborators],
     session: null,
     companies: [company, ...extraCompanies],
@@ -1936,6 +1950,7 @@ function seedState(): DemoState {
   seedDemoLettering(seeded);
   seedDemoFx(seeded);
   seedDemoPayroll(seeded);
+  seedDemoEquity(seeded);
   return seeded;
 }
 
@@ -1961,7 +1976,7 @@ export function loadState(): DemoState {
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as DemoState;
-        if (parsed && parsed.schema === 12) {
+        if (parsed && parsed.schema === 13) {
           state = parsed;
           return state;
         }
@@ -6150,6 +6165,24 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
       if (result === undefined) throw new ApiError(404, 'NOT_FOUND', 'Route multidevise inconnue');
       if (method !== 'GET') {
         audit(companyId, 'fx.request', 'fx', null, { path: rest, method, demo: true });
+        persist();
+      }
+      return result as T;
+    }
+
+    // ------------------------------------------------- mission 19 — equity
+    if (rest.startsWith('/equity')) {
+      const result = handleDemoEquity(
+        s,
+        companyId,
+        method,
+        rest.slice('/equity'.length),
+        Object.fromEntries(query.entries()),
+        payload,
+      );
+      if (result === undefined) throw new ApiError(404, 'NOT_FOUND', 'Route capitaux propres inconnue');
+      if (method !== 'GET') {
+        audit(companyId, 'equity.request', 'equity', null, { path: rest, method, demo: true });
         persist();
       }
       return result as T;

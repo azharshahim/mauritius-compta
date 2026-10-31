@@ -54,6 +54,7 @@ export const MODULES: ModuleDefinition[] = [
       { to: '/accounting/ledger', key: 'nav.ledger', icon: '▤' },
       { to: '/accounting/trial-balance', key: 'nav.trialBalance', icon: '⊞' },
       { to: '/accounting/statements', key: 'nav.statements', icon: '▥' },
+      { to: '/accounting/equity', key: 'nav.accounting.equity', icon: '🏛' },
       { to: '/accounting/settings', key: 'nav.settings', icon: '⚙' },
       { to: '/accounting/purchases', key: 'nav.accounting.purchases', icon: '🧾' },
       { to: '/accounting/lettering', key: 'nav.accounting.lettering', icon: '🔗' },

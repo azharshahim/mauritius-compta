@@ -1,5 +1,35 @@
 # Journal des versions
 
+## Mission 19 — Capitaux propres, clôture et report à nouveau (31 octobre 2026)
+
+> Aucune fusion, aucun déploiement, aucune donnée réelle, aucun paiement, aucune déclaration
+> MRA. Aucun numéro de compte mauricien, taux, pourcentage de réserve ou traitement IFRS n’est
+> inventé. PR ouverte en brouillon ; `main` intact.
+
+### Ajouté
+
+- Migration `0017_equity_closing.sql` : registre `equity_movements`, `fiscal_closings`
+  versionnés avec empreinte de source, `equity_allocations` et lignes, sources d’écriture
+  `equity`, `closing`, `equity_allocation`, triggers d’isolation société et d’immutabilité.
+- Service `equity/service.ts` réutilisant le moteur comptable existant : registre justifié,
+  contrôles de clôture (brouillons, équilibre, comptes inactifs, chevauchement d’exercice,
+  source périmée), comptabilisation après approbation humaine, affectation exacte du résultat,
+  état des capitaux propres rapproché de la balance générale.
+- API `/equity/*` derrière le module comptabilité ; approbations et comptabilisations
+  réservées au rôle `manager` avec note et confirmation explicites.
+- Écran **Comptabilité → Capitaux propres & clôture** en quatre onglets, FR/EN, responsive.
+- Démonstration navigateur schéma 13 : deux exercices clôturés (perte puis bénéfice), apport
+  en capital, affectation documentée, brouillon à approuver ; aucune écriture réseau.
+- Documentation : [`docs/mission-19-report.md`](docs/mission-19-report.md).
+
+### Sécurité et limites
+
+- Une clôture comptabilisée est verrouillée ; aucune réouverture n’est proposée.
+- Une préparation de clôture ne crée aucune écriture et ne corrige jamais un déséquilibre.
+- L’affectation doit totaliser exactement le résultat ; aucune règle légale n’est appliquée.
+- Les points ouverts sont regroupés pour une revue professionnelle unique (section 12 du
+  rapport).
+
 ## Mission 18 — Transfert Paie → Comptabilité (31 octobre 2026)
 
 > Aucune fusion, aucun déploiement OVH, aucune donnée réelle, aucun paiement,

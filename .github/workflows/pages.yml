@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - arena/b0b62798-mauritius-compta
+      - arena/4b8027f5-mauritius-compta
     paths:
       - 'apps/web/**'
       - 'package.json'

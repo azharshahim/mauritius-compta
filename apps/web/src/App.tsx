@@ -9,6 +9,7 @@ import EntriesPage from './pages/Entries';
 import LedgerPage from './pages/Ledger';
 import TrialBalancePage from './pages/TrialBalance';
 import StatementsPage from './pages/Statements';
+import EquityPage from './pages/accounting/Equity';
 import SettingsPage from './pages/Settings';
 import CompanySettingsPage from './pages/company/CompanySettings';
 import CompaniesPage from './pages/Companies';
@@ -208,6 +209,7 @@ export default function App() {
             <Route path="/accounting/ledger" element={<LedgerPage />} />
             <Route path="/accounting/trial-balance" element={<TrialBalancePage />} />
             <Route path="/accounting/statements" element={<StatementsPage />} />
+            <Route path="/accounting/equity" element={<EquityPage />} />
             <Route path="/accounting/settings" element={<SettingsPage />} />
             <Route path="/accounting/settings/company" element={<CompanySettingsPage />} />
 
