@@ -44,6 +44,7 @@ import {
   type DemoEquityMovement,
   type DemoFiscalClosing,
 } from './equity';
+import { fixedAssetCsv, handleDemoFixedAssets, seedDemoFixedAssets } from './fixed-assets';
 import { handleDemoPayroll, payrollCsv, payrollReturnCsv, demoDeclarationCsv, demoAccountingTransferCsv, seedDemoPayroll } from './payroll';
 import {
   IMPORT_FIELDS,
@@ -119,7 +120,7 @@ export interface DemoEntry {
   currency: string;
   exchange_rate: string;
   status: 'draft' | 'posted';
-  source: 'manual' | 'reversal' | 'billing' | 'purchase' | 'ai' | 'migration' | 'migration_opening' | 'equity' | 'closing' | 'equity_allocation';
+  source: 'manual' | 'reversal' | 'billing' | 'purchase' | 'ai' | 'migration' | 'migration_opening' | 'equity' | 'closing' | 'equity_allocation' | 'asset';
   reversal_of_entry_id: string | null;
   posted_at: string | null;
   created_at: string;
@@ -1864,7 +1865,7 @@ function seedState(): DemoState {
   });
 
   const seeded: DemoState = {
-    schema: 13,
+    schema: 14,
     users: [demoUser, ...collaborators],
     session: null,
     companies: [company, ...extraCompanies],
@@ -1951,6 +1952,7 @@ function seedState(): DemoState {
   seedDemoFx(seeded);
   seedDemoPayroll(seeded);
   seedDemoEquity(seeded);
+  seedDemoFixedAssets(seeded);
   return seeded;
 }
 
@@ -1976,7 +1978,7 @@ export function loadState(): DemoState {
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as DemoState;
-        if (parsed && parsed.schema === 13) {
+        if (parsed && parsed.schema === 14) {
           state = parsed;
           return state;
         }
@@ -6151,6 +6153,27 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
       return result as T;
     }
 
+    // ------------------------------------- fixed assets & depreciation (20)
+    if (rest.startsWith('/fixed-assets')) {
+      const member = s.members.find(
+        (m) => m.company_id === companyId && m.user_id === requireUser().id,
+      );
+      if (!member) throw new ApiError(404, 'COMPANY_NOT_FOUND', 'Société introuvable');
+      const writers = ['owner', 'admin', 'accountant', 'manager', 'cabinet_admin'];
+      if (method !== 'GET' && !writers.includes(member.role)) {
+        throw new ApiError(403, 'FORBIDDEN', 'Rôle comptable requis pour les immobilisations');
+      }
+      const result = handleDemoFixedAssets(
+        s, companyId, method, rest.slice('/fixed-assets'.length),
+        Object.fromEntries(query.entries()), payload,
+      );
+      if (method !== 'GET') {
+        audit(companyId, 'fixed_assets.request', 'fixed_asset', null, { path: rest, method, demo: true });
+        persist();
+      }
+      return result as T;
+    }
+
     // ------------------------------------------------ multi-currency (13)
     if (rest.startsWith('/fx')) {
       const member = s.members.find(
@@ -8293,6 +8316,20 @@ export function demoCsv(path: string, format: 'csv' | 'pdf'): { text?: string; m
   const [base, search] = path.split('?');
   const query = new URLSearchParams(search ?? '');
   const user = currentUser();
+  const fixedAssetMatch = /^\/companies\/([0-9a-f-]{36})\/fixed-assets\/reports\/([a-z-]+)$/.exec(base ?? '');
+  if (fixedAssetMatch) {
+    const state = loadState();
+    const user = currentUser();
+    if (!user) throw new Error('UNAUTHORIZED');
+    const companyId = fixedAssetMatch[1]!;
+    if (!state.members.some((member) => member.user_id === user.id && member.company_id === companyId)) {
+      throw new Error('FORBIDDEN');
+    }
+    return {
+      text: fixedAssetCsv(state, companyId, fixedAssetMatch[2]!, Object.fromEntries(query.entries())),
+      mode: 'download',
+    };
+  }
   const payrollMatch = /^\/companies\/([0-9a-f-]{36})\/payroll\/payslips\.csv$/.exec(base ?? '');
   if (payrollMatch) {
     return { text: payrollCsv(loadState(), payrollMatch[1]!), mode: 'download' };

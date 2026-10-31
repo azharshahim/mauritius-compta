@@ -10,6 +10,7 @@ on:
     branches:
       - arena/b0b62798-mauritius-compta
       - arena/4b8027f5-mauritius-compta
+      - arena/1aa34791-mauritius-compta
     paths:
       - 'apps/web/**'
       - 'package.json'
@@ -80,6 +81,10 @@ jobs:
           grep -q 'application/octet-stream' apps/web/dist/assets/*.js
           grep -q 'VAT_SOURCE_REQUIRED' apps/web/dist/assets/*.js
           ls apps/web/dist/assets/AssistantPanel-*.js >/dev/null
+          # Mission 20 : registre des immobilisations et démonstration deux sociétés
+          grep -q 'Immobilisations et amortissements' apps/web/dist/assets/*.js
+          grep -q 'Pick-up utilitaire' apps/web/dist/assets/*.js
+          grep -q 'Local en construction' apps/web/dist/assets/*.js
           test -f apps/web/dist/404.html
 
       - uses: actions/upload-pages-artifact@v3
@@ -158,6 +163,11 @@ jobs:
           # Correctif mission 9 : filtre MIME Android publié
           grep -q 'text/comma-separated-values' /tmp/app.js
           grep -q 'application/octet-stream' /tmp/app.js
+          # Mission 20 : immobilisations, calculs exacts et démonstration publiée
+          grep -q 'Immobilisations et amortissements' /tmp/app.js
+          grep -q 'capital allowances' /tmp/app.js
+          grep -q 'Pick-up utilitaire' /tmp/app.js
+          grep -q 'FA-2025-0001' /tmp/app.js
           SAMPLE=$(curl -s -o /tmp/sample.csv -w '%{http_code}' "$BASE/samples/plan-comptable-fictif.csv")
           echo "sample plan comptable fictif: $SAMPLE"
           test "$SAMPLE" = "200"
