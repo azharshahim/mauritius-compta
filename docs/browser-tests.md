@@ -123,3 +123,20 @@ Résultat : **19/19** (`npm run test -w @mc/web`), exécuté aussi par la CI.
 > jsdom ne rend pas la mise en page : **le rendu visuel, le tactile et le comportement réel
 > de Chrome sur Android/Windows ne sont pas validés par cette suite**. Ils doivent être
 > vérifiés sur l'URL GitHub Pages depuis les appareils du propriétaire.
+
+## 7. Suite jsdom de la mission 4 (quatre espaces)
+
+Exécutée en local et dans la CI (`npm run test -w @mc/web`) :
+
+| Fichier | Tests | Couverture |
+|---|---|---|
+| `apps/web/tests/demo-engine.test.ts` | 17 | comptabilité de démonstration (10) + cabinet et permissions de module (7 : indicateurs, cycle de tâche, affectation refusée, archivage lecture seule, séparation paie/comptabilité, facturation non disponible, équipe) |
+| `apps/web/tests/demo-app.test.tsx` | 7 | quatre espaces accessibles, dossiers et écrans comptables conservés, tableau de bord, création dossier + tâche, archivage, facturation/paie annoncées, FR/EN + tiroir mobile |
+| `apps/web/tests/format.test.ts` | 4 | période par défaut, arithmétique décimale |
+| **Total** | **28** | aucun appel réseau (`fetch` espionné) |
+
+Côté API (Vitest + PGlite, et PostgreSQL 16 en CI) : `apps/api/tests/cabinet.test.ts` ajoute
+11 tests (dossiers, tâches, dashboard, archivage, permissions, isolation, fondations).
+
+> Rappel : jsdom **ne rend pas** la mise en page. Le rendu visuel, le tactile et le
+> comportement réel de Chrome sur Android/Windows restent à vérifier sur l'URL GitHub Pages.

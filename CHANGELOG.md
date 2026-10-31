@@ -1,5 +1,44 @@
 # Journal des versions
 
+## Mauritius Business Suite — 31 octobre 2026 (mission 4)
+
+> Ajout fonctionnel sans changement de version applicative (cœur comptable 0.1.1 conservé).
+
+### Ajouté — module Cabinet (opérationnel)
+
+- Tableau de bord cabinet : sociétés clientes, dossiers actifs/archivés, dossiers à réviser,
+  tâches à effectuer, en retard, échéances sous 7 jours, collaborateurs, activité récente.
+- Dossiers clients : recherche, filtres, création, modification (BRN, CRN, TVA, adresse,
+  activité, devise, exercice, responsable, code client), archivage/désarchivage en lecture
+  seule, fiche dossier complète.
+- Tâches et échéances : catégories, priorités, statuts, affectation contrôlée à un membre,
+  commentaires, historique d'audit, filtres « en retard ».
+- Collaborateurs : rôles par dossier, activation, consultation des droits par module.
+- Migration `0004_cabinet.sql` (additive) : champs dossier, rôles étendus, table
+  `company_module_access`, `cabinet_tasks`, `cabinet_task_comments`, triggers d'isolation.
+- Permissions par module (`cabinet`, `accounting`, `billing`, `payroll`) avec séparation
+  stricte paie/comptabilité, appliquées côté API **et** dans les requêtes SQL.
+
+### Ajouté — préparé (non opérationnel)
+
+- Espaces **Facturation** et **Paie & RH** : navigation, sous-menus, écrans d'annonce,
+  capacités explicitement affichées comme non disponibles.
+- Tables de fondation `billing_documents` (avec `accounting_entry_id UNIQUE` empêchant la
+  double comptabilisation) et `payroll_employees` (aucune donnée salariale, aucun calcul).
+- Contrats d'intégration documentés (`docs/module-integration.md`).
+
+### Modifié
+
+- Interface réorganisée en quatre espaces avec barre de modules, sous-menus contextuels et
+  sélecteur de société ; anciennes routes conservées via redirections.
+- Mode démonstration : 4 dossiers fictifs, 3 collaborateurs fictifs, 9 tâches, permissions
+  par module, archivage lecture seule, écrans Cabinet réellement utilisables.
+
+### Correctifs liés
+
+- Un dossier archivé refuse désormais toute écriture (`COMPANY_ARCHIVED`, 409) tout en restant
+  consultable et exportable.
+
 ## Mode démonstration — 31 octobre 2026 (GitHub Pages, sans serveur)
 
 > Ajout fonctionnel sans changement de version applicative : le backend et l'API restent en

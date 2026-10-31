@@ -1,7 +1,14 @@
 # Mauritius Compta
 
-**Logiciel de comptabilité mauricienne bilingue (FR/EN)** — version **0.1.1**
-(fondations, cœur comptable, audit et fiabilisation).
+**Suite de gestion mauricienne bilingue (FR/EN)** — version **0.1.1** du cœur comptable,
+étendue en **Mauritius Business Suite** (mission 4) : espaces **Cabinet**, **Comptabilité**,
+**Facturation** et **Paie & RH**.
+
+> **État des modules** — Cabinet : opérationnel (dossiers, tâches, collaborateurs,
+> permissions). Comptabilité : moteur V0.1.1 conservé, inchangé. Facturation et Paie :
+> **préparées**, moteurs non développés (aucun calcul TVA, PAYE, CSG ou NSF).
+> Voir [`docs/suite-architecture.md`](docs/suite-architecture.md) et
+> [`docs/cabinet-module.md`](docs/cabinet-module.md).
 
 > ⚠️ **Version de démonstration.** L'application **n'est pas** conforme, en l'état, aux
 > obligations réglementaires mauriciennes : aucune règle fiscale (TVA, impôt sur les
@@ -31,8 +38,9 @@
 11. [Documentation](#11-documentation)
 12. [Sécurité et secrets](#12-sécurité-et-secrets)
 13. [Limites réglementaires et fonctionnelles](#13-limites-réglementaires-et-fonctionnelles)
-14. [Dépannage](#14-dépannage)
-15. [Indépendance et licence](#15-indépendance-et-licence)
+14. [Mauritius Business Suite](#14-mauritius-business-suite)
+15. [Dépannage](#15-dépannage)
+16. [Indépendance et licence](#16-indépendance-et-licence)
 
 ---
 
@@ -239,8 +247,9 @@ développement (`arena/b0b62798-mauritius-compta`), sans fusion de la PR ni modi
 https://azharshahim.github.io/mauritius-compta/
 ```
 
-> En ligne et vérifiée le 31/10/2026 : page 200, bundle JS 200, repli `404.html` actif
-> (voir [`docs/mission-3-report.md`](docs/mission-3-report.md)).
+> En ligne et vérifiée le 31/10/2026 : page 200, bundle JS 200, repli `404.html` actif,
+> **quatre espaces et module Cabinet présents** dans le bundle publié
+> (voir [`docs/mission-4-report.md`](docs/mission-4-report.md)).
 
 ```text
 E-mail       : demo@mauritius-compta.test   (pré-rempli)
@@ -295,7 +304,10 @@ npm run verify      # les trois ci-dessus, dans l'ordre
   `npm run test:e2e -w @mc/web` (voir [`docs/browser-tests.md`](docs/browser-tests.md)).
   Ces tests **n'ont pas pu être exécutés dans l'environnement d'audit** (aucun binaire
   Chromium disponible) : ne pas les considérer comme validés tant qu'ils n'ont pas tourné.
-- Détail des scénarios et des résultats : [`docs/test-report.md`](docs/test-report.md).
+- **Tests web (jsdom)** : `npm run test -w @mc/web` → 28 tests (moteur de démonstration,
+  parcours React des quatre espaces, formatage).
+- Détail des scénarios et des résultats : [`docs/test-report.md`](docs/test-report.md) et
+  [`docs/mission-4-report.md`](docs/mission-4-report.md).
 
 ## 10. Reconstruction complète depuis GitHub
 
@@ -329,6 +341,11 @@ données, **ni** secret, **ni** donnée réelle.
 | [`docs/test-report.md`](docs/test-report.md) | Rapport de tests détaillé |
 | [`docs/deployment.md`](docs/deployment.md) | Préparation VPS Ubuntu + Nginx (aucun déploiement effectué) |
 | [`docs/roadmap.md`](docs/roadmap.md) | Suite du produit (mission 3 et au-delà) |
+| [`docs/suite-architecture.md`](docs/suite-architecture.md) | Quatre espaces, base commune, domaines PostgreSQL |
+| [`docs/cabinet-module.md`](docs/cabinet-module.md) | Module Cabinet : fonctions, données, API, démo |
+| [`docs/permissions-matrix.md`](docs/permissions-matrix.md) | Rôles × modules, séparation paie/comptabilité |
+| [`docs/module-integration.md`](docs/module-integration.md) | Contrats d'intégration OCR/banque/facturation/paie |
+| [`docs/mission-4-report.md`](docs/mission-4-report.md) | Rapport de mission 4 |
 | [`docs/audit-existing-apps.md`](docs/audit-existing-apps.md) | Audit des applications existantes du propriétaire (aucune modification) |
 | [`docs/mauritius-regulations/`](docs/mauritius-regulations/) | Veille réglementaire : comptabilité, TVA, IS, paie, données, sources, registre |
 
@@ -363,7 +380,27 @@ données, **ni** secret, **ni** donnée réelle.
 - Pas d'immutabilité légale horodatée (pas de scellement cryptographique de type piste
   d'audit infalsifiable) : le journal d'audit applicatif n'est pas un dispositif certifié.
 
-## 14. Dépannage
+## 14. Mauritius Business Suite
+
+Quatre espaces partagent un seul référentiel de sociétés et une seule base PostgreSQL, avec
+des permissions et des tables séparées par module :
+
+| Espace | Route | État |
+|---|---|---|
+| Cabinet | `/cabinet` | **opérationnel** : tableau de bord, dossiers clients, fiche dossier, tâches & échéances, collaborateurs |
+| Comptabilité | `/accounting` | **opérationnel** : toutes les fonctions V0.1.1 (plan comptable, écritures, grand livre, balance, états financiers, périodes, devises, audit) |
+| Facturation | `/billing` | **préparé** : tables et permissions en place, écrans annoncés, `501 NOT_IMPLEMENTED` |
+| Paie & RH | `/payroll` | **préparé** : idem, aucun calcul PAYE/CSG/NSF |
+
+- Rôles : `cabinet_admin`, `manager`, `accountant`, `billing_clerk`, `payroll_manager`,
+  `viewer` (+ `owner`/`admin` historiques) — voir
+  [`docs/permissions-matrix.md`](docs/permissions-matrix.md).
+- Les anciennes URL (`/entries`, `/companies`, …) redirigent : aucun signet n'est cassé.
+- Documentation : [`docs/suite-architecture.md`](docs/suite-architecture.md),
+  [`docs/cabinet-module.md`](docs/cabinet-module.md),
+  [`docs/module-integration.md`](docs/module-integration.md).
+
+## 15. Dépannage
 
 | Symptôme | Cause probable | Solution |
 |---|---|---|
@@ -386,7 +423,7 @@ données, **ni** secret, **ni** donnée réelle.
 Journaux : l'API écrit en JSON structuré (`pino`) sur la sortie standard ; en développement,
 `npm run dev:api` affiche chaque requête.
 
-## 15. Indépendance et licence
+## 16. Indépendance et licence
 
 Ce logiciel est **juridiquement et techniquement indépendant** des applications françaises du
 propriétaire (paie, comptabilité, facturation) : code, schéma, base et documentation propres.

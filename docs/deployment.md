@@ -161,7 +161,8 @@ server {
 - `.github/workflows/pages.yml` (déclencheur : `push` sur
   `arena/b0b62798-mauritius-compta`, ou `workflow_dispatch`).
 - Job `build` : `npm ci` → `typecheck` web → **tests web (jsdom)** → `VITE_DEMO_MODE=true
-  npm run build:demo` → vérification que le bundle référence `/mauritius-compta/assets/…` →
+  npm run build:demo` → vérification que le bundle référence `/mauritius-compta/assets/…`,
+  contient le bandeau de démonstration, **les quatre modules** et les dossiers fictifs →
   `actions/upload-pages-artifact`.
 - Job `deploy` : `actions/configure-pages` + `actions/deploy-pages`, permissions
   `pages: write` / `id-token: write`, puis **smoke test HTTPS exécuté depuis le runner**
@@ -189,9 +190,10 @@ chaque `push`.
 - `apps/api/**`, `.env*`, `apps/api/.data/**` (base PGlite), `node_modules`, secrets.
 - Le dossier publié est exactement `apps/web/dist` (HTML + JS + CSS + `404.html`).
 
-### Vérification (résultat du 31/10/2026)
+### Vérification (résultat du 31/10/2026, mission 4)
 
-`index 200` · `assets/index-NWilYo3Y.js 200 (397 702 octets)` · `404.html 200` ·
+`index 200` · bundle JS 200 (**460 465 octets**, quatre modules + cabinet présents) ·
+`404.html 200` ·
 lien profond `/entries` → 404 servi par notre page de redirection `#/entries`.
 Job `Verify the published HTTPS URL` : succès (run 41146643105).
 
