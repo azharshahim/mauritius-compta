@@ -122,6 +122,10 @@ describe('assistant de migration (démo)', () => {
     void list;
     fireEvent.click(screen.getByRole('link', { name: /Voir les écritures/i }));
     await screen.findByRole('heading', { name: /Écritures/i });
+    // Mission 22 added seeded entries, so the imported entry may be beyond the
+    // first page: use the existing search box rather than assuming pagination.
+    const searchBox = screen.getByPlaceholderText(/Rechercher/i);
+    fireEvent.change(searchBox, { target: { value: 'UI-001' } });
     await waitFor(() => expect(screen.getByText(/UI-001/)).toBeTruthy());
 
     expect(fetchSpy).not.toHaveBeenCalled();

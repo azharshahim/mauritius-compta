@@ -45,6 +45,7 @@ import {
   type DemoFiscalClosing,
 } from './equity';
 import { fixedAssetCsv, handleDemoFixedAssets, seedDemoFixedAssets } from './fixed-assets';
+import { demoMission22Csv, handleDemoMission22, seedDemoMission22 } from './inventory';
 import {
   handleDemoFinancialYears,
   seedDemoFinancialYears,
@@ -129,7 +130,7 @@ export interface DemoEntry {
   currency: string;
   exchange_rate: string;
   status: 'draft' | 'posted';
-  source: 'manual' | 'reversal' | 'billing' | 'purchase' | 'ai' | 'migration' | 'migration_opening' | 'opening' | 'equity' | 'closing' | 'equity_allocation' | 'asset' | 'prior_year_adjustment';
+  source: 'manual' | 'reversal' | 'billing' | 'purchase' | 'ai' | 'migration' | 'migration_opening' | 'opening' | 'equity' | 'closing' | 'equity_allocation' | 'asset' | 'prior_year_adjustment' | 'inventory' | 'accrual' | 'provision';
   reversal_of_entry_id: string | null;
   posted_at: string | null;
   created_at: string;
@@ -885,6 +886,8 @@ export interface DemoState {
   fyAdjustments?: DemoPriorYearAdjustment[];
   fyChecklists?: DemoChecklist[];
   fyArchives?: DemoArchive[];
+  /** Mission 22 — inventory, accruals/prepayments and provisions. */
+  mission22?: unknown;
 }
 
 /* ------------------------------------------------------------------ money */
@@ -1880,7 +1883,7 @@ function seedState(): DemoState {
   });
 
   const seeded: DemoState = {
-    schema: 15,
+    schema: 16,
     users: [demoUser, ...collaborators],
     session: null,
     companies: [company, ...extraCompanies],
@@ -1969,6 +1972,7 @@ function seedState(): DemoState {
   seedDemoEquity(seeded);
   seedDemoFixedAssets(seeded);
   seedDemoFinancialYears(seeded);
+  seedDemoMission22(seeded);
   return seeded;
 }
 
@@ -1994,14 +1998,22 @@ export function loadState(): DemoState {
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as DemoState;
+        if (parsed && parsed.schema === 16) {
+          state = parsed;
+          return state;
+        }
         if (parsed && parsed.schema === 15) {
           state = parsed;
+          state.schema = 16;
+          seedDemoMission22(state);
+          persist();
           return state;
         }
         if (parsed && parsed.schema === 14) {
           state = parsed;
-          state.schema = 15;
+          state.schema = 16;
           seedDemoFinancialYears(state);
+          seedDemoMission22(state);
           persist();
           return state;
         }
@@ -6216,6 +6228,25 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
       return result as T;
     }
 
+
+    // ---------------------------- mission 22 — inventory/accruals/provisions
+    if (rest.startsWith('/inventory') || rest.startsWith('/accruals') || rest.startsWith('/provisions')) {
+      const member = s.members.find(
+        (m) => m.company_id === companyId && m.user_id === requireUser().id,
+      );
+      if (!member) throw new ApiError(404, 'COMPANY_NOT_FOUND', 'Société introuvable');
+      const delegated = rest.startsWith('/inventory') ? rest.slice('/inventory'.length) : rest;
+      const result = handleDemoMission22(
+        s, companyId, method, delegated,
+        Object.fromEntries(query.entries()), payload,
+      );
+      if (method !== 'GET') {
+        audit(companyId, 'mission22.request', 'mission22', null, { path: rest, method, demo: true });
+        persist();
+      }
+      return result as T;
+    }
+
     // ------------------------------------- mission 21 — financial years
     if (rest.startsWith('/financial-years')) {
       const member = s.members.find(
@@ -8369,6 +8400,17 @@ export function demoCsv(path: string, format: 'csv' | 'pdf'): { text?: string; m
       text: fixedAssetCsv(state, companyId, fixedAssetMatch[2]!, Object.fromEntries(query.entries())),
       mode: 'download',
     };
+  }
+  const inventoryMatch = /^\/companies\/([0-9a-f-]{36})\/inventory\/report\.csv$/.exec(base ?? '');
+  if (inventoryMatch) {
+    const state = loadState();
+    const user = currentUser();
+    if (!user) throw new Error('UNAUTHORIZED');
+    const companyId = inventoryMatch[1]!;
+    if (!state.members.some((member) => member.user_id === user.id && member.company_id === companyId)) {
+      throw new Error('FORBIDDEN');
+    }
+    return { text: demoMission22Csv(state, companyId, path), mode: 'download' };
   }
   const payrollMatch = /^\/companies\/([0-9a-f-]{36})\/payroll\/payslips\.csv$/.exec(base ?? '');
   if (payrollMatch) {

@@ -14,6 +14,7 @@ import { scaled4ToString, toScaled4 } from '../format';
 import type {
   DemoAccount, DemoEntry, DemoJournal, DemoLine, DemoPeriod, DemoState,
 } from './runtime';
+import { demoMission22Checklist } from './inventory';
 import type { DemoFixedAssetState } from './fixed-assets';
 
 /* ------------------------------------------------------------------ types */
@@ -351,9 +352,15 @@ function openingChecks(totals: any, previous: DemoPeriod | null, differences: an
   checks.push(amt(totals.openingDebit) === amt(totals.openingCredit)
     ? { code: 'OPENING_BALANCED', severity: 'ok', messageEn: 'Opening debit and credit totals are equal.', messageFr: 'Les totaux débit et crédit d’ouverture sont égaux.' }
     : { code: 'OPENING_UNBALANCED', severity: 'block', messageEn: 'Opening debit and credit totals differ.', messageFr: 'Les totaux débit et crédit d’ouverture diffèrent.' });
-  checks.push(pnlOpening.length === 0
-    ? { code: 'NO_PNL_OPENING', severity: 'ok', messageEn: 'No profit or loss account has an ordinary opening balance.', messageFr: 'Aucun compte de résultat ne porte de solde d’ouverture ordinaire.' }
-    : { code: 'PNL_OPENING_PRESENT', severity: 'block', messageEn: `${pnlOpening.length} profit or loss account(s) carry an opening balance.`, messageFr: `${pnlOpening.length} compte(s) de résultat portent un solde d’ouverture.` });
+  if (pnlOpening.length === 0) {
+    checks.push({ code: 'NO_PNL_OPENING', severity: 'ok', messageEn: 'No profit or loss account has an ordinary opening balance.', messageFr: 'Aucun compte de résultat ne porte de solde d’ouverture ordinaire.' });
+  } else if (previous && previous.status !== 'closed') {
+    // The preceding year is still open: its profit-or-loss balances are
+    // current-year accumulations, not an opening balance to close.
+    checks.push({ code: 'PNL_OPENING_PENDING_CLOSE', severity: 'warning', messageEn: `${pnlOpening.length} profit or loss account(s) carry current-year balances because the preceding period is not closed yet.`, messageFr: `${pnlOpening.length} compte(s) de résultat portent des soldes de l’exercice en cours car la période précédente n’est pas encore clôturée.` });
+  } else {
+    checks.push({ code: 'PNL_OPENING_PRESENT', severity: 'block', messageEn: `${pnlOpening.length} profit or loss account(s) carry an opening balance after a closed period.`, messageFr: `${pnlOpening.length} compte(s) de résultat portent un solde d’ouverture après une période clôturée.` });
+  }
   if (previous) {
     checks.push(differences.length === 0
       ? { code: 'CARRY_FORWARD_CONTINUOUS', severity: 'ok', messageEn: 'Opening balances equal the preceding period closing balances.', messageFr: 'Les soldes d’ouverture égalent les soldes de clôture de la période précédente.' }
@@ -417,12 +424,19 @@ function buildOpening(state: DemoState, companyId: string, periodId: string, raw
     if (!account) continue;
     const opening = before.get(id) ?? { debit: 0n, credit: 0n };
     const closing = source?.get(id) ?? { debit: 0n, credit: 0n };
-    const diff = (closing.debit - closing.credit) - (opening.debit - opening.credit);
+    // The trial balance presents a NET opening balance, not cumulative
+    // turnover. A closed profit-or-loss account therefore shows 0/0 even
+    // though it has equal historical debits and credits.
+    const openingNet = opening.debit - opening.credit;
+    const closingNet = closing.debit - closing.credit;
+    const diff = closingNet - openingNet;
     rows.push({
       accountId: id, code: account.code, name: account.name, type: account.type,
       eligible: account.type !== 'revenue' && account.type !== 'expense',
-      sourceClosingDebit: fmt(closing.debit), sourceClosingCredit: fmt(closing.credit),
-      openingDebit: fmt(opening.debit), openingCredit: fmt(opening.credit),
+      sourceClosingDebit: closingNet > 0n ? fmt(closingNet) : '0.0000',
+      sourceClosingCredit: closingNet < 0n ? fmt(-closingNet) : '0.0000',
+      openingDebit: openingNet > 0n ? fmt(openingNet) : '0.0000',
+      openingCredit: openingNet < 0n ? fmt(-openingNet) : '0.0000',
       differenceDebit: diff < 0n ? fmt(-diff) : '0.0000',
       differenceCredit: diff > 0n ? fmt(diff) : '0.0000', differs: diff !== 0n,
     });
@@ -544,14 +558,60 @@ function checklistItems(state: DemoState, companyId: string, period: DemoPeriod,
       detailFr: postedBatch ? 'Un lot d’amortissement comptabilisé couvre la période.' : 'Aucun lot d’amortissement comptabilisé ne couvre cette période.' });
   }
 
-  for (const [code, labelEn, labelFr] of [
-    ['ACCRUALS_PREPAYMENTS', 'Accruals and prepayments', 'Charges à payer et produits constatés d’avance'],
-    ['PROVISIONS', 'Provisions', 'Provisions'],
-    ['INVENTORY', 'Inventory', 'Stocks'],
-  ]) {
-    add({ code, module: 'financial_years', labelEn, labelFr, state: 'unavailable',
-      detailEn: 'The dedicated module is not implemented: this check cannot pass.',
-      detailFr: 'Le module dédié n’est pas implémenté : ce contrôle ne peut pas réussir.' });
+  // Mission 22 controls are real in the demo: an empty register is pending,
+  // never a false green, and never "unavailable".
+  const m22 = demoMission22Checklist(state, companyId, period.end_date);
+  if (m22.categories === 0) {
+    add({ code: 'INVENTORY', module: 'inventory', labelEn: 'Inventory valuation and reconciliation', labelFr: 'Valorisation et rapprochement des stocks',
+      state: 'pending', count: 0,
+      detailEn: 'No inventory category recorded: the control cannot pass yet.',
+      detailFr: 'Aucune catégorie de stock enregistrée : le contrôle ne peut pas encore réussir.' });
+  } else {
+    const blocking = m22.negativeBalances > 0 || m22.reconciliation?.balanced === false;
+    const pending = m22.pendingMovements + m22.draftCounts + m22.pendingWriteDowns;
+    add({ code: 'INVENTORY', module: 'inventory', labelEn: 'Inventory valuation and reconciliation', labelFr: 'Valorisation et rapprochement des stocks',
+      state: blocking ? 'block' : pending > 0 ? 'warning' : 'ok', count: pending,
+      amount: m22.reconciliation?.totalDifference ?? '0.0000',
+      detailEn: blocking ? 'Negative stock or a subledger/ledger difference exists.'
+        : pending > 0 ? `${pending} stock item(s) await a human decision.`
+        : 'Stock valuation reconciles with the ledger; no proposal is pending.',
+      detailFr: blocking ? 'Stock négatif ou écart entre sous-registre et grand livre.'
+        : pending > 0 ? `${pending} élément(s) de stock attendent une décision humaine.`
+        : 'La valorisation rapproche avec le grand livre ; aucune proposition en attente.' });
+  }
+  if (m22.schedules === 0) {
+    add({ code: 'ACCRUALS_PREPAYMENTS', module: 'accruals', labelEn: 'Accruals, prepayments and deferred income', labelFr: 'Charges à payer, avances et produits différés',
+      state: 'pending', count: 0,
+      detailEn: 'No accrual schedule recorded: the control cannot pass yet.',
+      detailFr: 'Aucun échéancier enregistré : le contrôle ne peut pas encore réussir.' });
+  } else {
+    const missing = m22.missingAccrualEvidence;
+    const pending = m22.draftSchedules + m22.pendingAccrualLines;
+    add({ code: 'ACCRUALS_PREPAYMENTS', module: 'accruals', labelEn: 'Accruals, prepayments and deferred income', labelFr: 'Charges à payer, avances et produits différés',
+      state: missing > 0 ? 'block' : pending > 0 ? 'warning' : 'ok', count: pending,
+      detailEn: missing > 0 ? `${missing} schedule(s) lack a supporting document.`
+        : pending > 0 ? `${pending} period line(s) or draft schedule(s) require review.`
+        : 'All schedules are approved and their due periods posted.',
+      detailFr: missing > 0 ? `${missing} échéancier(s) sans justificatif.`
+        : pending > 0 ? `${pending} ligne(s) ou échéancier(s) en attente de revue.`
+        : 'Tous les échéanciers sont approuvés et leurs échéances dues comptabilisées.' });
+  }
+  if (m22.provisions === 0) {
+    add({ code: 'PROVISIONS', module: 'provisions', labelEn: 'Provisions', labelFr: 'Provisions',
+      state: 'pending', count: 0,
+      detailEn: 'No provision recorded: the control cannot pass yet.',
+      detailFr: 'Aucune provision enregistrée : le contrôle ne peut pas encore réussir.' });
+  } else {
+    const missing = m22.missingProvisionEvidence;
+    add({ code: 'PROVISIONS', module: 'provisions', labelEn: 'Provisions review', labelFr: 'Revue des provisions',
+      state: missing > 0 ? 'block' : m22.pendingProvisionMovements > 0 ? 'warning' : 'ok',
+      count: m22.pendingProvisionMovements,
+      detailEn: missing > 0 ? `${missing} provision(s) lack evidence.`
+        : m22.pendingProvisionMovements > 0 ? `${m22.pendingProvisionMovements} provision movement(s) await approval or posting.`
+        : 'All provision movements have been decided by a human.',
+      detailFr: missing > 0 ? `${missing} provision(s) sans preuve.`
+        : m22.pendingProvisionMovements > 0 ? `${m22.pendingProvisionMovements} mouvement(s) de provision en attente d’approbation ou de comptabilisation.`
+        : 'Tous les mouvements de provision ont été décidés par un humain.' });
   }
 
   const customerDocs = state.billingDocuments.filter((d) => d.company_id === companyId && d.kind === 'invoice'

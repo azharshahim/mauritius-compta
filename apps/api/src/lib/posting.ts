@@ -41,7 +41,16 @@ export type PostingSource =
   | 'ai'
   | 'migration'
   | 'migration_opening'
-  | 'fx';
+  | 'fx'
+  | 'payroll'
+  | 'equity'
+  | 'closing'
+  | 'equity_allocation'
+  | 'asset'
+  | 'prior_year_adjustment'
+  | 'inventory'
+  | 'accrual'
+  | 'provision';
 
 export interface PostingParams {
   companyId: string;
