@@ -5,8 +5,10 @@
 **Facturation** et **Paie & RH**.
 
 > **État des modules** — Cabinet : opérationnel (dossiers, tâches, collaborateurs,
-> permissions). Comptabilité : moteur V0.1.1 conservé, inchangé. Facturation et Paie :
-> **préparées**, moteurs non développés (aucun calcul TVA, PAYE, CSG ou NSF).
+> permissions, assistant comptable IA). Comptabilité : moteur V0.1.1 conservé, inchangé.
+> Facturation et Paie : **préparées**, moteurs non développés (aucun calcul TVA, PAYE,
+> CSG ou NSF). Le moteur IA est **optionnel**, sans clé par défaut, et l'IA **ne
+> comptabilise jamais** à votre place.
 > Voir [`docs/suite-architecture.md`](docs/suite-architecture.md) et
 > [`docs/cabinet-module.md`](docs/cabinet-module.md).
 
@@ -39,8 +41,9 @@
 12. [Sécurité et secrets](#12-sécurité-et-secrets)
 13. [Limites réglementaires et fonctionnelles](#13-limites-réglementaires-et-fonctionnelles)
 14. [Mauritius Business Suite](#14-mauritius-business-suite)
-15. [Dépannage](#15-dépannage)
-16. [Indépendance et licence](#16-indépendance-et-licence)
+15. [Intelligence artificielle](#15-intelligence-artificielle)
+16. [Dépannage](#16-dépannage)
+17. [Indépendance et licence](#17-indépendance-et-licence)
 
 ---
 
@@ -292,7 +295,7 @@ Sous Windows, les mêmes commandes fonctionnent (PowerShell ou `cmd.exe`).
 
 ```bash
 npm run typecheck   # TypeScript strict, API + interface
-npm test            # 77 tests Vitest (73 exécutés sur PGlite + 4 tests PostgreSQL)
+npm test            # API + web : 152 tests passés | 4 ignorés (156)
 npm run build       # build de production
 npm run verify      # les trois ci-dessus, dans l'ordre
 ```
@@ -304,12 +307,15 @@ npm run verify      # les trois ci-dessus, dans l'ordre
   `npm run test:e2e -w @mc/web` (voir [`docs/browser-tests.md`](docs/browser-tests.md)).
   Ces tests **n'ont pas pu être exécutés dans l'environnement d'audit** (aucun binaire
   Chromium disponible) : ne pas les considérer comme validés tant qu'ils n'ont pas tourné.
-- **Tests web (jsdom)** : `npm run test -w @mc/web` → 28 tests (moteur de démonstration,
-  parcours React des quatre espaces, formatage). `npm test` exécute l'API **et** le web :
-  **112 tests passés | 4 ignorés (116)** au total ; les 4 ignorés sont les tests de
-  concurrence qui exigent un vrai PostgreSQL (exécutés en CI).
-- Détail des scénarios et des résultats : [`docs/test-report.md`](docs/test-report.md) et
-  [`docs/mission-4-report.md`](docs/mission-4-report.md).
+- **Tests web (jsdom)** : `npm run test -w @mc/web` → **46 tests** (moteur de démonstration,
+  parcours des quatre espaces, moteur IA simulé, clavier Android, formatage). `npm test`
+  exécute l'API **et** le web : **152 tests passés | 4 ignorés (156)** au total ; les
+  4 ignorés sont les tests de concurrence qui exigent un vrai PostgreSQL (exécutés en CI).
+- **Clavier Android** : `apps/web/tests/input-focus.test.tsx` saisit caractère par caractère
+  dans tous les formulaires et vérifie que le champ garde le focus et n'est jamais démonté.
+- Détail des scénarios et des résultats : [`docs/test-report.md`](docs/test-report.md),
+  [`docs/mission-4-report.md`](docs/mission-4-report.md) et
+  [`docs/mission-5-report.md`](docs/mission-5-report.md).
 
 ## 10. Reconstruction complète depuis GitHub
 
@@ -348,6 +354,12 @@ données, **ni** secret, **ni** donnée réelle.
 | [`docs/permissions-matrix.md`](docs/permissions-matrix.md) | Rôles × modules, séparation paie/comptabilité |
 | [`docs/module-integration.md`](docs/module-integration.md) | Contrats d'intégration OCR/banque/facturation/paie |
 | [`docs/mission-4-report.md`](docs/mission-4-report.md) | Rapport de mission 4 |
+| [`docs/ai-architecture.md`](docs/ai-architecture.md) | Moteur IA : orchestration, isolations, implémenté vs préparé |
+| [`docs/ai-providers.md`](docs/ai-providers.md) | Catalogue de fournisseurs, différences d'API, ajout d'un fournisseur |
+| [`docs/ai-security.md`](docs/ai-security.md) | Chiffrement des clés, permissions, injections, données personnelles |
+| [`docs/ai-cost-control.md`](docs/ai-cost-control.md) | Consommation, coûts exacts, budgets et plafonds |
+| [`docs/ai-account-suggestions.md`](docs/ai-account-suggestions.md) | Assistant de suggestion de compte et validation humaine |
+| [`docs/mission-5-report.md`](docs/mission-5-report.md) | Rapport de mission 5 |
 | [`docs/audit-existing-apps.md`](docs/audit-existing-apps.md) | Audit des applications existantes du propriétaire (aucune modification) |
 | [`docs/mauritius-regulations/`](docs/mauritius-regulations/) | Veille réglementaire : comptabilité, TVA, IS, paie, données, sources, registre |
 
@@ -402,7 +414,47 @@ des permissions et des tables séparées par module :
   [`docs/cabinet-module.md`](docs/cabinet-module.md),
   [`docs/module-integration.md`](docs/module-integration.md).
 
-## 15. Dépannage
+## 15. Intelligence artificielle
+
+Le **Mauritius AI Engine** (mission 5) est un moteur central, indépendant des modules
+métier, capable d'utiliser plusieurs fournisseurs sans modifier le code de la suite :
+
+| Fournisseur | Adaptateur | État |
+|---|---|---|
+| OpenAI | `openai` | configurable (clé du cabinet) |
+| DeepSeek | `openai` | configurable (clé du cabinet) |
+| Google Gemini | `gemini` | configurable (clé du cabinet) |
+| Mistral AI | `openai` | configurable (clé du cabinet) |
+| Compatible OpenAI | `openai` | URL et modèle saisis par le cabinet |
+| Auto-hébergé | `openai` | désactivé par défaut, phase ultérieure |
+| Simulateur fictif | `simulated` | démonstration et tests, hors ligne |
+
+- **Aucune clé API n'est fournie ni requise pour essayer** : la démonstration GitHub Pages
+  et les tests utilisent un fournisseur fictif déterministe, sans réseau ni coût.
+- **BYOK** : chaque cabinet enregistre sa propre clé, chiffrée en base (AES-256-GCM, clé
+  dédiée `AI_ENCRYPTION_KEY`), jamais retournée par l'API ni écrite dans un journal.
+- **Budget** : consommation par cabinet, fournisseur, modèle et module ; budget mensuel en
+  USD, plafond de requêtes, seuil d'alerte, blocage serveur. Sans tarif daté et vérifié,
+  le coût est affiché « indisponible » — aucun montant n'est inventé.
+- **Assistant comptable** (Cabinet → Assistant comptable) : propose un compte **du plan
+  comptable réel** de la société, avec catégorie, justification, confiance et statut
+  « À vérifier ». L'utilisateur accepte, corrige ou refuse ; une règle réutilisable peut
+  être mémorisée. **Aucune écriture comptable n'est jamais créée par l'IA.**
+- **Documentation** : [`docs/ai-architecture.md`](docs/ai-architecture.md),
+  [`docs/ai-providers.md`](docs/ai-providers.md),
+  [`docs/ai-security.md`](docs/ai-security.md),
+  [`docs/ai-cost-control.md`](docs/ai-cost-control.md),
+  [`docs/ai-account-suggestions.md`](docs/ai-account-suggestions.md).
+
+```bash
+# démonstration locale complète (fournisseur fictif, aucune clé)
+AI_ALLOW_SIMULATED=true npm run dev
+```
+
+> Aucun achat de crédits, aucun paiement et aucun appel externe ne sont effectués par le
+> logiciel tant qu'un cabinet n'a pas explicitement activé l'IA et configuré sa clé.
+
+## 16. Dépannage
 
 | Symptôme | Cause probable | Solution |
 |---|---|---|
@@ -425,7 +477,7 @@ des permissions et des tables séparées par module :
 Journaux : l'API écrit en JSON structuré (`pino`) sur la sortie standard ; en développement,
 `npm run dev:api` affiche chaque requête.
 
-## 16. Indépendance et licence
+## 17. Indépendance et licence
 
 Ce logiciel est **juridiquement et techniquement indépendant** des applications françaises du
 propriétaire (paie, comptabilité, facturation) : code, schéma, base et documentation propres.

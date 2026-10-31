@@ -202,3 +202,23 @@ curl -sI https://azharshahim.github.io/mauritius-compta/            # 200 text/h
 curl -s  https://azharshahim.github.io/mauritius-compta/ | grep -o '/mauritius-compta/assets/[^"]*'
 curl -sI https://azharshahim.github.io/mauritius-compta/<asset>     # 200 application/javascript
 ```
+
+
+## Intelligence artificielle (optionnelle)
+
+Le moteur IA est **désactivé par défaut par cabinet** : aucune clé n'est livrée et aucun
+appel externe n'a lieu sans configuration explicite.
+
+Variables à renseigner uniquement si l'IA doit être utilisée :
+
+| Variable | Rôle |
+|---|---|
+| `AI_ENCRYPTION_KEY` | clé de chiffrement des clés API (32 octets, hex ou base64). **Sans elle, l'enregistrement d'une clé est refusé (503).** |
+| `AI_ENCRYPTION_KEY_VERSION` | version de la clé (`v1`), utilisée pour la rotation |
+| `AI_CATALOGUE_PATH` | catalogue de fournisseurs alternatif |
+| `AI_ALLOW_SIMULATED` | autorise le fournisseur fictif (faux en production par défaut) |
+| `AI_TIMEOUT_MS`, `AI_MAX_RETRIES`, `AI_RATE_LIMIT_PER_MINUTE` | garde-fous d'appel |
+
+Aucune clé de fournisseur IA ne doit figurer dans `.env.example`, dans le dépôt ou dans un
+workflow GitHub : les clés sont saisies par chaque cabinet dans l'interface et chiffrées en
+base avec `AI_ENCRYPTION_KEY`.

@@ -140,3 +140,35 @@ Côté API (Vitest + PGlite, et PostgreSQL 16 en CI) : `apps/api/tests/cabinet.t
 
 > Rappel : jsdom **ne rend pas** la mise en page. Le rendu visuel, le tactile et le
 > comportement réel de Chrome sur Android/Windows restent à vérifier sur l'URL GitHub Pages.
+
+## 8. Clavier Android — non-régression (mission 5)
+
+Bug signalé sur Samsung : le clavier virtuel se refermait après **chaque caractère**.
+Cause : l'effet de focus du composant `Modal` dépendait de `onClose`, recréé à chaque rendu
+par les formulaires ; chaque frappe relançait l'effet et déplaçait le focus du champ vers la
+boîte de dialogue (jsdom reproduisait exactement ce flou).
+
+`apps/web/tests/input-focus.test.tsx` (10 tests) saisit caractère par caractère et vérifie,
+après chaque frappe, que :
+
+- `document.activeElement` est toujours le même nœud ;
+- le nœud est toujours dans le document (aucun démontage) ;
+- la valeur contrôlée suit bien la saisie.
+
+Formulaires couverts : connexion, recherche de dossier (avec rechargement), création et
+modification de dossier, création de tâche, éditeur d'écriture, recherche et création de
+compte, paramètres comptables, ouverture/fermeture de modale (focus rendu au déclencheur),
+tiroir de navigation mobile.
+
+> Limite honnête : ces tests s'exécutent dans **jsdom**, pas sur un appareil Android. Ils
+> prouvent l'absence de perte de focus et de démontage, pas le rendu du clavier virtuel.
+> Une validation manuelle sur Samsung reste nécessaire (voir rapport de mission 5).
+
+## 9. Écrans IA (mission 5)
+
+| Fichier | Tests | Couverture |
+|---|---|---|
+| `apps/web/tests/demo-engine.test.ts` | +5 (22 au total) | fournisseur fictif, refus de clé réelle, suggestion issue du plan comptable, absence d'écriture, règle réutilisée, compte hors plan refusé, interrupteur/plafond, réglages inaccessibles aux non-administrateurs |
+| `apps/web/tests/demo-app.test.tsx` | +3 (10 au total) | écran Paramètres IA (bandeau de simulation, aucun champ de clé actif), parcours proposition → acceptation → règle, erreur quand le module est désactivé |
+
+Aucun de ces tests n'appelle le réseau : `fetch` est espionné et doit rester inutilisé.

@@ -1,5 +1,57 @@
 # Journal des versions
 
+## Mauritius Business Suite — 31 octobre 2026 (mission 5)
+
+> Correctif Android + moteur IA multi-fournisseurs. Cœur comptable 0.1.1 conservé.
+
+### Corrigé — clavier Android (Samsung)
+
+- Le champ de saisie perdait le focus après **chaque caractère**, ce qui refermait le
+  clavier virtuel : l'effet de gestion du focus de `Modal` dépendait de `onClose`,
+  recréé à chaque rendu par les formulaires. Chaque frappe relançait l'effet et déplaçait
+  le focus vers la boîte de dialogue.
+- `onClose` est désormais conservé dans une ref : l'effet ne dépend plus que de `open` ;
+  le focus n'entre dans le dialogue que s'il est ailleurs, et ne revient à l'élément
+  déclencheur qu'à la fermeture.
+- Champs à 16 px sur mobile (évite le zoom automatique de Chrome Android) et hauteur de
+  modale en `dvh` quand le clavier est ouvert.
+- 10 tests de non-régression saisissent caractère par caractère dans tous les formulaires
+  (connexion, recherche dossier, création/modification de dossier, tâche, écriture,
+  plan comptable, paramètres comptables, tiroir mobile) et vérifient que le nœud garde le
+  focus et reste monté.
+
+### Ajouté — Mauritius AI Engine
+
+- Module `apps/api/src/modules/ai/` : interface `AIAdapter`, registre, adaptateurs OpenAI
+  (OpenAI, DeepSeek, Mistral, compatible), Gemini et fournisseur fictif déterministe.
+- Catalogue `apps/api/config/ai-providers.json` : URL, modèles, capacités et tarifs
+  externalisés ; aucun tarif inventé (`pricing: []`).
+- Clés API **BYOK** chiffrées en base (AES-256-GCM, clé dédiée, AAD cabinet + fournisseur,
+  rotation par version de clé), jamais retournées, jamais journalisées.
+- Budgets : consommation par cabinet/fournisseur/modèle/module, budget mensuel, plafond de
+  requêtes, seuil d'alerte, blocage serveur, coût exact en arithmétique entière, coût
+  « indisponible » sans tarif daté.
+- Sélection manuelle ou automatique (refusée sans tarifs vérifiés), fournisseur de secours,
+  timeouts, tentatives limitées, limitation de débit, journal d'audit et journal d'appels
+  sans contenu.
+- Cas d'usage opérationnel : **assistant de suggestion de compte** contraint au plan
+  comptable réel de la société, décision humaine (accepter / corriger / refuser), règles
+  réutilisables par dossier, **aucune écriture comptable créée**.
+- Écrans Cabinet → Paramètres IA et Cabinet → Assistant comptable, bilingues FR/EN.
+- Migration `0005_ai.sql` (additive) : `cabinets`, `ai_settings`, `ai_credentials`,
+  `ai_usage`, `ai_suggestions`, `ai_account_rules`, `ai_request_log`, `ai_prices`.
+- Démonstration GitHub Pages : moteur IA **entièrement simulé**, aucune clé acceptée, aucun
+  appel réseau, coût « indisponible », bandeau « Simulation IA — aucune API externe utilisée ».
+- Documentation : `docs/ai-architecture.md`, `ai-providers.md`, `ai-security.md`,
+  `ai-cost-control.md`, `ai-account-suggestions.md`, `docs/mission-5-report.md`.
+
+### Ajouté — préparé (non opérationnel)
+
+- Contrats des automatisations futures (OCR factures, relevés bancaires, rapprochement,
+  classement documentaire, anomalies de facturation, variables de paie, états financiers)
+  exposés et renvoyant explicitement `501 NOT_IMPLEMENTED`.
+- Mode « IA incluse dans l'abonnement » : colonne présente, contrainte à `false`.
+
 ## Mauritius Business Suite — 31 octobre 2026 (mission 4)
 
 > Ajout fonctionnel sans changement de version applicative (cœur comptable 0.1.1 conservé).

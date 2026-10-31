@@ -37,20 +37,21 @@ Principes :
   même façon (`apps/web/src/pages/cabinet`, `…/prepared`).
 - **Permissions par module** : `company_module_access` + défauts par rôle
   (`apps/api/src/lib/permissions.ts`). Un droit de paie n'implique jamais un droit comptable.
-- **Aucune migration destructive** : la mission 4 ajoute `0004_cabinet.sql` (colonnes
-  nullables, nouvelles tables, extension du vocabulaire de rôles). Les tables comptables de la
-  V0.1.1 et leurs triggers sont inchangés.
+- **Aucune migration destructive** : la mission 4 ajoute `0004_cabinet.sql` et la mission 5
+  `0005_ai.sql` (colonnes nullables, nouvelles tables, extension du vocabulaire de rôles).
+  Les tables comptables de la V0.1.1 et leurs triggers sont inchangés.
 
 ## 2. Domaines logiques PostgreSQL
 
 | Domaine | Tables | État |
 |---|---|---|
-| Core | `app_users`, `sessions`, `companies`, `company_members`, `company_settings`, `company_module_access` | opérationnel |
+| Core | `app_users`, `sessions`, `companies`, `company_members`, `company_settings`, `company_module_access`, `cabinets` | opérationnel |
 | Cabinet | `cabinet_tasks`, `cabinet_task_comments` (+ colonnes dossier de `companies`) | opérationnel |
 | Accounting | `accounts`, `journals`, `journal_entries`, `journal_lines`, `entry_sequences`, `accounting_periods`, `exchange_rates`, `attachments` | opérationnel (V0.1.1) |
 | Billing | `billing_documents` | table de fondation, **aucun moteur** |
 | Payroll | `payroll_employees` | table de fondation, **aucun moteur** |
-| Audit | `audit_log` (append-only), `login_attempts` | opérationnel |
+| Audit | `audit_log` (append-only), `login_attempts`, `ai_request_log` (métadonnées seules) | opérationnel |
+| AI | `ai_settings`, `ai_credentials`, `ai_usage`, `ai_suggestions`, `ai_account_rules`, `ai_prices` | opérationnel (fournisseurs, clés, budgets, suggestion de compte) |
 
 Migrations (toutes reproductibles, ordre lexicographique) :
 
@@ -59,12 +60,14 @@ Migrations (toutes reproductibles, ordre lexicographique) :
 3. `0003_hardening.sql` — intégrité, isolation multi-société, audit append-only.
 4. `0004_cabinet.sql` — **mission 4** : dossier (CRN, code client, responsable, archivage),
    rôles étendus, permissions par module, tâches et commentaires, fondations facturation/paie.
+5. `0005_ai.sql` — **mission 5** : cabinets, réglages IA par cabinet, clés chiffrées,
+   consommation et coûts, suggestions et règles apprises, catalogue de tarifs datés.
 
 ## 3. Espaces de l'interface
 
 | Espace | Route de base | Sous-menus |
 |---|---|---|
-| Cabinet | `/cabinet` | tableau de bord, dossiers clients, tâches & échéances, collaborateurs |
+| Cabinet | `/cabinet` | tableau de bord, dossiers clients, tâches & échéances, collaborateurs, assistant comptable, paramètres IA |
 | Comptabilité | `/accounting` | tableau de bord, plan comptable, écritures, grand livre, balance, états financiers, paramètres + 4 entrées annoncées (achats/OCR, banque, immobilisations, IFRS for SMEs) |
 | Facturation | `/billing` | tableau de bord + clients, devis, factures, avoirs, encaissements, e-invoicing MRA (annoncés) |
 | Paie & RH | `/payroll` | tableau de bord + salariés, contrats, variables, bulletins, congés, déclarations, transfert comptable (annoncés) |

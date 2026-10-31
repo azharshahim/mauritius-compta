@@ -95,3 +95,19 @@ Toutes les routes comptables existantes passent désormais par `requireCompany()
 - Le rôle `owner` ne peut pas être attribué depuis l'API membres (transfert de propriété non
   implémenté) : la valeur est conservée pour compatibilité V0.1.
 - Pas de MFA, pas de politique de mot de passe par cabinet, pas de SSO.
+
+
+## Intelligence artificielle (mission 5)
+
+| Opération | Rôle minimal | Contrôle |
+|---|---|---|
+| Lire/modifier les réglages IA, gérer les clés, tester une connexion, consulter la consommation | `cabinet_admin` (ou `owner`/`admin`) | `requireCabinetAdmin` → `403 AI_FORBIDDEN` ; cabinet étranger → `404 CABINET_NOT_FOUND` |
+| Demander une suggestion de compte | `accounting` en écriture sur la société | `requireModuleAccess(..., 'accounting', 'write')` |
+| Lire l'historique des suggestions et les règles | `accounting` en lecture | idem, `read` |
+| Accepter / corriger / refuser une suggestion, créer ou supprimer une règle | `accounting` en écriture | idem, `write` |
+| Fonctionnalités annoncées (OCR, banque, paie, facturation) | — | `501 NOT_IMPLEMENTED` après contrôle du module |
+
+Un comptable peut donc utiliser l'assistant sur ses dossiers sans jamais pouvoir lire ou
+modifier une clé API, ni changer le fournisseur, le budget ou les plafonds. Un gestionnaire
+paie n'a aucun accès IA sur la paie : les fonctionnalités de paie sont désactivées par défaut
+et non implémentées.
