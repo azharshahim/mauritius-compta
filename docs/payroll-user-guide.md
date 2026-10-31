@@ -63,35 +63,44 @@ réglementaire et bulletin final indisponibles.
 ## 7. Périodes et calcul
 
 1. **Périodes → Nouvelle période**, puis **Démarrer la collecte**.
-2. **Calculer** : le moteur applique les contrats datés, les variables validées et
-   les rubriques fixes. Le résultat est **blocked** car les règles réglementaires ne
-   sont pas validées.
-3. L’écran **Calculs & contrôles** montre base, brut, retenues, net arithmétique,
-   PAYE/CSG/NSF vides et les avertissements (heures supp., congé non valorisé).
+2. **Calculer** : le moteur applique les contrats datés, les variables validées,
+   les rubriques fixes, puis PAYE cumulatif, CSG, NSF, Training Levy et AR 2026
+   depuis les règles datées.
+3. L’écran **Calculs & contrôles** montre base, brut, PAYE, CSG/NSF, net après
+   cotisations et **net payable non calculé**. Le statut attendu est
+   `expert_review_pending` ; il devient `rules_incomplete` si une donnée ou une
+   règle manque (par exemple date de naissance ou CSG secteur public).
 4. Un second calcul est refusé (`PAYROLL_ALREADY_CALCULATED`) ; une réouverture
    administrative explicite crée une nouvelle version.
+5. **Approuver pour test** exige une note de revue de 10 caractères minimum. Le
+   statut devient `approved_for_test`, mais **le net payable reste vide**.
 
 ## 8. Bulletins de simulation
 
 1. **Bulletins → Générer la simulation** pour un calcul.
-2. Le numéro commence par `SIM-`. Le PDF porte sur chaque page
-   **SIMULATION / DRAFT — NOT FOR PAYMENT** et indique `Net payable : NON CALCULÉ`.
+2. Le numéro commence par `SIM-`. Le PDF bilingue porte sur chaque page
+   **SIMULATION / DRAFT — NOT FOR PAYMENT**, affiche PAYE, CSG/NSF salarié,
+   net après cotisations, CSG/NSF employeur, levy et coût employeur, et indique
+   `NET PAYABLE : NOT CALCULATED`.
 3. Aucun bouton de finalisation n’est proposé. L’API refuserait la finalisation.
 4. L’export CSV est également marqué simulation.
 
 ## 9. Paramètres et règles
 
-Le registre affiche des placeholders PAYE/CSG/NSF sans taux, sans source, au statut
-`UNVERIFIED`. Une règle ne peut devenir `EXPERT_VALIDATED` que par une action
-administrateur motivée, avec source, référence, date d’effet et taux documenté.
-Même validée, elle ne débloque pas le calcul : le moteur réglementaire n’est pas
-implémenté.
+Le registre affiche neuf règles **sourcées** (PAYE, sans EDF, CSG privée, NSF
+taux, NSF limites 2025 et 2026, Training Levy, AR 2026, bonus) au statut
+`RESEARCHED`, avec URL officielle, article, dates et version. Une règle ne peut
+devenir `EXPERT_VALIDATED` que par une action administrateur motivée, avec source,
+référence et empreinte. Même validée, la finalisation reste bloquée dans cette
+mission.
 
 ## 10. Déclarations et transfert comptable
 
-Ces écrans sont volontairement non opérationnels. Aucune déclaration MRA/PAYE/CSG/NSF
-n’est créée, aucun virement n’est émis, aucune écriture n’est générée. L’aperçu
-comptable indique `postingBlocked: true` et les comptes à configurer.
+L’écran **Périodes** permet de télécharger une **préparation** MRA au format CSV,
+marquée `PREPARATION ONLY - NOT SUBMITTED TO MRA`. Ce n’est pas un fichier officiel
+et aucune soumission n’est effectuée. Aucun virement n’est émis, aucune écriture
+n’est générée. L’aperçu comptable indique `postingBlocked: true` et les comptes à
+configurer.
 
 ## 11. Mobilité
 

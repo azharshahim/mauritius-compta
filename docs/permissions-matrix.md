@@ -73,7 +73,7 @@ Toutes les routes comptables existantes passent désormais par `requireCompany()
 | `GET /api/companies/:id/billing/*` | billing | `read` |
 | `POST /api/companies/:id/billing/documents` | billing | `write` → **501 NOT_IMPLEMENTED** |
 | `GET /api/companies/:id/payroll/*` | payroll | `read` |
-| `POST /api/companies/:id/payroll/*` | payroll | `write` → **501 NOT_IMPLEMENTED** |
+| `POST /api/companies/:id/payroll/*` | payroll | `write` → implémenté (mission 15), rôles paie requis |
 | `GET /api/companies/:id/accounts` (et toutes les routes comptables) | accounting | `read`/`write`/`admin` selon la route |
 | `GET /api/companies/:id/migration/profiles` | cabinet | `viewer` |
 | `GET/POST/PUT/DELETE /api/companies/:id/migration/*` (lots, modèles, import, rapport) | cabinet | `accountant` (société revérifiée, lot d'une autre société → 404) |

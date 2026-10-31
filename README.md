@@ -18,7 +18,7 @@
 > et ne crée aucun paiement. Facturation (mission 6) :
 > **opérationnelle** — clients, devis, factures, avoirs, encaissements, balance âgée et PDF A4
 > générés par le serveur ; **aucun taux de TVA n'est fourni** et l'e-invoicing MRA reste
-> désactivé. Paie & RH : **préparation opérationnelle** (mission 14) — dossiers salariés, contrats datés, temps, congés, variables, périodes, calcul arithmétique vérifiable et bulletins de **simulation** ; **aucun PAYE, CSG, NSF ni bulletin final**, aucune déclaration, aucun virement. L'assistant comptable V2
+> désactivé. Paie & RH : **préparation et moteur statutaire daté** (mission 15) — dossiers salariés, contrats datés, temps, congés, variables, périodes, PAYE cumulatif, EDF, CSG, NSF, Training Levy et AR 2026 calculés depuis des règles officielles sourcées ; **revue experte en attente**, bulletins de **simulation**, **aucun bulletin final**, aucune déclaration MRA, aucun virement. L'assistant comptable V2
 > propose des écritures équilibrées issues du plan comptable réel, exige une **validation
 > humaine** puis une **comptabilisation distincte** : aucune écriture n'est créée
 > automatiquement. Le moteur IA est **optionnel**, sans clé par défaut.
@@ -27,19 +27,22 @@
 > réalisés proposés puis comptabilisés une seule fois si les comptes de change sont
 > configurés, réévaluations et virements inter-devises **simulés uniquement**.
 > Voir [`docs/multi-currency.md`](docs/multi-currency.md).
-> **Paie & RH** (mission 14) : aucun taux mauricien n’est inventé, le registre
-> PAYE/CSG/NSF reste sans taux ni source, et le moteur réglementaire est **non
-> implémenté**. Les calculs sont arithmétiques et **bloqués** ; les bulletins portent
+> **Paie & RH** (mission 15) : les taux sont datés et sourcés (MRA, Gazette), jamais
+> inventés, et **aucune règle n’est validée par un expert**. Le moteur calcule PAYE,
+> CSG, NSF, Training Levy et AR 2026, mais le net payable reste vide et la
+> finalisation est bloquée ; les bulletins portent
 > « SIMULATION / DRAFT — NOT FOR PAYMENT ». Voir
-> [`docs/mission-14-report.md`](docs/mission-14-report.md) et
-> [`docs/payroll-rules-register.md`](docs/payroll-rules-register.md).
+> [`docs/mission-15-report.md`](docs/mission-15-report.md),
+> [`docs/regulatory-sources-register.md`](docs/regulatory-sources-register.md) et
+> [`docs/mauritius-regulatory-audit-dossier.md`](docs/mauritius-regulatory-audit-dossier.md).
 > Voir [`docs/suite-architecture.md`](docs/suite-architecture.md),
 > [`docs/cabinet-module.md`](docs/cabinet-module.md) et
 > [`docs/bank-import.md`](docs/bank-import.md).
 
 > ⚠️ **Version de démonstration.** L'application **n'est pas** conforme, en l'état, aux
-> obligations réglementaires mauriciennes : aucune règle fiscale (TVA, impôt sur les
-> sociétés, paie) n'est implémentée et **aucun taux n'est codé en dur**. Tous les états et
+> obligations réglementaires mauriciennes : les règles de paie sont implémentées et sourcées
+> mais **non approuvées par un expert**, la TVA et l’impôt sur les sociétés restent hors
+> périmètre ; **aucune conformité MRA n’est affirmée**. Tous les états et
 > exports portent la mention « DOCUMENT DE DÉMONSTRATION ». Voir
 > [`docs/mauritius-regulations/`](docs/mauritius-regulations/) et le
 > [registre de conformité](docs/mauritius-regulations/compliance-register.md).
@@ -398,7 +401,14 @@ données, **ni** secret, **ni** donnée réelle.
 | [`docs/supplier-payments.md`](docs/supplier-payments.md) | Règlements partiels/groupés, acomptes, avoirs, banque, concurrence |
 | [`docs/supplier-accounting.md`](docs/supplier-accounting.md) | Propositions comptables, comptes, contrôles, immutabilité |
 | [`docs/mission-12-report.md`](docs/mission-12-report.md) | Rapport final de mission 12 (lettrage, 16 points) |
-| [`docs/mission-14-report.md`](docs/mission-14-report.md) | Rapport final de mission 14 (paie & RH, 16 points) |
+| [`docs/mission-14-report.md`](docs/mission-14-report.md) | Rapport de mission 14 (fondation paie & RH) |
+| [`docs/mission-15-report.md`](docs/mission-15-report.md) | Rapport final de mission 15 (moteur statutaire, 16 points) |
+| [`docs/regulatory-sources-register.md`](docs/regulatory-sources-register.md) | Registre des sources officielles, statuts et approbation experte |
+| [`docs/mauritius-regulatory-audit-dossier.md`](docs/mauritius-regulatory-audit-dossier.md) | Dossier d’audit réglementaire en anglais, 18 chapitres |
+| [`docs/paye-calculation-specification.md`](docs/paye-calculation-specification.md) | Spécification PAYE cumulative, EDF et FSC bloquée |
+| [`docs/csg-nsf-training-levy.md`](docs/csg-nsf-training-levy.md) | CSG, NSF, Training Levy : taux, plafonds datés et limites |
+| [`docs/additional-remuneration-2026.md`](docs/additional-remuneration-2026.md) | AR 2026 (GN nº 7 de 2026), catégories et bases |
+| [`docs/payroll-statutory-test-cases.md`](docs/payroll-statutory-test-cases.md) | Cas de test A→R et couverture |
 | [`docs/payroll-existing-audit.md`](docs/payroll-existing-audit.md) | Audit du module paie existant et décisions d’extension |
 | [`docs/mauritius-payroll-architecture.md`](docs/mauritius-payroll-architecture.md) | Architecture, migration 0014, moteur déterministe et blocage réglementaire |
 | [`docs/employee-master-data.md`](docs/employee-master-data.md) | Données salariés, contrats datés, confidentialité bancaire |
@@ -478,7 +488,7 @@ des permissions et des tables séparées par module :
 | Cabinet | `/cabinet` | **opérationnel** : tableau de bord, dossiers clients, fiche dossier, tâches & échéances, collaborateurs |
 | Comptabilité | `/accounting` | **opérationnel** : fonctions V0.1.1 (plan comptable, écritures, grand livre, balance, états financiers, périodes, devises, audit) + **Banque & rapprochement** (import CSV/TSV/XLSX, rapprochement humain, propositions, rapport) + **Achats & Fournisseurs** (fournisseurs, factures d'achat, avoirs, règlements, échéancier par devise) |
 | Facturation | `/billing` | **opérationnel** : clients, devis, factures, avoirs, encaissements, balance âgée, PDF serveur ; e-invoicing MRA désactivé |
-| Paie & RH | `/payroll` | **préparation** : salariés, contrats, temps, congés, variables, périodes, calcul arithmétique bloqué, bulletins de simulation ; aucun PAYE/CSG/NSF, aucune déclaration |
+| Paie & RH | `/payroll` | **préparation et simulation** : salariés, contrats, temps, congés, variables, périodes, PAYE/CSG/NSF/levy sourcés, EDF, AR 2026, bulletins de simulation ; revue experte en attente, aucun bulletin final, aucune déclaration MRA |
 
 - Rôles : `cabinet_admin`, `manager`, `accountant`, `billing_clerk`, `payroll_manager`,
   `viewer` (+ `owner`/`admin` historiques) — voir

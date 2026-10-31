@@ -135,3 +135,25 @@ Windows/Linux via Node and PostgreSQL; Android via responsive browser. No APK,
 no iPhone-specific path, no PWA, no dark mode. The GitHub Pages build runs the
 same React screens against `demo/payroll.ts` in localStorage; it is clearly
 labelled as a demonstration and never reaches a server.
+
+## Mission 15 — statutory engine and audit trail
+
+Mission 15 extends the mission 14 payroll module without replacing it:
+
+- `apps/api/src/modules/payroll/statutory.ts` contains side-effect-free BigInt
+  functions (`computeCumulativePaye`, `computeCsg`, `computeNsf`,
+  `computeTrainingLevy`, `computeAdditionalRemuneration`,
+  `scaleBandThreshold`, …). They are shared by the API and the Pages demo.
+- `apps/api/sql/migrations/0015_statutory_engine.sql` adds the statutory employee
+  profile, dated EDF declarations, rule versions and statutory result fields.
+- `service.ts` resolves dated rules (`loadEffectiveRules`), blocks when a
+  required rule or input is missing, runs the pipeline
+  gross → PAYE → CSG/NSF employee → net → employer contributions → levy →
+  employer cost, and separates `calculated`, `review_required`,
+  `expert_review_pending`, `approved_for_test`, `rules_incomplete` and
+  `finalisation_blocked`.
+- `routes.ts` exposes settings, EDF declarations, MRA **preparation** documents,
+  review requests, test approval and accounting preview. No MRA submission
+  exists.
+- `apps/web/src/demo/payroll.ts` runs the same pure functions on fictional
+  employees A→R for January 2026; it never reaches the API.

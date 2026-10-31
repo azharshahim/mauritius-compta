@@ -1,5 +1,52 @@
 # Journal des versions
 
+## Mission 15 — Moteur de paie mauricien sourcé et audit réglementaire (31 octobre 2026)
+
+> Aucune fusion, aucun déploiement OVH, aucune donnée personnelle réelle, aucune
+> soumission MRA, aucun identifiant MRA, aucun virement. PR nº1 laissée ouverte en
+> brouillon ; `main` intact. Aucune conformité légale affirmée.
+
+### Ajouté
+
+- Migration `0015_statutory_engine.sql` : profil statutaire salarié, déclarations
+  EDF révisionnées, paramètres et métadonnées de sources des règles, colonnes de
+  résultat statutaire, statuts de calcul étendus, interrupteurs AR/bonus.
+- Moteur pur BigInt `statutory.ts` : PAYE cumulatif, sans EDF, CSG, NSF par
+  fréquence et date, Training Levy, AR 2026, bonus simulé, arrondis au rupee.
+- Seed de 9 règles officielles (`RESEARCHED`) avec URL, article, date de
+  publication, date d’accès, empreinte SHA-256, paramètres et version.
+- Pipeline de calcul complet (PAYE, CSG, NSF, levy, AR, coût employeur, net après
+  cotisations), traçabilité des versions et blocage si une règle manque.
+- EDF : historique, remplacements, refus d’antidatage, table dépendants
+  0/110/190/275/355 k, reliefs 1/13, 1/28, 1/56.
+- Statuts séparés : `rules_incomplete`, `review_required`, `expert_review_pending`,
+  `approved_for_test`, `finalisation_blocked` ; `net_payable` reste nul.
+- Boutons « approuver pour test », « valider la règle », préparation MRA CSV
+  explicitement `PREPARATION_ONLY` / `NOT_SUBMITTED`.
+- Démonstration navigateur utilisant le même module de formules : valeurs
+  statutaires, AR 2026, règles sourcées, aucun appel réseau.
+- 22 tests API mission 15 (dont le blocage de toute période postérieure au
+  30/06/2026), cas A→R documentés, migration testée ; suites complètes locales :
+  API 396 réussis / 11 ignorés (PostgreSQL CI), web 182 réussis.
+- Documentation : rapport mission 15, registre des sources, dossier d’audit
+  anglais 18 chapitres, spécification PAYE, CSG/NSF/levy, AR 2026, cas de test,
+  index comptable séparé.
+
+### Modifié
+
+- Les bulletins de simulation affichent les montants statutaires, le coût
+  employeur et les versions de règles, toujours avec « NOT FOR PAYMENT ».
+- Le tableau de bord expose le moteur comme implémenté mais non approuvé.
+- Les tests mission 14 sont alignés sur les statuts de revue (plus de faux
+  « moteur non implémenté »).
+
+### Sécurité et limites
+
+- Aucune soumission MRA, aucun identifiant réel, aucune donnée salarié réelle.
+- FSC, CSG public/PRB, PAYE administrateurs, AR au rendement, bonus s.54 et
+  déclarations MRA restent bloqués ou documentés comme non implémentés.
+- Validation physique Android/Chrome/lecteur d’écran non réalisée.
+
 ## Mission 14 — Paie & RH mauricienne : préparation et simulation (31 octobre 2026)
 
 > Aucune fusion, aucun déploiement OVH, aucune donnée personnelle réelle, aucun

@@ -1,86 +1,73 @@
-# Mauritian payroll rules register — status and open points
+# Mauritian Payroll Rules Register
 
-**This register is intentionally empty of rates.** No Mauritian PAYE, CSG, NSF,
-employer contribution, threshold, band, exemption, cap, leave entitlement or
-overtime premium has been invented by this software.
+Status: mission 15, 31 October 2026. **No rule is expert-approved.** The detailed source evidence is in [`regulatory-sources-register.md`](regulatory-sources-register.md); the audit narrative is in [`mauritius-regulatory-audit-dossier.md`](mauritius-regulatory-audit-dossier.md).
 
 ## 1. Registry contract
 
-Each rule stores:
+Each rule stores: `rule_code`, names EN/FR, legal source, source reference, official URL, article, publication date, access date, SHA-256 source fingerprint, effective `from`/`to`, employee/employer category, calculation basis, rate, threshold, cap, exemption, structured parameters, formula, rounding policy, implementation status, version, test cases, notes, reviewer and validation date.
 
-- `rule_code`, `name_en`, `name_fr`;
-- `legal_source`, `source_reference`, `source_url`;
-- `effective_from`, `effective_to`;
-- employee / employer category;
-- calculation basis, rate, thresholds, cap, exemption;
-- rounding policy;
-- status: `UNVERIFIED`, `RESEARCHED`, `REVIEW_REQUIRED`, `EXPERT_VALIDATED`,
-  `DEPRECATED`;
-- reviewer, validation date, version, test cases, notes;
-- `required_for_calculation`.
+Lifecycle: `UNVERIFIED → RESEARCHED → REVIEW_REQUIRED → EXPERT_VALIDATED → DEPRECATED`.
 
-Statuses are not decorative: only `EXPERT_VALIDATED` counts for calculation. A
-required rule that is `MISSING`, `UNVERIFIED`, `RESEARCHED`, `REVIEW_REQUIRED` or
-`DEPRECATED` blocks the period.
+Only `EXPERT_VALIDATED` allows `statutory_complete = true`. A required rule that is missing or unusable blocks the calculation and sets all statutory values to `null`; zero is never used as a silent substitute.
 
-## 2. Seeded placeholders
+## 2. Seeded rules (per company, status `RESEARCHED`)
 
-| Rule code | Name | Rate | Source | Status | Effect |
-|---|---|---|---|---|---|
-| PAYE | PAYE (placeholder) | `NULL` | none | `UNVERIFIED` | blocks calculation |
-| CSG | CSG (placeholder) | `NULL` | none | `UNVERIFIED` | blocks calculation |
-| NSF | NSF (placeholder) | `NULL` | none | `UNVERIFIED` | blocks calculation |
-| STATUTORY_ENGINE | Formula engine | n/a | none | `NOT_IMPLEMENTED` | always blocks statutory totals |
+| Rule code | Scope | Version/effective | Structured parameters | Blocks when absent? |
+|---|---|---|---|---|
+| `PAYE` | Cumulative progressive PAYE 2025/26 | from 2025-07-01 | bands 0/10/20%, monthly scaling | yes |
+| `PAYE_NO_EDF` | Flat 15% without EDF | from 2025-07-01 | threshold 38,462; election 20% not implemented | yes |
+| `CSG_PRIVATE` | Private-sector CSG | from 2021-09-01 | 1.5/3/3/6%, threshold 50,000 | yes |
+| `NSF_RATES` | Employee 1% / employer 2.5% | from 2021-09-01 | rates | yes |
+| `NSF_LIMITS` v1 | Min/max by frequency | 2025-07-01 → 2026-06-30 | five frequency tables | yes |
+| `NSF_LIMITS` v2 | Min/max by frequency | from 2026-07-01 | five frequency tables | yes (latest) |
+| `TRAINING_LEVY` | Employer-only 1.5%, no cap | from 2021-07-01 | rate, employer only | yes |
+| `ADDITIONAL_REMUNERATION` | AR 2026 | from 2026-01-01 | 635 / 17,110 / 3.7% / max 635 / 50,000 | only when AR switch is on |
+| `EOY_BONUS` | Bonus simulation | to confirm | 1/12, no automatic posting | no |
 
-No placeholder can be validated without an explicit source, reference, effective
-date and documented rate. The validation action requires an administrator and is
-audited with the reviewer id.
+Each row carries `source_url`, `source_reference`, `article`, `publication_date`, `accessed_at`, `source_fingerprint`, `rounding_policy`, `implementation_status` and `version`.
 
-## 3. Leave rules
+## 3. Versioning and non-retroactivity
 
-Leave types exist (`annual`, `sick`, `unpaid`, `maternity`, `paternity`, `other`) but
-no entitlement is seeded. Without a validated rule, the API returns
-`CONFIGURATION_REQUIRED` and `balance: null`. A rule created in the UI is
-`UNVERIFIED` and grants nothing.
+- A calculation selects the latest rule effective on the period **end date**.
+- A new version cannot start before or on the previous version: `PAYROLL_RULE_VERSION_OVERLAP`.
+- The previous `effective_to` is closed the day before the new start; historical calculations are never rewritten.
+- Each calculation stores a snapshot of rule code, version, status, source and rounding.
+- Changing a rule never recalculates a past period automatically. Recalculation requires an explicit administrative action with a new calculation version and audit event.
 
-## 4. Pay items
+## 4. Validation action
 
-Every pay item starts with `treatment_status = UNVERIFIED`. No taxable/accountable
-treatment is inferred. Categories separate earnings, reimbursements, deductions,
-advances and loan repayments. Amounts and rates can only come from a user entry.
+An administrator may mark a rule `EXPERT_VALIDATED` only with:
 
-## 5. Grouped questions for one professional review
+- explicit `confirm: true`;
+- a review note;
+- legal source and reference;
+- official URL and source fingerprint for required rules;
+- an explicit documented rate **or** structured parameters.
 
-These points should be answered in a single expert-accountant review, not asked
-step by step during implementation:
+The action is audited with reviewer id and timestamp. It is a local review record, not a legal opinion. No seed is pre-validated.
 
-1. Legal texts, official URLs and applicable dates for PAYE bands and allowances.
-2. CSG employee/employer rates, ceilings and exempt categories.
-3. NSF employee/employer rates, ceilings and contribution base.
-4. Definition of taxable gross, treatment of allowances, bonuses, reimbursements,
-   advances and benefits in kind.
-5. Rounding rules per contribution and per payslip total.
-6. Employee categories, expatriate and permit situations, and their evidence.
-7. Statutory identifiers that are actually required and how consent/retention
-   apply.
-8. Annual/sick/maternity/paternity leave entitlement, accrual, carry-over and
-   termination payout.
-9. Overtime premium, rest-day and public-holiday treatment.
-10. Payment-date, payslip-content and record-retention obligations.
-11. Required statutory returns, their format, frequency and e-filing channel.
-12. Whether and when a payroll accrual/provision entry may be proposed to accounting.
+## 5. Rounding policy
 
-Until every required answer is translated into a dated, tested rule and a verified
-statutory engine, the module remains a **preparation and simulation** tool.
+| Rule | Policy | Official support |
+|---|---|---|
+| PAYE | Down to the rupee on cumulative tax | MRA PAYE guide |
+| AR part-time 3.7% | Up to the rupee, capped | GN No. 7 of 2026 |
+| CSG | Exact to 4 decimals | **No official text found — review required** |
+| NSF | Exact to 4 decimals | **No official text found — review required** |
+| Training Levy | Exact to 4 decimals | **No official text found — review required** |
 
-## 6. Validation procedure (implemented)
+## 6. Leave rules and pay items
 
-1. An authorised payroll writer creates a rule: status `UNVERIFIED`.
-2. A researcher adds source, reference, dates, basis and rate.
-3. An administrator calls `POST /payroll/rules/:id/validate` with `confirm: true`.
-4. The API checks source, reference, effective date and a non-null rate for a
-   required rule; it stores reviewer and timestamp; audit event is written.
-5. The rule version is retained; a change should create a new version, never mutate
-   history silently.
-6. Even then, calculations stay blocked until the statutory engine is implemented
-   and tested. **No demo can bypass step 2 or 3.**
+Leave types exist but no entitlement is seeded. Without a validated rule, the API returns `CONFIGURATION_REQUIRED` and `balance: null`. Every pay item starts `UNVERIFIED`; taxable/accountable treatment is not inferred.
+
+## 7. Grouped questions for one professional review
+
+1. PAYE 2026/27 bands and 13th-month/bonus scaling.
+2. Fair Share Contribution.
+3. Director/board/pensioner PAYE.
+4. Public-sector/PRB CSG and CSG Income Allowance.
+5. CSG/NSF/levy rounding.
+6. WRA s.54 bonus and EOYGA 2001.
+7. AR piece-rate schedule and atypical workers.
+8. MRA Joint Monthly Return specification and deadlines.
+9. Overtime/leave valuation under WRA and Wages Regulation Orders 2026.
