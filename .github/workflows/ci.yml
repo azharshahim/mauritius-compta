@@ -123,3 +123,10 @@ jobs:
             -c "\d bank_transactions"
           PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d mauritius_compta_ci \
             -c "select count(*) as bank_tables from information_schema.tables where table_name in ('bank_accounts','bank_imports','bank_transactions','bank_matches','bank_rules','bank_proposals','bank_events');"
+          # Mission 10 : affectations exactes et statut partiel sur PostgreSQL réel
+          PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d mauritius_compta_ci \
+            -c "select column_name, data_type, is_nullable from information_schema.columns where table_name = 'bank_matches' and column_name in ('amount','billing_invoice_id','note','updated_at') order by column_name;"
+          PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d mauritius_compta_ci \
+            -c "select indexname from pg_indexes where tablename = 'bank_matches' and indexname like '%confirmed' order by indexname;"
+          PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d mauritius_compta_ci \
+            -c "select pg_get_constraintdef(oid) as tx_status_check from pg_constraint where conname = 'bank_transactions_status_check';"
