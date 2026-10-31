@@ -108,7 +108,7 @@ n'affiche pas de doublon FR+EN.
 | Typecheck API | 0 erreur |
 | Typecheck web | 0 erreur |
 | Build production / build démo | OK |
-| PostgreSQL réel (CI) | À vérifier après push (voir corps de PR) |
+| CI PostgreSQL réel (push) | run `41191757797` ✅ |
 | Chrome/Android réels | **Non exécutés** ; tests jsdom uniquement |
 
 Les 30 scénarios du brief sont couverts par la combinaison des tests API
@@ -123,7 +123,10 @@ correspondance détaillée figure dans `docs/test-report.md`.
   ré-application idempotente.
 - Les tests bancaires s'exécutent avec la suite API, y compris avec
   `TEST_DATABASE_URL` en CI.
-- Aucun résultat CI n'est revendiqué avant l'exécution post-push.
+- Résultats après push : CI push `41191757797` ✅, CI PR `41191761898` ✅,
+  Pages `41191757775` ✅ (build, déploiement et vérifications HTTPS).
+- Les tests PostgreSQL réels et les vérifications des sept tables `bank_*`
+  sont passés dans ces runs.
 
 ## 13. GitHub Pages et fichiers
 
