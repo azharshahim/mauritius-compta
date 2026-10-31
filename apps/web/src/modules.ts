@@ -36,6 +36,7 @@ export const MODULES: ModuleDefinition[] = [
       { to: '/cabinet/companies', key: 'nav.cabinet.dossiers', icon: '🗂' },
       { to: '/cabinet/tasks', key: 'nav.cabinet.tasks', icon: '✓' },
       { to: '/cabinet/team', key: 'nav.cabinet.team', icon: '👥' },
+      { to: '/cabinet/migration', key: 'nav.cabinet.migration', icon: '⇪' },
       { to: '/cabinet/ai-assistant', key: 'nav.cabinet.ai', icon: '✨' },
       { to: '/cabinet/ai-proposals', key: 'nav.cabinet.aiProposals', icon: '🧠' },
       { to: '/cabinet/settings/ai', key: 'nav.cabinet.aiSettings', icon: '⚙' },

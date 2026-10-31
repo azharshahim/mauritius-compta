@@ -21,6 +21,7 @@ import { cabinetRoutes } from './modules/cabinet/routes.js';
 import { billingRoutes } from './modules/billing/routes.js';
 import { payrollRoutes } from './modules/payroll/routes.js';
 import { aiRoutes } from './modules/ai/routes.js';
+import { migrationRoutes } from './modules/migration/routes.js';
 import type { UserRow } from './types.js';
 
 declare module 'fastify' {
@@ -182,6 +183,10 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
       payrollRoutes(secured, db);
       // Mauritius AI Engine: provider-agnostic orchestration, BYOK, budgets.
       aiRoutes(secured, db, config);
+      // Cabinet → Import & migration assistant: preview first, human
+      // confirmation, then a single transactional import through the posting
+      // service.
+      migrationRoutes(secured, db, config);
     });
   }, { prefix: '/api' });
 

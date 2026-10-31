@@ -130,3 +130,32 @@ navigation, focus jamais volé.
 
 **Non réalisé** (et non revendiqué) : aucune session navigateur réelle
 (Chrome/Android), aucun appareil physique, aucun test de charge.
+
+## Mission 8 — migration comptable
+
+| Suite | Commande | Résultat |
+| --- | --- | --- |
+| API | `npm test -w @mc/api` | **184 réussis, 4 ignorés** (concurrence PostgreSQL réel) |
+| Migrations | `apps/api/tests/migration.test.ts` | **23 réussis** |
+| Web | `npm test -w @mc/web` | **97 réussis** (10 fichiers) |
+| Typecheck | `npm run typecheck` | 0 erreur (API + web, strict) |
+| Build API | `npm run build -w @mc/api` | OK |
+| Build démo | `npm run build:demo` | OK (base `/mauritius-compta/`) |
+
+Nouveaux fichiers de test : `apps/api/tests/migration.test.ts` (23),
+`apps/web/tests/demo-migration.test.ts` (12), `apps/web/tests/migration-ui.test.tsx` (3).
+
+Les 20 scénarios obligatoires de la mission sont couverts numérotés 1 à 20 dans
+`migration.test.ts` : CSV FR, CSV EN (virgule et montants internationaux), XLSX
+multi-feuilles, colonnes obligatoires manquantes, dates invalides, montants
+négatifs, écriture déséquilibrée, compte inconnu puis correspondance explicite,
+doublon de compte, doublon d'écriture, réimport identique, reprise après
+interruption, balance d'ouverture via le moteur, multi-devises, société non
+autorisée, isolation des modèles par cabinet, lot multi-sociétés sans affectation
+automatique, import sans confirmation refusé, aucune écriture pendant l'aperçu,
+non-régression de la saisie manuelle. Trois cas supplémentaires couvrent les
+macros/extension refusées, le rapport CSV inerte et la convention SAP `S/H`.
+
+**Non réalisé** (et non revendiqué) : aucun test Chrome/Samsung réel pour cette
+mission, aucune compatibilité Sage/SAP certifiée, aucun import de fichier client
+réel. Les fichiers d'exemple sont fictifs.

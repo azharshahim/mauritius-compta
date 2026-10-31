@@ -1,0 +1,5 @@
+﻿Compte;Intitulé du compte;Date;Code journal;N° pièce;Libellé;Débit;Crédit;Devise
+1100;Clients — fictif;05/07/2025;BQ;SAGE-0001;Vente fictive;24 000,00;;MUR
+4000;Ventes — fictif;05/07/2025;BQ;SAGE-0001;Vente fictive;;24 000,00;MUR
+5000;Achats — fictif;10/07/2025;PUR;SAGE-0002;Achat fictif;9 500,00;;MUR
+2000;Fournisseurs — fictif;10/07/2025;PUR;SAGE-0002;Achat fictif;;9 500,00;MUR

@@ -1,0 +1,9 @@
+﻿Code;Intitulé;Type;Devise;Actif;Description
+8100;Banque secondaire — fictif;Actif;MUR;Oui;Fichier fictif de démonstration
+8110;Clients export — fictif;Actif;MUR;Oui;Fichier fictif de démonstration
+8200;Fournisseurs export — fictif;Passif;MUR;Oui;Fichier fictif de démonstration
+8300;Capital export — fictif;Capitaux propres;MUR;Oui;Fichier fictif de démonstration
+8400;Ventes export — fictif;Produit;MUR;Oui;Fichier fictif de démonstration
+8500;Achats export — fictif;Charge;MUR;Oui;Fichier fictif de démonstration
+8510;Loyer export — fictif;Charge;MUR;Oui;Fichier fictif de démonstration
+8999;Compte obsolète — fictif;Actif;MUR;Non;Fichier fictif de démonstration

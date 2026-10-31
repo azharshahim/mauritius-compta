@@ -249,6 +249,84 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
     },
   },
 
+  {
+    key: 'migration.jobs.summary',
+    module: 'cabinet',
+    readOnly: true,
+    title: { fr: 'État des imports de migration', en: 'Migration import status' },
+    description: {
+      fr: 'Résume les lots d’import (statut, contrôles) sans jamais écrire ni confirmer un import.',
+      en: 'Summarises import jobs (status, controls) without ever writing or confirming an import.',
+    },
+    args: z.object({ limit: z.number().int().min(1).max(20).optional() }).strict(),
+    async run(ctx, args) {
+      requireAccess(ctx, 'cabinet', 'read');
+      const limit = args.limit ?? 5;
+      const res = await ctx.db.query<{
+        id: string;
+        import_kind: string;
+        source: string;
+        status: string;
+        file_name: string;
+        row_count: number;
+        created_at: string;
+        summary: Record<string, unknown>;
+      }>(
+        `SELECT id, import_kind, source, status, file_name, row_count, created_at::text, summary
+           FROM migration_jobs
+          WHERE company_id = $1
+          ORDER BY created_at DESC LIMIT $2`,
+        [ctx.companyId, limit],
+      );
+      const open = res.rows.filter((r) => !['imported', 'failed', 'cancelled'].includes(r.status));
+      const errors = res.rows.reduce((total, row) => {
+        const summary = (row.summary ?? {}) as { errors?: unknown };
+        return total + (typeof summary.errors === 'number' ? summary.errors : 0);
+      }, 0);
+      return {
+        data: { jobs: res.rows, openJobs: open.length, errors },
+        rowCount: res.rows.length,
+        lines: {
+          fr: [
+            `Lots de migration : ${res.rows.length} (dont ${open.length} en cours de préparation).`,
+            ...res.rows.map(
+              (r) =>
+                `• ${r.file_name} — ${r.import_kind} / ${r.status} — ${r.row_count} ligne(s)`,
+            ),
+            errors > 0
+              ? `${errors} erreur(s) de contrôle recensée(s) : un import bloqué ne crée aucune donnée.`
+              : 'Aucune erreur de contrôle recensée sur les derniers lots.',
+            'L’assistant ne peut ni confirmer ni exécuter un import : seule la validation humaine dans l’écran Importation & migration le permet.',
+          ],
+          en: [
+            `Migration jobs: ${res.rows.length} (${open.length} being prepared).`,
+            ...res.rows.map(
+              (r) => `• ${r.file_name} — ${r.import_kind} / ${r.status} — ${r.row_count} row(s)`,
+            ),
+            errors > 0
+              ? `${errors} control error(s) recorded: a blocked import creates no data.`
+              : 'No control error recorded on the latest jobs.',
+            'The assistant can neither confirm nor run an import: only human validation in the Import & migration screen can.',
+          ],
+        },
+        actions: [
+          {
+            kind: 'navigation',
+            title: { fr: 'Ouvrir l’assistant de migration', en: 'Open the migration assistant' },
+            description: {
+              fr: 'Contrôler puis confirmer un import manuellement.',
+              en: 'Review and confirm an import manually.',
+            },
+            dataUsed: ['migration_jobs'],
+            expected: { fr: 'Aucun changement sans validation humaine.', en: 'No change without human validation.' },
+            risks: [],
+            examineHref: '/cabinet/migration',
+          },
+        ],
+      };
+    },
+  },
+
   // ------------------------------------------------------------- billing
   {
     key: 'billing.invoices.search',

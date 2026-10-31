@@ -20,6 +20,7 @@ import PreparedPage from './pages/prepared/Prepared';
 import AiSettingsPage from './pages/cabinet/AiSettings';
 import AiAssistantPage from './pages/cabinet/AiAssistant';
 import AiProposalsPage from './pages/cabinet/AiProposals';
+import MigrationPage from './pages/cabinet/Migration';
 import BillingOverviewPage from './pages/billing/Overview';
 import BillingCustomersPage from './pages/billing/Customers';
 import BillingDocumentsPage from './pages/billing/Documents';
@@ -188,6 +189,7 @@ export default function App() {
             <Route path="/cabinet/companies/:companyId/settings" element={<CompanySettingsPage />} />
             <Route path="/cabinet/tasks" element={<TasksPage />} />
             <Route path="/cabinet/team" element={<TeamPage />} />
+            <Route path="/cabinet/migration" element={<MigrationPage />} />
             <Route path="/cabinet/ai-assistant" element={<AiAssistantPage />} />
             <Route path="/cabinet/ai-proposals" element={<AiProposalsPage />} />
             <Route path="/cabinet/settings/ai" element={<AiSettingsPage />} />

@@ -365,6 +365,13 @@ données, **ni** secret, **ni** donnée réelle.
 | [`docs/mission-5-report.md`](docs/mission-5-report.md) | Rapport de mission 5 |
 | [`docs/mission-6-report.md`](docs/mission-6-report.md) | Rapport de mission 6 (facturation, assistant V2) |
 | [`docs/mission-7-report.md`](docs/mission-7-report.md) | Rapport de mission 7 (assistant universel, paramètres société, TVA) |
+| [`docs/mission-8-report.md`](docs/mission-8-report.md) | Rapport de mission 8 (migration comptable Excel/CSV, Sage, SAP) |
+| [`docs/migration-architecture.md`](docs/migration-architecture.md) | Architecture de la migration : flux, tables, idempotence, limites |
+| [`docs/migration-excel-csv.md`](docs/migration-excel-csv.md) | Formats, encodages, montants/dates, contrôles, fichiers fictifs |
+| [`docs/migration-sage.md`](docs/migration-sage.md) | Profils Sage expérimentaux : colonnes reconnues, limites, non-certification |
+| [`docs/migration-sap.md`](docs/migration-sap.md) | Profil SAP expérimental : champs, indicateur S/H, limites |
+| [`docs/migration-security.md`](docs/migration-security.md) | Permissions, isolation, limites anti-abus, injection CSV, audit |
+| [`docs/migration-user-guide.md`](docs/migration-user-guide.md) | Guide des six étapes et questions fréquentes |
 | [`docs/ai-universal-assistant.md`](docs/ai-universal-assistant.md) | Pastille IA, contexte serveur, orchestration, rétention |
 | [`docs/ai-tool-permissions.md`](docs/ai-tool-permissions.md) | Matrice outil × module × permission, anti-injection |
 | [`docs/company-settings.md`](docs/company-settings.md) | Référentiel unique des paramètres société |

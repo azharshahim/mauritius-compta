@@ -131,6 +131,7 @@ describe('universal assistant - context, tools and permissions', () => {
         'accounting.accounts.search',
         'accounting.proposal.prepare',
         'payroll.status',
+        'migration.jobs.summary',
       ]),
     );
   });

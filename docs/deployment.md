@@ -54,6 +54,9 @@ LOGIN_MAX_ATTEMPTS=8
 ALLOW_REGISTRATION=false
 STORAGE_DIR=/var/lib/mauritius-compta/storage
 MAX_UPLOAD_BYTES=10485760
+# Mission 8 : migration comptable (aucun service externe, aucun secret)
+MIGRATION_RETENTION_DAYS=30
+MIGRATION_MAX_ROWS=5000
 DEFAULT_LOCALE=fr
 ```
 
@@ -65,6 +68,12 @@ sudo -u mcapp npm run start      # node apps/api/dist/index.js
 ```
 
 L'API sert aussi le front compilé (`apps/web/dist`) avec repli SPA.
+
+La migration comptable n'exige **aucun** service supplémentaire : les fichiers
+sont analysés en mémoire, seules les feuilles parsées sont conservées en base
+avec une date d'expiration (`MIGRATION_RETENTION_DAYS`). Aucun répertoire de
+stockage de fichiers de migration n'est nécessaire ; les fichiers binaires ne
+sont jamais écrits sur disque.
 
 ## 4. service systemd
 

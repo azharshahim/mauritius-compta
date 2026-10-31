@@ -1,5 +1,65 @@
 # Journal des versions
 
+## Mauritius Business Suite — 31 octobre 2026 (mission 8)
+
+> Assistant de migration comptable (Excel/CSV, profils Sage et SAP expérimentaux).
+> Aucune seconde base comptable, aucun moteur comptable réécrit, aucune
+> certification Sage/SAP, aucune PR fusionnée.
+
+### Ajouté — Assistant de migration en six étapes
+
+- Cabinet → **Importation & migration** : source, téléversement, correspondances
+  de colonnes et de comptes, contrôles, prévisualisation, validation humaine.
+- Formats réels : `.csv`, `.tsv`, `.txt`, `.xlsx` multi-feuilles ; encodages
+  UTF-8/BOM, UTF-16 et Windows-1252 ; délimiteurs `,` `;` tabulation ; montants
+  et dates FR/EN ; **aucune macro ni formule exécutée**.
+- Profils **Sage 50 / 200 / Accounting** et **SAP** marqués *expérimental* :
+  fichiers d'export uniquement, aucune connexion, aucune compatibilité
+  universelle, aucun nom d'éditeur utilisé comme certification.
+- Plan comptable, soldes d'ouverture, journaux, écritures, clients, sociétés
+  (BRN/CRN) ; factures historiques et paie **non reprises**.
+- Contrôles bloquants vs avertissements : dates, montants, équilibre **par
+  écriture**, comptes inconnus/doublons, devises et taux, période comptable,
+  doublons et réimports. Aucune contrepartie fabriquée, aucun compte inventé.
+- Écritures et soldes d'ouverture créés **via le moteur comptable existant** :
+  numérotation, période ouverte, audit et balance inchangés.
+- Idempotence par clé `cabinet + société + source + document + empreinte` ;
+  réimport = tout ignoré, conflit = aucune écriture, jamais d'écrasement.
+- Modèles de correspondance par cabinet, société et type d'import.
+- Rapport d'import téléchargeable (CSV échappé contre l'injection), audit
+  `migration_events`, purge après `MIGRATION_RETENTION_DAYS` (30 jours).
+- Assistant IA : outil **lecture seule** `migration.jobs.summary` (API et démo)
+  qui explique les formats et l'état des lots sans jamais confirmer un import.
+
+### Ajouté — Démonstration Pages
+
+- Écran complet avec 9 fichiers d'exemple **fictifs** téléchargeables (plan
+  comptable CSV/XLSX, balance d'ouverture, journal FR/EN, exports Sage et SAP
+  fictifs, fichier volontairement incorrect), stockés dans `localStorage`
+  (schéma 6) avec bannière permanente et réinitialisation.
+- Parcours jsdom des six étapes, du blocage d'un fichier incorrect et de la
+  version anglaise ; aucun appel réseau, aucune donnée réelle.
+
+### Base de données et tests
+
+- Migration additive `0008_migration.sql` : `migration_jobs`, `uploads`,
+  `templates`, `findings`, `batches`, `records`, `events`.
+- API : **184 réussis, 4 ignorés** (dont 23 tests de migration) ;
+  web : **97 réussis** (10 fichiers) ; typecheck strict 0 erreur ; build démo OK.
+- CI PostgreSQL réel : les 20 scénarios obligatoires de migration sont exécutés
+  (CSV FR/EN, XLSX multi-feuilles, colonnes manquantes, dates invalides,
+  négatifs, déséquilibre, compte inconnu, doublons, réimport, reprise,
+  ouverture, multi-devises, permissions, lot multi-sociétés, confirmation,
+  absence d'écriture en prévisualisation, non-régression).
+
+### Corrigé pendant la mission
+
+- Détection de colonnes : score borné par mot et exclusion des en-têtes
+  d'indicateur (évite « Description » au lieu d'« Intitulé »).
+- Indicateur débit/crédit SAP : convention `S = Soll = débit`, `H = Haben =
+  crédit`, relu **par ligne** (test de non-régression dédié).
+- Parité démo/API : la liste des écritures expose la même colonne `source`.
+
 ## Mauritius Business Suite — 31 octobre 2026 (mission 7)
 
 > Assistant IA universel, paramètres société et TVA configurable. Aucun module

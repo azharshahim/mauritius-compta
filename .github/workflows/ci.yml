@@ -113,3 +113,8 @@ jobs:
           PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d mauritius_compta_ci -c "\dt"
           PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d mauritius_compta_ci \
             -c "select entry_no, status, description from journal_entries order by entry_no;"
+          # Mission 8 : les sept tables de migration existent sur PostgreSQL réel
+          PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d mauritius_compta_ci \
+            -c "\d migration_jobs"
+          PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d mauritius_compta_ci \
+            -c "select count(*) as migration_tables from information_schema.tables where table_name like 'migration_%';"

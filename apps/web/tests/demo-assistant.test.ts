@@ -59,6 +59,18 @@ describe('démonstration — assistant IA universel', () => {
     expect(answer).toMatch(/Aucune écriture comptable/);
   });
 
+  it('explique la migration sans jamais confirmer un import', () => {
+    const company = companyId();
+    const { conversation } = openConversation(company, 'cabinet');
+    const res = ask(company, conversation.id, 'Quels imports de migration sont en cours ?');
+    expect(res.toolRuns[0]!.tool).toBe('migration.jobs.summary');
+    const answer = res.messages[1]!.content;
+    expect(answer).toMatch(/CSV, TSV et XLSX/);
+    expect(answer).toMatch(/Sage 50\/200\/Accounting et SAP sont expérimentaux/);
+    expect(answer).toMatch(/ne peut ni confirmer ni exécuter un import/);
+    expect(res.messages[1]!.payload.actions[0]!.examineHref).toBe('/cabinet/migration');
+  });
+
   it('liste les tâches en retard sans jamais les modifier', () => {
     const company = companyId();
     const before = call<{ tasks: any[] }>('GET', `/companies/${company}/tasks`).tasks.length;

@@ -1,0 +1,3 @@
+﻿Company Code;G/L Account;Posting Date;Document Date;Document Number;Debit/Credit Indicator;Amount;Currency;Cost Center;Item Text
+FICTIF-01;1100;05.07.2025;04.07.2025;SAP-FICTIF-0001;D;36000,00;MUR;CC-FICTIF;Client fictif
+FICTIF-01;4000;05.07.2025;04.07.2025;SAP-FICTIF-0001;C;36000,00;MUR;CC-FICTIF;Client fictif

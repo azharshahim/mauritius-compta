@@ -1,0 +1,7 @@
+﻿Pièce;Date;Journal;Compte;Libellé;Débit;Crédit;Devise;Taux
+MIG-001;05/07/2025;BQ;1100;Facture fictive client;48 000,00;;MUR;
+MIG-001;05/07/2025;BQ;4000;Facture fictive client;;48 000,00;MUR;
+MIG-002;12/07/2025;BQ;5100;Loyer fictif de juillet;15 000,00;;MUR;
+MIG-002;12/07/2025;BQ;1010;Loyer fictif de juillet;;15 000,00;MUR;
+MIG-003;20/07/2025;OD;1100;Facture fictive en euros;1 000,00;;EUR;48,50000000
+MIG-003;20/07/2025;OD;4000;Facture fictive en euros;;1 000,00;EUR;48,50000000

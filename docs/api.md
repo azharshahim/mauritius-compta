@@ -147,6 +147,36 @@ Règles appliquées :
 | PUT | `/companies/:id/settings` | `{ settings: { … } }` |
 | GET | `/companies/:id/audit?limit=&offset=` | Journal des opérations (admin) |
 
+## Migration comptable (mission 8)
+
+Toutes les routes sont limitées au dossier `:id` et exigent au moins le rôle
+`accountant` (le catalogue `profiles` accepte `viewer`). Aucune écriture
+comptable n'est produite avant `POST …/import` avec `confirm: true`.
+
+| Méthode | Route | Description |
+|---|---|---|
+| GET | `/companies/:id/migration/profiles` | Profils, champs, types d'import, limites (taille, lignes, rétention) |
+| POST | `/companies/:id/migration/jobs` | Créer un lot : `{ source, importKind, fileName, contentBase64 | contentText, sheetName?, mapping?, options? }` |
+| GET | `/companies/:id/migration/jobs` | Historique des lots du dossier |
+| GET | `/companies/:id/migration/jobs/:jobId` | Vue complète : lot, feuilles, preview, findings, lignes groupées |
+| PUT | `/companies/:id/migration/jobs/:jobId/mapping` | `{ mapping?, accountMapping?, options?, sheetName? }` puis recalcul |
+| POST | `/companies/:id/migration/jobs/:jobId/import` | **Validation humaine** `{ confirm: true, note? }` ; sinon refus |
+| POST | `/companies/:id/migration/jobs/:jobId/cancel` | Annuler un lot non importé (204) |
+| DELETE | `/companies/:id/migration/jobs/:jobId` | Supprimer le lot et ses contenus (204) |
+| GET | `/companies/:id/migration/jobs/:jobId/report.csv` | Rapport CSV échappé (BOM UTF-8, séparateur `;`) |
+| GET/POST | `/companies/:id/migration/templates` | Modèles de correspondance du cabinet |
+| DELETE | `/companies/:id/migration/templates/:templateId` | Supprimer un modèle (204) |
+
+Réponse d'un lot : `{ job: { id, mapping, status, idempotency_key, report }, sheets,
+preview: { mapping, summary: { create, skip, errors, warnings }, blocksImport,
+totals, findings, rows: { entries } } }`.
+
+Erreurs stables : `MIGRATION_FILE_TOO_LARGE`, `MIGRATION_TOO_MANY_ROWS`,
+`UNSUPPORTED_FORMAT`, `MALFORMED_FILE`, `EMPTY_FILE`, `NO_TABLE`,
+`MIGRATION_INVALID_MAPPING`, `MIGRATION_SHEET_NOT_FOUND`, `MIGRATION_BLOCKED`
+(contrôles bloquants), `MIGRATION_ALREADY_IMPORTED`, `MIGRATION_JOB_NOT_FOUND`,
+`MIGRATION_TEMPLATE_EXISTS`, `MIGRATION_TEMPLATE_NOT_FOUND`.
+
 ## Rapports
 
 Toutes les routes de rapport acceptent `from`, `to` (défaut : exercice de la société) et

@@ -32,7 +32,14 @@ export interface PostingLine {
   credit?: string | number | null;
 }
 
-export type PostingSource = 'manual' | 'reversal' | 'opening' | 'billing' | 'ai';
+export type PostingSource =
+  | 'manual'
+  | 'reversal'
+  | 'opening'
+  | 'billing'
+  | 'ai'
+  | 'migration'
+  | 'migration_opening';
 
 export interface PostingParams {
   companyId: string;

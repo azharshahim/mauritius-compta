@@ -197,3 +197,18 @@ simulé : la démo renvoie `PDF_NOT_AVAILABLE_IN_DEMO` et l'écran l'affiche.
 
 Aucun test Chrome ni Android physique n'a été exécuté pour cette mission ; le
 clavier virtuel reste couvert par les tests de la mission 5.
+
+## 12. Mission 8 — migration (procédure jsdom et vérifications Pages)
+
+| Test | Ce qui est vérifié | Limite |
+| --- | --- | --- |
+| `tests/migration-ui.test.tsx` | six étapes, correspondances, contrôles, prévisualisation, confirmation explicite, écritures visibles, fichier incorrect bloqué, version anglaise et tableaux sans débordement forcé | jsdom |
+| `tests/demo-migration.test.ts` | profils, CSV/XLSX, ouverture, journal FR, Sage, SAP, fichier incorrect, idempotence, modèles, confirmation obligatoire, isolation société | simulation navigateur, aucun `fetch` |
+
+Procédure manuelle recommandée sur Samsung/Android (non exécutée dans cet
+environnement) : ouvrir la démo → Cabinet → Importation & migration → télécharger
+`plan-comptable-fictif.csv` → le téléverser → vérifier les correspondances →
+contrôles → prévisualisation → cocher puis confirmer → vérifier les écritures.
+
+Limite honnête : ces tests s'exécutent dans **jsdom** ; ils prouvent le parcours,
+pas le rendu du clavier virtuel ni le défilement tactile d'un appareil physique.

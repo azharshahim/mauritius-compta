@@ -75,6 +75,8 @@ Toutes les routes comptables existantes passent désormais par `requireCompany()
 | `GET /api/companies/:id/payroll/*` | payroll | `read` |
 | `POST /api/companies/:id/payroll/*` | payroll | `write` → **501 NOT_IMPLEMENTED** |
 | `GET /api/companies/:id/accounts` (et toutes les routes comptables) | accounting | `read`/`write`/`admin` selon la route |
+| `GET /api/companies/:id/migration/profiles` | cabinet | `viewer` |
+| `GET/POST/PUT/DELETE /api/companies/:id/migration/*` (lots, modèles, import, rapport) | cabinet | `accountant` (société revérifiée, lot d'une autre société → 404) |
 
 ## 5. Vérifications automatisées
 

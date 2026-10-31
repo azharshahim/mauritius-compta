@@ -25,6 +25,9 @@ const EnvSchema = z.object({
   ALLOW_REGISTRATION: bool(true),
   STORAGE_DIR: z.string().default('./storage'),
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
+  // Migration assistant: parsed uploads are purged after this many days.
+  MIGRATION_RETENTION_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+  MIGRATION_MAX_ROWS: z.coerce.number().int().min(10).max(20000).default(5000),
   DEFAULT_LOCALE: z.enum(['fr', 'en']).default('fr'),
 
   // ---------------------------------------------------------------- AI engine

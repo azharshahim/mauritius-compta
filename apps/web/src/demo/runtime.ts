@@ -18,6 +18,25 @@ import { toScaled4, scaled4ToString } from '../format';
 import { DEMO_SEED } from './seed-data';
 import { AI_PROVIDERS, providerByKey } from '../ai/catalogue';
 import { chooseAccount, normalise, ruleKeyword } from '../ai/simulation';
+import {
+  DEMO_MIGRATION_LIMITS,
+  cancelDemoJob,
+  createDemoJob,
+  deleteDemoJob,
+  deleteDemoTemplate,
+  demoJobView,
+  importDemoJob,
+  saveDemoTemplate,
+  updateDemoJob,
+  type DemoMigrationJob,
+  type DemoMigrationRecord,
+  type DemoMigrationTemplate,
+} from './migration';
+import {
+  IMPORT_FIELDS,
+  IMPORT_KIND_LABELS,
+  PROFILES,
+} from '../../../api/src/modules/migration/profiles';
 
 /* ------------------------------------------------------------------ types */
 
@@ -87,7 +106,7 @@ export interface DemoEntry {
   currency: string;
   exchange_rate: string;
   status: 'draft' | 'posted';
-  source: 'manual' | 'reversal' | 'billing' | 'ai';
+  source: 'manual' | 'reversal' | 'billing' | 'ai' | 'migration' | 'migration_opening';
   reversal_of_entry_id: string | null;
   posted_at: string | null;
   created_at: string;
@@ -526,6 +545,9 @@ export interface DemoState {
   entryProposals: DemoEntryProposal[];
   proposalLines: DemoProposalLine[];
   entryRules: DemoEntryRule[];
+  migrationJobs: DemoMigrationJob[];
+  migrationTemplates: DemoMigrationTemplate[];
+  migrationRecords: DemoMigrationRecord[];
 }
 
 /* ------------------------------------------------------------------ money */
@@ -1505,7 +1527,7 @@ function seedState(): DemoState {
   });
 
   return {
-    schema: 5,
+    schema: 6,
     users: [demoUser, ...collaborators],
     session: null,
     companies: [company, ...extraCompanies],
@@ -1564,6 +1586,9 @@ function seedState(): DemoState {
     entryProposals,
     proposalLines,
     entryRules,
+    migrationJobs: [],
+    migrationTemplates: [],
+    migrationRecords: [],
   };
 }
 
@@ -1589,7 +1614,7 @@ export function loadState(): DemoState {
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as DemoState;
-        if (parsed && parsed.schema === 5) {
+        if (parsed && parsed.schema === 6) {
           state = parsed;
           return state;
         }
@@ -1846,6 +1871,7 @@ function listEntries(companyId: string, query: URLSearchParams) {
       description: e.description,
       status: e.status,
       currency: e.currency,
+      source: e.source,
       journal_code: journal?.code ?? '',
       journal_name: journal?.name ?? '',
       total_debit: entryTotals(e),
@@ -4316,6 +4342,7 @@ const DEMO_ASSISTANT_TOOLS = [
   { key: 'cabinet.tasks.overdue', module: 'cabinet', readOnly: true },
   { key: 'cabinet.deadlines', module: 'cabinet', readOnly: true },
   { key: 'cabinet.companies', module: 'cabinet', readOnly: true },
+  { key: 'migration.jobs.summary', module: 'cabinet', readOnly: true },
   { key: 'accounting.accounts.search', module: 'accounting', readOnly: true },
   { key: 'accounting.trialBalance', module: 'accounting', readOnly: true },
   { key: 'accounting.proposal.prepare', module: 'accounting', readOnly: true },
@@ -4519,6 +4546,48 @@ function demoAssistantAnswer(companyId: string, text: string, locale: 'fr' | 'en
     data: {},
     actions: [],
   });
+
+  if (/\b(migration|importer|import|excel|csv|sage|sap|xlsx)\b/.test(t)) {
+    const jobs = s.migrationJobs.filter((j) => j.company_id === companyId);
+    const open = jobs.filter((j) => !['imported', 'failed', 'cancelled'].includes(j.status));
+    return {
+      content: fr
+        ? [
+            `Lots de migration dans ce dossier : ${jobs.length} (dont ${open.length} en préparation).`,
+            ...jobs.slice(0, 5).map(
+              (j) => `• ${j.file_name} — ${j.import_kind} / ${j.status} — ${j.row_count} ligne(s)`,
+            ),
+            'Formats réellement pris en charge : CSV, TSV et XLSX (aucune macro ni formule exécutée). Les profils Sage 50/200/Accounting et SAP sont expérimentaux : fichiers d’export uniquement, aucune connexion directe et aucune certification.',
+            'Les contrôles obligatoires (équilibre par écriture, comptes existants, dates, devises, doublons) sont déterministes et ne peuvent pas être contournés par une suggestion IA.',
+            'L’assistant ne peut ni confirmer ni exécuter un import : seule la validation humaine dans « Importation & migration » le permet. Aucune donnée n’a été créée par cette réponse.',
+          ].join('\n')
+        : [
+            `Migration jobs in this dossier: ${jobs.length} (${open.length} being prepared).`,
+            ...jobs.slice(0, 5).map(
+              (j) => `• ${j.file_name} — ${j.import_kind} / ${j.status} — ${j.row_count} row(s)`,
+            ),
+            'Formats actually supported: CSV, TSV and XLSX (no macro or formula is ever executed). Sage 50/200/Accounting and SAP profiles are experimental: export files only, no direct connection and no certification.',
+            'Mandatory controls (balance per entry, existing accounts, dates, currencies, duplicates) are deterministic and can never be bypassed by an AI suggestion.',
+            'The assistant can neither confirm nor run an import: only human validation in “Import & migration” can. No data was created by this answer.',
+          ].join('\n'),
+      toolKey: 'migration.jobs.summary',
+      toolStatus: 'ok',
+      data: { jobs: jobs.length, open: open.length },
+      actions: [
+        {
+          kind: 'navigation',
+          title: fr ? 'Ouvrir l’assistant de migration' : 'Open the migration assistant',
+          description: fr
+            ? 'Contrôler le fichier puis confirmer l’import manuellement.'
+            : 'Review the file then confirm the import manually.',
+          dataUsed: ['migration_jobs'],
+          expected: fr ? 'Aucun changement sans validation humaine.' : 'No change without human validation.',
+          risks: [],
+          examineHref: '/cabinet/migration',
+        },
+      ],
+    };
+  }
 
   if (/\b(paie|payroll|bulletin|payslip|paye|csg|nsf)\b/.test(t)) {
     return {
@@ -4938,6 +5007,76 @@ function demoAssistantAnswer(companyId: string, text: string, locale: 'fr' | 'en
           'No data was invented and no operation was executed.',
         ].join('\n'),
   );
+}
+
+/** Maps the stable codes thrown by the demo migration engine to API errors. */
+const MIGRATION_ERRORS: Record<string, [number, string]> = {
+  MIGRATION_JOB_NOT_FOUND: [404, 'Lot de migration introuvable.'],
+  MIGRATION_BLOCKED: [400, 'Des erreurs bloquent cet import : rien n’a été créé.'],
+  MIGRATION_ALREADY_IMPORTED: [409, 'Ce lot a déjà été importé.'],
+  MIGRATION_INVALID_MAPPING: [400, 'Correspondance de colonnes invalide.'],
+  MIGRATION_SHEET_NOT_FOUND: [400, 'Feuille Excel introuvable.'],
+  MIGRATION_FILE_TOO_LARGE: [400, 'Fichier trop volumineux (5 Mo maximum en démonstration).'],
+  MIGRATION_TOO_MANY_ROWS: [400, 'Trop de lignes (5 000 maximum en démonstration).'],
+  MIGRATION_EMPTY: [400, 'Le fichier est vide.'],
+  MIGRATION_IMPORT_FAILED: [409, 'Import interrompu : aucune donnée partielle n’a été conservée.'],
+  MIGRATION_TEMPLATE_NOT_FOUND: [404, 'Modèle introuvable.'],
+  UNSUPPORTED_FORMAT: [400, 'Format non pris en charge. Utilisez .csv, .tsv ou .xlsx.'],
+  MALFORMED_FILE: [400, 'Fichier illisible ou corrompu.'],
+  EMPTY_FILE: [400, 'Le fichier est vide.'],
+  NO_TABLE: [400, 'Aucun tableau exploitable dans ce fichier.'],
+  ENCRYPTED_FILE: [400, 'Classeur protégé ou illisible.'],
+  JOURNAL_NOT_FOUND: [400, 'Journal inexistant dans cette société.'],
+};
+
+function migrationGuard<T>(fn: () => T): T {
+  try {
+    return fn();
+  } catch (err) {
+    const code = (err as Error).message;
+    const mapped = MIGRATION_ERRORS[code];
+    if (mapped) throw new ApiError(mapped[0], code, mapped[1]);
+    throw err;
+  }
+}
+
+/** The demo import already mutates state; this keeps the persistence explicit. */
+function persistAfterImport(): void {
+  persist();
+}
+
+/** Injection-safe CSV of a demo import report (same rule as the API export). */
+function migrationReportCsv(job: DemoMigrationJob): string {
+  const escape = (value: string | number | null | undefined): string => {
+    if (value === null || value === undefined) return '';
+    let text = String(value);
+    if (!/^-?\d+(\.\d+)?$/.test(text) && /^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+    return /[",;\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  };
+  const report = job.report;
+  const rows: (string | number | null)[][] = [
+    ['Rapport d’importation (démonstration) / Import report (demo)'],
+    ['Champ', 'Valeur'],
+    ['Fichier / File', job.file_name],
+    ['Source', job.source],
+    ['Type', job.import_kind],
+    ['Statut / Status', job.status],
+    ['Clé d’idempotence', job.idempotency_key],
+  ];
+  if (report) {
+    rows.push(['Date / Date', report.importedAt]);
+    rows.push(['Créés / Created', report.counts.created]);
+    rows.push(['Ignorés / Skipped', report.counts.skipped]);
+    rows.push(['Conflits / Conflicts', report.counts.conflicts]);
+    if (report.totals) {
+      rows.push(['Total débit', report.totals.debit]);
+      rows.push(['Total crédit', report.totals.credit]);
+      rows.push(['Écart', report.totals.difference]);
+    }
+    for (const line of report.createdSamples) rows.push(['Créé', line]);
+    for (const conflict of report.conflicts) rows.push(['Conflit', conflict.message]);
+  }
+  return '\uFEFF' + rows.map((r) => r.map(escape).join(';')).join('\r\n') + '\r\n';
 }
 
 export function demoRequest<T>(method: Method, rawPath: string, body?: unknown): T {
@@ -5490,6 +5629,116 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
     // An archived dossier is read-only (same rule as the API).
     if (company.status === 'archived' && method !== 'GET') {
       throw new ApiError(409, 'COMPANY_ARCHIVED', 'Ce dossier est archivé : lecture seule');
+    }
+
+    // ---------------------------------------------------- import & migration
+    if (rest.startsWith('/migration')) {
+      const member = s.members.find(
+        (m) => m.company_id === companyId && m.user_id === requireUser().id,
+      );
+      const allowed = ['owner', 'admin', 'accountant', 'manager', 'cabinet_admin'];
+      if (!member || !allowed.includes(member.role)) {
+        throw new ApiError(403, 'FORBIDDEN', 'Rôle comptable requis pour la migration');
+      }
+      const guard = <R>(fn: () => R): R => migrationGuard(fn);
+
+      if (rest === '/migration/profiles' && method === 'GET') {
+        return {
+          profiles: PROFILES,
+          fields: IMPORT_FIELDS,
+          kinds: IMPORT_KIND_LABELS,
+          limits: DEMO_MIGRATION_LIMITS,
+          demo: true,
+        } as T;
+      }
+
+      if (rest === '/migration/jobs' && method === 'GET') {
+        return {
+          jobs: s.migrationJobs
+            .filter((j) => j.company_id === companyId)
+            .sort((a, b) => b.created_at.localeCompare(a.created_at)),
+        } as T;
+      }
+
+      if (rest === '/migration/jobs' && method === 'POST') {
+        return guard(() => {
+          const view = createDemoJob(s, requireUser(), companyId, payload as any);
+          audit(companyId, 'migration.job_created', 'migration_job', view.job.id, {
+            file: view.job.file_name,
+            kind: view.job.import_kind,
+          });
+          persistAfterImport();
+          return view as T;
+        });
+      }
+
+      if (rest === '/migration/templates' && method === 'GET') {
+        return { templates: s.migrationTemplates } as T;
+      }
+
+      if (rest === '/migration/templates' && method === 'POST') {
+        const template = saveDemoTemplate(s, payload as any);
+        persist();
+        return { template } as T;
+      }
+
+      const templateMatch = /^\/migration\/templates\/([0-9a-f-]{36})$/.exec(rest);
+      if (templateMatch && method === 'DELETE') {
+        return guard(() => {
+          deleteDemoTemplate(s, templateMatch[1]!);
+          persist();
+          return undefined as T;
+        });
+      }
+
+      const jobMatch = /^\/migration\/jobs\/([0-9a-f-]{36})(\/[a-z.]+)?$/.exec(rest);
+      if (jobMatch) {
+        const jobId = jobMatch[1]!;
+        const action = jobMatch[2] ?? '';
+        if (action === '' && method === 'GET') {
+          return guard(() => demoJobView(s, companyId, jobId) as T);
+        }
+        if (action === '/mapping' && method === 'PUT') {
+          return guard(() => {
+            const view = updateDemoJob(s, companyId, jobId, payload as any);
+            persist();
+            return view as T;
+          });
+        }
+        if (action === '/import' && method === 'POST') {
+          if (payload.confirm !== true) {
+            throw new ApiError(400, 'VALIDATION_ERROR', 'Confirmation explicite requise');
+          }
+          return guard(() => {
+            const report = importDemoJob(s, requireUser(), companyId, jobId);
+            audit(companyId, 'migration.imported', 'migration_job', jobId, report.counts);
+            persist();
+            return report as T;
+          });
+        }
+        if (action === '/cancel' && method === 'POST') {
+          return guard(() => {
+            cancelDemoJob(s, companyId, jobId);
+            audit(companyId, 'migration.cancelled', 'migration_job', jobId, {});
+            persist();
+            return undefined as T;
+          });
+        }
+        if (action === '' && method === 'DELETE') {
+          return guard(() => {
+            deleteDemoJob(s, companyId, jobId);
+            audit(companyId, 'migration.purged', 'migration_job', jobId, {});
+            persist();
+            return undefined as T;
+          });
+        }
+        if (action === '/report.csv' && method === 'GET') {
+          const job = s.migrationJobs.find((j) => j.id === jobId && j.company_id === companyId);
+          if (!job) throw new ApiError(404, 'MIGRATION_JOB_NOT_FOUND', 'Lot introuvable');
+          return migrationReportCsv(job) as T;
+        }
+      }
+      throw new ApiError(404, 'NOT_FOUND', 'Route de migration inconnue');
     }
 
     if (rest === '' && method === 'GET') {

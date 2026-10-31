@@ -58,6 +58,14 @@ jobs:
           grep -q 'Assistant IA' apps/web/dist/assets/*.js
           grep -q 'Paramètres société' apps/web/dist/assets/*.js
           grep -q 'Taux de démonstration 15' apps/web/dist/assets/*.js
+          # Mission 8 : assistant de migration et fichiers d'exemple fictifs
+          grep -q 'Assistant de migration comptable' apps/web/dist/assets/*.js
+          grep -q 'Importation & migration' apps/web/dist/assets/*.js
+          grep -q 'MIGRATION_BLOCKED' apps/web/dist/assets/*.js
+          test -f apps/web/dist/samples/plan-comptable-fictif.csv
+          test -f apps/web/dist/samples/export-sage-fictif.csv
+          test -f apps/web/dist/samples/export-sap-fictif.csv
+          test -f apps/web/dist/samples/fichier-volontairement-incorrect.csv
           grep -q 'VAT_SOURCE_REQUIRED' apps/web/dist/assets/*.js
           ls apps/web/dist/assets/AssistantPanel-*.js >/dev/null
           test -f apps/web/dist/404.html
@@ -125,6 +133,18 @@ jobs:
           grep -q 'Taux de démonstration 15' /tmp/app.js
           grep -q 'VAT_SOURCE_REQUIRED' /tmp/app.js
           grep -q 'SETTINGS_FINANCIAL_YEAR_LOCKED' /tmp/app.js
+          # Mission 8 : migration comptable réellement publiée, exemples servis
+          grep -q 'Assistant de migration comptable' /tmp/app.js
+          grep -q 'Importation & migration' /tmp/app.js
+          grep -q 'MIGRATION_BLOCKED' /tmp/app.js
+          grep -q 'fichier-volontairement-incorrect' /tmp/app.js
+          SAMPLE=$(curl -s -o /tmp/sample.csv -w '%{http_code}' "$BASE/samples/plan-comptable-fictif.csv")
+          echo "sample plan comptable fictif: $SAMPLE"
+          test "$SAMPLE" = "200"
+          grep -q 'FICTIF' /tmp/sample.csv
+          SAGESAMPLE=$(curl -s -o /tmp/sage.csv -w '%{http_code}' "$BASE/samples/export-sage-fictif.csv")
+          echo "sample Sage fictif: $SAGESAMPLE"
+          test "$SAGESAMPLE" = "200"
           # Le panneau est chargé à la demande (chunk séparé vérifié au build) ;
           # la pastille, elle, est dans le bundle principal.
           grep -q 'assistant-panel' /tmp/app.js

@@ -49,6 +49,9 @@ Caractéristiques techniques :
 
 - Connexion / déconnexion, inscription (société de démonstration créée automatiquement).
 - Tableau de bord, sélecteur de société, période analysée.
+- **Importation & migration** (mission 8) : six étapes, fichiers CSV/TSV/XLSX
+  fictifs téléchargeables, correspondances, contrôles, prévisualisation,
+  confirmation explicite, rapport ; stockage local uniquement (schéma 6).
 - Plan comptable : création, modification, désactivation, suppression contrôlée
   (`ACCOUNT_CODE_TAKEN`, `ACCOUNT_IN_USE`).
 - Journaux, écritures : brouillon, validation, modification/suppression d'un brouillon,
