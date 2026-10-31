@@ -1,5 +1,51 @@
 # Journal des versions
 
+## Mauritius Business Suite — 31 octobre 2026 (mission 9)
+
+> Import bancaire, rapprochement comptable et ergonomie Android. Aucune
+> connexion bancaire réelle, aucune donnée réelle, aucun fournisseur IA activé,
+> aucune PR fusionnée.
+
+### Ajouté — Banque & rapprochement
+
+- Comptes bancaires par société (banque, devise, référence masquée, compte
+  d'actif associé), historique des imports et transactions.
+- Import CSV, TSV/TXT et XLSX via le parseur de la mission 8 ; 20 codes
+  d'anomalie explicites, soldes et successions contrôlés en décimal exact.
+- Prévisualisation **sans écriture**, confirmation humaine obligatoire,
+  idempotence par empreinte fichier et par identifiant métier.
+- Rapprochement 1↔1 et 1↔n avec montant exact, fenêtre de dates, référence,
+  facture et libellé ; statuts distincts proposition/rapprochement.
+- Propositions comptables postées uniquement après acceptation humaine, via le
+  moteur `postEntryTx` existant ; aucun second moteur comptable.
+- Suggestions déterministes depuis le plan comptable actif, règles versionnées,
+  désactivables et auditables ; salaires proposés sans calcul de paie ; aucun
+  compte inventé. Aucun second moteur IA et aucun fournisseur activé.
+- Rapport de rapprochement (soldes, rapprochés/non rapprochés, écarts,
+  explications) et export CSV ; PDF bancaire **non implémenté**.
+- Cas complexes bloqués et documentés : n↔1, paiement partiel, écart de change.
+
+### Ajouté — Démonstration et mobile
+
+- Démo Pages : deux comptes fictifs (MUR/EUR), transactions, factures et
+  écritures existantes, quatre relevés fictifs (`releve-bancaire-fictif.csv`,
+  `.xlsx`, `-doublons.csv`, `-erreurs.csv`), règles et rapport local.
+- Le grand bandeau fixe bas est remplacé par un **indicateur Démo compact**
+  dans l'en-tête, toujours visible, avec explication et réinitialisation ;
+  l'identification complète reste sur l'écran de connexion. Safe-areas et
+  pastille IA préservées.
+- Schéma localStorage porté à **7**.
+
+### Base de données et tests
+
+- Migration additive `0009_bank.sql` : sept tables, audit append-only.
+- API : **213 réussis, 4 ignorés** (dont 28 tests bancaires) ; web :
+  **116 réussis** (12 fichiers) ; typecheck 0 erreur ; build démo OK.
+- CI PostgreSQL réel : vérification des sept tables `bank_*` après migration
+  et ré-application idempotente.
+- Limites non revendiquées : OFX/QFX, PDF/OCR, connexion bancaire, PDF du
+  rapport, tests Chrome/Android réels, conformité MRA.
+
 ## Mauritius Business Suite — 31 octobre 2026 (mission 8)
 
 > Assistant de migration comptable (Excel/CSV, profils Sage et SAP expérimentaux).

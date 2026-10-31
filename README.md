@@ -5,15 +5,19 @@
 **Facturation** et **Paie & RH**.
 
 > **État des modules** — Cabinet : opérationnel (dossiers, tâches, collaborateurs,
-> permissions). Comptabilité : moteur V0.1.1 conservé, inchangé. Facturation (mission 6) :
+> permissions). Comptabilité : moteur V0.1.1 conservé, inchangé ; **Banque &
+> rapprochement** (mission 9) importe des relevés CSV/TSV/XLSX fictifs, propose
+> des correspondances et exige une validation humaine — aucun rapprochement ni
+> aucune écriture automatique. Facturation (mission 6) :
 > **opérationnelle** — clients, devis, factures, avoirs, encaissements, balance âgée et PDF A4
 > générés par le serveur ; **aucun taux de TVA n'est fourni** et l'e-invoicing MRA reste
 > désactivé. Paie & RH : **préparée** (aucun calcul PAYE, CSG ou NSF). L'assistant comptable V2
 > propose des écritures équilibrées issues du plan comptable réel, exige une **validation
 > humaine** puis une **comptabilisation distincte** : aucune écriture n'est créée
 > automatiquement. Le moteur IA est **optionnel**, sans clé par défaut.
-> Voir [`docs/suite-architecture.md`](docs/suite-architecture.md) et
-> [`docs/cabinet-module.md`](docs/cabinet-module.md).
+> Voir [`docs/suite-architecture.md`](docs/suite-architecture.md),
+> [`docs/cabinet-module.md`](docs/cabinet-module.md) et
+> [`docs/bank-import.md`](docs/bank-import.md).
 
 > ⚠️ **Version de démonstration.** L'application **n'est pas** conforme, en l'état, aux
 > obligations réglementaires mauriciennes : aucune règle fiscale (TVA, impôt sur les
@@ -298,7 +302,7 @@ Sous Windows, les mêmes commandes fonctionnent (PowerShell ou `cmd.exe`).
 
 ```bash
 npm run typecheck   # TypeScript strict, API + interface
-npm test            # API + web : 152 tests passés | 4 ignorés (156)
+npm test            # API + web : 329 tests passés | 4 ignorés (333)
 npm run build       # build de production
 npm run verify      # les trois ci-dessus, dans l'ordre
 ```
@@ -310,10 +314,10 @@ npm run verify      # les trois ci-dessus, dans l'ordre
   `npm run test:e2e -w @mc/web` (voir [`docs/browser-tests.md`](docs/browser-tests.md)).
   Ces tests **n'ont pas pu être exécutés dans l'environnement d'audit** (aucun binaire
   Chromium disponible) : ne pas les considérer comme validés tant qu'ils n'ont pas tourné.
-- **Tests web (jsdom)** : `npm run test -w @mc/web` → **46 tests** (moteur de démonstration,
-  parcours des quatre espaces, moteur IA simulé, clavier Android, formatage). `npm test`
-  exécute l'API **et** le web : **152 tests passés | 4 ignorés (156)** au total ; les
-  4 ignorés sont les tests de concurrence qui exigent un vrai PostgreSQL (exécutés en CI).
+- **Tests web (jsdom)** : `npm run test -w @mc/web` → **116 tests** (démo comptable,
+  facturation, IA, migration, banque, clavier Android, formatage). `npm test` exécute
+  l'API **et** le web : **329 tests passés | 4 ignorés (333)** au total ; les 4 ignorés
+  sont les tests de concurrence qui exigent un vrai PostgreSQL (exécutés en CI).
 - **Clavier Android** : `apps/web/tests/input-focus.test.tsx` saisit caractère par caractère
   dans tous les formulaires et vérifie que le champ garde le focus et n'est jamais démonté.
 - Détail des scénarios et des résultats : [`docs/test-report.md`](docs/test-report.md),
@@ -365,6 +369,12 @@ données, **ni** secret, **ni** donnée réelle.
 | [`docs/mission-5-report.md`](docs/mission-5-report.md) | Rapport de mission 5 |
 | [`docs/mission-6-report.md`](docs/mission-6-report.md) | Rapport de mission 6 (facturation, assistant V2) |
 | [`docs/mission-7-report.md`](docs/mission-7-report.md) | Rapport de mission 7 (assistant universel, paramètres société, TVA) |
+| [`docs/mission-9-report.md`](docs/mission-9-report.md) | Rapport de mission 9 (banque, rapprochement, Android) |
+| [`docs/bank-import.md`](docs/bank-import.md) | Formats, colonnes, contrôles, idempotence, limites |
+| [`docs/bank-reconciliation.md`](docs/bank-reconciliation.md) | Rapprochement 1↔1/1↔n, cas bloqués, rapport |
+| [`docs/bank-ai-suggestions.md`](docs/bank-ai-suggestions.md) | Suggestions déterministes, règles, salaires, limites IA |
+| [`docs/bank-security.md`](docs/bank-security.md) | Permissions, isolation, audit, anti-abus |
+| [`docs/bank-user-guide.md`](docs/bank-user-guide.md) | Guide utilisateur de l'import et du rapprochement |
 | [`docs/mission-8-report.md`](docs/mission-8-report.md) | Rapport de mission 8 (migration comptable Excel/CSV, Sage, SAP) |
 | [`docs/migration-architecture.md`](docs/migration-architecture.md) | Architecture de la migration : flux, tables, idempotence, limites |
 | [`docs/migration-excel-csv.md`](docs/migration-excel-csv.md) | Formats, encodages, montants/dates, contrôles, fichiers fictifs |
@@ -419,7 +429,7 @@ des permissions et des tables séparées par module :
 | Espace | Route | État |
 |---|---|---|
 | Cabinet | `/cabinet` | **opérationnel** : tableau de bord, dossiers clients, fiche dossier, tâches & échéances, collaborateurs |
-| Comptabilité | `/accounting` | **opérationnel** : toutes les fonctions V0.1.1 (plan comptable, écritures, grand livre, balance, états financiers, périodes, devises, audit) |
+| Comptabilité | `/accounting` | **opérationnel** : fonctions V0.1.1 (plan comptable, écritures, grand livre, balance, états financiers, périodes, devises, audit) + **Banque & rapprochement** (import CSV/TSV/XLSX, rapprochement humain, propositions, rapport) |
 | Facturation | `/billing` | **opérationnel** : clients, devis, factures, avoirs, encaissements, balance âgée, PDF serveur ; e-invoicing MRA désactivé |
 | Paie & RH | `/payroll` | **préparé** : idem, aucun calcul PAYE/CSG/NSF |
 

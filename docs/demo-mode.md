@@ -51,7 +51,14 @@ Caractéristiques techniques :
 - Tableau de bord, sélecteur de société, période analysée.
 - **Importation & migration** (mission 8) : six étapes, fichiers CSV/TSV/XLSX
   fictifs téléchargeables, correspondances, contrôles, prévisualisation,
-  confirmation explicite, rapport ; stockage local uniquement (schéma 6).
+  confirmation explicite, rapport ; stockage local uniquement (schéma 7).
+- **Banque & rapprochement** (mission 9) : deux comptes fictifs (MUR `•••• 1234`,
+  EUR `•••• 9876`), transactions, factures/écritures existantes, import CSV/XLSX,
+  quatre relevés fictifs, rapprochement humain, propositions, règles et
+  rapport CSV. Aucun appel réseau, aucune connexion bancaire réelle.
+- **Indicateur Démo** : petit bouton permanent dans l'en-tête (explication +
+  réinitialisation) ; plus aucune barre fixe masquant les commandes Android.
+  L'identification complète reste visible sur l'écran de connexion.
 - Plan comptable : création, modification, désactivation, suppression contrôlée
   (`ACCOUNT_CODE_TAKEN`, `ACCOUNT_IN_USE`).
 - Journaux, écritures : brouillon, validation, modification/suppression d'un brouillon,

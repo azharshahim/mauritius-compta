@@ -24,7 +24,8 @@
     "verify": "npm run typecheck && npm test && npm run build",
     "test:e2e": "npm run test:e2e -w @mc/web",
     "build:demo": "npm run build:demo -w @mc/web",
-    "samples:migration": "node scripts/generate-migration-samples.mjs"
+    "samples:migration": "node scripts/generate-migration-samples.mjs",
+    "samples:bank": "node scripts/generate-bank-samples.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

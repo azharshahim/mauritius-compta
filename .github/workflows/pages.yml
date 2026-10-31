@@ -66,6 +66,14 @@ jobs:
           test -f apps/web/dist/samples/export-sage-fictif.csv
           test -f apps/web/dist/samples/export-sap-fictif.csv
           test -f apps/web/dist/samples/fichier-incorrect.csv
+          # Mission 9 : banque, rapprochement et quatre relevés fictifs
+          test -f apps/web/dist/samples/releve-bancaire-fictif.csv
+          test -f apps/web/dist/samples/releve-bancaire-fictif.xlsx
+          test -f apps/web/dist/samples/releve-bancaire-doublons.csv
+          test -f apps/web/dist/samples/releve-bancaire-erreurs.csv
+          grep -q 'Banque & rapprochement' apps/web/dist/assets/*.js
+          grep -q 'Libellé de paie détecté' apps/web/dist/assets/*.js
+          grep -q 'Import bloqué' apps/web/dist/assets/*.js
           grep -q 'VAT_SOURCE_REQUIRED' apps/web/dist/assets/*.js
           ls apps/web/dist/assets/AssistantPanel-*.js >/dev/null
           test -f apps/web/dist/404.html
@@ -138,10 +146,19 @@ jobs:
           grep -q 'Importation & migration' /tmp/app.js
           grep -q 'MIGRATION_BLOCKED' /tmp/app.js
           grep -q 'fichier-incorrect.csv' /tmp/app.js
+          # Mission 9 : import bancaire, rapprochement humain et mode démo compact
+          grep -q 'Banque & rapprochement' /tmp/app.js
+          grep -q 'releve-bancaire-fictif.csv' /tmp/app.js
+          grep -q 'Confirmer le rapprochement' /tmp/app.js
+          grep -q 'Libellé de paie détecté' /tmp/app.js
           SAMPLE=$(curl -s -o /tmp/sample.csv -w '%{http_code}' "$BASE/samples/plan-comptable-fictif.csv")
           echo "sample plan comptable fictif: $SAMPLE"
           test "$SAMPLE" = "200"
           grep -qi 'fictif' /tmp/sample.csv
+          BANKSAMPLE=$(curl -s -o /tmp/releve.csv -w '%{http_code}' "$BASE/samples/releve-bancaire-fictif.csv")
+          echo "sample relevé bancaire fictif: $BANKSAMPLE"
+          test "$BANKSAMPLE" = "200"
+          grep -qi 'fictif' /tmp/releve.csv
           SAGESAMPLE=$(curl -s -o /tmp/sage.csv -w '%{http_code}' "$BASE/samples/export-sage-fictif.csv")
           echo "sample Sage fictif: $SAGESAMPLE"
           test "$SAGESAMPLE" = "200"

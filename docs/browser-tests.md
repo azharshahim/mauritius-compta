@@ -212,3 +212,16 @@ contrôles → prévisualisation → cocher puis confirmer → vérifier les éc
 
 Limite honnête : ces tests s'exécutent dans **jsdom** ; ils prouvent le parcours,
 pas le rendu du clavier virtuel ni le défilement tactile d'un appareil physique.
+
+
+## Mission 9 — banque et Android
+
+- `apps/web/tests/bank-ui.test.tsx` (jsdom) : import du relevé fictif, synthèse,
+  confirmation obligatoire, liste des transactions, ouverture d'une transaction
+  de salaire, indicateur Démo compact dans `.topbar`, explication et reset.
+- Le test vérifie explicitement l'**absence** de `.demo-banner` fixe en bas.
+- Aucun test Chrome, Samsung ou Android physique n'a été exécuté pour cette
+  mission. La procédure manuelle de la section précédente reste applicable ;
+  elle doit être rejouée sur l'URL GitHub Pages après déploiement.
+- Limite : jsdom ne calcule pas les safe-areas ni le clavier virtuel. Les
+  garanties CSS sont vérifiées par revue, pas par un appareil réel.

@@ -77,12 +77,16 @@ Toutes les routes comptables existantes passent désormais par `requireCompany()
 | `GET /api/companies/:id/accounts` (et toutes les routes comptables) | accounting | `read`/`write`/`admin` selon la route |
 | `GET /api/companies/:id/migration/profiles` | cabinet | `viewer` |
 | `GET/POST/PUT/DELETE /api/companies/:id/migration/*` (lots, modèles, import, rapport) | cabinet | `accountant` (société revérifiée, lot d'une autre société → 404) |
+| `GET /api/companies/:id/bank/*` (comptes, imports, transactions, règles, rapport) | accounting | `viewer` |
+| `POST /api/companies/:id/bank/*` (compte, prévisualisation, import, match, proposition, règle, exclusion) | accounting | `accountant` ; `confirm: true` obligatoire pour un match ou une acceptation ; société revérifiée → 404 |
 
 ## 5. Vérifications automatisées
 
 | Test | Fichier | Ce qui est prouvé |
 |---|---|---|
 | Comptable → paie refusée | `apps/api/tests/cabinet.test.ts` | `403 MODULE_FORBIDDEN` |
+| Banque d'une autre société | `apps/api/tests/bank.test.ts` | `404 BANK_ACCOUNT_NOT_FOUND`, isolation sociétés/cabinets |
+| Confirmation absente | `apps/api/tests/bank.test.ts` | `400 BANK_CONFIRMATION_REQUIRED`, aucune écriture |
 | Paie → écriture comptable refusée | idem | `403` sur `POST /accounts` |
 | Dérogation ciblée | idem | `payroll: read` ajouté sans toucher `accounting: write` |
 | Non-membre | idem | `404 COMPANY_NOT_FOUND` sur tâche et dossier |

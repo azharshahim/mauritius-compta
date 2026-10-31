@@ -159,3 +159,58 @@ macros/extension refusées, le rapport CSV inerte et la convention SAP `S/H`.
 **Non réalisé** (et non revendiqué) : aucun test Chrome/Samsung réel pour cette
 mission, aucune compatibilité Sage/SAP certifiée, aucun import de fichier client
 réel. Les fichiers d'exemple sont fictifs.
+
+## Mission 9 — banque & rapprochement
+
+| Suite | Commande | Résultat |
+| --- | --- | --- |
+| API bancaire | `npx vitest run tests/bank.test.ts` | **28 réussis / 28** |
+| API complète | `npm test -w @mc/api` | **213 réussis, 4 ignorés** |
+| Web complète | `npm test -w @mc/web` | **116 réussis (12 fichiers)** |
+| Démo banque | `tests/demo-bank.test.ts` | **17 réussis** |
+| UI banque + indicateur démo | `tests/bank-ui.test.tsx` | **2 réussis** |
+| Typecheck | `npm run typecheck` | 0 erreur |
+| Build démo | `npm run build:demo` | OK, 4 relevés fictifs copiés |
+
+Correspondance avec les 30 scénarios du brief :
+
+| # | Scénario | Test(s) |
+|---|---|---|
+| 1 | CSV FR | API 1, démo 2, UI 1 |
+| 2 | CSV EN / dates EN | API 3 (`dayFirst:false`) |
+| 3 | XLSX réel | API 2, démo 4 |
+| 4 | TSV/TXT | API 27 |
+| 5 | débit/crédit | API 4 |
+| 6 | montant signé | API 5 |
+| 7 | date FR | API 1, 3 |
+| 8 | date EN | API 3 |
+| 9 | date impossible | démo 6, `migration.test.ts` |
+| 10 | doublon fichier | API 6, démo 5 |
+| 11 | réimport | API 7, démo 3 |
+| 12 | devise incompatible | API 8, démo 6 |
+| 13 | solde incohérent | API 9, démo 6 |
+| 14 | autorisations | API 10 (compte d'autrui), 28 (viewer en lecture seule) |
+| 15 | isolation sociétés | API 11, démo 17 |
+| 16 | isolation cabinets | API 12 |
+| 17 | rapprochement exact | API 13, démo 9 |
+| 18 | rapprochement ambigu | API 14 |
+| 19 | rapprochement refusé/exclu | API 15, démo 15 |
+| 20 | rapprochement validé | API 16, démo 10 |
+| 21 | 1↔n | API 17 |
+| 22 | n↔1 bloqué | API 18 |
+| 23 | paiement déjà comptabilisé | API 19 |
+| 24 | frais bancaires | API 20, démo 13 |
+| 25 | salaire sans paie | API 21, démo 14, UI 1 |
+| 26 | compte inexistant | API 22 |
+| 27 | proposition non comptabilisée | API 23, démo 12 |
+| 28 | idempotence | API 7, 24, démo 3 |
+| 29 | rapport d'écart | API 25, démo 16 |
+| 30 | régression missions 1–8 + UI Android | API 26 + suite complète 213/116, `bank-ui` indicateur compact |
+
+Notes : les 28 tests API couvrent aussi le TSV (27) et les droits `viewer`
+en lecture seule (28). Les cas UI Android restent des tests jsdom : aucun
+appareil physique n'a été utilisé.
+
+**Non réalisé** (et non revendiqué) : aucun test Chrome/Samsung/Android réel,
+aucune donnée bancaire réelle, aucun fichier client, aucune connexion bancaire,
+aucun fournisseur IA. Les fichiers de test sont fictifs.

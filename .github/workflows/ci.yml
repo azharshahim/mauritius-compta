@@ -118,3 +118,8 @@ jobs:
             -c "\d migration_jobs"
           PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d mauritius_compta_ci \
             -c "select count(*) as migration_tables from information_schema.tables where table_name like 'migration_%';"
+          # Mission 9 : les sept tables bancaires existent sur PostgreSQL réel
+          PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d mauritius_compta_ci \
+            -c "\d bank_transactions"
+          PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d mauritius_compta_ci \
+            -c "select count(*) as bank_tables from information_schema.tables where table_name in ('bank_accounts','bank_imports','bank_transactions','bank_matches','bank_rules','bank_proposals','bank_events');"

@@ -261,3 +261,20 @@ base avec `AI_ENCRYPTION_KEY`.
   la première ouverture).
 - La démo ne contacte aucun fournisseur IA : la conversation est servie par le
   backend navigateur, sur les mêmes routes que l'API.
+
+
+## Mission 9 — banque
+
+- Appliquer la migration additive `0009_bank.sql` via `npm run db:migrate`
+  (ne modifie aucune table comptable existante).
+- Sept tables ajoutées : `bank_accounts`, `bank_imports`, `bank_transactions`,
+  `bank_matches`, `bank_rules`, `bank_proposals`, `bank_events`.
+- Aucune variable d'environnement supplémentaire. L'import est limité par
+  `MAX_UPLOAD_BYTES` (et 8 Mo), 5 000 lignes et 20 comptes par société.
+- Aucun fichier de relevé n'est conservé ; aucune connexion bancaire, aucun
+  fournisseur IA n'est requis.
+- La démo Pages reste 100 % locale ; ne jamais publier de relevé réel sur la
+  démo.
+- Vérification recommandée après déploiement : `\d bank_transactions` et
+  `select count(*) from information_schema.tables where table_name like 'bank_%';`
+  doit renvoyer 7.
