@@ -18,6 +18,12 @@ import TeamPage from './pages/cabinet/Team';
 import PreparedPage from './pages/prepared/Prepared';
 import AiSettingsPage from './pages/cabinet/AiSettings';
 import AiAssistantPage from './pages/cabinet/AiAssistant';
+import AiProposalsPage from './pages/cabinet/AiProposals';
+import BillingOverviewPage from './pages/billing/Overview';
+import BillingCustomersPage from './pages/billing/Customers';
+import BillingDocumentsPage from './pages/billing/Documents';
+import BillingPaymentsPage from './pages/billing/Payments';
+import BillingAgingPage from './pages/billing/Aging';
 import { MODULES, LEGACY_REDIRECTS, moduleByPath, type ModuleKey } from './modules';
 import { Spinner } from './components/ui';
 import { DemoBanner } from './components/DemoBanner';
@@ -180,6 +186,7 @@ export default function App() {
             <Route path="/cabinet/tasks" element={<TasksPage />} />
             <Route path="/cabinet/team" element={<TeamPage />} />
             <Route path="/cabinet/ai-assistant" element={<AiAssistantPage />} />
+            <Route path="/cabinet/ai-proposals" element={<AiProposalsPage />} />
             <Route path="/cabinet/settings/ai" element={<AiSettingsPage />} />
 
             {/* Accounting (existing V0.1 screens, unchanged behaviour) */}
@@ -197,9 +204,20 @@ export default function App() {
             <Route path="/accounting/assets" element={<PreparedPage module="accounting" />} />
             <Route path="/accounting/ifrs" element={<PreparedPage module="accounting" />} />
 
-            {/* Billing & payroll: prepared spaces */}
-            <Route path="/billing" element={<PreparedPage module="billing" />} />
+            {/* Facturation opérationnelle (mission 6) */}
+            <Route path="/billing" element={<BillingOverviewPage />} />
+            <Route path="/billing/customers" element={<BillingCustomersPage />} />
+            <Route path="/billing/quotes" element={<BillingDocumentsPage kind="quote" />} />
+            <Route path="/billing/invoices" element={<BillingDocumentsPage kind="invoice" />} />
+            <Route path="/billing/credit-notes" element={<BillingDocumentsPage kind="credit_note" />} />
+            <Route path="/billing/payments" element={<BillingPaymentsPage />} />
+            <Route path="/billing/aging" element={<BillingAgingPage />} />
+
+            {/* E-invoicing MRA : annoncé, jamais activé. */}
+            <Route path="/billing/e-invoicing" element={<PreparedPage module="billing" />} />
             <Route path="/billing/:section" element={<PreparedPage module="billing" />} />
+
+            {/* Paie & RH : préparée seulement. */}
             <Route path="/payroll" element={<PreparedPage module="payroll" />} />
             <Route path="/payroll/:section" element={<PreparedPage module="payroll" />} />
 

@@ -83,7 +83,7 @@ export interface DemoEntry {
   currency: string;
   exchange_rate: string;
   status: 'draft' | 'posted';
-  source: 'manual' | 'reversal';
+  source: 'manual' | 'reversal' | 'billing' | 'ai';
   reversal_of_entry_id: string | null;
   posted_at: string | null;
   created_at: string;
@@ -221,6 +221,223 @@ export interface DemoAiRule {
   created_at: string;
 }
 
+
+// ------------------------------------------------- facturation (mission 6)
+
+export interface DemoBillingSettings {
+  company_id: string;
+  quote_prefix: string;
+  invoice_prefix: string;
+  credit_prefix: string;
+  numbering_policy: 'yearly' | 'continuous';
+  default_payment_terms: number;
+  default_currency: string;
+  vat_enabled: boolean;
+  vat_number: string | null;
+  legal_footer_fr: string | null;
+  legal_footer_en: string | null;
+  bank_details: string | null;
+}
+
+export interface DemoBillingCustomer {
+  id: string;
+  company_id: string;
+  name: string;
+  legal_name: string | null;
+  brn: string | null;
+  vat_number: string | null;
+  address_line1: string | null;
+  city: string | null;
+  postcode: string | null;
+  country: string;
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  preferred_currency: string | null;
+  payment_terms_days: number | null;
+  receivable_account_id: string | null;
+  notes: string | null;
+  is_active: boolean;
+  archived_at: string | null;
+  created_at: string;
+}
+
+export interface DemoBillingItem {
+  id: string;
+  company_id: string;
+  reference: string;
+  label_fr: string;
+  label_en: string | null;
+  description: string | null;
+  unit_price: string;
+  currency: string;
+  unit: string;
+  category: string | null;
+  vat_treatment: 'standard' | 'zero_rated' | 'exempt' | 'out_of_scope';
+  vat_rate_id: string | null;
+  revenue_account_id: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface DemoTaxRate {
+  id: string;
+  company_id: string;
+  code: string;
+  label: string;
+  rate: string;
+  effective_from: string;
+  effective_to: string | null;
+  verified: boolean;
+  source: string | null;
+  notes: string | null;
+}
+
+export type DemoDocKind = 'quote' | 'invoice' | 'credit_note';
+
+export interface DemoBillingDocument {
+  id: string;
+  company_id: string;
+  kind: DemoDocKind;
+  doc_no: string | null;
+  customer_id: string | null;
+  customer_name: string;
+  customer_brn: string | null;
+  issue_date: string;
+  due_date: string | null;
+  valid_until: string | null;
+  currency: string;
+  exchange_rate: string;
+  subtotal: string;
+  discount_total: string;
+  tax_total: string;
+  total_amount: string;
+  amount_paid: string;
+  credited_amount: string;
+  payment_status: 'unpaid' | 'partial' | 'paid' | 'overpaid';
+  status: string;
+  source_kind: string | null;
+  source_document_id: string | null;
+  notes: string | null;
+  terms: string | null;
+  sequence_year: number | null;
+  sequence_no: number | null;
+  issued_at: string | null;
+  locked_at: string | null;
+  accounting_entry_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DemoBillingLine {
+  id: string;
+  document_id: string;
+  company_id: string;
+  line_no: number;
+  item_id: string | null;
+  description: string;
+  quantity: string;
+  unit_price: string;
+  unit: string;
+  discount_pct: string;
+  vat_treatment: 'standard' | 'zero_rated' | 'exempt' | 'out_of_scope';
+  vat_rate: string | null;
+  vat_rate_id: string | null;
+  net_amount: string;
+  discount_amount: string;
+  tax_amount: string;
+  line_total: string;
+  revenue_account_id: string | null;
+}
+
+export interface DemoBillingPayment {
+  id: string;
+  company_id: string;
+  customer_id: string;
+  payment_no: string | null;
+  payment_date: string;
+  value_date: string | null;
+  amount: string;
+  currency: string;
+  exchange_rate: string;
+  method: string;
+  reference: string | null;
+  unallocated_amount: string;
+  status: 'recorded' | 'cancelled';
+  sequence_year: number | null;
+  sequence_no: number | null;
+  accounting_entry_id: string | null;
+  created_at: string;
+}
+
+export interface DemoBillingAllocation {
+  id: string;
+  payment_id: string;
+  invoice_id: string;
+  company_id: string;
+  amount: string;
+}
+
+export interface DemoEntryProposal {
+  id: string;
+  company_id: string;
+  source_kind: 'manual' | 'billing_invoice' | 'billing_credit_note' | 'billing_payment';
+  source_id: string | null;
+  journal_id: string | null;
+  entry_date: string;
+  reference: string | null;
+  description: string;
+  currency: string;
+  exchange_rate: string | null;
+  status: 'proposed' | 'validated' | 'posted' | 'rejected';
+  confidence: number | null;
+  rationale: string | null;
+  warnings: string[];
+  missing: string[];
+  rule_trace: string[];
+  provider: string | null;
+  model: string | null;
+  created_at: string;
+  updated_at: string;
+  validated_by: string | null;
+  validated_at: string | null;
+  rejected_by: string | null;
+  rejected_at: string | null;
+  rejection_note: string | null;
+  entry_id: string | null;
+}
+
+export interface DemoProposalLine {
+  id: string;
+  proposal_id: string;
+  line_no: number;
+  account_id: string;
+  description: string | null;
+  debit: string;
+  credit: string;
+  rule_id: string | null;
+}
+
+export interface DemoEntryRule {
+  id: string;
+  company_id: string;
+  rule_type: 'counterparty' | 'bank_label' | 'expense_category' | 'billing_item' | 'payment_method' | 'journal';
+  match_key: string;
+  match_label: string | null;
+  account_id: string | null;
+  counter_account_id: string | null;
+  journal_id: string | null;
+  account_side: 'debit' | 'credit';
+  priority: number;
+  version: number;
+  is_active: boolean;
+  previous_version_id: string | null;
+  notes: string | null;
+  use_count: number;
+  created_at: string;
+  validated_by: string | null;
+}
+
 export interface DemoState {
   schema: number;
   users: DemoUser[];
@@ -242,6 +459,18 @@ export interface DemoState {
   ai: DemoAiSettings;
   aiSuggestions: DemoAiSuggestion[];
   aiRules: DemoAiRule[];
+  billingSettings: DemoBillingSettings[];
+  billingCustomers: DemoBillingCustomer[];
+  billingItems: DemoBillingItem[];
+  taxRates: DemoTaxRate[];
+  billingDocuments: DemoBillingDocument[];
+  billingLines: DemoBillingLine[];
+  billingPayments: DemoBillingPayment[];
+  billingAllocations: DemoBillingAllocation[];
+  billingSequences: Record<string, number>;
+  entryProposals: DemoEntryProposal[];
+  proposalLines: DemoProposalLine[];
+  entryRules: DemoEntryRule[];
 }
 
 /* ------------------------------------------------------------------ money */
@@ -758,8 +987,447 @@ function seedState(): DemoState {
     created_at: now(),
   }));
 
+
+  /* ---------------------------------------------------- facturation (démo) */
+  const idByCode = new Map(accounts.filter((a) => a.company_id === company.id).map((a) => [a.code, a.id]));
+  const journalOfType = (type: string) => journals.find((j) => j.company_id === company.id && j.type === type);
+  const billingSettings: DemoBillingSettings = {
+    company_id: company.id,
+    quote_prefix: 'DEV',
+    invoice_prefix: 'FAC',
+    credit_prefix: 'AV',
+    numbering_policy: 'yearly',
+    default_payment_terms: 30,
+    default_currency: 'MUR',
+    vat_enabled: false,
+    vat_number: null,
+    legal_footer_fr:
+      'Document de démonstration — données fictives. Aucune valeur fiscale. E-invoicing MRA désactivé.',
+    legal_footer_en:
+      'Demonstration document — fictitious data. No tax value. MRA e-invoicing disabled.',
+    bank_details: 'Demo Bank — compte fictif 000000000 (MUR)',
+  };
+  const billingCustomers: DemoBillingCustomer[] = [
+    {
+      id: uid(),
+      company_id: company.id,
+      name: 'Rivière Noire Supplies Ltd (fictif)',
+      legal_name: 'Rivière Noire Supplies Ltd',
+      brn: 'DEMO-CL-0001',
+      vat_number: null,
+      address_line1: '4, Fictitious Road',
+      city: 'Port Louis',
+      postcode: '00000',
+      country: 'MU',
+      contact_name: 'Contact fictif A',
+      contact_email: 'contact.a@example.invalid',
+      contact_phone: null,
+      preferred_currency: 'MUR',
+      payment_terms_days: 15,
+      receivable_account_id: idByCode.get('1100') ?? null,
+      notes: 'Client de démonstration — toute ressemblance serait fortuite.',
+      is_active: true,
+      archived_at: null,
+      created_at: now(),
+    },
+    {
+      id: uid(),
+      company_id: company.id,
+      name: 'Mahébourg Consulting Ltd (fictif)',
+      legal_name: 'Mahébourg Consulting Ltd',
+      brn: 'DEMO-CL-0002',
+      vat_number: null,
+      address_line1: '9, Imaginary Avenue',
+      city: 'Mahébourg',
+      postcode: '00000',
+      country: 'MU',
+      contact_name: 'Contact fictif B',
+      contact_email: 'contact.b@example.invalid',
+      contact_phone: null,
+      preferred_currency: 'MUR',
+      payment_terms_days: 30,
+      receivable_account_id: idByCode.get('1100') ?? null,
+      notes: null,
+      is_active: true,
+      archived_at: null,
+      created_at: now(),
+    },
+  ];
+  const billingItems: DemoBillingItem[] = [
+    {
+      id: uid(),
+      company_id: company.id,
+      reference: 'SRV-CONS',
+      label_fr: 'Prestation de conseil (fictive)',
+      label_en: 'Consulting service (fictitious)',
+      description: 'Prestation fictive de conseil',
+      unit_price: '2500.0000',
+      currency: 'MUR',
+      unit: 'day',
+      category: 'services',
+      vat_treatment: 'zero_rated',
+      vat_rate_id: null,
+      revenue_account_id: idByCode.get('4000') ?? null,
+      is_active: true,
+      created_at: now(),
+    },
+    {
+      id: uid(),
+      company_id: company.id,
+      reference: 'SRV-SUPPORT',
+      label_fr: 'Support mensuel (fictif)',
+      label_en: 'Monthly support (fictitious)',
+      description: 'Support mensuel fictif',
+      unit_price: '8000.0000',
+      currency: 'MUR',
+      unit: 'month',
+      category: 'services',
+      vat_treatment: 'zero_rated',
+      vat_rate_id: null,
+      revenue_account_id: idByCode.get('4010') ?? null,
+      is_active: true,
+      created_at: now(),
+    },
+    {
+      id: uid(),
+      company_id: company.id,
+      reference: 'GOODS-FICT',
+      label_fr: 'Marchandise fictive',
+      label_en: 'Fictitious goods',
+      description: 'Article de démonstration',
+      unit_price: '1200.0000',
+      currency: 'MUR',
+      unit: 'unit',
+      category: 'goods',
+      vat_treatment: 'zero_rated',
+      vat_rate_id: null,
+      revenue_account_id: idByCode.get('4010') ?? null,
+      is_active: true,
+      created_at: now(),
+    },
+  ];
+  const taxRates: DemoTaxRate[] = [];
+  const seq: Record<string, number> = {};
+  const makeLine = (
+    documentId: string,
+    lineNo: number,
+    item: DemoBillingItem,
+    quantity: string,
+    description?: string,
+  ): DemoBillingLine => {
+    const net = mulMoney(amount(quantity), amount(item.unit_price));
+    return {
+      id: uid(),
+      document_id: documentId,
+      company_id: company.id,
+      line_no: lineNo,
+      item_id: item.id,
+      description: description ?? item.label_fr,
+      quantity,
+      unit_price: item.unit_price,
+      unit: item.unit,
+      discount_pct: '0.0000',
+      vat_treatment: item.vat_treatment,
+      vat_rate: null,
+      vat_rate_id: null,
+      net_amount: fmt(net),
+      discount_amount: '0.0000',
+      tax_amount: '0.0000',
+      line_total: fmt(net),
+      revenue_account_id: item.revenue_account_id,
+    };
+  };
+  const invoiceAId = uid();
+  const invoiceBId = uid();
+  const creditId = uid();
+  const quoteId = uid();
+  const paymentId = uid();
+  const billingLines: DemoBillingLine[] = [
+    makeLine(invoiceAId, 1, billingItems[1]!, '3.0000'),
+    makeLine(invoiceBId, 1, billingItems[0]!, '2.0000'),
+    makeLine(creditId, 1, billingItems[1]!, '1.0000'),
+    makeLine(quoteId, 1, billingItems[0]!, '4.0000'),
+  ];
+  const docTotals = (documentId: string) => {
+    const rows = billingLines.filter((l) => l.document_id === documentId);
+    const sum = (key: 'net_amount' | 'tax_amount' | 'line_total') =>
+      rows.reduce((acc, l) => acc + amount(l[key]), 0n);
+    return { subtotal: fmt(sum('net_amount')), tax: fmt(sum('tax_amount')), total: fmt(sum('line_total')) };
+  };
+  const billingDocuments: DemoBillingDocument[] = [
+    {
+      id: quoteId,
+      company_id: company.id,
+      kind: 'quote',
+      doc_no: 'DEV-DEMO-0001',
+      customer_id: billingCustomers[1]!.id,
+      customer_name: billingCustomers[1]!.name,
+      customer_brn: billingCustomers[1]!.brn,
+      issue_date: day(-5),
+      due_date: null,
+      valid_until: day(25),
+      currency: 'MUR',
+      exchange_rate: '1.00000000',
+      subtotal: docTotals(quoteId).subtotal,
+      discount_total: '0.0000',
+      tax_total: docTotals(quoteId).tax,
+      total_amount: docTotals(quoteId).total,
+      amount_paid: '0.0000',
+      credited_amount: '0.0000',
+      payment_status: 'unpaid',
+      status: 'sent',
+      source_kind: null,
+      source_document_id: null,
+      notes: 'Devis de démonstration (fictif).',
+      terms: 'Validité indicative — aucune condition réelle.',
+      sequence_year: Number(day(-5).slice(0, 4)),
+      sequence_no: 1,
+      issued_at: now(),
+      locked_at: now(),
+      accounting_entry_id: null,
+      created_at: now(),
+      updated_at: now(),
+    },
+    {
+      id: invoiceAId,
+      company_id: company.id,
+      kind: 'invoice',
+      doc_no: 'FAC-DEMO-0001',
+      customer_id: billingCustomers[0]!.id,
+      customer_name: billingCustomers[0]!.name,
+      customer_brn: billingCustomers[0]!.brn,
+      issue_date: day(-100),
+      due_date: day(-85),
+      valid_until: null,
+      currency: 'MUR',
+      exchange_rate: '1.00000000',
+      subtotal: docTotals(invoiceAId).subtotal,
+      discount_total: '0.0000',
+      tax_total: docTotals(invoiceAId).tax,
+      total_amount: docTotals(invoiceAId).total,
+      amount_paid: '10000.0000',
+      credited_amount: '8000.0000',
+      payment_status: 'partial',
+      status: 'partially_paid',
+      source_kind: null,
+      source_document_id: null,
+      notes: 'Facture émise, partiellement réglée puis partiellement créditée (fictif).',
+      terms: null,
+      sequence_year: Number(day(-100).slice(0, 4)),
+      sequence_no: 1,
+      issued_at: now(),
+      locked_at: now(),
+      accounting_entry_id: null,
+      created_at: now(),
+      updated_at: now(),
+    },
+    {
+      id: invoiceBId,
+      company_id: company.id,
+      kind: 'invoice',
+      doc_no: 'FAC-DEMO-0002',
+      customer_id: billingCustomers[1]!.id,
+      customer_name: billingCustomers[1]!.name,
+      customer_brn: billingCustomers[1]!.brn,
+      issue_date: day(-40),
+      due_date: day(10),
+      valid_until: null,
+      currency: 'MUR',
+      exchange_rate: '1.00000000',
+      subtotal: docTotals(invoiceBId).subtotal,
+      discount_total: '0.0000',
+      tax_total: docTotals(invoiceBId).tax,
+      total_amount: docTotals(invoiceBId).total,
+      amount_paid: '0.0000',
+      credited_amount: '0.0000',
+      payment_status: 'unpaid',
+      status: 'issued',
+      source_kind: null,
+      source_document_id: null,
+      notes: 'Facture non comptabilisée : la démonstration passe par une proposition validée par un humain.',
+      terms: null,
+      sequence_year: Number(day(-40).slice(0, 4)),
+      sequence_no: 2,
+      issued_at: now(),
+      locked_at: now(),
+      accounting_entry_id: null,
+      created_at: now(),
+      updated_at: now(),
+    },
+    {
+      id: creditId,
+      company_id: company.id,
+      kind: 'credit_note',
+      doc_no: 'AV-DEMO-0001',
+      customer_id: billingCustomers[0]!.id,
+      customer_name: billingCustomers[0]!.name,
+      customer_brn: billingCustomers[0]!.brn,
+      issue_date: day(-95),
+      due_date: null,
+      valid_until: null,
+      currency: 'MUR',
+      exchange_rate: '1.00000000',
+      subtotal: docTotals(creditId).subtotal,
+      discount_total: '0.0000',
+      tax_total: docTotals(creditId).tax,
+      total_amount: docTotals(creditId).total,
+      amount_paid: '0.0000',
+      credited_amount: '0.0000',
+      payment_status: 'unpaid',
+      status: 'issued',
+      source_kind: 'invoice',
+      source_document_id: invoiceAId,
+      notes: 'Avoir partiel sur FAC-DEMO-0001 (fictif).',
+      terms: null,
+      sequence_year: Number(day(-95).slice(0, 4)),
+      sequence_no: 1,
+      issued_at: now(),
+      locked_at: now(),
+      accounting_entry_id: null,
+      created_at: now(),
+      updated_at: now(),
+    },
+  ];
+  seq[`BILL-quote-${Number(day(-5).slice(0, 4))}`] = 1;
+  seq[`BILL-invoice-${Number(day(-100).slice(0, 4))}`] = 2;
+  seq[`BILL-credit_note-${Number(day(-95).slice(0, 4))}`] = 1;
+  seq[`BILL-payment-${Number(day(-90).slice(0, 4))}`] = 1;
+  const billingPayments: DemoBillingPayment[] = [
+    {
+      id: paymentId,
+      company_id: company.id,
+      customer_id: billingCustomers[0]!.id,
+      payment_no: 'REC-DEMO-0001',
+      payment_date: day(-90),
+      value_date: day(-90),
+      amount: '10000.0000',
+      currency: 'MUR',
+      exchange_rate: '1.00000000',
+      method: 'bank_transfer',
+      reference: 'DEMO-REF-0001',
+      unallocated_amount: '0.0000',
+      status: 'recorded',
+      sequence_year: Number(day(-90).slice(0, 4)),
+      sequence_no: 1,
+      accounting_entry_id: null,
+      created_at: now(),
+    },
+  ];
+  const billingAllocations: DemoBillingAllocation[] = [
+    { id: uid(), payment_id: paymentId, invoice_id: invoiceAId, company_id: company.id, amount: '10000.0000' },
+  ];
+  const entryRules: DemoEntryRule[] = [
+    {
+      id: uid(),
+      company_id: company.id,
+      rule_type: 'counterparty',
+      match_key: 'Fournitures Fictives SARL',
+      match_label: 'Fournitures Fictives SARL',
+      account_id: idByCode.get('5000') ?? null,
+      counter_account_id: idByCode.get('2000') ?? null,
+      journal_id: journalOfType('purchases')?.id ?? null,
+      account_side: 'debit',
+      priority: 10,
+      version: 1,
+      is_active: true,
+      previous_version_id: null,
+      notes: 'Règle créée lors d’une correction humaine de démonstration.',
+      use_count: 1,
+      created_at: now(),
+      validated_by: demoUser.id,
+    },
+    {
+      id: uid(),
+      company_id: company.id,
+      rule_type: 'bank_label',
+      match_key: 'FRAIS BANCAIRES DEMO',
+      match_label: 'Frais bancaires (relevé fictif)',
+      account_id: idByCode.get('6140') ?? null,
+      counter_account_id: idByCode.get('1010') ?? null,
+      journal_id: journalOfType('bank')?.id ?? null,
+      account_side: 'debit',
+      priority: 20,
+      version: 1,
+      is_active: true,
+      previous_version_id: null,
+      notes: null,
+      use_count: 0,
+      created_at: now(),
+      validated_by: demoUser.id,
+    },
+  ];
+  const seedProposalId = uid();
+  const entryProposals: DemoEntryProposal[] = [
+    {
+      id: seedProposalId,
+      company_id: company.id,
+      source_kind: 'manual',
+      source_id: null,
+      journal_id: journalOfType('purchases')?.id ?? null,
+      entry_date: day(-3),
+      reference: 'DEMO-ACHAT-0001',
+      description: 'Achat de fournitures de bureau (fictif)',
+      currency: 'MUR',
+      exchange_rate: '1.00000000',
+      status: 'proposed',
+      confidence: 0.72,
+      rationale: 'Charge au débit, dette fournisseur au crédit — proposition simulée, à vérifier humainement.',
+      warnings: [],
+      missing: ['Justificatif fictif non joint'],
+      rule_trace: ['Aucune règle validée ne correspondait initialement.'],
+      provider: 'simulated',
+      model: 'simulated-fictif',
+      created_at: now(),
+      updated_at: now(),
+      validated_by: null,
+      validated_at: null,
+      rejected_by: null,
+      rejected_at: null,
+      rejection_note: null,
+      entry_id: null,
+    },
+  ];
+  const proposalLines: DemoProposalLine[] = [
+    {
+      id: uid(),
+      proposal_id: seedProposalId,
+      line_no: 1,
+      account_id: idByCode.get('5000')!,
+      description: 'Fournitures de bureau',
+      debit: '2500.0000',
+      credit: '0.0000',
+      rule_id: null,
+    },
+    {
+      id: uid(),
+      proposal_id: seedProposalId,
+      line_no: 2,
+      account_id: idByCode.get('2000')!,
+      description: 'Dette fournisseur',
+      debit: '0.0000',
+      credit: '2500.0000',
+      rule_id: null,
+    },
+  ];
+  const todayIsoDate = day(0);
+  const todayDate = new Date(`${todayIsoDate}T00:00:00Z`);
+  const fyStartYear = todayDate.getUTCMonth() >= 6 ? todayDate.getUTCFullYear() : todayDate.getUTCFullYear() - 1;
+  const coversToday = periods.some(
+    (p) => p.company_id === company.id && p.status === 'open' && p.start_date <= todayIsoDate && p.end_date >= todayIsoDate,
+  );
+  if (!coversToday) {
+    periods.push({
+      id: uid(),
+      company_id: company.id,
+      name: `Exercice ${fyStartYear}/${fyStartYear + 1} (démo)`,
+      start_date: `${fyStartYear}-07-01`,
+      end_date: `${fyStartYear + 1}-06-30`,
+      status: 'open',
+    });
+  }
+
   return {
-    schema: 3,
+    schema: 4,
     users: [demoUser, ...collaborators],
     session: null,
     companies: [company, ...extraCompanies],
@@ -803,6 +1471,18 @@ function seedState(): DemoState {
     },
     aiSuggestions: [],
     aiRules: [],
+    billingSettings: [billingSettings],
+    billingCustomers,
+    billingItems,
+    taxRates,
+    billingDocuments,
+    billingLines,
+    billingPayments,
+    billingAllocations,
+    billingSequences: seq,
+    entryProposals,
+    proposalLines,
+    entryRules,
   };
 }
 
@@ -828,7 +1508,7 @@ export function loadState(): DemoState {
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as DemoState;
-        if (parsed && parsed.schema === 3) {
+        if (parsed && parsed.schema === 4) {
           state = parsed;
           return state;
         }
@@ -1970,6 +2650,1574 @@ function aiDecideInDemo(
   return { suggestion: suggestionView(s, suggestion), entryCreated: false, ruleCreated };
 }
 
+
+/* ------------------------------------------------------ facturation (démo)
+ *
+ * Ces fonctions reproduisent, dans le navigateur, les règles du backend :
+ * arithmétique décimale exacte, TVA jamais inventée, numérotation atomique
+ * (une seule page, donc séquentielle), verrouillage après émission, contrôle des
+ * avoirs et des affectations, et surtout : une proposition d'écriture n'est
+ * JAMAIS comptabilisée sans une action humaine distincte.
+ */
+
+function divRoundMoney(numerator: bigint, denominator: bigint): bigint {
+  const quotient = numerator / denominator;
+  const remainder = numerator % denominator;
+  const absRemainder = remainder < 0n ? -remainder : remainder;
+  if (absRemainder * 2n >= denominator) return quotient + (numerator < 0n ? -1n : 1n);
+  return quotient;
+}
+
+const PERCENT_FACTOR = 100n * 10_000n; // 100 x scale 4
+
+function applyPct(base: bigint, pctScaled4: bigint): bigint {
+  return divRoundMoney(base * pctScaled4, PERCENT_FACTOR);
+}
+
+function mulMoney(a: bigint, b: bigint): bigint {
+  return divRoundMoney(a * b, 10_000n);
+}
+
+function billingDates(offset: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString().slice(0, 10);
+}
+
+function billingSettingsOf(companyId: string): DemoBillingSettings {
+  const s = loadState();
+  const settings = s.billingSettings.find((x) => x.company_id === companyId);
+  if (settings) return settings;
+  const fresh: DemoBillingSettings = {
+    company_id: companyId,
+    quote_prefix: 'DEV',
+    invoice_prefix: 'FAC',
+    credit_prefix: 'AV',
+    numbering_policy: 'yearly',
+    default_payment_terms: 30,
+    default_currency: s.companies.find((c) => c.id === companyId)?.functional_currency ?? 'MUR',
+    vat_enabled: false,
+    vat_number: null,
+    legal_footer_fr: null,
+    legal_footer_en: null,
+    bank_details: null,
+  };
+  s.billingSettings.push(fresh);
+  return fresh;
+}
+
+function billingCustomerOf(companyId: string, customerId: string): DemoBillingCustomer {
+  const customer = loadState().billingCustomers.find(
+    (c) => c.id === customerId && c.company_id === companyId,
+  );
+  if (!customer) throw new ApiError(404, 'CUSTOMER_NOT_FOUND', 'Client introuvable');
+  return customer;
+}
+
+function billingCustomerView(c: DemoBillingCustomer) {
+  return {
+    id: c.id,
+    name: c.name,
+    legalName: c.legal_name,
+    brn: c.brn,
+    vatNumber: c.vat_number,
+    addressLine1: c.address_line1,
+    city: c.city,
+    postcode: c.postcode,
+    country: c.country,
+    contactName: c.contact_name,
+    contactEmail: c.contact_email,
+    contactPhone: c.contact_phone,
+    preferredCurrency: c.preferred_currency,
+    paymentTermsDays: c.payment_terms_days,
+    receivableAccountId: c.receivable_account_id,
+    notes: c.notes,
+    isActive: c.is_active,
+    archivedAt: c.archived_at,
+    createdAt: c.created_at,
+  };
+}
+
+function billingItemView(i: DemoBillingItem) {
+  return {
+    id: i.id,
+    reference: i.reference,
+    labelFr: i.label_fr,
+    labelEn: i.label_en,
+    description: i.description,
+    unitPrice: i.unit_price,
+    currency: i.currency,
+    unit: i.unit,
+    category: i.category,
+    vatTreatment: i.vat_treatment,
+    vatRateId: i.vat_rate_id,
+    revenueAccountId: i.revenue_account_id,
+    isActive: i.is_active,
+  };
+}
+
+function billingLineView(l: DemoBillingLine) {
+  return {
+    id: l.id,
+    lineNo: l.line_no,
+    itemId: l.item_id,
+    description: l.description,
+    quantity: l.quantity,
+    unitPrice: l.unit_price,
+    unit: l.unit,
+    discountPct: l.discount_pct,
+    vatTreatment: l.vat_treatment,
+    vatRate: l.vat_rate,
+    vatRateId: l.vat_rate_id,
+    netAmount: l.net_amount,
+    discountAmount: l.discount_amount,
+    taxAmount: l.tax_amount,
+    lineTotal: l.line_total,
+    revenueAccountId: l.revenue_account_id,
+  };
+}
+
+function billingOutstanding(doc: DemoBillingDocument): bigint {
+  const value = amount(doc.total_amount) - amount(doc.amount_paid) - amount(doc.credited_amount);
+  return value > 0n ? value : 0n;
+}
+
+function billingDocView(doc: DemoBillingDocument) {
+  const s = loadState();
+  const lines = s.billingLines
+    .filter((l) => l.document_id === doc.id && l.company_id === doc.company_id)
+    .sort((a, b) => a.line_no - b.line_no);
+  return {
+    id: doc.id,
+    kind: doc.kind,
+    number: doc.doc_no,
+    status: doc.status,
+    paymentStatus: doc.payment_status,
+    customerId: doc.customer_id,
+    customerName: doc.customer_name,
+    customerBrn: doc.customer_brn,
+    issueDate: doc.issue_date,
+    dueDate: doc.due_date,
+    validUntil: doc.valid_until,
+    currency: doc.currency,
+    exchangeRate: doc.exchange_rate,
+    subtotal: doc.subtotal,
+    discountTotal: doc.discount_total,
+    taxTotal: doc.tax_total,
+    total: doc.total_amount,
+    amountPaid: doc.amount_paid,
+    creditedAmount: doc.credited_amount,
+    outstanding: fmt(billingOutstanding(doc)),
+    sourceKind: doc.source_kind,
+    sourceDocumentId: doc.source_document_id,
+    notes: doc.notes,
+    terms: doc.terms,
+    issuedAt: doc.issued_at,
+    lockedAt: doc.locked_at,
+    accountingEntryId: doc.accounting_entry_id,
+    sequence: doc.sequence_no === null ? null : { year: doc.sequence_year, no: doc.sequence_no },
+    lines: lines.map(billingLineView),
+    createdAt: doc.created_at,
+    updatedAt: doc.updated_at,
+  };
+}
+
+function billingPaymentView(p: DemoBillingPayment) {
+  const s = loadState();
+  const allocations = s.billingAllocations
+    .filter((a) => a.payment_id === p.id)
+    .map((a) => {
+      const invoice = s.billingDocuments.find((d) => d.id === a.invoice_id);
+      return {
+        id: a.id,
+        invoiceId: a.invoice_id,
+        amount: a.amount,
+        invoiceNumber: invoice?.doc_no ?? null,
+        customerName: invoice?.customer_name ?? null,
+      };
+    });
+  return {
+    id: p.id,
+    number: p.payment_no,
+    customerId: p.customer_id,
+    paymentDate: p.payment_date,
+    valueDate: p.value_date,
+    amount: p.amount,
+    currency: p.currency,
+    exchangeRate: p.exchange_rate,
+    method: p.method,
+    reference: p.reference,
+    unallocatedAmount: p.unallocated_amount,
+    status: p.status,
+    accountingEntryId: p.accounting_entry_id,
+    allocations,
+    createdAt: p.created_at,
+  };
+}
+
+interface ComputedBillingLine {
+  itemId: string | null;
+  description: string;
+  quantity: bigint;
+  unitPrice: bigint;
+  unit: string;
+  discountPct: bigint;
+  vatTreatment: DemoBillingLine['vat_treatment'];
+  vatRate: bigint | null;
+  vatRateId: string | null;
+  netAmount: bigint;
+  discountAmount: bigint;
+  taxAmount: bigint;
+  lineTotal: bigint;
+  revenueAccountId: string | null;
+}
+
+function computeBillingDocument(
+  companyId: string,
+  issueDate: string,
+  rawLines: any[],
+  vatEnabled: boolean,
+): { lines: ComputedBillingLine[]; subtotal: bigint; discountTotal: bigint; taxTotal: bigint; total: bigint; warnings: string[] } {
+  const s = loadState();
+  if (!Array.isArray(rawLines) || rawLines.length === 0) {
+    throw new ApiError(400, 'VALIDATION_ERROR', 'Un document doit comporter au moins une ligne');
+  }
+  const items = s.billingItems.filter((i) => i.company_id === companyId);
+  const rates = s.taxRates.filter((r) => r.company_id === companyId);
+  const accounts = accountsOf(companyId);
+  const defaultRevenue = accounts.find((a) => a.code === '4010') ?? accounts.find((a) => a.type === 'revenue');
+  const warnings = new Set<string>();
+
+  const lines: ComputedBillingLine[] = rawLines.map((raw, index) => {
+    const item = raw.itemId ? items.find((i) => i.id === raw.itemId) : undefined;
+    if (raw.itemId && !item) {
+      throw new ApiError(400, 'VALIDATION_ERROR', `Article inconnu (ligne ${index + 1})`);
+    }
+    const description = String(raw.description ?? item?.label_fr ?? '').trim();
+    if (!description) {
+      throw new ApiError(400, 'VALIDATION_ERROR', `Description requise (ligne ${index + 1})`);
+    }
+    const quantity = amount(raw.quantity);
+    if (quantity <= 0n) throw new ApiError(400, 'VALIDATION_ERROR', 'Quantité strictement positive');
+    const rawPrice = raw.unitPrice ?? item?.unit_price;
+    if (rawPrice === undefined || rawPrice === null || rawPrice === '') {
+      throw new ApiError(400, 'VALIDATION_ERROR', 'Prix unitaire requis');
+    }
+    const unitPrice = amount(rawPrice);
+    if (unitPrice < 0n) throw new ApiError(400, 'VALIDATION_ERROR', 'Prix unitaire positif');
+    const discountPct = raw.discountPct === undefined || raw.discountPct === null ? 0n : amount(raw.discountPct);
+    if (discountPct > 10_000n) throw new ApiError(400, 'VALIDATION_ERROR', 'Remise maximale 100 %');
+
+    const treatment: DemoBillingLine['vat_treatment'] =
+      (raw.vatTreatment as DemoBillingLine['vat_treatment']) ?? item?.vat_treatment ?? 'standard';
+    const rateId: string | null = raw.vatRateId ?? item?.vat_rate_id ?? null;
+    let vatRate: bigint | null = null;
+
+    if (treatment === 'standard') {
+      if (!vatEnabled) {
+        throw new ApiError(
+          409,
+          'VAT_NOT_CONFIGURED',
+          'TVA non activée pour ce dossier : configurez un taux vérifié ou choisissez une qualification explicite',
+        );
+      }
+      if (!rateId) {
+        throw new ApiError(409, 'VAT_NOT_CONFIGURED', 'Aucun taux de TVA configuré : aucun taux n’est supposé');
+      }
+      const rate = rates.find((r) => r.id === rateId);
+      if (!rate) throw new ApiError(400, 'VAT_RATE_NOT_FOUND', 'Taux de TVA hors dossier');
+      if (!rate.verified) {
+        throw new ApiError(
+          409,
+          'VAT_RATE_NOT_VERIFIED',
+          `Le taux « ${rate.code} » n’est pas vérifié : un professionnel doit le confirmer`,
+        );
+      }
+      if (issueDate < rate.effective_from || (rate.effective_to && issueDate > rate.effective_to)) {
+        throw new ApiError(409, 'VAT_RATE_NOT_APPLICABLE', `Le taux « ${rate.code} » n’est pas applicable à cette date`);
+      }
+      vatRate = amount(rate.rate);
+    } else {
+      if (rateId) {
+        throw new ApiError(400, 'VALIDATION_ERROR', 'Une qualification non standard ne porte pas de taux');
+      }
+      warnings.add(
+        treatment === 'zero_rated'
+          ? 'VAT_ZERO_RATED: taux zéro — qualification à confirmer par le cabinet.'
+          : treatment === 'exempt'
+            ? 'VAT_EXEMPT: exonération — qualification à confirmer par le cabinet.'
+            : 'VAT_OUT_OF_SCOPE: hors champ — qualification à confirmer par le cabinet.',
+      );
+    }
+
+    const netAmount = mulMoney(quantity, unitPrice);
+    const discountAmount = applyPct(netAmount, discountPct);
+    const taxable = netAmount - discountAmount;
+    const taxAmount = vatRate === null ? 0n : applyPct(taxable, vatRate);
+    const revenueAccountId = raw.revenueAccountId ?? item?.revenue_account_id ?? defaultRevenue?.id ?? null;
+    if (!revenueAccountId) {
+      warnings.add('REVENUE_ACCOUNT_MISSING: aucun compte de produits associé à cette ligne.');
+    }
+    return {
+      itemId: raw.itemId ?? null,
+      description,
+      quantity,
+      unitPrice,
+      unit: String(raw.unit ?? item?.unit ?? 'unit'),
+      discountPct,
+      vatTreatment: treatment,
+      vatRate,
+      vatRateId: rateId,
+      netAmount,
+      discountAmount,
+      taxAmount,
+      lineTotal: taxable + taxAmount,
+      revenueAccountId,
+    };
+  });
+
+  return {
+    lines,
+    subtotal: lines.reduce((acc, l) => acc + l.netAmount, 0n),
+    discountTotal: lines.reduce((acc, l) => acc + l.discountAmount, 0n),
+    taxTotal: lines.reduce((acc, l) => acc + l.taxAmount, 0n),
+    total: lines.reduce((acc, l) => acc + l.lineTotal, 0n),
+    warnings: [...warnings],
+  };
+}
+
+function nextBillingNumber(companyId: string, kind: DemoDocKind | 'payment', year: number): { no: number; number: string; year: number } {
+  const s = loadState();
+  const settings = billingSettingsOf(companyId);
+  const key = `BILL-${kind}-${year}`;
+  const no = (s.billingSequences[key] ?? 0) + 1;
+  s.billingSequences[key] = no;
+  const prefix =
+    kind === 'quote'
+      ? settings.quote_prefix
+      : kind === 'credit_note'
+        ? settings.credit_prefix
+        : kind === 'payment'
+          ? 'REC'
+          : settings.invoice_prefix;
+  const number =
+    settings.numbering_policy === 'continuous'
+      ? `${prefix}-${String(no).padStart(4, '0')}`
+      : `${prefix}-${year}-${String(no).padStart(4, '0')}`;
+  return { no, number, year };
+}
+
+function billingYear(companyId: string, date: string): number {
+  return billingSettingsOf(companyId).numbering_policy === 'continuous' ? 0 : Number(date.slice(0, 4));
+}
+
+function refreshInvoiceBalance(companyId: string, invoiceId: string): void {
+  const s = loadState();
+  const invoice = s.billingDocuments.find((d) => d.id === invoiceId && d.company_id === companyId);
+  if (!invoice) return;
+  const paid = s.billingAllocations
+    .filter((a) => a.invoice_id === invoiceId)
+    .filter((a) => s.billingPayments.find((p) => p.id === a.payment_id && p.status === 'recorded'))
+    .reduce((acc, a) => acc + amount(a.amount), 0n);
+  const credited = s.billingDocuments
+    .filter(
+      (d) =>
+        d.company_id === companyId &&
+        d.kind === 'credit_note' &&
+        d.source_document_id === invoiceId &&
+        d.status === 'issued',
+    )
+    .reduce((acc, d) => acc + amount(d.total_amount), 0n);
+  const total = amount(invoice.total_amount);
+  const settled = paid + credited;
+  invoice.amount_paid = fmt(paid);
+  invoice.credited_amount = fmt(credited);
+  invoice.payment_status = settled >= total ? (settled > total ? 'overpaid' : 'paid') : settled > 0n ? 'partial' : 'unpaid';
+  if (!['draft', 'cancelled'].includes(invoice.status)) {
+    invoice.status = settled >= total ? 'paid' : settled > 0n ? 'partially_paid' : 'issued';
+  }
+  invoice.updated_at = now();
+}
+
+function billingDuplicateCheck(
+  companyId: string,
+  input: {
+    kind: DemoDocKind;
+    customerId?: string | null;
+    customerName?: string | null;
+    docNo?: string | null;
+    issueDate: string;
+    totalAmount: string;
+    currency: string;
+    sourceDocumentId?: string | null;
+    excludeDocumentId?: string | null;
+  },
+) {
+  const s = loadState();
+  const normaliseDoc = (v: string | null | undefined) => (v ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const days = (a: string, b: string) =>
+    Math.abs(Math.round((Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / 86_400_000));
+  const matches: {
+    documentId: string;
+    docNo: string | null;
+    status: string;
+    issueDate: string;
+    totalAmount: string;
+    currency: string;
+    customerName: string;
+    level: 'similar' | 'probable' | 'certain';
+    reasons: string[];
+  }[] = [];
+  for (const doc of s.billingDocuments.filter(
+    (d) => d.company_id === companyId && d.kind === input.kind && d.status !== 'cancelled' && d.id !== input.excludeDocumentId,
+  )) {
+    const reasons: string[] = [];
+    let level: 'similar' | 'probable' | 'certain' | null = null;
+    if (normaliseDoc(doc.doc_no) && normaliseDoc(doc.doc_no) === normaliseDoc(input.docNo)) {
+      level = 'certain';
+      reasons.push('SAME_DOC_NUMBER: même numéro de document');
+    }
+    if (input.sourceDocumentId && doc.source_document_id === input.sourceDocumentId) {
+      if (level !== 'certain') level = 'probable';
+      reasons.push('SAME_SOURCE_DOCUMENT: même document source');
+    }
+    const sameAmount = amount(doc.total_amount) === amount(input.totalAmount);
+    const sameCustomer =
+      (input.customerId && doc.customer_id === input.customerId) ||
+      (input.customerName ?? '').toLowerCase() === doc.customer_name.toLowerCase();
+    const gap = days(doc.issue_date, input.issueDate);
+    if (sameAmount && doc.currency === input.currency && sameCustomer && gap <= 3) {
+      if (level !== 'certain') level = 'probable';
+      reasons.push('SAME_CUSTOMER_SAME_AMOUNT_CLOSE_DATE');
+    } else if (sameAmount && doc.currency === input.currency && gap <= 31) {
+      if (!level) level = 'similar';
+      reasons.push('SAME_AMOUNT_SAME_MONTH');
+    }
+    if (!level) continue;
+    matches.push({
+      documentId: doc.id,
+      docNo: doc.doc_no,
+      status: doc.status,
+      issueDate: doc.issue_date,
+      totalAmount: doc.total_amount,
+      currency: doc.currency,
+      customerName: doc.customer_name,
+      level,
+      reasons,
+    });
+  }
+  const weight = { similar: 1, probable: 2, certain: 3 } as const;
+  matches.sort((a, b) => weight[b.level] - weight[a.level]);
+  const level = matches.reduce<'none' | 'similar' | 'probable' | 'certain'>(
+    (worst, m) => (weight[m.level] > (worst === 'none' ? 0 : weight[worst]) ? m.level : worst),
+    'none',
+  );
+  return { level, matches, compared: { ...input } };
+}
+
+function createBillingDocumentDemo(
+  companyId: string,
+  payload: Record<string, any>,
+): Record<string, unknown> {
+  const s = loadState();
+  const company = s.companies.find((c) => c.id === companyId)!;
+  const settings = billingSettingsOf(companyId);
+  const kind = payload.kind as DemoDocKind;
+  if (!['quote', 'invoice', 'credit_note'].includes(kind)) {
+    throw new ApiError(400, 'VALIDATION_ERROR', 'Type de document invalide');
+  }
+  const customer = billingCustomerOf(companyId, String(payload.customerId));
+  if (!customer.is_active) throw new ApiError(409, 'DOCUMENT_STATUS_INVALID', 'Client archivé');
+  const issueDate = String(payload.issueDate ?? '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(issueDate)) throw new ApiError(400, 'VALIDATION_ERROR', 'Date invalide');
+
+  let source: DemoBillingDocument | null = null;
+  let sourceLines: DemoBillingLine[] = [];
+  if (payload.sourceDocumentId) {
+    source = s.billingDocuments.find(
+      (d) => d.id === payload.sourceDocumentId && d.company_id === companyId,
+    ) ?? null;
+    if (!source) throw new ApiError(404, 'DOCUMENT_NOT_FOUND', 'Document source introuvable');
+    sourceLines = s.billingLines.filter((l) => l.document_id === source!.id);
+    if (kind === 'invoice') {
+      if (source.kind !== 'quote') throw new ApiError(400, 'VALIDATION_ERROR', 'Seul un devis peut être converti');
+      if (['refused', 'expired', 'cancelled'].includes(source.status)) {
+        throw new ApiError(409, 'DOCUMENT_STATUS_INVALID', `Devis ${source.status}`);
+      }
+      const already = s.billingDocuments.some(
+        (d) => d.company_id === companyId && d.kind === 'invoice' && d.source_document_id === source!.id && d.status !== 'cancelled',
+      );
+      if (already) throw new ApiError(409, 'QUOTE_ALREADY_CONVERTED', 'Devis déjà converti en facture');
+    } else if (kind === 'credit_note') {
+      if (source.kind !== 'invoice') throw new ApiError(400, 'VALIDATION_ERROR', 'Un avoir référence une facture');
+      if (!['issued', 'partially_paid', 'paid'].includes(source.status)) {
+        throw new ApiError(409, 'DOCUMENT_NOT_ISSUED', 'La facture doit être émise');
+      }
+    } else {
+      throw new ApiError(400, 'VALIDATION_ERROR', 'Un devis ne se crée pas depuis un document');
+    }
+  } else if (kind === 'credit_note') {
+    throw new ApiError(400, 'VALIDATION_ERROR', 'Un avoir doit référencer sa facture d’origine');
+  }
+
+  const currency = String(payload.currency ?? source?.currency ?? customer.preferred_currency ?? settings.default_currency ?? company.functional_currency).toUpperCase();
+  if (source && currency !== source.currency) {
+    throw new ApiError(400, 'CURRENCY_MISMATCH', 'La devise doit être celle du document source');
+  }
+  let exchangeRate: string = '1.00000000';
+  if (currency !== company.functional_currency) {
+    const rate = payload.exchangeRate ?? source?.exchange_rate;
+    if (rate === undefined || rate === null || rate === '') {
+      throw new ApiError(400, 'EXCHANGE_RATE_REQUIRED', `Un taux est requis pour ${currency}`);
+    }
+    exchangeRate = rateToString(parseRate(rate));
+  }
+
+  const rawLines: any[] =
+    Array.isArray(payload.lines) && payload.lines.length > 0
+      ? payload.lines
+      : sourceLines.map((l) => ({
+          itemId: l.item_id,
+          description: l.description,
+          quantity: l.quantity,
+          unitPrice: l.unit_price,
+          unit: l.unit,
+          discountPct: l.discount_pct,
+          vatTreatment: l.vat_treatment,
+          vatRateId: l.vat_rate_id,
+          revenueAccountId: l.revenue_account_id,
+        }));
+  const computed = computeBillingDocument(companyId, issueDate, rawLines, settings.vat_enabled);
+
+  if (kind === 'credit_note' && source) {
+    const alreadyCredited = amount(source.credited_amount);
+    if (alreadyCredited + computed.total > amount(source.total_amount)) {
+      throw new ApiError(409, 'CREDIT_EXCEEDS_INVOICE', 'L’avoir dépasse le montant restant créditable', {
+        invoiceTotal: source.total_amount,
+        alreadyCredited: fmt(alreadyCredited),
+        requested: fmt(computed.total),
+      });
+    }
+    for (const line of computed.lines) {
+      if (!line.itemId) continue;
+      const credited = s.billingLines
+        .filter((l) => l.item_id === line.itemId)
+        .filter((l) => {
+          const doc = s.billingDocuments.find((d) => d.id === l.document_id);
+          return (
+            doc &&
+            doc.company_id === companyId &&
+            doc.kind === 'credit_note' &&
+            doc.source_document_id === source!.id &&
+            doc.status === 'issued'
+          );
+        })
+        .reduce((acc, l) => acc + amount(l.quantity), 0n);
+      const invoiced = sourceLines
+        .filter((l) => l.item_id === line.itemId)
+        .reduce((acc, l) => acc + amount(l.quantity), 0n);
+      if (invoiced > 0n && credited + line.quantity > invoiced) {
+        throw new ApiError(409, 'CREDIT_EXCEEDS_INVOICE', 'Quantité créditée supérieure à la quantité facturée');
+      }
+    }
+  }
+
+  const duplicates = billingDuplicateCheck(companyId, {
+    kind,
+    customerId: customer.id,
+    customerName: customer.name,
+    docNo: null,
+    issueDate,
+    totalAmount: fmt(computed.total),
+    currency,
+    sourceDocumentId: source?.id ?? null,
+  });
+  if (!payload.confirmDuplicate && duplicates.level === 'certain') {
+    throw new ApiError(409, 'CUSTOMER_DUPLICATE', 'Doublon certain détecté : confirmez explicitement', { duplicates });
+  }
+
+  const dueDate =
+    kind === 'invoice'
+      ? String(payload.dueDate ?? billingDatesFrom(issueDate, customer.payment_terms_days ?? settings.default_payment_terms))
+      : (payload.dueDate ?? null);
+
+  const document: DemoBillingDocument = {
+    id: uid(),
+    company_id: companyId,
+    kind,
+    doc_no: null,
+    customer_id: customer.id,
+    customer_name: customer.name,
+    customer_brn: customer.brn,
+    issue_date: issueDate,
+    due_date: dueDate,
+    valid_until: payload.validUntil ?? null,
+    currency,
+    exchange_rate: exchangeRate,
+    subtotal: fmt(computed.subtotal),
+    discount_total: fmt(computed.discountTotal),
+    tax_total: fmt(computed.taxTotal),
+    total_amount: fmt(computed.total),
+    amount_paid: '0.0000',
+    credited_amount: '0.0000',
+    payment_status: 'unpaid',
+    status: 'draft',
+    source_kind: source?.kind ?? null,
+    source_document_id: source?.id ?? null,
+    notes: payload.notes ?? null,
+    terms: payload.terms ?? null,
+    sequence_year: null,
+    sequence_no: null,
+    issued_at: null,
+    locked_at: null,
+    accounting_entry_id: null,
+    created_at: now(),
+    updated_at: now(),
+  };
+  s.billingDocuments.push(document);
+  computed.lines.forEach((line, index) => {
+    s.billingLines.push({
+      id: uid(),
+      document_id: document.id,
+      company_id: companyId,
+      line_no: index + 1,
+      item_id: line.itemId,
+      description: line.description,
+      quantity: fmt(line.quantity),
+      unit_price: fmt(line.unitPrice),
+      unit: line.unit,
+      discount_pct: fmt(line.discountPct),
+      vat_treatment: line.vatTreatment,
+      vat_rate: line.vatRate === null ? null : fmt(line.vatRate),
+      vat_rate_id: line.vatRateId,
+      net_amount: fmt(line.netAmount),
+      discount_amount: fmt(line.discountAmount),
+      tax_amount: fmt(line.taxAmount),
+      line_total: fmt(line.lineTotal),
+      revenue_account_id: line.revenueAccountId,
+    });
+  });
+  audit(companyId, 'billing.document.create', 'billing_document', document.id, {
+    kind,
+    total: document.total_amount,
+    currency,
+  });
+  persist();
+  return {
+    document: billingDocView(document),
+    duplicates,
+    warnings: computed.warnings,
+  };
+}
+
+function billingDatesFrom(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function issueBillingDocumentDemo(companyId: string, documentId: string): Record<string, unknown> {
+  const s = loadState();
+  const settings = billingSettingsOf(companyId);
+  const doc = s.billingDocuments.find((d) => d.id === documentId && d.company_id === companyId);
+  if (!doc) throw new ApiError(404, 'DOCUMENT_NOT_FOUND', 'Document introuvable');
+  if (doc.status !== 'draft') throw new ApiError(409, 'DOCUMENT_STATUS_INVALID', `Document déjà ${doc.status}`);
+  if (!doc.customer_id) throw new ApiError(400, 'VALIDATION_ERROR', 'Client requis avant émission');
+
+  if (doc.kind === 'credit_note') {
+    const invoice = s.billingDocuments.find((d) => d.id === doc.source_document_id && d.company_id === companyId);
+    if (!invoice) throw new ApiError(404, 'DOCUMENT_NOT_FOUND', 'Facture d’origine introuvable');
+    if (amount(invoice.credited_amount) + amount(doc.total_amount) > amount(invoice.total_amount)) {
+      throw new ApiError(409, 'CREDIT_EXCEEDS_INVOICE', 'Avoir supérieur au restant créditable');
+    }
+  }
+
+  const year = billingYear(companyId, doc.issue_date);
+  const allocated = nextBillingNumber(companyId, doc.kind, year);
+  doc.doc_no = allocated.number;
+  doc.sequence_year = allocated.year;
+  doc.sequence_no = allocated.no;
+  doc.status = doc.kind === 'quote' ? 'sent' : 'issued';
+  doc.issued_at = now();
+  doc.locked_at = now();
+  doc.updated_at = now();
+  if (doc.kind === 'credit_note' && doc.source_document_id) {
+    refreshInvoiceBalance(companyId, doc.source_document_id);
+  }
+  audit(companyId, 'billing.document.issue', 'billing_document', doc.id, {
+    number: doc.doc_no,
+    kind: doc.kind,
+  });
+  persist();
+  return { document: billingDocView(doc), entryCreated: false };
+}
+
+function billingAgingDemo(companyId: string, asOf: string, customerId?: string | null) {
+  const s = loadState();
+  const buckets = { current: 0n, days1to30: 0n, days31to60: 0n, days61to90: 0n, over90: 0n, total: 0n };
+  const rows = new Map<string, { customerId: string; customerName: string; currency: string; raw: typeof buckets; invoiceCount: number }>();
+  for (const doc of s.billingDocuments.filter(
+    (d) => d.company_id === companyId && d.kind === 'invoice' && ['issued', 'partially_paid'].includes(d.status) && d.issue_date <= asOf,
+  )) {
+    if (customerId && doc.customer_id !== customerId) continue;
+    const outstanding = billingOutstanding(doc);
+    if (outstanding === 0n) continue;
+    const key = doc.customer_id ?? 'unknown';
+    const entry = rows.get(key) ?? {
+      customerId: key,
+      customerName: doc.customer_name,
+      currency: doc.currency,
+      raw: { current: 0n, days1to30: 0n, days31to60: 0n, days61to90: 0n, over90: 0n, total: 0n },
+      invoiceCount: 0,
+    };
+    const late = Math.floor(
+      (Date.parse(`${asOf}T00:00:00Z`) - Date.parse(`${doc.due_date ?? doc.issue_date}T00:00:00Z`)) / 86_400_000,
+    );
+    const bucket: keyof typeof buckets =
+      late <= 0 ? 'current' : late <= 30 ? 'days1to30' : late <= 60 ? 'days31to60' : late <= 90 ? 'days61to90' : 'over90';
+    entry.raw[bucket] += outstanding;
+    entry.raw.total += outstanding;
+    entry.invoiceCount += 1;
+    buckets[bucket] += outstanding;
+    buckets.total += outstanding;
+    rows.set(key, entry);
+  }
+  return {
+    asOf,
+    rows: [...rows.values()]
+      .sort((a, b) => a.customerName.localeCompare(b.customerName))
+      .map((r) => ({
+        customerId: r.customerId,
+        customerName: r.customerName,
+        currency: r.currency,
+        invoiceCount: r.invoiceCount,
+        buckets: {
+          current: fmt(r.raw.current),
+          days1to30: fmt(r.raw.days1to30),
+          days31to60: fmt(r.raw.days31to60),
+          days61to90: fmt(r.raw.days61to90),
+          over90: fmt(r.raw.over90),
+          total: fmt(r.raw.total),
+        },
+      })),
+    totals: {
+      current: fmt(buckets.current),
+      days1to30: fmt(buckets.days1to30),
+      days31to60: fmt(buckets.days31to60),
+      days61to90: fmt(buckets.days61to90),
+      over90: fmt(buckets.over90),
+      total: fmt(buckets.total),
+    },
+  };
+}
+
+function billingCustomerBalanceDemo(companyId: string, customerId: string, asOf: string) {
+  const s = loadState();
+  const invoices = s.billingDocuments.filter(
+    (d) =>
+      d.company_id === companyId &&
+      d.customer_id === customerId &&
+      d.kind === 'invoice' &&
+      !['draft', 'cancelled'].includes(d.status) &&
+      d.issue_date <= asOf,
+  );
+  const invoiced = invoices.reduce((acc, d) => acc + amount(d.total_amount), 0n);
+  const paid = invoices.reduce((acc, d) => acc + amount(d.amount_paid), 0n);
+  const credited = invoices.reduce((acc, d) => acc + amount(d.credited_amount), 0n);
+  const unallocated = s.billingPayments
+    .filter((p) => p.company_id === companyId && p.customer_id === customerId && p.status === 'recorded' && p.payment_date <= asOf)
+    .reduce((acc, p) => acc + amount(p.unallocated_amount), 0n);
+  const outstanding = invoiced - paid - credited;
+  return {
+    currency: invoices[0]?.currency ?? 'MUR',
+    invoiced: fmt(invoiced),
+    paid: fmt(paid),
+    credited: fmt(credited),
+    outstanding: fmt(outstanding > 0n ? outstanding : 0n),
+    unallocated: fmt(unallocated),
+    balance: fmt(outstanding - unallocated),
+  };
+}
+
+/* --------------------------------------- assistant comptable V2 (démo) */
+
+function demandAccount(companyId: string, code: string): DemoAccount | null {
+  return accountsOf(companyId).find((a) => a.code === code && a.is_active) ?? null;
+}
+
+function demandJournal(companyId: string, preferred: string[]): DemoJournal | null {
+  const journals = loadState().journals.filter((j) => j.company_id === companyId && j.is_active);
+  for (const type of preferred) {
+    const found = journals.find((j) => j.type === type);
+    if (found) return found;
+  }
+  return journals[0] ?? null;
+}
+
+function proposalLinesOf(proposalId: string): DemoProposalLine[] {
+  return loadState()
+    .proposalLines.filter((l) => l.proposal_id === proposalId)
+    .sort((a, b) => a.line_no - b.line_no);
+}
+
+function demoProposalChecks(p: DemoEntryProposal): {
+  key: string;
+  label: string;
+  ok: boolean;
+  severity: 'error' | 'warning';
+  message: string;
+}[] {
+  const s = loadState();
+  const accounts = accountsOf(p.company_id);
+  const byId = new Map(accounts.map((a) => [a.id, a]));
+  const lines = proposalLinesOf(p.id);
+  const debit = lines.reduce((acc, l) => acc + amount(l.debit), 0n);
+  const credit = lines.reduce((acc, l) => acc + amount(l.credit), 0n);
+  const unknown = lines.filter((l) => !byId.has(l.account_id));
+  const inactive = lines.filter((l) => byId.get(l.account_id)?.is_active === false);
+  const journal = s.journals.find((j) => j.id === p.journal_id && j.company_id === p.company_id);
+  const period = s.periods.find(
+    (x) => x.company_id === p.company_id && x.status === 'open' && x.start_date <= p.entry_date && x.end_date >= p.entry_date,
+  );
+  const company = s.companies.find((c) => c.id === p.company_id);
+  const functional = company?.functional_currency ?? 'MUR';
+  const supported = SUPPORTED_CURRENCIES.includes(p.currency);
+  const foreign = supported && p.currency !== functional;
+  const rateOk = supported && (!foreign || (p.exchange_rate !== null && /^\d+(\.\d+)?$/.test(p.exchange_rate)));
+  const vatLine = lines.some((l) => {
+    const account = byId.get(l.account_id);
+    return account ? /tva|vat/i.test(`${account.code} ${account.name}`) : false;
+  });
+  const rates = s.taxRates.filter((r) => r.company_id === p.company_id && r.verified);
+  const vatOk = !vatLine || rates.length > 0;
+  const source =
+    p.source_kind === 'billing_payment'
+      ? s.billingPayments.find((x) => x.id === p.source_id)
+      : p.source_kind === 'manual'
+        ? null
+        : s.billingDocuments.find((x) => x.id === p.source_id);
+  const alreadyPosted = Boolean(p.entry_id) || Boolean((source as any)?.accounting_entry_id);
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  return [
+    {
+      key: 'balanced',
+      label: 'Débit = crédit',
+      ok: lines.length >= 2 && debit === credit && debit > 0n,
+      severity: 'error',
+      message:
+        debit === credit
+          ? `Équilibrée : ${fmt(debit)} au débit et au crédit.`
+          : `Écart de ${fmt(debit - credit)} entre débit et crédit.`,
+    },
+    {
+      key: 'accounts_exist',
+      label: 'Comptes existants et actifs',
+      ok: unknown.length === 0 && inactive.length === 0,
+      severity: 'error',
+      message:
+        unknown.length > 0
+          ? `${unknown.length} compte(s) hors plan comptable.`
+          : inactive.length > 0
+            ? `${inactive.length} compte(s) inactif(s).`
+            : 'Comptes du plan comptable, actifs.',
+    },
+    {
+      key: 'journal',
+      label: 'Journal existant et autorisé',
+      ok: Boolean(journal?.is_active),
+      severity: 'error',
+      message: journal ? `Journal ${journal.code}.` : 'Aucun journal valide.',
+    },
+    {
+      key: 'period_open',
+      label: 'Exercice / période ouverte',
+      ok: Boolean(period),
+      severity: 'error',
+      message: period ? `Période ouverte : ${period.name}.` : 'Aucune période ouverte pour cette date.',
+    },
+    {
+      key: 'date_allowed',
+      label: 'Date autorisée',
+      ok: Boolean(p.entry_date) && p.entry_date <= todayIso,
+      severity: 'error',
+      message:
+        p.entry_date <= todayIso
+          ? `Date comptable ${p.entry_date}.`
+          : `La date ${p.entry_date} est dans le futur.`,
+    },
+    {
+      key: 'currency',
+      label: 'Devise et taux de change',
+      ok: rateOk,
+      severity: 'error',
+      message: !supported
+        ? `Devise non prise en charge : ${p.currency}.`
+        : foreign
+          ? rateOk
+            ? `Devise ${p.currency}, taux ${p.exchange_rate}.`
+            : `Taux documenté requis pour ${p.currency}.`
+          : `Devise fonctionnelle ${functional}.`,
+    },
+    {
+      key: 'vat_verified',
+      label: 'TVA vérifiée et applicable',
+      ok: vatOk,
+      severity: 'warning',
+      message: !vatLine
+        ? 'Aucune ligne de TVA dans la proposition.'
+        : vatOk
+          ? 'Un taux vérifié existe ; le montant reste à confirmer.'
+          : 'Aucun taux de TVA vérifié : montant à confirmer.',
+    },
+    { key: 'permissions', label: 'Droits suffisants', ok: true, severity: 'error', message: 'Contrôlé par les permissions Comptabilité.' },
+    {
+      key: 'no_duplicate',
+      label: 'Absence de doublon',
+      ok: !alreadyPosted,
+      severity: 'error',
+      message: alreadyPosted ? 'Cette source est déjà comptabilisée.' : 'Aucune comptabilisation antérieure.',
+    },
+    {
+      key: 'company_scope',
+      label: 'Bonne société',
+      ok: unknown.length === 0,
+      severity: 'error',
+      message: 'Comptes vérifiés dans le périmètre de la société.',
+    },
+    {
+      key: 'source_attached',
+      label: 'Document source rattaché',
+      ok: p.source_kind === 'manual' ? p.description.trim().length >= 3 : Boolean(source),
+      severity: p.source_kind === 'manual' ? 'warning' : 'error',
+      message:
+        p.source_kind === 'manual'
+          ? 'Proposition manuelle : justificatif à joindre.'
+          : source
+            ? `Document ${(source as any).doc_no ?? (source as any).payment_no ?? ''} rattaché.`
+            : 'Document source introuvable.',
+    },
+    {
+      key: 'not_posted_twice',
+      label: 'Protection contre la double comptabilisation',
+      ok: p.status !== 'posted',
+      severity: 'error',
+      message: p.status === 'posted' ? 'Déjà comptabilisée.' : 'Comptabilisation = action distincte et unique.',
+    },
+  ];
+}
+
+function demoProposalView(p: DemoEntryProposal) {
+  const s = loadState();
+  const lines = proposalLinesOf(p.id).map((l) => {
+    const account = s.accounts.find((a) => a.id === l.account_id);
+    return {
+      id: l.id,
+      lineNo: l.line_no,
+      accountId: l.account_id,
+      accountCode: account?.code ?? '',
+      accountName: account?.name ?? '',
+      description: l.description,
+      debit: l.debit,
+      credit: l.credit,
+      ruleId: l.rule_id,
+    };
+  });
+  const debit = lines.reduce((acc, l) => acc + amount(l.debit), 0n);
+  const credit = lines.reduce((acc, l) => acc + amount(l.credit), 0n);
+  const journal = s.journals.find((j) => j.id === p.journal_id);
+  const source =
+    p.source_kind === 'billing_payment'
+      ? s.billingPayments.find((x) => x.id === p.source_id)
+      : p.source_kind === 'manual'
+        ? null
+        : s.billingDocuments.find((x) => x.id === p.source_id);
+  return {
+    id: p.id,
+    sourceKind: p.source_kind,
+    sourceId: p.source_id,
+    status: p.status,
+    journalId: p.journal_id,
+    journalCode: journal?.code ?? null,
+    entryDate: p.entry_date,
+    reference: p.reference,
+    description: p.description,
+    currency: p.currency,
+    exchangeRate: p.exchange_rate,
+    confidence: p.confidence,
+    rationale: p.rationale,
+    warnings: p.warnings,
+    missing: p.missing,
+    ruleTrace: p.rule_trace,
+    provider: p.provider,
+    model: p.model,
+    createdAt: p.created_at,
+    updatedAt: p.updated_at,
+    validatedBy: p.validated_by,
+    validatedAt: p.validated_at,
+    rejectedBy: p.rejected_by,
+    rejectedAt: p.rejected_at,
+    rejectionNote: p.rejection_note,
+    entryId: p.entry_id,
+    lines,
+    totals: {
+      debit: fmt(debit),
+      credit: fmt(credit),
+      difference: fmt(debit - credit),
+      balanced: debit === credit && debit > 0n,
+    },
+    checks: demoProposalChecks(p),
+    source: source
+      ? {
+          kind: p.source_kind,
+          id: source.id,
+          number: (source as any).doc_no ?? (source as any).payment_no ?? null,
+          status: (source as any).status,
+        }
+      : null,
+  };
+}
+
+function demoCreateProposal(
+  s: DemoState,
+  companyId: string,
+  data: {
+    source_kind: DemoEntryProposal['source_kind'];
+    source_id: string | null;
+    journal_id: string | null;
+    entry_date: string;
+    reference: string | null;
+    description: string;
+    currency: string;
+    exchange_rate: string | null;
+    confidence: number | null;
+    rationale: string | null;
+    warnings: string[];
+    missing: string[];
+    rule_trace: string[];
+    provider: string | null;
+    model: string | null;
+    lines: { account_id: string; description: string | null; debit: bigint; credit: bigint; rule_id?: string | null }[];
+  },
+): DemoEntryProposal {
+  const user = requireUser();
+  const proposal: DemoEntryProposal = {
+    id: uid(),
+    company_id: companyId,
+    source_kind: data.source_kind,
+    source_id: data.source_id,
+    journal_id: data.journal_id,
+    entry_date: data.entry_date,
+    reference: data.reference,
+    description: data.description,
+    currency: data.currency,
+    exchange_rate: data.exchange_rate,
+    status: 'proposed',
+    confidence: data.confidence,
+    rationale: data.rationale,
+    warnings: data.warnings,
+    missing: data.missing,
+    rule_trace: data.rule_trace,
+    provider: data.provider,
+    model: data.model,
+    created_at: now(),
+    updated_at: now(),
+    validated_by: null,
+    validated_at: null,
+    rejected_by: null,
+    rejected_at: null,
+    rejection_note: null,
+    entry_id: null,
+  };
+  s.entryProposals.push(proposal);
+  data.lines.forEach((line, index) => {
+    s.proposalLines.push({
+      id: uid(),
+      proposal_id: proposal.id,
+      line_no: index + 1,
+      account_id: line.account_id,
+      description: line.description,
+      debit: fmt(line.debit),
+      credit: fmt(line.credit),
+      rule_id: line.rule_id ?? null,
+    });
+  });
+  audit(companyId, 'ai.proposal.create', 'ai_entry_proposal', proposal.id, {
+    sourceKind: data.source_kind,
+    provider: data.provider,
+    lines: data.lines.length,
+  });
+  persist();
+  void user;
+  return proposal;
+}
+
+function demoProposeFromBilling(
+  companyId: string,
+  input: { documentId?: string; paymentId?: string },
+): Record<string, unknown> {
+  const s = loadState();
+  let sourceKind: DemoEntryProposal['source_kind'];
+  let sourceId: string;
+  let description: string;
+  let reference: string | null;
+  let entryDate: string;
+  let currency: string;
+  let exchangeRate: string | null;
+  let journalTypes: string[];
+  let total: bigint;
+  const warnings: string[] = [];
+  const missing: string[] = [];
+  const lines: { account_id: string; description: string | null; debit: bigint; credit: bigint }[] = [];
+
+  if (input.paymentId) {
+    const payment = s.billingPayments.find((p) => p.id === input.paymentId && p.company_id === companyId);
+    if (!payment) throw new ApiError(404, 'PAYMENT_NOT_FOUND', 'Encaissement introuvable');
+    if (payment.status !== 'recorded') throw new ApiError(409, 'DOCUMENT_STATUS_INVALID', 'Encaissement annulé');
+    if (payment.accounting_entry_id) throw new ApiError(409, 'ACCOUNTING_ALREADY_POSTED', 'Encaissement déjà comptabilisé');
+    sourceKind = 'billing_payment';
+    sourceId = payment.id;
+    reference = payment.payment_no;
+    description = `Encaissement ${payment.payment_no ?? ''} — client`;
+    entryDate = payment.payment_date;
+    currency = payment.currency;
+    exchangeRate = payment.exchange_rate;
+    total = amount(payment.amount);
+    journalTypes = payment.method === 'cash' ? ['cash', 'bank'] : ['bank', 'cash'];
+    const bank = demandAccount(companyId, payment.method === 'cash' ? '1000' : '1010');
+    const receivable = demandAccount(companyId, '1100');
+    const otherLiabilities = demandAccount(companyId, '2100');
+    if (!bank) missing.push('Aucun compte de banque/caisse actif.');
+    if (!receivable) missing.push('Aucun compte client actif.');
+    if (missing.length > 0) throw new ApiError(409, 'AI_HUMAN_REQUIRED', 'Plan comptable incomplet', { missing });
+    const unallocated = amount(payment.unallocated_amount);
+    lines.push({ account_id: bank!.id, description: 'Encaissement', debit: total, credit: 0n });
+    lines.push({ account_id: receivable!.id, description: 'Règlement facture(s)', debit: 0n, credit: total - unallocated });
+    if (unallocated > 0n) {
+      if (!otherLiabilities) throw new ApiError(409, 'AI_HUMAN_REQUIRED', 'Compte de passif requis pour le trop-perçu');
+      lines.push({ account_id: otherLiabilities.id, description: 'Trop-perçu client', debit: 0n, credit: unallocated });
+      warnings.push('OVERPAYMENT: le trop-perçu est proposé sur un compte de passif générique — à vérifier.');
+    }
+  } else if (input.documentId) {
+    const doc = s.billingDocuments.find((d) => d.id === input.documentId && d.company_id === companyId);
+    if (!doc) throw new ApiError(404, 'DOCUMENT_NOT_FOUND', 'Document introuvable');
+    if (!['issued', 'partially_paid', 'paid'].includes(doc.status)) {
+      throw new ApiError(409, 'DOCUMENT_NOT_ISSUED', 'Le document doit être émis avant toute proposition');
+    }
+    if (doc.accounting_entry_id) throw new ApiError(409, 'ACCOUNTING_ALREADY_POSTED', 'Document déjà comptabilisé');
+    sourceKind = doc.kind === 'credit_note' ? 'billing_credit_note' : 'billing_invoice';
+    sourceId = doc.id;
+    reference = doc.doc_no;
+    entryDate = doc.issue_date;
+    currency = doc.currency;
+    exchangeRate = doc.exchange_rate;
+    total = amount(doc.total_amount);
+    journalTypes = ['sales', 'general'];
+    const receivable = demandAccount(companyId, '1100');
+    const vatOutput = demandAccount(companyId, '2200');
+    const defaultRevenue = demandAccount(companyId, '4010') ?? accountsOf(companyId).find((a) => a.type === 'revenue') ?? null;
+    const docLines = s.billingLines.filter((l) => l.document_id === doc.id);
+    const revenue = new Map<string, bigint>();
+    for (const line of docLines) {
+      const accountId = line.revenue_account_id ?? defaultRevenue?.id ?? null;
+      if (!accountId) {
+        missing.push(`Ligne ${line.line_no} : aucun compte de produits.`);
+        continue;
+      }
+      const net = amount(line.net_amount) - amount(line.discount_amount);
+      revenue.set(accountId, (revenue.get(accountId) ?? 0n) + net);
+    }
+    if (!receivable) missing.push('Aucun compte client actif.');
+    if (amount(doc.tax_total) > 0n && !vatOutput) missing.push('Aucun compte de TVA collectée.');
+    if (missing.length > 0) throw new ApiError(409, 'AI_HUMAN_REQUIRED', 'Plan comptable incomplet', { missing });
+    description = `${doc.kind === 'credit_note' ? 'Avoir' : 'Facture'} ${doc.doc_no} — ${doc.customer_name}`;
+    if (doc.kind === 'credit_note') {
+      for (const [accountId, value] of revenue) {
+        if (value > 0n) lines.push({ account_id: accountId, description: 'Annulation de produit', debit: value, credit: 0n });
+      }
+      if (amount(doc.tax_total) > 0n) {
+        lines.push({ account_id: vatOutput!.id, description: 'TVA à annuler', debit: amount(doc.tax_total), credit: 0n });
+      }
+      lines.push({ account_id: receivable!.id, description: 'Créance annulée', debit: 0n, credit: total });
+    } else {
+      lines.push({ account_id: receivable!.id, description: 'Créance client', debit: total, credit: 0n });
+      for (const [accountId, value] of revenue) {
+        if (value > 0n) lines.push({ account_id: accountId, description: 'Chiffre d’affaires', debit: 0n, credit: value });
+      }
+      if (amount(doc.tax_total) > 0n) {
+        lines.push({ account_id: vatOutput!.id, description: 'TVA collectée', debit: 0n, credit: amount(doc.tax_total) });
+      }
+    }
+  } else {
+    throw new ApiError(400, 'VALIDATION_ERROR', 'Un document ou un encaissement est requis');
+  }
+
+  const existing = s.entryProposals.find(
+    (p) => p.source_kind === sourceKind && p.source_id === sourceId && p.status !== 'rejected',
+  );
+  if (existing) {
+    if (existing.status === 'posted') {
+      throw new ApiError(409, 'ACCOUNTING_ALREADY_POSTED', 'Cette source est déjà comptabilisée');
+    }
+    return { proposal: demoProposalView(existing), reused: true, entryCreated: false };
+  }
+
+  const journal = demandJournal(companyId, journalTypes);
+  const proposal = demoCreateProposal(s, companyId, {
+    source_kind: sourceKind,
+    source_id: sourceId,
+    journal_id: journal?.id ?? null,
+    entry_date: entryDate,
+    reference,
+    description,
+    currency,
+    exchange_rate: exchangeRate,
+    confidence: 1,
+    rationale:
+      'Proposition déterministe calculée depuis le document : comptes du plan comptable réel, aucune donnée fiscale inventée.',
+    warnings,
+    missing,
+    rule_trace: ['Aucune IA : proposition déterministe issue de la facturation.'],
+    provider: 'deterministic',
+    model: null,
+    lines,
+  });
+  return { proposal: demoProposalView(proposal), reused: false, entryCreated: false };
+}
+
+function demoRuleMatch(companyId: string, text: string) {
+  const s = loadState();
+  const haystack = normalise(text);
+  const candidates = s.entryRules
+    .filter((r) => r.company_id === companyId && r.is_active)
+    .filter((r) => haystack.includes(normalise(r.match_key)))
+    .sort((a, b) => a.priority - b.priority || b.match_key.length - a.match_key.length)
+    .map((rule) => {
+      const account = s.accounts.find((a) => a.id === rule.account_id);
+      const journal = s.journals.find((j) => j.id === rule.journal_id);
+      return {
+        rule,
+        account,
+        journal,
+        explanation: `Règle ${rule.rule_type} v${rule.version} « ${rule.match_key} » (priorité ${rule.priority}) → ${account?.code ?? journal?.code ?? ''}`,
+      };
+    });
+  const trace: string[] = [];
+  if (candidates.length === 0) {
+    trace.push('Aucune règle validée ne correspond à ce libellé.');
+    return { applied: null, candidates, ambiguous: false, trace };
+  }
+  const best = candidates[0]!;
+  const competing = candidates.filter(
+    (c) => c !== best && c.rule.priority === best.rule.priority && c.rule.account_id !== best.rule.account_id,
+  );
+  if (competing.length > 0) {
+    trace.push('Conflit : plusieurs règles de même priorité proposent des comptes différents — aucune n’est appliquée.');
+    return { applied: null, candidates, ambiguous: true, trace };
+  }
+  trace.push(best.explanation);
+  return { applied: best, candidates, ambiguous: false, trace };
+}
+
+function demoManualProposal(companyId: string, payload: Record<string, any>): Record<string, unknown> {
+  const s = loadState();
+  const user = requireUser();
+  if (!s.ai.enabled) throw new ApiError(403, 'AI_DISABLED', 'Intelligence artificielle désactivée pour ce cabinet');
+  if (s.ai.features.accounting !== true) {
+    throw new ApiError(403, 'AI_FEATURE_DISABLED', 'Fonctions IA désactivées pour la Comptabilité');
+  }
+  const description = String(payload.description ?? '').trim();
+  if (description.length < 5) throw new ApiError(400, 'VALIDATION_ERROR', 'Description trop courte');
+  const total = amount(payload.amount);
+  if (total <= 0n) throw new ApiError(400, 'VALIDATION_ERROR', 'Un montant supérieur à zéro est requis');
+  const company = s.companies.find((c) => c.id === companyId)!;
+  const currency = String(payload.currency ?? company.functional_currency).toUpperCase();
+  if (!SUPPORTED_CURRENCIES.includes(currency)) throw new ApiError(400, 'INVALID_CURRENCY', 'Devise non supportée');
+  const entryDate = String(payload.entryDate ?? todayIso());
+  const rules = demoRuleMatch(companyId, description);
+
+  if (rules.applied && rules.applied.rule.account_id && rules.applied.rule.counter_account_id) {
+    const journal =
+      (rules.applied.journal ??
+        demandJournal(companyId, ['purchases', 'bank', 'general'])) ?? null;
+    if (journal) {
+      const rule = rules.applied.rule;
+      const debitFirst = rule.account_side === 'debit';
+      const proposal = demoCreateProposal(s, companyId, {
+        source_kind: 'manual',
+        source_id: null,
+        journal_id: journal.id,
+        entry_date: entryDate,
+        reference: payload.reference ?? null,
+        description,
+        currency,
+        exchange_rate: currency === company.functional_currency ? '1.00000000' : null,
+        confidence: 0.95,
+        rationale: `Règle validée appliquée : ${rules.applied.explanation}`,
+        warnings: [],
+        missing: [],
+        rule_trace: rules.trace,
+        provider: 'rule',
+        model: null,
+        lines: [
+          {
+            account_id: rule.account_id!,
+            description,
+            debit: debitFirst ? total : 0n,
+            credit: debitFirst ? 0n : total,
+            rule_id: rule.id,
+          },
+          {
+            account_id: rule.counter_account_id!,
+            description,
+            debit: debitFirst ? 0n : total,
+            credit: debitFirst ? total : 0n,
+            rule_id: rule.id,
+          },
+        ],
+      });
+      rule.use_count += 1;
+      persist();
+      return {
+        proposal: demoProposalView(proposal),
+        ruleApplied: {
+          rule: { id: rule.id, type: rule.rule_type, key: rule.match_key, version: rule.version, priority: rule.priority },
+        },
+        entryCreated: false,
+      };
+    }
+  }
+
+  // Deterministic, offline "provider": never invents an account or a rate.
+  const accounts = accountsOf(companyId).filter((a) => a.is_active);
+  const roles: Record<string, string> = {
+    client: '1100',
+    fournisseur: '2000',
+    banque: '1010',
+    caisse: '1000',
+    produits: '4010',
+    tva_collectee: '2200',
+    autres_passifs: '2100',
+  };
+  const roleAccount = (role: string) => demandAccount(companyId, roles[role] ?? '');
+  const expenseAccounts = accounts.filter((a) => a.type === 'expense');
+  const expenseMatch = chooseAccount(
+    description,
+    (expenseAccounts.length > 0 ? expenseAccounts : accounts).map((a) => ({ code: a.code, name: a.name, type: a.type })),
+  );
+  const expenseAccount = expenseMatch ? accounts.find((a) => a.code === expenseMatch.code) ?? null : null;
+  const warnings: string[] = [];
+  const missing: string[] = [];
+  if (/tva|vat|taxe/i.test(description)) {
+    warnings.push('TVA mentionnée : aucun taux n’est configuré ni fourni. Aucun montant de taxe n’est calculé.');
+    missing.push('Taux de TVA vérifié (configuration absente) et montant de taxe à confirmer.');
+  }
+  const text = description.toLowerCase();
+  let journalTypes: string[] = ['purchases', 'general'];
+  let debitAccount: DemoAccount | null = null;
+  let creditAccount: DemoAccount | null = null;
+  let rationale = '';
+
+  if (/avoir/.test(text)) {
+    debitAccount = roleAccount('produits');
+    creditAccount = roleAccount('client');
+    journalTypes = ['sales', 'general'];
+    rationale = 'Avoir : annulation de produit au débit, créance client réduite au crédit.';
+  } else if (/encaissement|r[èe]glement client|re[çc]u client/.test(text)) {
+    debitAccount = roleAccount('banque');
+    creditAccount = roleAccount('client');
+    journalTypes = ['bank', 'general'];
+    rationale = 'Encaissement : banque au débit, créance client au crédit.';
+  } else if (/frais bancaire|commission|agios/.test(text)) {
+    debitAccount = expenseAccount;
+    creditAccount = roleAccount('banque');
+    journalTypes = ['bank', 'general'];
+    rationale = 'Frais bancaires : charge au débit, banque au crédit.';
+  } else if (/facture client|vente|prestation/.test(text)) {
+    debitAccount = roleAccount('client');
+    creditAccount = roleAccount('produits');
+    journalTypes = ['sales', 'general'];
+    rationale = 'Facture client : créance au débit, produit au crédit.';
+  } else {
+    debitAccount = expenseAccount;
+    creditAccount = /pay[ée]|r[ée]gl[ée]/.test(text) ? roleAccount('banque') : roleAccount('fournisseur');
+    rationale = 'Achat / charge : compte de charge au débit, dette fournisseur (ou banque si réglé) au crédit.';
+  }
+
+  if (!debitAccount || !creditAccount || debitAccount.id === creditAccount.id) {
+    throw new ApiError(
+      422,
+      'AI_INVALID_RESPONSE',
+      'Le plan comptable fourni ne permet pas une écriture équilibrée : intervention humaine nécessaire.',
+      { missing: ['Comptes requis absents du plan comptable.'] },
+    );
+  }
+
+  const journal = demandJournal(companyId, journalTypes);
+  const proposal = demoCreateProposal(s, companyId, {
+    source_kind: 'manual',
+    source_id: null,
+    journal_id: journal?.id ?? null,
+    entry_date: entryDate,
+    reference: payload.reference ?? null,
+    description,
+    currency,
+    exchange_rate: currency === company.functional_currency ? '1.00000000' : null,
+    confidence: 0.72,
+    rationale,
+    warnings,
+    missing,
+    rule_trace: rules.trace,
+    provider: 'simulated',
+    model: 'simulated-fictif',
+    lines: [
+      { account_id: debitAccount.id, description, debit: total, credit: 0n },
+      { account_id: creditAccount.id, description, debit: 0n, credit: total },
+    ],
+  });
+  void user;
+  return {
+    proposal: demoProposalView(proposal),
+    ruleApplied: null,
+    duplicates: { level: 'none', matches: [] },
+    entryCreated: false,
+  };
+}
+
+function demoPostProposal(companyId: string, proposalId: string): Record<string, unknown> {
+  const s = loadState();
+  const user = requireUser();
+  const proposal = s.entryProposals.find((p) => p.id === proposalId && p.company_id === companyId);
+  if (!proposal) throw new ApiError(404, 'AI_PROPOSAL_NOT_FOUND', 'Proposition introuvable');
+  if (proposal.status === 'posted') throw new ApiError(409, 'ACCOUNTING_ALREADY_POSTED', 'Déjà comptabilisée');
+  if (proposal.status !== 'validated') {
+    throw new ApiError(409, 'AI_PROPOSAL_NOT_VALIDATED', 'Une validation humaine est requise avant la comptabilisation');
+  }
+  const company = s.companies.find((c) => c.id === companyId)!;
+  const lines = proposalLinesOf(proposal.id);
+  const errors = demoProposalChecks(proposal).filter((c) => !c.ok && c.severity === 'error');
+  if (errors.length > 0) {
+    throw new ApiError(400, 'AI_PROPOSAL_INVALID', 'Contrôles comptables non satisfaits', {
+      errors: errors.map((e) => e.key),
+    });
+  }
+  if (!proposal.journal_id) throw new ApiError(400, 'AI_PROPOSAL_INVALID', 'Aucun journal');
+  const journal = s.journals.find((j) => j.id === proposal.journal_id && j.company_id === companyId);
+  if (!journal) throw new ApiError(400, 'AI_PROPOSAL_INVALID', 'Journal invalide');
+
+  const source =
+    proposal.source_kind === 'billing_payment'
+      ? s.billingPayments.find((p) => p.id === proposal.source_id)
+      : proposal.source_kind === 'manual'
+        ? null
+        : s.billingDocuments.find((d) => d.id === proposal.source_id);
+  if (proposal.source_kind !== 'manual') {
+    if (!source) throw new ApiError(409, 'AI_PROPOSAL_INVALID', 'Document source introuvable');
+    if ((source as any).accounting_entry_id) {
+      throw new ApiError(409, 'ACCOUNTING_ALREADY_POSTED', 'Source déjà comptabilisée');
+    }
+  }
+
+  const prepared = prepareLines(company, {
+    currency: proposal.currency,
+    exchangeRate: proposal.exchange_rate,
+    lines: lines.map((l) => ({
+      accountId: l.account_id,
+      description: l.description,
+      debit: amount(l.debit) > 0n ? l.debit : null,
+      credit: amount(l.credit) > 0n ? l.credit : null,
+    })),
+  });
+  if (!prepared.balanced) throw new ApiError(400, 'ENTRY_UNBALANCED', 'Débit et crédit doivent être égaux');
+  assertOpenPeriod(companyId, proposal.entry_date);
+  if (proposal.source_kind !== 'manual' && proposal.reference) {
+    const clash = s.entries.some(
+      (e) => e.company_id === companyId && e.source === 'billing' && (e.reference ?? '').toLowerCase() === proposal.reference!.toLowerCase(),
+    );
+    if (clash) throw new ApiError(409, 'ACCOUNTING_ALREADY_POSTED', 'Référence déjà comptabilisée');
+  }
+
+  const entry: DemoEntry = {
+    id: uid(),
+    company_id: companyId,
+    journal_id: journal.id,
+    entry_no: nextEntryNo(companyId, journal.code, proposal.entry_date),
+    entry_date: proposal.entry_date,
+    reference: proposal.reference,
+    description: proposal.description,
+    currency: prepared.currency,
+    exchange_rate: prepared.fxRate,
+    status: 'posted',
+    source: proposal.source_kind === 'manual' ? 'ai' : 'billing',
+    reversal_of_entry_id: null,
+    posted_at: now(),
+    created_at: now(),
+  };
+  s.entries.push(entry);
+  prepared.lines.forEach((line, index) => {
+    s.lines.push({
+      id: uid(),
+      entry_id: entry.id,
+      company_id: companyId,
+      account_id: line.accountId,
+      line_no: index + 1,
+      description: line.description,
+      debit: line.debit,
+      credit: line.credit,
+      txn_amount: line.txnAmount,
+      txn_currency: line.txnCurrency,
+      fx_rate: line.fxRate,
+    });
+  });
+  proposal.status = 'posted';
+  proposal.entry_id = entry.id;
+  proposal.updated_at = now();
+  if (source) (source as any).accounting_entry_id = entry.id;
+  audit(companyId, 'ai.proposal.post', 'ai_entry_proposal', proposal.id, {
+    entryNo: entry.entry_no,
+    user: user.email,
+    sourceKind: proposal.source_kind,
+  });
+  persist();
+  return {
+    proposal: demoProposalView(proposal),
+    entryId: entry.id,
+    entryNo: entry.entry_no,
+    entryCreated: true,
+  };
+}
+
+function entryRuleView(rule: DemoEntryRule) {
+  const s = loadState();
+  const account = s.accounts.find((a) => a.id === rule.account_id);
+  const counter = s.accounts.find((a) => a.id === rule.counter_account_id);
+  const journal = s.journals.find((j) => j.id === rule.journal_id);
+  return {
+    id: rule.id,
+    ruleType: rule.rule_type,
+    matchKey: rule.match_key,
+    matchLabel: rule.match_label,
+    accountId: rule.account_id,
+    accountCode: account?.code ?? null,
+    accountName: account?.name ?? null,
+    counterAccountId: rule.counter_account_id,
+    counterAccountCode: counter?.code ?? null,
+    counterAccountName: counter?.name ?? null,
+    journalId: rule.journal_id,
+    journalCode: journal?.code ?? null,
+    priority: rule.priority,
+    version: rule.version,
+    isActive: rule.is_active,
+    accountSide: rule.account_side,
+    notes: rule.notes,
+    useCount: rule.use_count,
+    createdBy: rule.validated_by,
+    validatedBy: rule.validated_by,
+    createdAt: rule.created_at,
+    lastUsedAt: null,
+  };
+}
+
 export function demoRequest<T>(method: Method, rawPath: string, body?: unknown): T {
   const [path, search] = rawPath.split('?');
   const query = new URLSearchParams(search ?? '');
@@ -2739,29 +4987,936 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
       }
     }
 
-    // --------------------------------------------- billing (foundation)
-    if (rest === '/billing/documents' && method === 'GET') {
+
+    // ------------------------------------------------------------ facturation
+    if (rest === '/billing/settings' && method === 'GET') {
       requireModule(companyId, 'billing', 'read');
-      return { documents: [], available: false } as T;
+      const st = billingSettingsOf(companyId);
+      return {
+        settings: {
+          quotePrefix: st.quote_prefix,
+          invoicePrefix: st.invoice_prefix,
+          creditPrefix: st.credit_prefix,
+          numberingPolicy: st.numbering_policy,
+          defaultPaymentTerms: st.default_payment_terms,
+          defaultCurrency: st.default_currency,
+          vatEnabled: st.vat_enabled,
+          vatNumber: st.vat_number,
+          legalFooterFr: st.legal_footer_fr,
+          legalFooterEn: st.legal_footer_en,
+          bankDetails: st.bank_details,
+        },
+        capabilities: {
+          numbering: true,
+          sequentialNumbering: true,
+          vatComputation: st.vat_enabled,
+          vatRatesConfigured: s.taxRates.filter((r) => r.company_id === companyId && r.verified).length,
+          mraEInvoicing: false,
+          eInvoicingNotice: 'MRA e-invoicing n’est pas implémenté et ne peut pas être activé dans cette version.',
+          postingToAccounting: true,
+          postingMode: 'human_validation_required',
+          pdf: false,
+          pdfDemoNotice: 'Démonstration navigateur : aucun PDF n’est généré ici (le PDF réel est produit par le backend).',
+          multiCurrency: true,
+          duplicateDetection: 'deterministic',
+        },
+        demo: true,
+      } as T;
     }
 
-    if (rest === '/billing/summary' && method === 'GET') {
+    if (rest === '/billing/settings' && method === 'PATCH') {
+      requireModule(companyId, 'billing', 'admin');
+      const st = billingSettingsOf(companyId);
+      const map: [string, keyof DemoBillingSettings][] = [
+        ['quotePrefix', 'quote_prefix'],
+        ['invoicePrefix', 'invoice_prefix'],
+        ['creditPrefix', 'credit_prefix'],
+        ['numberingPolicy', 'numbering_policy'],
+        ['defaultPaymentTerms', 'default_payment_terms'],
+        ['defaultCurrency', 'default_currency'],
+        ['vatEnabled', 'vat_enabled'],
+        ['vatNumber', 'vat_number'],
+        ['legalFooterFr', 'legal_footer_fr'],
+        ['legalFooterEn', 'legal_footer_en'],
+        ['bankDetails', 'bank_details'],
+      ];
+      for (const [key, column] of map) {
+        if (payload[key] !== undefined) (st as any)[column] = payload[key];
+      }
+      audit(companyId, 'billing.settings.update', 'billing_settings', companyId, { fields: Object.keys(payload) });
+      persist();
+      return { settings: st } as T;
+    }
+
+    if (rest === '/billing/tax-rates' && method === 'GET') {
       requireModule(companyId, 'billing', 'read');
+      return { rates: s.taxRates.filter((r) => r.company_id === companyId) } as T;
+    }
+
+    if (rest === '/billing/tax-rates' && method === 'POST') {
+      requireModule(companyId, 'billing', 'admin');
+      const code = String(payload.code ?? '').trim();
+      if (!code) throw new ApiError(400, 'VALIDATION_ERROR', 'Code du taux requis');
+      const rate = amount(payload.rate);
+      if (rate < 0n || rate > 1_000_000n) throw new ApiError(400, 'VALIDATION_ERROR', 'Taux invalide');
+      const created: DemoTaxRate = {
+        id: uid(),
+        company_id: companyId,
+        code,
+        label: String(payload.label ?? code),
+        rate: fmt(rate),
+        effective_from: String(payload.effectiveFrom ?? todayIso()),
+        effective_to: payload.effectiveTo ?? null,
+        verified: payload.verified === true,
+        source: payload.source ?? null,
+        notes: payload.notes ?? null,
+      };
+      s.taxRates.push(created);
+      audit(companyId, 'billing.tax_rate.create', 'billing_tax_rate', created.id, { code, rate: created.rate, verified: created.verified });
+      persist();
+      return { rate: created } as T;
+    }
+
+    if (rest === '/billing/customers' && method === 'GET') {
+      requireModule(companyId, 'billing', 'read');
+      const includeArchived = query.get('includeArchived') === 'true';
+      const search = (query.get('search') ?? '').toLowerCase();
+      const customers = s.billingCustomers
+        .filter((c) => c.company_id === companyId)
+        .filter((c) => (includeArchived ? true : c.is_active))
+        .filter((c) => (search ? `${c.name} ${c.brn ?? ''}`.toLowerCase().includes(search) : true))
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(billingCustomerView);
+      return { customers, available: true } as T;
+    }
+
+    if (rest === '/billing/customers' && method === 'POST') {
+      requireModule(companyId, 'billing', 'write');
+      const name = String(payload.name ?? '').trim();
+      if (!name) throw new ApiError(400, 'VALIDATION_ERROR', 'Le nom est obligatoire');
+      const brn = payload.brn ? String(payload.brn).trim() : null;
+      const duplicate = s.billingCustomers.find(
+        (c) =>
+          c.company_id === companyId &&
+          c.is_active &&
+          ((brn && c.brn && c.brn.toLowerCase() === brn.toLowerCase()) || c.name.toLowerCase() === name.toLowerCase()),
+      );
+      if (duplicate && !payload.confirmDuplicate) {
+        throw new ApiError(409, 'CUSTOMER_DUPLICATE', 'Un client actif identique existe déjà', {
+          duplicate: billingCustomerView(duplicate),
+          homonymAllowed: true,
+        });
+      }
+      const customer: DemoBillingCustomer = {
+        id: uid(),
+        company_id: companyId,
+        name,
+        legal_name: payload.legalName ?? null,
+        brn,
+        vat_number: payload.vatNumber ?? null,
+        address_line1: payload.addressLine1 ?? null,
+        city: payload.city ?? null,
+        postcode: payload.postcode ?? null,
+        country: payload.country ?? 'MU',
+        contact_name: payload.contactName ?? null,
+        contact_email: payload.contactEmail ?? null,
+        contact_phone: payload.contactPhone ?? null,
+        preferred_currency: payload.preferredCurrency ?? null,
+        payment_terms_days: payload.paymentTermsDays ?? null,
+        receivable_account_id: payload.receivableAccountId ?? null,
+        notes: payload.notes ?? null,
+        is_active: true,
+        archived_at: null,
+        created_at: now(),
+      };
+      s.billingCustomers.push(customer);
+      audit(companyId, 'billing.customer.create', 'billing_customer', customer.id, { name, brn });
+      persist();
+      return { customer: billingCustomerView(customer) } as T;
+    }
+
+    const billingCustomerMatch = /^\/billing\/customers\/([0-9a-f-]{36})(\/[a-z]+)?$/.exec(rest);
+    if (billingCustomerMatch) {
+      const customer = billingCustomerOf(companyId, billingCustomerMatch[1]!);
+      const action = billingCustomerMatch[2] ?? '';
+      if (action === '' && method === 'GET') {
+        requireModule(companyId, 'billing', 'read');
+        const asOf = query.get('asOf') ?? todayIso();
+        return {
+          customer: billingCustomerView(customer),
+          balance: billingCustomerBalanceDemo(companyId, customer.id, asOf),
+        } as T;
+      }
+      if (action === '' && method === 'PATCH') {
+        requireModule(companyId, 'billing', 'write');
+        const map: [string, keyof DemoBillingCustomer][] = [
+          ['name', 'name'],
+          ['legalName', 'legal_name'],
+          ['brn', 'brn'],
+          ['vatNumber', 'vat_number'],
+          ['addressLine1', 'address_line1'],
+          ['city', 'city'],
+          ['postcode', 'postcode'],
+          ['country', 'country'],
+          ['contactName', 'contact_name'],
+          ['contactEmail', 'contact_email'],
+          ['contactPhone', 'contact_phone'],
+          ['preferredCurrency', 'preferred_currency'],
+          ['paymentTermsDays', 'payment_terms_days'],
+          ['receivableAccountId', 'receivable_account_id'],
+          ['notes', 'notes'],
+          ['isActive', 'is_active'],
+        ];
+        for (const [key, column] of map) {
+          if (payload[key] !== undefined) (customer as any)[column] = payload[key];
+        }
+        audit(companyId, 'billing.customer.update', 'billing_customer', customer.id, { fields: Object.keys(payload) });
+        persist();
+        return { customer: billingCustomerView(customer) } as T;
+      }
+      if (action === '' && method === 'DELETE') {
+        requireModule(companyId, 'billing', 'write');
+        customer.is_active = false;
+        customer.archived_at = now();
+        audit(companyId, 'billing.customer.archive', 'billing_customer', customer.id, { name: customer.name });
+        persist();
+        return { archived: true } as T;
+      }
+      if (action === '/history' && method === 'GET') {
+        requireModule(companyId, 'billing', 'read');
+        const documents = s.billingDocuments
+          .filter((d) => d.company_id === companyId && d.customer_id === customer.id)
+          .map((d) => ({
+            id: d.id,
+            kind: d.kind,
+            number: d.doc_no,
+            status: d.status,
+            paymentStatus: d.payment_status,
+            issueDate: d.issue_date,
+            dueDate: d.due_date,
+            currency: d.currency,
+            total: d.total_amount,
+            amountPaid: d.amount_paid,
+            creditedAmount: d.credited_amount,
+            outstanding: fmt(billingOutstanding(d)),
+          }));
+        const payments = s.billingPayments
+          .filter((p) => p.company_id === companyId && p.customer_id === customer.id)
+          .map(billingPaymentView);
+        return { customer: billingCustomerView(customer), documents, payments } as T;
+      }
+      if (action === '/balance' && method === 'GET') {
+        requireModule(companyId, 'billing', 'read');
+        const asOf = query.get('asOf') ?? todayIso();
+        return { balance: billingCustomerBalanceDemo(companyId, customer.id, asOf) } as T;
+      }
+    }
+
+    if (rest === '/billing/items' && method === 'GET') {
+      requireModule(companyId, 'billing', 'read');
+      const items = s.billingItems
+        .filter((i) => i.company_id === companyId)
+        .map(billingItemView);
+      return { items } as T;
+    }
+
+    if (rest === '/billing/items' && method === 'POST') {
+      requireModule(companyId, 'billing', 'write');
+      const reference = String(payload.reference ?? '').trim();
+      if (!reference) throw new ApiError(400, 'VALIDATION_ERROR', 'Référence obligatoire');
+      if (s.billingItems.some((i) => i.company_id === companyId && i.reference.toLowerCase() === reference.toLowerCase())) {
+        throw new ApiError(409, 'ITEM_REFERENCE_TAKEN', 'Cette référence existe déjà');
+      }
+      const item: DemoBillingItem = {
+        id: uid(),
+        company_id: companyId,
+        reference,
+        label_fr: String(payload.labelFr ?? '').trim() || reference,
+        label_en: payload.labelEn ?? null,
+        description: payload.description ?? null,
+        unit_price: fmt(amount(payload.unitPrice)),
+        currency: payload.currency ?? company.functional_currency,
+        unit: payload.unit ?? 'unit',
+        category: payload.category ?? null,
+        vat_treatment: (payload.vatTreatment as DemoBillingItem['vat_treatment']) ?? 'standard',
+        vat_rate_id: payload.vatRateId ?? null,
+        revenue_account_id: payload.revenueAccountId ?? null,
+        is_active: payload.isActive !== false,
+        created_at: now(),
+      };
+      s.billingItems.push(item);
+      audit(companyId, 'billing.item.create', 'billing_item', item.id, { reference });
+      persist();
+      return { item: billingItemView(item) } as T;
+    }
+
+    const billingItemMatch = /^\/billing\/items\/([0-9a-f-]{36})$/.exec(rest);
+    if (billingItemMatch) {
+      const item = s.billingItems.find((i) => i.id === billingItemMatch[1] && i.company_id === companyId);
+      if (!item) throw new ApiError(404, 'ITEM_NOT_FOUND', 'Article introuvable');
+      requireModule(companyId, 'billing', 'write');
+      if (method === 'PATCH') {
+        const map: [string, keyof DemoBillingItem][] = [
+          ['reference', 'reference'],
+          ['labelFr', 'label_fr'],
+          ['labelEn', 'label_en'],
+          ['description', 'description'],
+          ['unit', 'unit'],
+          ['category', 'category'],
+          ['vatRateId', 'vat_rate_id'],
+          ['revenueAccountId', 'revenue_account_id'],
+          ['isActive', 'is_active'],
+        ];
+        for (const [key, column] of map) {
+          if (payload[key] !== undefined) (item as any)[column] = payload[key];
+        }
+        if (payload.unitPrice !== undefined) item.unit_price = fmt(amount(payload.unitPrice));
+        if (payload.vatTreatment !== undefined) item.vat_treatment = payload.vatTreatment;
+        audit(companyId, 'billing.item.update', 'billing_item', item.id, { fields: Object.keys(payload) });
+        persist();
+        return { item: billingItemView(item) } as T;
+      }
+      if (method === 'DELETE') {
+        item.is_active = false;
+        audit(companyId, 'billing.item.archive', 'billing_item', item.id, { reference: item.reference });
+        persist();
+        return { archived: true } as T;
+      }
+    }
+
+    if (rest === '/billing/documents' && method === 'GET') {
+      requireModule(companyId, 'billing', 'read');
+      const kind = query.get('kind');
+      const status = query.get('status');
+      const customerId = query.get('customerId');
+      const documents = s.billingDocuments
+        .filter((d) => d.company_id === companyId)
+        .filter((d) => (kind ? d.kind === kind : true))
+        .filter((d) => (status ? d.status === status : true))
+        .filter((d) => (customerId ? d.customer_id === customerId : true))
+        .sort((a, b) => (a.issue_date < b.issue_date ? 1 : a.issue_date > b.issue_date ? -1 : 0))
+        .map((d) => billingDocView(d));
       return {
-        available: false,
-        counts: [],
-        capabilities: {
-          numbering: false,
-          vatComputation: false,
-          mraEInvoicing: false,
-          postingToAccounting: false,
-        },
+        documents,
+        available: true,
+        capabilities: { mraEInvoicing: false, postingToAccounting: true, pdf: false },
       } as T;
     }
 
     if (rest === '/billing/documents' && method === 'POST') {
       requireModule(companyId, 'billing', 'write');
-      throw new ApiError(501, 'NOT_IMPLEMENTED', 'Facturation préparée mais non implémentée');
+      return createBillingDocumentDemo(companyId, payload) as T;
+    }
+
+    if (rest === '/billing/duplicates/check' && method === 'POST') {
+      requireModule(companyId, 'billing', 'read');
+      const check = billingDuplicateCheck(companyId, {
+        kind: payload.kind as DemoDocKind,
+        customerId: payload.customerId ?? null,
+        customerName: payload.customerName ?? null,
+        docNo: payload.docNo ?? null,
+        issueDate: String(payload.issueDate ?? todayIso()),
+        totalAmount: fmt(amount(payload.totalAmount)),
+        currency: String(payload.currency ?? 'MUR'),
+        sourceDocumentId: payload.sourceDocumentId ?? null,
+        excludeDocumentId: payload.excludeDocumentId ?? null,
+      });
+      return { check, automaticAction: 'none', humanValidationRequired: true } as T;
+    }
+
+    if (rest === '/billing/aging' && method === 'GET') {
+      requireModule(companyId, 'billing', 'read');
+      const asOf = query.get('asOf') ?? todayIso();
+      const customerId = query.get('customerId');
+      return billingAgingDemo(companyId, asOf, customerId) as T;
+    }
+
+    if (rest === '/billing/overdue' && method === 'GET') {
+      requireModule(companyId, 'billing', 'read');
+      const asOf = todayIso();
+      const invoices = s.billingDocuments
+        .filter(
+          (d) =>
+            d.company_id === companyId &&
+            d.kind === 'invoice' &&
+            ['issued', 'partially_paid'].includes(d.status) &&
+            d.due_date !== null &&
+            d.due_date < asOf,
+        )
+        .map((d) => ({
+          ...billingDocView(d),
+          daysLate: Math.floor(
+            (Date.parse(`${asOf}T00:00:00Z`) - Date.parse(`${d.due_date}T00:00:00Z`)) / 86_400_000,
+          ),
+        }))
+        .filter((d) => amount(d.outstanding) > 0n);
+      return {
+        asOf,
+        invoices,
+        totalOverdue: fmt(invoices.reduce((acc, d) => acc + amount(d.outstanding), 0n)),
+      } as T;
+    }
+
+    if (rest === '/billing/summary' && method === 'GET') {
+      requireModule(companyId, 'billing', 'read');
+      const st = billingSettingsOf(companyId);
+      const countMap = new Map<string, number>();
+      for (const doc of s.billingDocuments.filter((d) => d.company_id === companyId)) {
+        const key = `${doc.kind}|${doc.status}`;
+        countMap.set(key, (countMap.get(key) ?? 0) + 1);
+      }
+      const aging = billingAgingDemo(companyId, todayIso());
+      const payments = s.billingPayments.filter((p) => p.company_id === companyId && p.status === 'recorded');
+      return {
+        available: true,
+        counts: [...countMap.entries()].map(([key, count]) => {
+          const [kind, status] = key.split('|');
+          return { kind, status, count };
+        }),
+        openReceivables: aging.totals.total,
+        aging: aging.totals,
+        postedDocuments: s.billingDocuments.filter((d) => d.company_id === companyId && d.accounting_entry_id).length,
+        payments: {
+          count: payments.length,
+          unallocated: fmt(payments.reduce((acc, p) => acc + amount(p.unallocated_amount), 0n)),
+        },
+        capabilities: {
+          numbering: true,
+          vatComputation: st.vat_enabled,
+          mraEInvoicing: false,
+          postingToAccounting: true,
+          postingMode: 'human_validation_required',
+          pdf: false,
+          multiCurrency: true,
+          duplicateDetection: 'deterministic',
+          eInvoicingNotice: 'MRA e-invoicing n’est pas implémenté et ne peut pas être activé dans cette version.',
+        },
+        currency: st.default_currency,
+      } as T;
+    }
+
+    const billingDocMatch = /^\/billing\/documents\/([0-9a-f-]{36})(\/[a-z-]+(?:\.pdf)?)?$/.exec(rest);
+    if (billingDocMatch) {
+      const doc = s.billingDocuments.find((d) => d.id === billingDocMatch[1] && d.company_id === companyId);
+      if (!doc) throw new ApiError(404, 'DOCUMENT_NOT_FOUND', 'Document introuvable');
+      const action = billingDocMatch[2] ?? '';
+      if (action === '' && method === 'GET') {
+        requireModule(companyId, 'billing', 'read');
+        const events = s.audit
+          .filter((a) => a.entity_id === doc.id)
+          .map((a) => ({ action: a.action, actor_id: a.user_id, details: a.details, created_at: a.created_at }));
+        const duplicates = billingDuplicateCheck(companyId, {
+          kind: doc.kind,
+          customerId: doc.customer_id,
+          customerName: doc.customer_name,
+          docNo: doc.doc_no,
+          issueDate: doc.issue_date,
+          totalAmount: doc.total_amount,
+          currency: doc.currency,
+          sourceDocumentId: doc.source_document_id,
+          excludeDocumentId: doc.id,
+        });
+        return { document: billingDocView(doc), events, duplicates } as T;
+      }
+      if (action === '' && method === 'PATCH') {
+        requireModule(companyId, 'billing', 'write');
+        if (doc.status !== 'draft') {
+          throw new ApiError(409, 'DOCUMENT_LOCKED', 'Un document émis est verrouillé : utilisez un avoir ou une annulation');
+        }
+        const editable = ['notes', 'terms', 'dueDate', 'validUntil', 'issueDate', 'customerId', 'currency', 'exchangeRate', 'lines'];
+        const accepted = Object.keys(payload).filter((k) => editable.includes(k));
+        if (accepted.length === 0) throw new ApiError(400, 'VALIDATION_ERROR', 'Aucun champ modifiable fourni');
+        if (payload.customerId) {
+          const customer = billingCustomerOf(companyId, String(payload.customerId));
+          if (!customer.is_active) throw new ApiError(409, 'DOCUMENT_STATUS_INVALID', 'Client archivé');
+          doc.customer_id = customer.id;
+          doc.customer_name = customer.name;
+          doc.customer_brn = customer.brn;
+        }
+        if (payload.issueDate) doc.issue_date = String(payload.issueDate);
+        if (payload.dueDate !== undefined) doc.due_date = payload.dueDate;
+        if (payload.validUntil !== undefined) doc.valid_until = payload.validUntil;
+        if (payload.notes !== undefined) doc.notes = payload.notes;
+        if (payload.terms !== undefined) doc.terms = payload.terms;
+        const currency = String(payload.currency ?? doc.currency).toUpperCase();
+        if (payload.currency) doc.currency = currency;
+        if (payload.exchangeRate !== undefined && payload.exchangeRate !== null) {
+          doc.exchange_rate = rateToString(parseRate(payload.exchangeRate));
+        } else if (currency !== company.functional_currency) {
+          throw new ApiError(400, 'EXCHANGE_RATE_REQUIRED', `Un taux est requis pour ${currency}`);
+        }
+        const existingLines = s.billingLines.filter((l) => l.document_id === doc.id);
+        const rawLines: any[] =
+          Array.isArray(payload.lines) && payload.lines.length > 0
+            ? payload.lines
+            : existingLines.map((l) => ({
+                itemId: l.item_id,
+                description: l.description,
+                quantity: l.quantity,
+                unitPrice: l.unit_price,
+                unit: l.unit,
+                discountPct: l.discount_pct,
+                vatTreatment: l.vat_treatment,
+                vatRateId: l.vat_rate_id,
+                revenueAccountId: l.revenue_account_id,
+              }));
+        const computed = computeBillingDocument(companyId, doc.issue_date, rawLines, billingSettingsOf(companyId).vat_enabled);
+        doc.subtotal = fmt(computed.subtotal);
+        doc.discount_total = fmt(computed.discountTotal);
+        doc.tax_total = fmt(computed.taxTotal);
+        doc.total_amount = fmt(computed.total);
+        doc.updated_at = now();
+        s.billingLines = s.billingLines.filter((l) => l.document_id !== doc.id);
+        computed.lines.forEach((line, index) => {
+          s.billingLines.push({
+            id: uid(),
+            document_id: doc.id,
+            company_id: companyId,
+            line_no: index + 1,
+            item_id: line.itemId,
+            description: line.description,
+            quantity: fmt(line.quantity),
+            unit_price: fmt(line.unitPrice),
+            unit: line.unit,
+            discount_pct: fmt(line.discountPct),
+            vat_treatment: line.vatTreatment,
+            vat_rate: line.vatRate === null ? null : fmt(line.vatRate),
+            vat_rate_id: line.vatRateId,
+            net_amount: fmt(line.netAmount),
+            discount_amount: fmt(line.discountAmount),
+            tax_amount: fmt(line.taxAmount),
+            line_total: fmt(line.lineTotal),
+            revenue_account_id: line.revenueAccountId,
+          });
+        });
+        if (doc.kind === 'credit_note' && doc.source_document_id) {
+          const invoice = s.billingDocuments.find((d) => d.id === doc.source_document_id);
+          if (invoice && amount(invoice.credited_amount) + amount(doc.total_amount) > amount(invoice.total_amount)) {
+            throw new ApiError(409, 'CREDIT_EXCEEDS_INVOICE', 'L’avoir dépasse le montant restant créditable');
+          }
+        }
+        audit(companyId, 'billing.document.update', 'billing_document', doc.id, { fields: accepted });
+        persist();
+        return { document: billingDocView(doc), warnings: computed.warnings } as T;
+      }
+      if (action === '/issue' && method === 'POST') {
+        requireModule(companyId, 'billing', 'write');
+        return issueBillingDocumentDemo(companyId, doc.id) as T;
+      }
+      if (action === '/convert' && method === 'POST') {
+        requireModule(companyId, 'billing', 'write');
+        if (doc.kind !== 'quote') throw new ApiError(400, 'VALIDATION_ERROR', 'Seul un devis peut être converti');
+        return createBillingDocumentDemo(companyId, {
+          kind: 'invoice',
+          customerId: doc.customer_id,
+          issueDate: payload.issueDate ?? todayIso(),
+          sourceDocumentId: doc.id,
+          confirmDuplicate: false,
+        }) as T;
+      }
+      if (action === '/credit-note' && method === 'POST') {
+        requireModule(companyId, 'billing', 'write');
+        if (doc.kind !== 'invoice') throw new ApiError(400, 'VALIDATION_ERROR', 'Un avoir référence une facture');
+        return createBillingDocumentDemo(companyId, {
+          kind: 'credit_note',
+          customerId: doc.customer_id,
+          issueDate: payload.issueDate ?? todayIso(),
+          sourceDocumentId: doc.id,
+          lines: payload.lines,
+        }) as T;
+      }
+      if (action === '/cancel-draft' && method === 'POST') {
+        requireModule(companyId, 'billing', 'write');
+        if (doc.status !== 'draft') throw new ApiError(409, 'DOCUMENT_STATUS_INVALID', 'Seul un brouillon peut être annulé');
+        doc.status = 'cancelled';
+        doc.updated_at = now();
+        audit(companyId, 'billing.document.cancel_draft', 'billing_document', doc.id, {});
+        persist();
+        return { cancelled: true, deleted: false } as T;
+      }
+      if (action === '/events' && method === 'GET') {
+        requireModule(companyId, 'billing', 'read');
+        return {
+          events: s.audit
+            .filter((a) => a.entity_id === doc.id)
+            .map((a) => ({ action: a.action, actor_id: a.user_id, details: a.details, created_at: a.created_at })),
+        } as T;
+      }
+      if (action === '/pdf' && method === 'GET') {
+        requireModule(companyId, 'billing', 'read');
+        throw new ApiError(
+          501,
+          'PDF_NOT_AVAILABLE_IN_DEMO',
+          'La démonstration navigateur ne génère aucun PDF : le PDF réel est produit par le backend (pdfkit).',
+        );
+      }
+    }
+
+    if (rest === '/billing/payments' && method === 'GET') {
+      requireModule(companyId, 'billing', 'read');
+      const customerId = query.get('customerId');
+      const payments = s.billingPayments
+        .filter((p) => p.company_id === companyId)
+        .filter((p) => (customerId ? p.customer_id === customerId : true))
+        .sort((a, b) => (a.payment_date < b.payment_date ? 1 : -1))
+        .map(billingPaymentView);
+      return { payments, methods: ['bank_transfer', 'cheque', 'cash', 'card', 'other'] } as T;
+    }
+
+    if (rest === '/billing/payments' && method === 'POST') {
+      requireModule(companyId, 'billing', 'write');
+      const customer = billingCustomerOf(companyId, String(payload.customerId));
+      if (!customer.is_active) throw new ApiError(409, 'DOCUMENT_STATUS_INVALID', 'Client archivé');
+      const paymentDate = String(payload.paymentDate ?? todayIso());
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) throw new ApiError(400, 'VALIDATION_ERROR', 'Date invalide');
+      const total = amount(payload.amount);
+      if (total <= 0n) throw new ApiError(400, 'VALIDATION_ERROR', 'Montant strictement positif');
+      const currency = String(payload.currency ?? customer.preferred_currency ?? company.functional_currency).toUpperCase();
+      let exchangeRate = '1.00000000';
+      if (currency !== company.functional_currency) {
+        const rate = payload.exchangeRate;
+        if (rate === undefined || rate === null || rate === '') {
+          throw new ApiError(400, 'EXCHANGE_RATE_REQUIRED', `Un taux est requis pour ${currency}`);
+        }
+        exchangeRate = rateToString(parseRate(rate));
+      }
+      const requested: { invoiceId: string; amount: string }[] = Array.isArray(payload.allocations) ? payload.allocations : [];
+      const seen = new Set<string>();
+      let allocated = 0n;
+      const allocations: DemoBillingAllocation[] = [];
+      for (const request of requested) {
+        if (seen.has(request.invoiceId)) {
+          throw new ApiError(400, 'ALLOCATION_INVALID', 'La même facture est affectée deux fois');
+        }
+        seen.add(request.invoiceId);
+        const invoice = s.billingDocuments.find(
+          (d) => d.id === request.invoiceId && d.company_id === companyId && d.kind === 'invoice',
+        );
+        if (!invoice) throw new ApiError(404, 'DOCUMENT_NOT_FOUND', 'Facture introuvable');
+        if (invoice.customer_id !== customer.id) {
+          throw new ApiError(400, 'ALLOCATION_INVALID', 'La facture appartient à un autre client');
+        }
+        if (!['issued', 'partially_paid'].includes(invoice.status)) {
+          throw new ApiError(409, 'ALLOCATION_INVALID', `La facture ${invoice.doc_no ?? ''} n’est pas ouverte au règlement`);
+        }
+        if (invoice.currency !== currency) {
+          throw new ApiError(400, 'CURRENCY_MISMATCH', 'La devise de l’encaissement doit être celle de la facture');
+        }
+        const value = amount(request.amount);
+        if (value <= 0n) throw new ApiError(400, 'ALLOCATION_INVALID', 'Affectation strictement positive');
+        const outstanding = billingOutstanding(invoice);
+        if (value > outstanding) {
+          throw new ApiError(409, 'ALLOCATION_EXCEEDS_INVOICE', 'L’affectation dépasse le solde dû', {
+            invoiceId: invoice.id,
+            outstanding: fmt(outstanding),
+            requested: fmt(value),
+          });
+        }
+        allocated += value;
+        allocations.push({
+          id: uid(),
+          payment_id: '',
+          invoice_id: invoice.id,
+          company_id: companyId,
+          amount: fmt(value),
+        });
+      }
+      if (allocated > total) throw new ApiError(400, 'ALLOCATION_INVALID', 'Les affectations dépassent le montant reçu');
+      const unallocated = total - allocated;
+      const year = billingYear(companyId, paymentDate);
+      const number = nextBillingNumber(companyId, 'payment', year);
+      const payment: DemoBillingPayment = {
+        id: uid(),
+        company_id: companyId,
+        customer_id: customer.id,
+        payment_no: `${billingSettingsOf(companyId).numbering_policy === 'continuous' ? 'REC' : 'REC'}${billingSettingsOf(companyId).numbering_policy === 'continuous' ? `-${String(number.no).padStart(4, '0')}` : `-${year}-${String(number.no).padStart(4, '0')}`}`,
+        payment_date: paymentDate,
+        value_date: payload.valueDate ?? paymentDate,
+        amount: fmt(total),
+        currency,
+        exchange_rate: exchangeRate,
+        method: ['bank_transfer', 'cheque', 'cash', 'card', 'other'].includes(payload.method) ? payload.method : 'bank_transfer',
+        reference: payload.reference ?? null,
+        unallocated_amount: fmt(unallocated),
+        status: 'recorded',
+        sequence_year: year,
+        sequence_no: number.no,
+        accounting_entry_id: null,
+        created_at: now(),
+      };
+      s.billingPayments.push(payment);
+      for (const allocation of allocations) {
+        allocation.payment_id = payment.id;
+        s.billingAllocations.push(allocation);
+        refreshInvoiceBalance(companyId, allocation.invoice_id);
+      }
+      audit(companyId, 'billing.payment.create', 'billing_payment', payment.id, {
+        number: payment.payment_no,
+        amount: payment.amount,
+        unallocated: payment.unallocated_amount,
+        currency,
+      });
+      persist();
+      return {
+        payment: billingPaymentView(payment),
+        warnings: unallocated > 0n ? ['UNALLOCATED_PAYMENT: montant non affecté, à traiter.'] : [],
+        duplicates: { level: 'none', matches: [] },
+        entryCreated: false,
+      } as T;
+    }
+
+    const billingPaymentMatch = /^\/billing\/payments\/([0-9a-f-]{36})(\/[a-z.]+)?$/.exec(rest);
+    if (billingPaymentMatch) {
+      const payment = s.billingPayments.find((p) => p.id === billingPaymentMatch[1] && p.company_id === companyId);
+      if (!payment) throw new ApiError(404, 'PAYMENT_NOT_FOUND', 'Encaissement introuvable');
+      const action = billingPaymentMatch[2] ?? '';
+      if (action === '' && method === 'GET') {
+        requireModule(companyId, 'billing', 'read');
+        return { payment: billingPaymentView(payment) } as T;
+      }
+      if (action === '/cancel' && method === 'POST') {
+        requireModule(companyId, 'billing', 'write');
+        if (payment.accounting_entry_id) {
+          throw new ApiError(409, 'ACCOUNTING_ALREADY_POSTED', 'Encaissement comptabilisé : contrepassation requise');
+        }
+        const touched = s.billingAllocations.filter((a) => a.payment_id === payment.id).map((a) => a.invoice_id);
+        s.billingAllocations = s.billingAllocations.filter((a) => a.payment_id !== payment.id);
+        payment.status = 'cancelled';
+        payment.unallocated_amount = '0.0000';
+        for (const invoiceId of touched) refreshInvoiceBalance(companyId, invoiceId);
+        audit(companyId, 'billing.payment.cancel', 'billing_payment', payment.id, {});
+        persist();
+        return { cancelled: true, invoicesRefreshed: touched } as T;
+      }
+      if ((action === '/receipt.pdf' || action === '/pdf') && method === 'GET') {
+        requireModule(companyId, 'billing', 'read');
+        throw new ApiError(
+          501,
+          'PDF_NOT_AVAILABLE_IN_DEMO',
+          'La démonstration navigateur ne génère aucun reçu PDF : le PDF réel est produit par le backend.',
+        );
+      }
+    }
+
+    // ------------------------------------------- assistant : propositions V2
+    if (rest === '/ai/entry-proposals' && method === 'POST') {
+      requireModule(companyId, 'accounting', 'write');
+      return demoManualProposal(companyId, payload) as T;
+    }
+
+    if (rest === '/ai/entry-proposals/from-billing' && method === 'POST') {
+      requireModule(companyId, 'accounting', 'write');
+      return demoProposeFromBilling(companyId, {
+        documentId: payload.documentId ? String(payload.documentId) : undefined,
+        paymentId: payload.paymentId ? String(payload.paymentId) : undefined,
+      }) as T;
+    }
+
+    if (rest === '/ai/entry-proposals' && method === 'GET') {
+      requireModule(companyId, 'accounting', 'read');
+      const limit = Math.max(1, Math.min(100, Number(query.get('limit') ?? 30) || 30));
+      const proposals = s.entryProposals
+        .filter((p) => p.company_id === companyId)
+        .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+        .slice(0, limit)
+        .map(demoProposalView);
+      return { proposals, lifecycle: ['proposed', 'validated', 'posted'], neverPostsAutomatically: true } as T;
+    }
+
+    const proposalMatch = /^\/ai\/entry-proposals\/([0-9a-f-]{36})(\/[a-z]+)?$/.exec(rest);
+    if (proposalMatch) {
+      const proposal = s.entryProposals.find((p) => p.id === proposalMatch[1] && p.company_id === companyId);
+      if (!proposal) throw new ApiError(404, 'AI_PROPOSAL_NOT_FOUND', 'Proposition introuvable');
+      const action = proposalMatch[2] ?? '';
+      if (action === '' && method === 'GET') {
+        requireModule(companyId, 'accounting', 'read');
+        return { proposal: demoProposalView(proposal) } as T;
+      }
+      if (action === '' && method === 'PUT') {
+        requireModule(companyId, 'accounting', 'write');
+        if (proposal.status === 'posted' || proposal.status === 'rejected') {
+          throw new ApiError(409, 'AI_PROPOSAL_DECIDED', 'Cette proposition est clôturée');
+        }
+        if (payload.description !== undefined) proposal.description = String(payload.description);
+        if (payload.reference !== undefined) proposal.reference = payload.reference;
+        if (payload.entryDate !== undefined) proposal.entry_date = String(payload.entryDate);
+        if (payload.journalId !== undefined) {
+          const journal = s.journals.find((j) => j.id === payload.journalId && j.company_id === companyId);
+          if (!journal) throw new ApiError(400, 'VALIDATION_ERROR', 'Journal invalide');
+          proposal.journal_id = journal.id;
+        }
+        if (payload.currency !== undefined) proposal.currency = String(payload.currency).toUpperCase();
+        if (payload.exchangeRate !== undefined) {
+          proposal.exchange_rate = payload.exchangeRate === null ? null : rateToString(parseRate(payload.exchangeRate));
+        }
+        if (Array.isArray(payload.lines)) {
+          const accounts = accountsOf(companyId);
+          s.proposalLines = s.proposalLines.filter((l) => l.proposal_id !== proposal.id);
+          payload.lines.forEach((line: any, index: number) => {
+            const account = accounts.find((a) => a.id === line.accountId);
+            if (!account) throw new ApiError(400, 'AI_ACCOUNT_NOT_IN_CHART', 'Compte hors plan comptable');
+            const debit = line.debit === null || line.debit === undefined || String(line.debit).trim() === '' ? 0n : amount(line.debit);
+            const credit = line.credit === null || line.credit === undefined || String(line.credit).trim() === '' ? 0n : amount(line.credit);
+            if ((debit > 0n) === (credit > 0n)) {
+              throw new ApiError(400, 'VALIDATION_ERROR', 'Chaque ligne porte un débit ou un crédit');
+            }
+            s.proposalLines.push({
+              id: uid(),
+              proposal_id: proposal.id,
+              line_no: index + 1,
+              account_id: account.id,
+              description: line.description ?? null,
+              debit: fmt(debit),
+              credit: fmt(credit),
+              rule_id: null,
+            });
+          });
+        }
+        proposal.status = 'proposed';
+        proposal.validated_by = null;
+        proposal.validated_at = null;
+        proposal.updated_at = now();
+        audit(companyId, 'ai.proposal.update', 'ai_entry_proposal', proposal.id, {
+          fields: Object.keys(payload),
+        });
+        persist();
+        return { proposal: demoProposalView(proposal), entryCreated: false } as T;
+      }
+      if (action === '/validate' && method === 'POST') {
+        requireModule(companyId, 'accounting', 'write');
+        if (proposal.status === 'posted') throw new ApiError(409, 'AI_PROPOSAL_DECIDED', 'Déjà comptabilisée');
+        if (proposal.status === 'validated') throw new ApiError(409, 'AI_PROPOSAL_DECIDED', 'Déjà validée');
+        if (proposal.status === 'rejected') throw new ApiError(409, 'AI_PROPOSAL_DECIDED', 'Proposition rejetée');
+        const checks = demoProposalChecks(proposal);
+        const errors = checks.filter((c) => !c.ok && c.severity === 'error');
+        if (errors.length > 0) {
+          throw new ApiError(400, 'AI_PROPOSAL_INVALID', 'Des contrôles comptables obligatoires échouent', {
+            checks,
+            errors: errors.map((e) => e.key),
+          });
+        }
+        const warnings = checks.filter((c) => !c.ok && c.severity === 'warning');
+        if (warnings.length > 0 && payload.acceptWarnings !== true) {
+          throw new ApiError(400, 'AI_PROPOSAL_INVALID', 'Des avertissements doivent être acceptés explicitement', {
+            checks,
+            warnings: warnings.map((w) => w.key),
+          });
+        }
+        proposal.status = 'validated';
+        proposal.validated_by = requireUser().id;
+        proposal.validated_at = now();
+        proposal.updated_at = now();
+        audit(companyId, 'ai.proposal.validate', 'ai_entry_proposal', proposal.id, { warnings: warnings.length });
+        persist();
+        return { proposal: demoProposalView(proposal), entryCreated: false } as T;
+      }
+      if (action === '/reject' && method === 'POST') {
+        requireModule(companyId, 'accounting', 'write');
+        if (proposal.status === 'posted') throw new ApiError(409, 'AI_PROPOSAL_DECIDED', 'Déjà comptabilisée');
+        proposal.status = 'rejected';
+        proposal.rejected_by = requireUser().id;
+        proposal.rejected_at = now();
+        proposal.rejection_note = payload.note ?? null;
+        proposal.updated_at = now();
+        audit(companyId, 'ai.proposal.reject', 'ai_entry_proposal', proposal.id, { note: payload.note ?? null });
+        persist();
+        return { proposal: demoProposalView(proposal), entryCreated: false } as T;
+      }
+      if (action === '/post' && method === 'POST') {
+        requireModule(companyId, 'accounting', 'write');
+        return demoPostProposal(companyId, proposal.id) as T;
+      }
+    }
+
+    if (rest === '/ai/entry-rules' && method === 'GET') {
+      requireModule(companyId, 'accounting', 'read');
+      const includeInactive = query.get('includeInactive') === 'true';
+      const rules = s.entryRules
+        .filter((r) => r.company_id === companyId)
+        .filter((r) => (includeInactive ? true : r.is_active))
+        .sort((a, b) => a.rule_type.localeCompare(b.rule_type) || a.priority - b.priority)
+        .map((r) => entryRuleView(r));
+      return {
+        rules,
+        notice:
+          'Règles déterministes validées par un humain. Aucune donnée d’une autre société n’est utilisée et aucun modèle n’est entraîné.',
+      } as T;
+    }
+
+    if (rest === '/ai/entry-rules' && method === 'POST') {
+      requireModule(companyId, 'accounting', 'write');
+      const ruleType = String(payload.ruleType);
+      if (!['counterparty', 'bank_label', 'expense_category', 'billing_item', 'payment_method', 'journal'].includes(ruleType)) {
+        throw new ApiError(400, 'AI_RULE_INVALID', 'Type de règle inconnu');
+      }
+      const matchKey = String(payload.matchKey ?? '').trim();
+      if (matchKey.length < 2) throw new ApiError(400, 'AI_RULE_INVALID', 'Clé de correspondance trop courte');
+      const accountId = payload.accountId ?? null;
+      const counterAccountId = payload.counterAccountId ?? null;
+      if (!accountId && !payload.journalId) throw new ApiError(400, 'AI_RULE_INVALID', 'Une règle doit viser un compte ou un journal');
+      const accounts = accountsOf(companyId);
+      for (const id of [accountId, counterAccountId]) {
+        if (!id) continue;
+        const account = accounts.find((a) => a.id === id);
+        if (!account || !account.is_active) throw new ApiError(400, 'AI_ACCOUNT_NOT_IN_CHART', 'Compte hors plan comptable');
+      }
+      const previous = s.entryRules
+        .filter((r) => r.company_id === companyId && r.rule_type === ruleType && r.is_active)
+        .filter((r) => r.match_key.toLowerCase() === matchKey.toLowerCase());
+      previous.forEach((r) => {
+        r.is_active = false;
+      });
+      const rule: DemoEntryRule = {
+        id: uid(),
+        company_id: companyId,
+        rule_type: ruleType as DemoEntryRule['rule_type'],
+        match_key: matchKey,
+        match_label: payload.matchLabel ?? null,
+        account_id: accountId,
+        counter_account_id: counterAccountId,
+        journal_id: payload.journalId ?? null,
+        account_side: payload.accountSide === 'credit' ? 'credit' : 'debit',
+        priority: Number(payload.priority ?? 100),
+        version: previous.length > 0 ? Math.max(...previous.map((r) => r.version)) + 1 : 1,
+        is_active: true,
+        previous_version_id: previous[0]?.id ?? null,
+        notes: payload.notes ?? null,
+        use_count: 0,
+        created_at: now(),
+        validated_by: requireUser().id,
+      };
+      s.entryRules.push(rule);
+      audit(companyId, 'ai.rule.create', 'ai_rule', rule.id, {
+        ruleType,
+        matchKey,
+        version: rule.version,
+      });
+      persist();
+      return { rule: entryRuleView(rule) } as T;
+    }
+
+    if (rest === '/ai/entry-rules/history' && method === 'GET') {
+      requireModule(companyId, 'accounting', 'read');
+      const ruleType = query.get('ruleType');
+      const matchKey = query.get('matchKey');
+      if (!ruleType || !matchKey) throw new ApiError(400, 'AI_RULE_INVALID', 'ruleType et matchKey sont requis');
+      const history = s.entryRules
+        .filter((r) => r.company_id === companyId && r.rule_type === ruleType)
+        .filter((r) => r.match_key.toLowerCase().trim() === matchKey.toLowerCase().trim())
+        .sort((a, b) => b.version - a.version)
+        .map((r) => entryRuleView(r));
+      return { history } as T;
+    }
+
+    const entryRuleMatch = /^\/ai\/entry-rules\/([0-9a-f-]{36})\/disable$/.exec(rest);
+    if (entryRuleMatch && method === 'POST') {
+      requireModule(companyId, 'accounting', 'write');
+      const rule = s.entryRules.find((r) => r.id === entryRuleMatch[1] && r.company_id === companyId && r.is_active);
+      if (!rule) throw new ApiError(404, 'AI_RULE_NOT_FOUND', 'Règle introuvable ou déjà inactive');
+      rule.is_active = false;
+      audit(companyId, 'ai.rule.disable', 'ai_rule', rule.id, { ruleType: rule.rule_type, version: rule.version });
+      persist();
+      return { disabled: true, deleted: false } as T;
     }
 
     // ---------------------------------------------- payroll (foundation)

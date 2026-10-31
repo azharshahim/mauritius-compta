@@ -158,18 +158,34 @@ describe('demo build (jsdom)', () => {
     );
   });
 
-  it('shows billing and payroll as prepared, never as working features', async () => {
+  it('opens the operational billing screens while payroll stays prepared', async () => {
     await login();
     fireEvent.click(moduleTab(/Facturation/));
-    await screen.findByRole('heading', { name: /Tableau de bord/i });
-    expect(await screen.findByText(/préparée mais pas encore opérationnelle/i)).toBeTruthy();
-    expect(screen.getByText(/vatComputation/)).toBeTruthy();
+    await screen.findByRole('heading', { name: /^Facturation$/i });
+    expect(await screen.findByText(/Créances ouvertes/i)).toBeTruthy();
+    expect(screen.queryByText(/préparée mais pas encore opérationnelle/i)).toBeNull();
+
+    fireEvent.click(navLink(/Factures/i));
+    await screen.findByRole('heading', { name: /^Factures$/i });
+    expect(await screen.findByText('FAC-DEMO-0002')).toBeTruthy();
+
+    fireEvent.click(navLink(/Balance âgée/i));
+    await screen.findByRole('heading', { name: /^Balance âgée$/i });
 
     fireEvent.click(moduleTab(/Paie & RH/));
     await screen.findByRole('heading', { name: /Tableau de bord/i });
     expect(await screen.findByText(/Aucun calcul PAYE, CSG ou NSF/i)).toBeTruthy();
-    expect(screen.getByText(/paye/)).toBeTruthy();
     expect(screen.queryByText(/bulletin généré/i)).toBeNull();
+  });
+
+  it('proposes an accounting entry without ever posting it automatically', async () => {
+    await login();
+    fireEvent.click(navLink(/Écritures proposées/i));
+    await screen.findByRole('heading', { name: /^Écritures proposées$/i });
+    expect(
+      await screen.findByText(/La proposition est stockée à part : elle ne crée jamais d.écriture/i),
+    ).toBeTruthy();
+    expect(await screen.findByText(/Achat de fournitures de bureau \(fictif\)/i)).toBeTruthy();
   });
 
   it('switches FR <-> EN and opens the mobile navigation drawer', async () => {

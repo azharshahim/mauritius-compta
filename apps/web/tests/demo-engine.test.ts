@@ -202,8 +202,13 @@ describe('demo backend — accounting rules', () => {
 
   it('refuses to post into a closed period', () => {
     const companyId = firstCompanyId();
-    const periods = call<{ periods: { id: string }[] }>('GET', `/companies/${companyId}`).periods;
-    call('POST', `/companies/${companyId}/periods/${periods[0]!.id}/close`);
+    const periods = call<{ periods: { id: string; status: string }[] }>(
+      'GET',
+      `/companies/${companyId}`,
+    ).periods;
+    for (const period of periods.filter((p) => p.status === 'open')) {
+      call('POST', `/companies/${companyId}/periods/${period.id}/close`);
+    }
     expect(() =>
       call('POST', `/companies/${companyId}/entries`, {
         journalId: journalId(companyId, 'OD'),
@@ -406,17 +411,21 @@ describe('demo backend — cabinet module and module permissions', () => {
     ).toBeGreaterThan(0);
   });
 
-  it('announces billing as a prepared, unavailable module', () => {
+  it('exposes billing as operational while e-invoicing stays disabled', () => {
     const companyId = companyIdByName(/Lagon Bleu/);
-    const summary = call<{ available: boolean; capabilities: { vatComputation: boolean } }>(
-      'GET',
-      `/companies/${companyId}/billing/summary`,
-    );
-    expect(summary.available).toBe(false);
+    const summary = call<{
+      available: boolean;
+      capabilities: { vatComputation: boolean; mraEInvoicing: boolean; postingToAccounting: boolean };
+    }>('GET', `/companies/${companyId}/billing/summary`);
+    expect(summary.available).toBe(true);
+    expect(summary.capabilities.postingToAccounting).toBe(true);
+    expect(summary.capabilities.mraEInvoicing).toBe(false);
+    // No VAT rate is ever seeded, so nothing can be computed until a human
+    // configures and verifies one.
     expect(summary.capabilities.vatComputation).toBe(false);
     expect(() =>
-      call('POST', `/companies/${companyId}/billing/documents`, { customerName: 'X' }),
-    ).toThrowError(/non implémentée/);
+      call('POST', `/companies/${companyId}/billing/documents`, { kind: 'invoice', customerId: crypto.randomUUID() }),
+    ).toThrowError(/Client introuvable/);
   });
 
   it('lists collaborators with their dossier roles', () => {
