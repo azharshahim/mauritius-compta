@@ -143,7 +143,10 @@ Tests :
 - suite API complète : **291 verts / 11 ignorés** ;
 - web : **152 verts**, démo lettrage **8**, interface lettrage **4**,
   Banque **6** ;
-- typecheck, builds et migrations validés.
+- typecheck, builds et migrations validés ;
+- CI GitHub sur `16c6193` : runs `41203043988` et `41203040241` (CI),
+  `41203040366` (Pages) — **tous verts**, y compris PostgreSQL réel et les
+  migrations rejouées.
 
 ### Limites honnêtes
 

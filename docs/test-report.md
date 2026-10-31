@@ -17,6 +17,10 @@ dont 1 de concurrence ignoré sans PostgreSQL réel),
 `apps/web/tests/lettering-ui.test.tsx` (**3**), et un cas Banque fournisseur
 ajouté à `apps/web/tests/bank-ui.test.tsx`.
 
+CI `16c6193` : `41203043988` et `41203040241` vertes, y compris
+`API tests against real PostgreSQL` et `Migrations against real PostgreSQL` ;
+Pages `41203040366` verte.
+
 **Limites.** Les tests de concurrence ne s’exécutent que dans le job GitHub
 Actions `postgres-tests` (`TEST_DATABASE_URL`). Aucun test sur Samsung Android
 physique ni sur Chrome réel n’a été effectué dans cet environnement : les
