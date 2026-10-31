@@ -1,9 +1,9 @@
 # Rapport de mission 8 — assistant de migration comptable
 
 > Date : 31 octobre 2026. Branche : `arena/b0b62798-mauritius-compta`.
-> Code et documentation : commit `6fa5079` (base `4784408`), poussés sur la
-> branche de développement. PR nº1 (brouillon) mise à jour, **jamais fusionnée** ;
-> `main` reste à `9e46f16`.
+> Code : commit `6fa5079` (base `4784408`) ; corrections de documentation et de
+> vérification Pages jusqu'à `9bba33d`. PR nº1 (brouillon) mise à jour,
+> **jamais fusionnée** ; `main` reste à `9e46f16`.
 
 ## 1. Livré
 
@@ -111,18 +111,31 @@ production, contrôle d'absence de secrets, puis deux jobs PostgreSQL 16 réels
 (suite API complète et application des migrations `0001`→`0008`, rejeu
 idempotent, seed, vérification des sept tables `migration_*`).
 
-Statut du run déclenché par ce commit : **voir la section 17**, mise à jour après
-le workflow. Le job PostgreSQL est indispensable : les tests de migration
-utilisent des transactions et des contraintes réelles.
+Résultats réels :
+
+| Workflow | Run | Commit | Résultat |
+|---|---|---|---|
+| CI (push) | `41187968691` | `9bba33d` | ✅ |
+| CI (pull request nº1) | `41187972497` | `9bba33d` | ✅ |
+| CI (push, premier passage) | `41187787768` | `f717e42` | ✅ |
+| Pages | `41187968769` | `9bba33d` | ✅ |
+
+Le job PostgreSQL est indispensable : les tests de migration utilisent des
+transactions et des contraintes réelles. Il vérifie les sept tables
+`migration_*` après rejeu idempotent des migrations.
 
 ## 12. GitHub Pages
 
 Workflow `pages.yml` : build démo, vérification des chaînes de migration dans le
 bundle, présence des fichiers d'exemple dans `dist/samples`, publication, puis
 contrôle HTTPS de l'URL publiée (page 200, bundle, `404.html`, lien profond,
-téléchargement HTTP 200 de deux fichiers d'exemple fictifs). URL :
-<https://azharshahim.github.io/mauritius-compta/>. Aucun serveur réel n'est
-simulé : bannière permanente, `localStorage`, réinitialisation possible.
+téléchargement HTTP 200 de deux fichiers d'exemple fictifs). Run `41187968769` :
+**succès**, asset `index-Co-PB_us.js` (822 528 octets), `404.html` 200.
+Premier passage `41187787737` en échec sur une vérification de casse
+(`FICTIF` en majuscules alors que le fichier contient « fictif ») : corrigé et
+republié. URL : <https://azharshahim.github.io/mauritius-compta/>. Aucun serveur
+réel n'est simulé : bannière permanente, `localStorage`, réinitialisation
+possible.
 
 ## 13. Limites explicites
 
@@ -173,10 +186,11 @@ Détails : [`migration-security.md`](migration-security.md).
 
 ## 17. Statut final
 
-- Branche : `arena/b0b62798-mauritius-compta` — commit principal `6fa5079`.
+- Branche : `arena/b0b62798-mauritius-compta` — commit principal `6fa5079`,
+  HEAD documentaire `9bba33d` au moment des runs ci-dessus.
 - PR nº1 : <https://github.com/azharshahim/mauritius-compta/pull/1> — **brouillon
-  ouverte, non fusionnée**.
-- CI / Pages : à compléter après le push (run et URL exacts consignés dans
-  l'historique de la PR).
+  ouverte, non fusionnée** (titre mis à jour : missions 1–8).
+- CI `41187968691` (push) et `41187972497` (PR) : ✅ ; Pages `41187968769` : ✅.
 - `main` : inchangé (`9e46f16`). Aucune release, aucun déploiement OVH, aucun
   paiement.
+- Démo : <https://azharshahim.github.io/mauritius-compta/>.
