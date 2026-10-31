@@ -105,6 +105,18 @@ Chaque groupe expose son code, son compte, ses lignes, ses documents liés
 - ligne → lettrage (`ledger_lettering_lines`) ;
 - lettrage → historique (`ledger_lettering_events`).
 
+Liens d’interface :
+
+- numéro d’écriture d’une ligne → `/accounting/entries?search=<n°>` ;
+- numéro de facture/avoir → `/billing/invoices?document=<n°>` ou
+  `/billing/credit-notes?document=<n°>` (détail ouvert automatiquement) ;
+- détail facture, ligne de règlement, détail d’écriture comptabilisée →
+  `/accounting/lettering?search=<n°>`.
+
+Le rapprochement démo par numéro de document n’est utilisé que si le numéro est
+littéralement cité par la référence/libellé de l’écriture ; aucune
+correspondance approximative n’est inventée.
+
 L’écran affiche côte à côte le restant commercial, le restant comptable et le
 montant lettré. Un écart n’est jamais arrondi silencieusement.
 

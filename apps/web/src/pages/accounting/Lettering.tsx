@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../../api';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
@@ -299,7 +300,8 @@ export default function LetteringPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountId, setAccountId] = useState('');
   const [status, setStatus] = useState<'unlettered' | 'partial' | 'lettered' | 'all'>('unlettered');
-  const [search, setSearch] = useState('');
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(() => searchParams.get('search') ?? '');
   const [lines, setLines] = useState<Line[]>([]);
   const [pending, setPending] = useState<Line[]>([]);
   const [selected, setSelected] = useState<Record<string, string>>({});
@@ -317,6 +319,10 @@ export default function LetteringPage() {
   const [reverseReviewed, setReverseReviewed] = useState(false);
 
   const account = useMemo(() => accounts.find((a) => a.id === accountId), [accounts, accountId]);
+  const documentPath = (kind: string | null, number: string) => {
+    const base = kind === 'credit_note' ? '/billing/credit-notes' : '/billing/invoices';
+    return `${base}?document=${encodeURIComponent(number)}`;
+  };
   const fmtMoney = (value: string | number | null | undefined, currency?: string) =>
     money(value, locale, currency);
 
@@ -667,7 +673,9 @@ export default function LetteringPage() {
                               />
                             </td>
                             <td>
-                              <strong>{line.entryNo}</strong>
+                              <Link to={`/accounting/entries?search=${encodeURIComponent(line.entryNo)}`}>
+                                <strong>{line.entryNo}</strong>
+                              </Link>
                               <div className="muted small">{line.journalCode}</div>
                             </td>
                             <td>{line.entryDate}</td>
@@ -675,7 +683,14 @@ export default function LetteringPage() {
                               <div>{line.entryReference ?? line.entryDescription}</div>
                               <div className="muted small">
                                 {line.partnerName ?? line.accountName}
-                                {line.documentNo ? ` · ${line.documentNo}` : ''}
+                                {line.documentNo && (
+                                  <>
+                                    {' · '}
+                                    <Link to={documentPath(line.documentKind, line.documentNo)}>
+                                      {line.documentNo}
+                                    </Link>
+                                  </>
+                                )}
                               </div>
                             </td>
                             <td className="amount-in">{zero(line.debit) ? '—' : fmtMoney(line.debit)}</td>
@@ -721,7 +736,9 @@ export default function LetteringPage() {
                         <div className="lettering-card-head">
                           <label>
                             <input type="checkbox" checked={checked} onChange={() => toggle(line)} />{' '}
-                            <strong>{line.entryNo}</strong>
+                            <Link to={`/accounting/entries?search=${encodeURIComponent(line.entryNo)}`}>
+                              <strong>{line.entryNo}</strong>
+                            </Link>
                           </label>
                           <Badge kind={zero(line.remaining) ? 'success' : zero(line.lettered) ? 'warning' : 'info'}>
                             {zero(line.remaining) ? tr.lettered : zero(line.lettered) ? tr.unlettered : tr.partial}
@@ -729,6 +746,12 @@ export default function LetteringPage() {
                         </div>
                         <p className="muted small">
                           {line.entryDate} · {line.accountCode} · {line.entryReference ?? line.entryDescription}
+                          {line.documentNo && (
+                            <>
+                              {' · '}
+                              <Link to={documentPath(line.documentKind, line.documentNo)}>{line.documentNo}</Link>
+                            </>
+                          )}
                         </p>
                         <div className="lettering-card-grid">
                           <span>
@@ -1003,7 +1026,10 @@ export default function LetteringPage() {
             <ul className="lettering-preview-lines">
               {preview.lines.map((line) => (
                 <li key={line.id}>
-                  <strong>{line.entryNo}</strong> · {line.entryDate} · {line.entryReference ?? line.entryDescription}
+                  <Link to={`/accounting/entries?search=${encodeURIComponent(line.entryNo)}`}>
+                    <strong>{line.entryNo}</strong>
+                  </Link>{' '}
+                  · {line.entryDate} · {line.entryReference ?? line.entryDescription}
                   <span>
                     {line.side === 'debit' ? tr.debit : tr.credit} {fmtMoney(line.remaining)}
                   </span>

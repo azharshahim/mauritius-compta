@@ -282,6 +282,9 @@ const fr: Dict = {
   'nav.cabinet.team': 'Collaborateurs',
   'nav.accounting.purchases': 'Achats & Fournisseurs',
   'nav.accounting.lettering': 'Lettrage',
+  'lettering.open': 'Voir le lettrage',
+  'lettering.traceability':
+    'Chaîne consultable : facture → règlement → écriture → lettrage. Aucune écriture n’est modifiée.',
   'nav.accounting.banking': 'Banque & rapprochement',
   'nav.accounting.assets': 'Immobilisations',
   'nav.accounting.ifrs': 'IFRS for SMEs',
@@ -1231,6 +1234,9 @@ const en: Dict = {
   'nav.cabinet.team': 'Collaborators',
   'nav.accounting.purchases': 'Purchases & Suppliers',
   'nav.accounting.lettering': 'Lettering',
+  'lettering.open': 'View lettering',
+  'lettering.traceability':
+    'Audit trail: invoice → payment → entry → lettering. No entry is modified.',
   'nav.accounting.banking': 'Bank & reconciliation',
   'nav.accounting.assets': 'Fixed assets',
   'nav.accounting.ifrs': 'IFRS for SMEs',

@@ -7,7 +7,7 @@ _Date : 31 octobre 2026._
 | Suite | Résultat |
 |---|---|
 | API (PGlite) | **291 réussis | 11 ignorés** |
-| Web (jsdom) | **152 réussis / 17 fichiers** |
+| Web (jsdom) | **153 réussis / 17 fichiers** |
 | Migrations | **6 / 6** |
 | Typecheck / build / build:demo | verts |
 

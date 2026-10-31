@@ -77,6 +77,25 @@ describe('lettrage (interface démo)', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('rend consultable la chaîne facture → règlement → écriture → lettrage', async () => {
+    await login();
+    window.location.hash = '#/accounting/lettering?search=FAC-DEMO';
+    await screen.findByRole('heading', { name: /Lettrage clients & fournisseurs/i });
+    const searchInput = (await screen.findByLabelText(
+      /Rechercher \(écriture, référence, tiers, document\)/i,
+    )) as HTMLInputElement;
+    expect(searchInput.value).toBe('FAC-DEMO');
+    const docLink = await waitFor(() => {
+      const link = document.querySelector('a[href*="/billing/invoices?document="]');
+      expect(link).toBeTruthy();
+      return link as HTMLAnchorElement;
+    });
+    expect(decodeURIComponent(docLink.getAttribute('href') ?? '')).toContain('/billing/invoices?document=FAC-');
+    const entryLink = document.querySelector('a[href*="/accounting/entries?search="]');
+    expect(entryLink).toBeTruthy();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('remplace le tableau par des cartes sous 640 px sans débordement horizontal', () => {
     const css = readFileSync(resolve(process.cwd(), 'src', 'styles.css'), 'utf8');
     expect(css).toMatch(/\.lettering-table \.table \{ min-width: 860px; \}/);

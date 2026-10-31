@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, qs } from '../api';
 import { useI18n } from '../i18n';
 import { errorMessage, useSession } from '../store';
@@ -97,9 +98,10 @@ const newLine = (): EditableLine => ({
 export default function EntriesPage() {
   const { t, locale } = useI18n();
   const { company } = useSession();
+  const [searchParams] = useSearchParams();
   const [status, setStatus] = useState('');
   const [journalId, setJournalId] = useState('');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('search') ?? '');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [offset, setOffset] = useState(0);
@@ -660,6 +662,14 @@ export default function EntriesPage() {
               )}
               {detail.entry.status === 'posted' && !detail.entry.reversal_entry_no && (
                 <Button onClick={() => void reverseEntry(detail.entry.id)}>{t('entries.reverse')}</Button>
+              )}
+              {detail.entry.status === 'posted' && (
+                <Link
+                  className="btn btn-ghost"
+                  to={`/accounting/lettering?search=${encodeURIComponent(detail.entry.entry_no ?? '')}`}
+                >
+                  {t('lettering.open')}
+                </Link>
               )}
               <Button onClick={() => setDetailOpen(false)}>{t('common.close')}</Button>
             </div>

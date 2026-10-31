@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../../api';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
@@ -10,6 +11,8 @@ import { PAYMENT_METHODS } from './types';
 export default function BillingPaymentsPage() {
   const { t, locale } = useI18n();
   const { company } = useSession();
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(() => searchParams.get('search') ?? '');
   const [payments, setPayments] = useState<Payment[]>([]);
   const [documents, setDocuments] = useState<BillingDocument[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -58,6 +61,16 @@ export default function BillingPaymentsPage() {
     () => documents.filter((d) => d.customerId === form.customerId),
     [documents, form.customerId],
   );
+
+  const visiblePayments = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return payments;
+    return payments.filter((p) =>
+      [p.number, p.reference, p.paymentDate, p.method, ...p.allocations.map((a) => a.invoiceNumber)]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(needle)),
+    );
+  }, [payments, search]);
 
   const allocatedTotal = Object.entries(allocations).reduce((acc, [, value]) => acc + (toScaled4(value) ?? 0n), 0n);
   const received = toScaled4(form.amount) ?? 0n;
@@ -141,9 +154,14 @@ export default function BillingPaymentsPage() {
       <ErrorBanner message={error} />
 
       <Card>
+        <div className="lettering-filters">
+          <Field label={t('common.search')}>
+            <input value={search} onChange={(e) => setSearch(e.target.value)} />
+          </Field>
+        </div>
         {loading ? (
           <Spinner label={t('common.loading')} />
-        ) : payments.length === 0 ? (
+        ) : visiblePayments.length === 0 ? (
           <EmptyState title={t('billing.payments.empty')} />
         ) : (
           <div className="table-wrap">
@@ -161,7 +179,7 @@ export default function BillingPaymentsPage() {
                 </tr>
               </thead>
               <tbody>
-                {payments.map((p) => (
+                {visiblePayments.map((p) => (
                   <tr key={p.id}>
                     <td className="mono">{p.number ?? '—'}</td>
                     <td>{p.paymentDate}</td>
@@ -180,6 +198,12 @@ export default function BillingPaymentsPage() {
                       {p.accountingEntryId && <div className="page-sub">{t('billing.documents.posted')}</div>}
                     </td>
                     <td className="row-actions">
+                      <Link
+                        className="btn btn-ghost"
+                        to={`/accounting/lettering?search=${encodeURIComponent(p.number ?? p.reference ?? '')}`}
+                      >
+                        {t('lettering.open')}
+                      </Link>
                       {p.status === 'recorded' && !p.accountingEntryId && (
                         <Button variant="ghost" onClick={() => void cancel(p)} disabled={busy}>
                           {t('common.delete')}

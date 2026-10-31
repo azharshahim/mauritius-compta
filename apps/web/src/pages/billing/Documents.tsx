@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../../api';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
@@ -33,6 +34,9 @@ const statusKind = (status: string): 'neutral' | 'success' | 'warning' | 'danger
 export default function BillingDocumentsPage({ kind }: { kind: BillingKind }) {
   const { t, locale } = useI18n();
   const { company } = useSession();
+  const [searchParams] = useSearchParams();
+  const targetDocument = searchParams.get('document');
+  const targetOpened = useRef(false);
   const [documents, setDocuments] = useState<BillingDocument[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [items, setItems] = useState<Item[]>([]);
@@ -65,13 +69,23 @@ export default function BillingDocumentsPage({ kind }: { kind: BillingKind }) {
       setDocuments(docRes.documents);
       setCustomers(customerRes.customers);
       setItems(itemRes.items.filter((i) => i.isActive));
+      if (targetDocument && !targetOpened.current) {
+        const found = docRes.documents.find((d) => d.number === targetDocument);
+        if (found) {
+          const detailRes = await api.get<{ document: BillingDocument }>(
+            `/companies/${company.id}/billing/documents/${found.id}`,
+          );
+          setDetail(detailRes.document);
+          targetOpened.current = true;
+        }
+      }
       setError(null);
     } catch (err) {
       setError(errorMessage(err, t('common.error')).message);
     } finally {
       setLoading(false);
     }
-  }, [company?.id, kind, t]);
+  }, [company?.id, kind, t, targetDocument]);
 
   useEffect(() => {
     void load();
@@ -546,6 +560,14 @@ export default function BillingDocumentsPage({ kind }: { kind: BillingKind }) {
             )}
             <p className="muted">{t('billing.documents.pdfDemo')}</p>
             <div className="modal-actions">
+              {detail.number && (
+                <Link
+                  className="btn btn-ghost"
+                  to={`/accounting/lettering?search=${encodeURIComponent(detail.number)}`}
+                >
+                  {t('lettering.open')}
+                </Link>
+              )}
               <Button variant="ghost" onClick={() => void pdf(detail)}>
                 {t('billing.documents.pdfButton')}
               </Button>

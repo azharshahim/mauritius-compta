@@ -95,10 +95,15 @@ Audit `lettering.reverse` et événement métier.
 
 ## 11. Navigation et écarts
 
-Chaque facture/règlement garde son lien vers son écriture ; chaque écriture
-expose ses lignes ; chaque ligne expose ses groupes de lettrage. L’écran
-affiche restant commercial, restant comptable et montant lettré, sans arrondi
-silencieux. Le rapport isole les écarts.
+La chaîne est consultable dans les deux sens : numéro d’écriture de chaque
+ligne → `/accounting/entries?search=<n°>` (écriture ouverte par recherche),
+numéro de facture/avoir → `/billing/invoices|credit-notes?document=<n°>`
+(détail ouvert automatiquement), et boutons « Voir le lettrage » depuis le
+détail d’une facture, la liste des règlements et le détail d’une écriture
+comptabilisée → `/accounting/lettering?search=<référence>`. L’écran affiche
+restant commercial, restant comptable et montant lettré, sans arrondi
+silencieux ; un document non comptabilisé reste signalé comme tel et ne
+produit aucun faux lettrage. Le rapport isole les écarts.
 
 ## 12. Interface Banque ↔ Fournisseurs
 
@@ -141,7 +146,7 @@ Tests :
 - `apps/api/tests/lettering.test.ts` : **30 tests** (29 verts, 1 concurrence
   PostgreSQL ignoré localement) ;
 - suite API complète : **291 verts / 11 ignorés** ;
-- web : **152 verts**, démo lettrage **8**, interface lettrage **4**,
+- web : **153 verts**, démo lettrage **8**, interface lettrage **5**,
   Banque **6** ;
 - typecheck, builds et migrations validés ;
 - CI GitHub sur `16c6193` : runs `41203043988` et `41203040241` (CI),

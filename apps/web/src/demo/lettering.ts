@@ -76,8 +76,15 @@ interface LineView {
 }
 
 function documentFor(state: DemoState, companyId: string, entryId: string) {
+  // Seeded demo documents are not all linked by accounting_entry_id yet. A
+  // document is only matched when its number is literally quoted by the
+  // posted entry reference/description: no fuzzy or invented association.
+  const entry = state.entries.find((e) => e.id === entryId);
+  const quoted = `${entry?.reference ?? ''} ${entry?.description ?? ''}`;
+  const quotes = (docNo: string | null) => Boolean(docNo && quoted.includes(docNo));
   const purchaseDoc = state.purchaseDocuments.find(
-    (d) => d.company_id === companyId && d.accounting_entry_id === entryId,
+    (d) =>
+      d.company_id === companyId && (d.accounting_entry_id === entryId || quotes(d.doc_no)),
   );
   if (purchaseDoc) {
     const supplier = state.purchaseSuppliers.find((s) => s.id === purchaseDoc.supplier_id);
@@ -93,7 +100,9 @@ function documentFor(state: DemoState, companyId: string, entryId: string) {
     };
   }
   const purchasePayment = state.purchasePayments.find(
-    (p) => p.company_id === companyId && p.accounting_entry_id === entryId,
+    (p) =>
+      p.company_id === companyId &&
+      (p.accounting_entry_id === entryId || quotes(p.payment_no)),
   );
   if (purchasePayment) {
     const supplier = state.purchaseSuppliers.find((s) => s.id === purchasePayment.supplier_id);
@@ -107,7 +116,8 @@ function documentFor(state: DemoState, companyId: string, entryId: string) {
     };
   }
   const billingDoc = state.billingDocuments.find(
-    (d) => d.company_id === companyId && d.accounting_entry_id === entryId,
+    (d) =>
+      d.company_id === companyId && (d.accounting_entry_id === entryId || quotes(d.doc_no)),
   );
   if (billingDoc) {
     const customer = state.billingCustomers.find((c) => c.id === billingDoc.customer_id);
@@ -121,7 +131,9 @@ function documentFor(state: DemoState, companyId: string, entryId: string) {
     };
   }
   const billingPayment = state.billingPayments.find(
-    (p) => p.company_id === companyId && p.accounting_entry_id === entryId,
+    (p) =>
+      p.company_id === companyId &&
+      (p.accounting_entry_id === entryId || quotes(p.payment_no)),
   );
   if (billingPayment) {
     const customer = state.billingCustomers.find((c) => c.id === billingPayment.customer_id);
