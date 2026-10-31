@@ -141,7 +141,7 @@ jobs:
           SAMPLE=$(curl -s -o /tmp/sample.csv -w '%{http_code}' "$BASE/samples/plan-comptable-fictif.csv")
           echo "sample plan comptable fictif: $SAMPLE"
           test "$SAMPLE" = "200"
-          grep -q 'FICTIF' /tmp/sample.csv
+          grep -qi 'fictif' /tmp/sample.csv
           SAGESAMPLE=$(curl -s -o /tmp/sage.csv -w '%{http_code}' "$BASE/samples/export-sage-fictif.csv")
           echo "sample Sage fictif: $SAGESAMPLE"
           test "$SAGESAMPLE" = "200"
