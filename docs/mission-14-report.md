@@ -5,7 +5,7 @@
 **Branche :** `arena/b0b62798-mauritius-compta`  
 **PR :** nº1, ouverte en **brouillon**, non fusionnée  
 **`main` :** intact (`9e46f16`), aucune release, aucun déploiement OVH  
-**Code :** commit `0d27e62` + commit de documentation
+**HEAD :** `c5ee271` (code `0d27e62`, documentation `c5ee271`)
 
 ## 1. Branche, HEAD et PR
 
