@@ -70,7 +70,7 @@ interface Report {
   payables: { currency: string; amount_txn: string; functional: string; documents: number }[];
   bankAccounts: { currency: string; name: string; balance: string | null }[];
   realized: { currency: string; direction: string; status: string; count: number; amount: string }[];
-  latent: { valuation: Valuation | null; totals: { currency: string; direction: string; amount: string; count: number; blocked: number }[]; postingBlocked: boolean };
+  latent?: { valuation: Valuation | null; totals: { currency: string; direction: string; amount: string; count: number; blocked: number }[]; postingBlocked: boolean };
   blockedOperations: { source_type: string; reference: string; currency: string; operation_date?: string; date?: string }[];
   note: string;
 }
@@ -605,6 +605,18 @@ export function MultiCurrencyPage() {
             {report.bankAccounts.length === 0 ? <p className="muted">{tr.noRows}</p> : (
               <div className="table-wrap"><table className="table"><thead><tr><th>{tr.from}</th><th>{tr.status}</th><th>{tr.txn}</th></tr></thead>
                 <tbody>{report.bankAccounts.map((b, index) => <tr key={`${b.name}-${index}`}><td>{b.name}</td><td>{b.currency}</td><td>{display(b.balance)}</td></tr>)}</tbody></table></div>
+            )}
+          </Card>
+          <Card title={tr.tabValuations}>
+            {!report.latent?.valuation ? <p className="muted">{tr.noValuations}</p> : (
+              <div className="stack">
+                <p><strong>{report.latent.valuation.valuation_date}</strong> · <Badge kind={badge(report.latent.valuation.status)}>{report.latent.valuation.status}</Badge></p>
+                {report.latent.totals.length > 0 && (
+                  <div className="table-wrap"><table className="table"><thead><tr><th>{tr.status}</th><th>{tr.difference}</th><th>{tr.txn}</th><th>{tr.blocked}</th></tr></thead>
+                    <tbody>{report.latent.totals.map((r, index) => <tr key={`${r.currency}-${r.direction}-${index}`}><td>{r.currency}</td><td>{r.direction}</td><td>{display(r.amount)}</td><td>{r.blocked}</td></tr>)}</tbody></table></div>
+                )}
+                <p className="alert alert-warning">{tr.postBlocked}</p>
+              </div>
             )}
           </Card>
           <Card title={tr.realized}>
