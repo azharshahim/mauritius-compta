@@ -163,9 +163,12 @@ Les 4 tests de concurrence sont **ignorés** sur PGlite et exécutés uniquement
 
 ## 12. Statut des GitHub Actions
 
-- CI (push) : run `41156378284` — **succès**.
+- CI (push, code) : run `41156378284` — **succès**.
 - CI (PR) : run `41156382220` — **succès**.
-- Demo (GitHub Pages) : run `41156378229` — **succès** (build + deploy).
+- Demo (GitHub Pages, code) : run `41156378229` — **succès** (build + deploy).
+- CI (push, documentation) : run `41156618638` — **succès**.
+- CI (PR, documentation) : run `41156622518` — **succès**.
+- Demo (GitHub Pages, documentation + smoke test renforcé) : run `41156618683` — **succès**.
 
 ## 13. Déploiement Pages
 
