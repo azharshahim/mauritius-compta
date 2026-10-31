@@ -1,0 +1,15 @@
+{
+  "_comment": [
+    "Optional override of company field validation (see apps/api/src/modules/companies/validation-rules.ts).",
+    "Point COMPANY_VALIDATION_FILE to this file to activate it.",
+    "IMPORTANT: BRN / VAT patterns are NOT confirmed against official Mauritian sources yet.",
+    "Keep status='provisional' until an official reference is archived in docs/mauritius-regulations/compliance-register.md."
+  ],
+  "name": { "required": true, "maxLength": 200, "status": "confirmed" },
+  "brn": { "required": true, "maxLength": 40, "status": "provisional" },
+  "vatNumber": { "required": false, "maxLength": 40, "status": "provisional" },
+  "registeredAddress": { "required": true, "maxLength": 500, "status": "provisional" },
+  "businessActivity": { "required": false, "maxLength": 300, "status": "provisional" },
+  "currencies": ["MUR", "EUR", "USD", "GBP"],
+  "accountingStandards": ["IFRS", "IFRS for SMEs", "Other"]
+}

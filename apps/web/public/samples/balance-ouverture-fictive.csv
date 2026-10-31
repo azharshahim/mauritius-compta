@@ -1,0 +1,5 @@
+﻿Compte;Débit;Crédit;Libellé
+1010;250 000,00;;Solde d’ouverture — banque fictive
+1100;120 000,00;;Solde d’ouverture — clients fictifs
+2000;;70 000,00;Solde d’ouverture — fournisseurs fictifs
+3000;;300 000,00;Solde d’ouverture — capital fictif

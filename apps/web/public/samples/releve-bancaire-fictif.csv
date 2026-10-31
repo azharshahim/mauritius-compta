@@ -1,0 +1,9 @@
+﻿Date;Libellé;Référence;Débit;Crédit;Devise;Solde
+01/08/2025;Loyer du mois d’août;LOYER-AOUT;15000,00;;MUR;380000,00
+05/08/2025;Encaissement client FA-2025-001;FA-2025-001;;125000,00;MUR;505000,00
+07/08/2025;Frais bancaires du mois;FRAIS-08;2500,00;;MUR;502500,00
+08/08/2025;Virement salaires août;SAL-08;45000,00;;MUR;457500,00
+09/08/2025;Paiement fournisseur AC-2025-001;AC-2025-001;32000,00;;MUR;425500,00
+10/08/2025;Opération sans correspondance (fictive);INCONNU-01;7500,00;;MUR;418000,00
+01/09/2025;Frais de tenue de compte (fictifs);FRAIS-09;1200,00;;MUR;416800,00
+02/09/2025;Encaissement client fictif FA-2025-002;FA-2025-002;;50000,00;MUR;466800,00

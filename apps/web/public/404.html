@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mauritius Compta — démonstration</title>
+    <script>
+      // GitHub Pages has no server-side rewrites. The app uses hash routing, so a
+      // deep link such as /mauritius-compta/entries becomes /mauritius-compta/#/entries.
+      (function () {
+        var base = '/mauritius-compta/';
+        var path = window.location.pathname;
+        var rest = path.indexOf(base) === 0 ? path.slice(base.length) : '';
+        if (rest && rest !== 'index.html') {
+          window.location.replace(base + '#' + '/' + rest.replace(/^\/+/, '') + window.location.search);
+        } else {
+          window.location.replace(base);
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <p>Redirection vers la démonstration… <a href="/mauritius-compta/">Continuer</a></p>
+  </body>
+</html>

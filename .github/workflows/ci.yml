@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  quality:
+    name: Typecheck, tests and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: TypeScript (API + web, strict)
+        run: npm run typecheck
+      - name: Unit & integration tests (Vitest + PostgreSQL in WASM)
+        run: npm test
+      - name: Production build
+        run: npm run build
+      - name: Ensure no secrets or .env committed
+        run: |
+          if git ls-files | grep -E '(^|/)\.env$'; then
+            echo "::error::A .env file must never be committed"; exit 1
+          fi
+          if git ls-files | grep -E '\.(pem|key|p12)$'; then
+            echo "::error::Key material must never be committed"; exit 1
+          fi
+
+  postgres-tests:
+    name: API tests against real PostgreSQL
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mc_user
+          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_DB: mauritius_compta_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      TEST_DATABASE_URL: postgresql://mc_user:ci_only_password@127.0.0.1:5432/mauritius_compta_test
+      DATABASE_SSL: 'false'
+      COOKIE_SECURE: 'false'
+      ALLOW_REGISTRATION: 'true'
+      STORAGE_DIR: ./storage-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Vitest suite on PostgreSQL (includes concurrency tests)
+        run: |
+          set +e
+          npm test 2>&1 | tee /tmp/api-tests.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            # GitHub annotations keep the failing test names visible even when
+            # the raw step log is unavailable to the reviewer's network.
+            grep -E "FAIL |AssertionError|Error:|→|expected|×" /tmp/api-tests.log \
+              | head -40 | sed 's/%/%25/g; s/\r//g' \
+              | while IFS= read -r line; do echo "::error title=Vitest::$line"; done
+          fi
+          exit "$status"
+
+  postgres-migrations:
+    name: Migrations against real PostgreSQL
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mc_user
+          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_DB: mauritius_compta_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://mc_user:ci_only_password@127.0.0.1:5432/mauritius_compta_ci
+      DATABASE_SSL: 'false'
+      COOKIE_SECURE: 'false'
+      ALLOW_REGISTRATION: 'false'
+      STORAGE_DIR: ./storage-ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Apply migrations (PostgreSQL server)
+        run: npm run db:migrate
+      - name: Re-apply migrations (idempotence)
+        run: npm run db:migrate
+      - name: Seed fictitious demo data
+        run: npm run db:seed
+      - name: Verify schema and audit trail
+        run: |
+          PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d mauritius_compta_ci -c "\dt"
+          PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d mauritius_compta_ci \
+            -c "select entry_no, status, description from journal_entries order by entry_no;"
+          # Mission 8 : les sept tables de migration existent sur PostgreSQL réel
+          PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d mauritius_compta_ci \
+            -c "\d migration_jobs"
+          PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d mauritius_compta_ci \
+            -c "select count(*) as migration_tables from information_schema.tables where table_name like 'migration_%';"
+          # Mission 9 : les sept tables bancaires existent sur PostgreSQL réel
+          PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d mauritius_compta_ci \
+            -c "\d bank_transactions"
+          PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d mauritius_compta_ci \
+            -c "select count(*) as bank_tables from information_schema.tables where table_name in ('bank_accounts','bank_imports','bank_transactions','bank_matches','bank_rules','bank_proposals','bank_events');"
+          # Mission 10 : affectations exactes et statut partiel sur PostgreSQL réel
+          PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d mauritius_compta_ci \
+            -c "select column_name, data_type, is_nullable from information_schema.columns where table_name = 'bank_matches' and column_name in ('amount','billing_invoice_id','note','updated_at') order by column_name;"
+          PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d mauritius_compta_ci \
+            -c "select indexname from pg_indexes where tablename = 'bank_matches' and indexname like '%confirmed' order by indexname;"
+          PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d mauritius_compta_ci \
+            -c "select pg_get_constraintdef(oid) as tx_status_check from pg_constraint where conname = 'bank_transactions_status_check';"
