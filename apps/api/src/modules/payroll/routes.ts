@@ -540,6 +540,14 @@ export function payrollRoutes(app: FastifyInstance, db: Db) {
       nsfPayableAccountId: z.string().uuid().nullish(),
       notes: z.string().trim().max(2000).nullish(),
     }).strict(), req.body);
+    for (const accountId of [
+      input.salaryExpenseAccountId, input.salaryPayableAccountId,
+      input.payePayableAccountId, input.csgPayableAccountId, input.nsfPayableAccountId,
+    ]) {
+      if (!accountId) continue;
+      const account = await db.query('SELECT 1 FROM accounts WHERE id = $1 AND company_id = $2', [accountId, companyId]);
+      if (!account.rowCount) throw notFound('ACCOUNT_NOT_FOUND', 'Account not found in this company');
+    }
     const res = await db.query<any>(
       `INSERT INTO payroll_settings
         (company_id, cabinet_id, salary_expense_account_id, salary_payable_account_id,

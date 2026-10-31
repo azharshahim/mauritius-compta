@@ -236,6 +236,10 @@ export async function createEmployee(db: Db, actor: PayrollActor, input: Employe
   const bank = input.bankAccountNumber?.replace(/\s/g, '') || null;
   const statutory = input.statutoryId?.replace(/\s/g, '') || null;
   const statutoryRef = input.statutoryRef?.replace(/\s/g, '') || null;
+  if (input.managerEmployeeId) {
+    const manager = await db.query('SELECT 1 FROM payroll_employees WHERE id = $1 AND company_id = $2', [input.managerEmployeeId, actor.companyId]);
+    if (!manager.rowCount) throw notFound('PAYROLL_EMPLOYEE_NOT_FOUND', 'Manager not found in this company');
+  }
   const res = await db.query<any>(
     `INSERT INTO payroll_employees
       (company_id, employee_ref, employee_number, first_name, last_name, preferred_name, full_name,
@@ -289,6 +293,10 @@ export async function updateEmployee(
     const duplicates = await duplicateEmployees(db, actor.companyId, { ...input, employeeNumber: input.employeeNumber } as EmployeeInput, id);
     if (duplicates.length) throw conflict('PAYROLL_EMPLOYEE_NUMBER_TAKEN', 'Employee number already used', { duplicates });
   }
+  if (input.managerEmployeeId) {
+    const manager = await db.query('SELECT 1 FROM payroll_employees WHERE id = $1 AND company_id = $2', [input.managerEmployeeId, actor.companyId]);
+    if (!manager.rowCount) throw notFound('PAYROLL_EMPLOYEE_NOT_FOUND', 'Manager not found in this company');
+  }
   const bank = input.bankAccountNumber?.replace(/\s/g, '');
   const statutory = input.statutoryId?.replace(/\s/g, '');
   const fields: string[] = [];
@@ -297,7 +305,10 @@ export async function updateEmployee(
     values.push(value);
     fields.push(`${sql} = $${values.length}`);
   };
-  if (input.employeeNumber) put('employee_number', input.employeeNumber.trim());
+  if (input.employeeNumber) {
+    put('employee_number', input.employeeNumber.trim());
+    put('employee_ref', input.employeeNumber.trim());
+  }
   if (input.firstName) put('first_name', input.firstName.trim());
   if (input.lastName) put('last_name', input.lastName.trim());
   if (input.firstName || input.lastName) {
@@ -310,9 +321,18 @@ export async function updateEmployee(
   if (input.address !== undefined) put('address', input.address || null);
   if (input.email !== undefined) put('email', input.email || null);
   if (input.phone !== undefined) put('phone', input.phone || null);
-  if (input.employmentStatus) put('employment_status', input.employmentStatus);
-  if (input.hireDate !== undefined) put('hire_date', input.hireDate || null);
-  if (input.terminationDate !== undefined) put('termination_date', input.terminationDate || null);
+  if (input.employmentStatus) {
+    put('employment_status', input.employmentStatus);
+    put('status', input.employmentStatus === 'terminated' ? 'ended' : 'active');
+  }
+  if (input.hireDate !== undefined) {
+    put('hire_date', input.hireDate || null);
+    put('start_date', input.hireDate || null);
+  }
+  if (input.terminationDate !== undefined) {
+    put('termination_date', input.terminationDate || null);
+    put('end_date', input.terminationDate || null);
+  }
   if (input.department !== undefined) put('department', input.department || null);
   if (input.jobTitle !== undefined) put('job_title', input.jobTitle || null);
   if (input.workLocation !== undefined) put('work_location', input.workLocation || null);
@@ -399,6 +419,13 @@ export async function createContract(db: Db, actor: PayrollActor, input: Contrac
   );
   if (!employee.rows[0]) throw notFound('PAYROLL_EMPLOYEE_NOT_FOUND', 'Employee not found');
   if (!input.changeReason?.trim()) throw badRequest('VALIDATION_ERROR', 'An explicit change reason is required');
+  if (input.amendmentOf) {
+    const amended = await db.query(
+      'SELECT 1 FROM payroll_contracts WHERE id = $1 AND company_id = $2 AND employee_id = $3',
+      [input.amendmentOf, actor.companyId, input.employeeId],
+    );
+    if (!amended.rowCount) throw notFound('PAYROLL_CONTRACT_NOT_FOUND', 'Amended contract not found for this employee');
+  }
   if (input.effectiveTo && input.effectiveTo < input.effectiveFrom) {
     throw badRequest('PAYROLL_CONTRACT_INVALID', 'End date cannot precede the start date');
   }
@@ -425,7 +452,8 @@ export async function createContract(db: Db, actor: PayrollActor, input: Contrac
       await tx.query(
         `UPDATE payroll_contracts SET status = 'superseded', effective_to = $2, updated_at = now()
           WHERE id = $1`,
-        [old.id, addDays(input.effectiveFrom, -1)],
+        [old.id, old.effective_to && old.effective_to < addDays(input.effectiveFrom, -1)
+          ? old.effective_to : addDays(input.effectiveFrom, -1)],
       );
     }
     const res = await tx.query<any>(
@@ -557,6 +585,10 @@ export async function createPayItem(db: Db, actor: PayrollActor, input: PayItemI
     [actor.companyId, input.code.trim()],
   );
   if (exists.rowCount) throw conflict('PAYROLL_PAY_ITEM_CODE_TAKEN', 'Pay item code already used');
+  if (input.accountId) {
+    const account = await db.query('SELECT 1 FROM accounts WHERE id = $1 AND company_id = $2', [input.accountId, actor.companyId]);
+    if (!account.rowCount) throw notFound('ACCOUNT_NOT_FOUND', 'Account not found in this company');
+  }
   // Treatment is deliberately UNVERIFIED: this task never presumes the fiscal
   // or social treatment of a pay item.
   const res = await db.query<any>(

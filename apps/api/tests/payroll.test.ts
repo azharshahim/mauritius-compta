@@ -566,6 +566,24 @@ describe('payroll preparation and RH (mission 14)', () => {
     expect(res.json().error.code).toBe('PAYROLL_PERIOD_TRANSITION');
   });
 
+  it('rejects a payroll account or manager that belongs to another company', async () => {
+    const otherAccounts = await api(ctx, owner.cookie, 'GET', `/api/companies/${otherCompany.id}/accounts`);
+    const foreignAccountId = otherAccounts.json().accounts[0].id;
+    const foreign = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/pay-items`, {
+      code: `CROSS_${ref()}`, labelEn: 'Cross tenant', labelFr: 'Croisement de société',
+      category: 'earning', unit: 'money', calculationMethod: 'fixed',
+      effectiveFrom: '2026-01-01', accountId: foreignAccountId,
+    });
+    expect(foreign.statusCode).toBe(404);
+    expect(foreign.json().error.code).toBe('ACCOUNT_NOT_FOUND');
+    const foreignEmployee = await api(ctx, owner.cookie, 'POST', `/api/companies/${otherCompany.id}/payroll/employees`, baseEmployee('Z999'));
+    expect(foreignEmployee.statusCode, foreignEmployee.body).toBe(201);
+    const crossManager = await api(ctx, owner.cookie, 'PATCH', `/api/companies/${company.id}/payroll/employees/${employees.A001.id}`, {
+      managerEmployeeId: foreignEmployee.json().employee.id,
+    });
+    expect(crossManager.statusCode).toBe(404);
+  });
+
   it('does not create an accounting entry from a payroll calculation', async () => {
     const entries = await ctx.db.query<{ count: string }>(
       'SELECT count(*)::text AS count FROM journal_entries WHERE company_id = $1',
