@@ -54,7 +54,8 @@ fiscal/social `UNVERIFIED`. Assignations salarié datées. Aucun taux inventé.
 ## 7. Temps et absences
 
 Saisie d’heures, heures supplémentaires et retards ; unicité salarié/date ; calendriers
-et jours fériés stockés ; import CSV/XLSX (l’API reçoit des lignes déjà parsées).
+et jours fériés configurables avec source obligatoire ; import réel CSV/TSV/XLSX
+(lecteur OOXML existant, anti-doublons salarié/date, aucune macro exécutée).
 Les heures supplémentaires ne reçoivent aucune majoration. Les absences approuvées
 produisent un avertissement, jamais une retenue inventée.
 
@@ -67,7 +68,7 @@ aucun droit.
 
 ## 9. Variables mensuelles
 
-Saisie unitaire et import tabulaire CSV/XLSX, contrôles d’appartenance, clé
+Saisie unitaire et import fichier CSV/TSV/XLSX, contrôles d’appartenance, clé
 d’importation unique, réimport idempotent (créés/réutilisés), brouillon exclu du
 calcul, validation humaine explicite, historique par événements.
 
@@ -116,10 +117,10 @@ Détail : `docs/payroll-security.md`.
 
 ## 15. Tests, CI et Pages
 
-- API : **370 tests verts**, 11 ignorés (concurrence locale), dont **44** nouveaux
+- API : **374 tests verts**, 11 ignorés (concurrence locale), dont **48** nouveaux
   tests paie.
 - Migrations : **6/6**, dont la migration 0014.
-- Web : **180 tests verts** (167 existants + 13 paie/démo).
+- Web : **181 tests verts** (167 existants + 14 paie/démo).
 - Typechecks API et web : 0 erreur.
 - Builds API, web et démo Pages vérifiés (voir CI).
 - Tests PostgreSQL réels exécutés par le job CI `postgres-tests` ; concurrence

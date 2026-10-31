@@ -41,8 +41,10 @@ réglementaire et bulletin final indisponibles.
 
 ## 5. Temps, absences et congés
 
-- **Temps & présences** : saisir heures, heures supplémentaires et retards. Les heures
-  supplémentaires sont conservées mais **aucune majoration** n’est calculée.
+- **Temps & présences** : saisir heures, heures supplémentaires et retards, ou
+  importer un fichier CSV/TSV/XLSX. Les heures supplémentaires sont conservées mais
+  **aucune majoration** n’est calculée. Les jours fériés ne sont jamais préchargés :
+  ajoutez chaque date avec sa source vérifiée.
 - **Congés** : créer une demande avec motif et justificatif éventuel. Approuver ou
   refuser ; un refus exige un motif. Les soldes restent `Configuration required`
   tant qu’aucune règle de congé n’est validée.
@@ -52,10 +54,10 @@ réglementaire et bulletin final indisponibles.
 1. **Variables → Nouvelle variable** : choisir période, salarié, rubrique, montant et
    statut (`draft` ou `validated`). Seules les variables validées entrent dans le
    calcul.
-2. **Import CSV / XLSX** : coller un CSV avec l’en-tête
-   `employeeNumber;payItemCode;amount;externalRef`. Un XLSX doit d’abord être converti
-   en CSV. Réimporter le même lot ne crée pas de doublon : les lignes existantes sont
-   réutilisées.
+2. **Import CSV / TSV / XLSX** : choisir un fichier avec l’en-tête
+   `employeeNumber;payItemCode;amount;externalRef`, ou coller un CSV. Le XLSX est lu
+   par le lecteur OOXML existant (aucune macro exécutée, valeur mise en cache seulement).
+   Réimporter le même lot ne crée pas de doublon : les lignes existantes sont réutilisées.
 3. Une ligne inconnue (salarié ou rubrique) bloque l’import avec la liste des erreurs.
 
 ## 7. Périodes et calcul

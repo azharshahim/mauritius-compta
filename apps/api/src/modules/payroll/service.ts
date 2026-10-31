@@ -683,6 +683,95 @@ export async function createTimeEntry(
   }
 }
 
+export async function listHolidays(db: Db, companyId: string, year?: number) {
+  const params: unknown[] = [companyId];
+  let where = 'company_id = $1';
+  if (year) { params.push(year); where += ` AND EXTRACT(YEAR FROM holiday_date) = $${params.length}`; }
+  const res = await db.query<any>(
+    `SELECT * FROM payroll_holidays WHERE ${where} ORDER BY holiday_date`,
+    params,
+  );
+  return res.rows;
+}
+
+export async function createHoliday(
+  db: Db, actor: PayrollActor,
+  input: { holidayDate: string; nameEn: string; nameFr: string; source: string },
+) {
+  requireWriter(actor);
+  if (!input.nameEn?.trim() || !input.nameFr?.trim() || !input.source?.trim()) {
+    throw badRequest('VALIDATION_ERROR', 'Both holiday names and a source are required');
+  }
+  try {
+    const res = await db.query<any>(
+      `INSERT INTO payroll_holidays (company_id, holiday_date, name_en, name_fr, source)
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [actor.companyId, isoDate(input.holidayDate, 'holidayDate'),
+        input.nameEn.trim(), input.nameFr.trim(), input.source.trim()],
+    );
+    await audit(db, actor, 'payroll.holiday.create', 'payroll_holiday', res.rows[0]!.id, {
+      holidayDate: input.holidayDate,
+    });
+    return res.rows[0];
+  } catch (error: any) {
+    if (String(error?.code) === '23505') throw conflict('PAYROLL_HOLIDAY_DUPLICATE', 'This holiday date already exists');
+    throw error;
+  }
+}
+
+export interface TimeImportRow {
+  employeeNumber: string;
+  workDate: string;
+  hoursWorked: string | number;
+  overtimeHours?: string | number;
+  latenessMinutes?: string | number;
+  note?: string | null;
+}
+
+export async function importTimeEntries(
+  db: Db, actor: PayrollActor, rows: TimeImportRow[], source: 'csv' | 'xlsx' = 'csv',
+) {
+  requireWriter(actor);
+  if (!Array.isArray(rows) || rows.length === 0) throw badRequest('PAYROLL_IMPORT_INVALID', 'No row to import');
+  if (rows.length > 2000) throw badRequest('PAYROLL_IMPORT_INVALID', 'At most 2000 rows per import');
+  const employees = await db.query<any>('SELECT id, employee_number FROM payroll_employees WHERE company_id = $1', [actor.companyId]);
+  const byNumber = new Map(employees.rows.map((e) => [String(e.employee_number).toLowerCase(), e]));
+  const errors: { row: number; message: string }[] = [];
+  const parsed = rows.map((row, index) => {
+    const employee = byNumber.get(String(row.employeeNumber ?? '').trim().toLowerCase());
+    if (!employee) errors.push({ row: index + 1, message: `Unknown employee ${row.employeeNumber}` });
+    let workDate = String(row.workDate ?? '').trim();
+    const french = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(workDate);
+    if (french) workDate = `${french[3]}-${french[2]}-${french[1]}`;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) errors.push({ row: index + 1, message: 'Invalid work date' });
+    return { row: index + 1, employeeId: employee?.id, workDate, input: row };
+  });
+  if (errors.length) throw badRequest('PAYROLL_IMPORT_INVALID', 'The import contains invalid rows', { errors });
+  let created = 0;
+  let skipped = 0;
+  await db.transaction(async (tx) => {
+    for (const entry of parsed) {
+      const res = await tx.query(
+        `INSERT INTO payroll_time_entries
+          (cabinet_id, company_id, employee_id, work_date, hours_worked, overtime_hours,
+           lateness_minutes, note, source, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         ON CONFLICT (company_id, employee_id, work_date) DO NOTHING RETURNING id`,
+        [actor.cabinetId, actor.companyId, entry.employeeId, entry.workDate,
+          String(entry.input.hoursWorked ?? 0), String(entry.input.overtimeHours ?? 0),
+          Number(entry.input.latenessMinutes ?? 0), entry.input.note?.trim() || null,
+          'import', actor.userId],
+      );
+      if (res.rowCount) created += 1;
+      else skipped += 1;
+    }
+  });
+  await audit(db, actor, 'payroll.time.import', 'payroll_time_entry', null, {
+    rows: rows.length, created, skipped, source,
+  });
+  return { created, skipped, rows: rows.length };
+}
+
 export async function listAbsences(
   db: Db, companyId: string, filters: { employeeId?: string; status?: string; year?: number } = {},
 ) {

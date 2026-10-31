@@ -312,6 +312,29 @@ describe('payroll preparation and RH (mission 14)', () => {
     expect(res.json().error.code).toBe('PAYROLL_TIME_DUPLICATE');
   });
 
+  it('imports time from a CSV file and skips the existing employee/date pair', async () => {
+    const csv = 'employeeNumber;workDate;hoursWorked;overtimeHours;latenessMinutes\nB002;06/07/2026;8;0;0\nG007;2026-07-07;7.5;1;15';
+    const res = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/time/import-file`, {
+      fileName: 'temps-fictif.csv', contentText: csv,
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json()).toMatchObject({ created: 1, skipped: 1, rows: 2 });
+  });
+
+  it('requires a source-aware public holiday and rejects a duplicate date', async () => {
+    const first = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/holidays`, {
+      holidayDate: '2026-08-15', nameEn: 'Fictive public holiday', nameFr: 'Jour férié fictif', source: 'Registre fictif de test',
+    });
+    expect(first.statusCode, first.body).toBe(201);
+    const again = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/holidays`, {
+      holidayDate: '2026-08-15', nameEn: 'Doublon', nameFr: 'Doublon', source: 'Test fictif',
+    });
+    expect(again.statusCode).toBe(409);
+    expect(again.json().error.code).toBe('PAYROLL_HOLIDAY_DUPLICATE');
+    const list = await api(ctx, owner.cookie, 'GET', `/api/companies/${company.id}/payroll/holidays`);
+    expect(list.json().holidays).toHaveLength(1);
+  });
+
   it('rejects a leave rejection without a reason', async () => {
     const request = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/leave`, {
       employeeId: employees.G007.id, leaveType: 'annual', startDate: '2026-08-03', endDate: '2026-08-04',

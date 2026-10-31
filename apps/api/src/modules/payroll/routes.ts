@@ -19,6 +19,9 @@ import {
   createPeriod,
   createRule,
   createTimeEntry,
+  createHoliday,
+  importTimeEntries,
+  listHolidays,
   createVariable,
   decideAbsence,
   finalisePayslip,
@@ -274,6 +277,78 @@ export function payrollRoutes(app: FastifyInstance, db: Db) {
     }).strict(), req.body);
     const entry = await createTimeEntry(db, await actor(req, companyId, 'write'), input);
     return reply.code(201).send({ entry });
+  });
+
+  app.get('/companies/:companyId/payroll/holidays', async (req) => {
+    const { companyId } = req.params as { companyId: string };
+    await actor(req, companyId);
+    const q = req.query as Record<string, string | undefined>;
+    return { holidays: await listHolidays(db, companyId, q.year ? Number(q.year) : undefined) };
+  });
+
+  app.post('/companies/:companyId/payroll/holidays', async (req, reply) => {
+    const { companyId } = req.params as { companyId: string };
+    const input = parse(z.object({
+      holidayDate: DateSchema,
+      nameEn: z.string().trim().min(1).max(120),
+      nameFr: z.string().trim().min(1).max(120),
+      source: z.string().trim().min(1).max(500),
+    }).strict(), req.body);
+    const holiday = await createHoliday(db, await actor(req, companyId, 'write'), input);
+    return reply.code(201).send({ holiday });
+  });
+
+  async function importTimeFile(req: any, companyId: string) {
+    const a = await actor(req, companyId, 'write');
+    const input = parse(z.object({
+      fileName: z.string().trim().min(1).max(200),
+      contentBase64: z.string().max(12_000_000).optional(),
+      contentText: z.string().max(12_000_000).optional(),
+      sheetName: z.string().max(120).nullish(),
+    }).strict(), req.body);
+    if (!input.contentBase64 && !input.contentText) throw badRequest('PAYROLL_IMPORT_INVALID', 'A file content is required');
+    try {
+      const bytes = input.contentBase64
+        ? new Uint8Array(Buffer.from(input.contentBase64, 'base64'))
+        : new Uint8Array(Buffer.from(input.contentText!, 'utf8'));
+      const parsed = parseUpload(input.fileName, bytes);
+      const sheet = (input.sheetName && parsed.sheets.find((sh) => sh.name === input.sheetName)) || parsed.sheets[0];
+      if (!sheet) throw badRequest('PAYROLL_IMPORT_INVALID', 'No readable sheet');
+      const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const aliases: Record<string, string> = {
+        employeenumber: 'employeeNumber', employeeno: 'employeeNumber', matricule: 'employeeNumber',
+        workdate: 'workDate', date: 'workDate', jour: 'workDate',
+        hoursworked: 'hoursWorked', hours: 'hoursWorked', heures: 'hoursWorked',
+        overtimehours: 'overtimeHours', overtime: 'overtimeHours', heuressup: 'overtimeHours',
+        latenessminutes: 'latenessMinutes', lateness: 'latenessMinutes', retard: 'latenessMinutes',
+        note: 'note',
+      };
+      const headerMap = sheet.headers.map((h) => aliases[normalize(h)] ?? null);
+      if (!headerMap.includes('employeeNumber') || !headerMap.includes('workDate') || !headerMap.includes('hoursWorked')) {
+        throw badRequest('PAYROLL_IMPORT_INVALID', 'Columns employeeNumber, workDate and hoursWorked are required');
+      }
+      if (sheet.rows.length > 2000) throw badRequest('PAYROLL_IMPORT_INVALID', 'At most 2000 rows per import');
+      const rows = sheet.rows.map((values) => {
+        const row: Record<string, string | undefined> = {};
+        headerMap.forEach((key, index) => { if (key) row[key] = values[index]?.trim() || undefined; });
+        return {
+          employeeNumber: row.employeeNumber ?? '', workDate: row.workDate ?? '',
+          hoursWorked: row.hoursWorked ?? '0', overtimeHours: row.overtimeHours,
+          latenessMinutes: row.latenessMinutes, note: row.note,
+        };
+      });
+      return importTimeEntries(db, a, rows, parsed.format === 'xlsx' ? 'xlsx' : 'csv');
+    } catch (error) {
+      if (error instanceof MigrationParseError) {
+        throw badRequest('PAYROLL_IMPORT_INVALID', error.message, { code: error.code });
+      }
+      throw error;
+    }
+  }
+
+  app.post('/companies/:companyId/payroll/time/import-file', async (req) => {
+    const { companyId } = req.params as { companyId: string };
+    return importTimeFile(req, companyId);
   });
 
   app.get('/companies/:companyId/payroll/leave', async (req) => {

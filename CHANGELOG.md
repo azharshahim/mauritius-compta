@@ -14,7 +14,7 @@
   triggers de garde et isolation société.
 - Service et routes paie : dossiers salariés avec banque masquée (`last4` +
   empreinte), doublons sans fusion, contrats historisés, temps, congés, variables
-  et import CSV/XLSX idempotent, périodes, calcul arithmétique déterministe,
+  et import fichier CSV/TSV/XLSX idempotent, jours fériés sourcés, périodes, calcul arithmétique déterministe,
   bulletins de simulation, PDF filigrané, export CSV, aperçu comptable bloqué.
 - Calcul BigInt sur `numeric(20,4)`, prorata calendaire documenté et `input_hash`.
 - Statut `blocked` systématique : PAYE, CSG, NSF et employeur `NULL`, aucun zéro de
@@ -26,7 +26,7 @@
   avance, étranger, échéance, calcul bloqué), 100 % localStorage.
 - Assistant lecture seule : agrégats de préparation, règles manquantes et
   explication d’un calcul stocké ; aucune invention, aucune action.
-- 44 tests API paie, 7 tests moteur de démonstration, 5 tests d’interface,
+- 48 tests API paie, 9 tests moteur de démonstration, 5 tests d’interface,
   migration 0014 ; documentation complète en 7 documents.
 
 ### Limites

@@ -111,6 +111,7 @@ interface DemoPayrollState {
   payItems: DemoPayItem[];
   assignments: DemoAssignment[];
   time: DemoTime[];
+  holidays: { id: string; company_id: string; holiday_date: string; name_en: string; name_fr: string; source: string | null }[];
   absences: DemoAbsence[];
   leaveRules: DemoLeaveRule[];
   rules: DemoRule[];
@@ -234,7 +235,7 @@ export function seedDemoPayroll(state: DemoState): void {
     pay_item_id: item('IND_DEMO').id, amount: '1500.0000', effective_from: '2026-01-01', effective_to: null,
   }];
   const demo: DemoPayrollState = {
-    employees, contracts, events: [], payItems, assignments, time, absences, leaveRules: [],
+    employees, contracts, events: [], payItems, assignments, time, holidays: [], absences, leaveRules: [],
     rules, periods: [period], variables, calculations: [], payslips: [], sequences: {},
   };
   demo.calculations = calculate(demo, companyId, period);
@@ -371,7 +372,7 @@ function asState(state: DemoState, companyId: string): DemoPayrollState {
   const payroll = (state as any).payroll as DemoPayrollState;
   if (!payroll || !payroll.periods.some((p) => p.company_id === companyId)) {
     // A second demo company has no seeded payroll: return an honest empty set.
-    return { employees: [], contracts: [], events: [], payItems: payroll?.payItems ?? [], assignments: [], time: [], absences: [], leaveRules: [], rules: [], periods: [], variables: [], calculations: [], payslips: [], sequences: {} };
+    return { employees: [], contracts: [], events: [], payItems: payroll?.payItems ?? [], assignments: [], time: [], holidays: [], absences: [], leaveRules: [], rules: [], periods: [], variables: [], calculations: [], payslips: [], sequences: {} };
   }
   return payroll;
 }
@@ -530,6 +531,54 @@ export function handleDemoPayroll(
     const entry: DemoTime = { id: uid(), company_id: companyId, employee_id: payload.employeeId, work_date: payload.workDate, hours_worked: fmt(money(payload.hoursWorked)), overtime_hours: fmt(money(payload.overtimeHours ?? 0)), lateness_minutes: payload.latenessMinutes ?? 0, note: payload.note ?? null, source: 'manual' };
     payroll.time.push(entry);
     return { entry };
+  }
+  if (rest === '/holidays' && method === 'GET') return { holidays: (payroll.holidays ?? []).filter((h) => h.company_id === companyId) };
+  if (rest === '/holidays' && method === 'POST') {
+    payroll.holidays ??= [];
+    if (!payload.source) throw new ApiError(400, 'VALIDATION_ERROR', 'La source est obligatoire');
+    if (payroll.holidays.some((h) => h.holiday_date === payload.holidayDate)) throw new ApiError(409, 'PAYROLL_HOLIDAY_DUPLICATE', 'Ce jour férié existe déjà');
+    const holiday = { id: uid(), company_id: companyId, holiday_date: payload.holidayDate, name_en: payload.nameEn, name_fr: payload.nameFr, source: payload.source ?? null };
+    payroll.holidays.push(holiday);
+    return { holiday };
+  }
+  if (rest === '/time/import-file' && method === 'POST') {
+    let headers: string[] = [];
+    let sheetRows: string[][] = [];
+    try {
+      const bytes = payload.contentBase64
+        ? Uint8Array.from(atob(String(payload.contentBase64)), (ch) => ch.charCodeAt(0))
+        : new TextEncoder().encode(String(payload.contentText ?? ''));
+      const parsed = parseUpload(String(payload.fileName ?? 'time.csv'), bytes);
+      headers = parsed.sheets[0]?.headers ?? [];
+      sheetRows = parsed.sheets[0]?.rows ?? [];
+    } catch {
+      throw new ApiError(400, 'PAYROLL_IMPORT_INVALID', 'Fichier illisible : utilisez CSV, TSV ou XLSX');
+    }
+    const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const keys = headers.map((h) => {
+      const n = normalize(h);
+      if (n.includes('employee') || n.includes('matricule')) return 'employeeNumber';
+      if (n.includes('workdate') || n === 'date') return 'workDate';
+      if (n.includes('overtime') || n.includes('heuressup')) return 'overtimeHours';
+      if (n.includes('lateness') || n.includes('retard')) return 'latenessMinutes';
+      if (n.includes('hour') || n.includes('heure')) return 'hoursWorked';
+      if (n.includes('note')) return 'note';
+      return '';
+    });
+    let created = 0;
+    let skipped = 0;
+    sheetRows.forEach((values) => {
+      const row: Record<string, string> = {};
+      keys.forEach((key, i) => { if (key) row[key] = values[i] ?? ''; });
+      const employee = employees.find((e) => e.employee_number === row.employeeNumber);
+      if (!employee || !row.workDate) throw new ApiError(400, 'PAYROLL_IMPORT_INVALID', 'Ligne invalide : salarié ou date inconnue');
+      const frenchDate = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(row.workDate);
+      const workDate = frenchDate ? `${frenchDate[3]}-${frenchDate[2]}-${frenchDate[1]}` : row.workDate;
+      if (payroll.time.some((t) => t.employee_id === employee.id && t.work_date === workDate)) { skipped += 1; return; }
+      payroll.time.push({ id: uid(), company_id: companyId, employee_id: employee.id, work_date: workDate, hours_worked: fmt(money(row.hoursWorked ?? 0)), overtime_hours: fmt(money(row.overtimeHours ?? 0)), lateness_minutes: Number(row.latenessMinutes ?? 0), note: row.note ?? null, source: 'import' });
+      created += 1;
+    });
+    return { created, skipped, rows: sheetRows.length };
   }
   if (rest === '/leave' && method === 'GET') return { absences: payroll.absences.filter((a) => a.company_id === companyId), rules: payroll.leaveRules.filter((r) => r.company_id === companyId) };
   if (rest === '/leave' && method === 'POST') {

@@ -92,6 +92,20 @@ describe('démo paie — moteur déterministe bloqué', () => {
     expect(second.reused).toBe(1);
   });
 
+  it('configure un jour férié sourcé et importe des temps sans doublon', () => {
+    const company = loginAndCompany();
+    const holiday = call<any>('POST', `/companies/${company}/payroll/holidays`, {
+      holidayDate: '2026-08-15', nameEn: 'Fictive holiday', nameFr: 'Jour férié fictif', source: 'Fictif',
+    });
+    expect(holiday.holiday.holiday_date).toBe('2026-08-15');
+    expect(() => call('POST', `/companies/${company}/payroll/holidays`, {
+      holidayDate: '2026-08-15', nameEn: 'Doublon', nameFr: 'Doublon', source: 'Fictif',
+    })).toThrow(/existe déjà/);
+    const contentText = 'employeeNumber;workDate;hoursWorked;overtimeHours\nB002;06/07/2026;8;0\nG007;2026-07-08;7;1';
+    const first = call<any>('POST', `/companies/${company}/payroll/time/import-file`, { fileName: 'temps.csv', contentText });
+    expect(first).toMatchObject({ created: 1, skipped: 1 });
+  });
+
   it('exporte un CSV de simulation avec net payable vide', () => {
     const company = loginAndCompany();
     const { text, mode } = demoCsv(`/companies/${company}/payroll/payslips.csv`, 'csv');

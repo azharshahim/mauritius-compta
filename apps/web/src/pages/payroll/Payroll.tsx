@@ -14,6 +14,7 @@ interface PayrollData {
   contracts: Any[];
   payItems: Any[];
   time: Any[];
+  holidays: Any[];
   absences: Any[];
   leaveRules: Any[];
   periods: Any[];
@@ -24,7 +25,7 @@ interface PayrollData {
 }
 
 const EMPTY: PayrollData = {
-  dashboard: null, employees: [], contracts: [], payItems: [], time: [], absences: [],
+  dashboard: null, employees: [], contracts: [], payItems: [], time: [], holidays: [], absences: [],
   leaveRules: [], periods: [], variables: [], rules: [], calculations: [], payslips: [],
 };
 
@@ -67,10 +68,10 @@ export default function PayrollPage() {
     const base = `/companies/${company.id}/payroll`;
     try {
       const dashboard = await api.get<Any>(`${base}/dashboard`);
-      const [employees, contracts, payItems, time, leave, periods, rules, payslips] = await Promise.all([
+      const [employees, contracts, payItems, time, holidays, leave, periods, rules, payslips] = await Promise.all([
         api.get<Any>(`${base}/employees`), api.get<Any>(`${base}/contracts`),
         api.get<Any>(`${base}/pay-items`), api.get<Any>(`${base}/time`),
-        api.get<Any>(`${base}/leave`), api.get<Any>(`${base}/periods`),
+        api.get<Any>(`${base}/holidays`), api.get<Any>(`${base}/leave`), api.get<Any>(`${base}/periods`),
         api.get<Any>(`${base}/rules`), api.get<Any>(`${base}/payslips`),
       ]);
       const selected = periodId || periods.periods?.[0]?.id || '';
@@ -87,6 +88,7 @@ export default function PayrollPage() {
         contracts: contracts.contracts ?? [],
         payItems: payItems.payItems ?? [],
         time: time.entries ?? [],
+        holidays: holidays.holidays ?? [],
         absences: leave.absences ?? [],
         leaveRules: leave.rules ?? [],
         periods: periods.periods ?? [],
@@ -243,7 +245,8 @@ export default function PayrollPage() {
       )}
 
       {section === 'time' && (
-        <Card title={t('payroll.time.title')} actions={<Button variant="primary" onClick={() => setModal('time')}>{t('payroll.time.new')}</Button>}>
+        <>
+        <Card title={t('payroll.time.title')} actions={<><Button variant="ghost" onClick={() => setModal('time-import')}>{t('payroll.time.import')}</Button><Button variant="primary" onClick={() => setModal('time')}>{t('payroll.time.new')}</Button></>}>
           <p className="muted small">{t('payroll.time.help')}</p>
           <div className="table-wrap">
             <table>
@@ -254,6 +257,18 @@ export default function PayrollPage() {
             </table>
           </div>
         </Card>
+        <Card title={t('payroll.time.holidays')} actions={<Button variant="ghost" onClick={() => setModal('holiday')}>{t('payroll.time.newHoliday')}</Button>}>
+          <p className="muted small">{t('payroll.time.holidaysHelp')}</p>
+          {data.holidays.length === 0 ? <EmptyState title={t('payroll.time.noHoliday')} /> : (
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>{t('common.date')}</th><th>{t('common.name')}</th><th>{t('payroll.col.source')}</th></tr></thead>
+                <tbody>{data.holidays.map((h) => <tr key={h.id}><td>{h.holiday_date}</td><td>{locale === 'fr' ? h.name_fr : h.name_en}</td><td>{read(h.source)}</td></tr>)}</tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+        </>
       )}
 
       {section === 'leave' && (
@@ -474,6 +489,8 @@ export default function PayrollPage() {
       {modal === 'employee' && <EmployeeModal companyId={company.id} onClose={() => setModal(null)} onDone={done} />}
       {modal === 'contract' && <ContractModal employees={data.employees} companyId={company.id} onClose={() => setModal(null)} onDone={done} />}
       {modal === 'time' && <TimeModal employees={data.employees} companyId={company.id} onClose={() => setModal(null)} onDone={done} />}
+      {modal === 'time-import' && <TimeImportModal companyId={company.id} onClose={() => setModal(null)} onDone={done} />}
+      {modal === 'holiday' && <HolidayModal companyId={company.id} onClose={() => setModal(null)} onDone={done} />}
       {modal === 'leave' && <LeaveModal employees={data.employees} companyId={company.id} onClose={() => setModal(null)} onDone={done} />}
       {modal === 'leave-rule' && <LeaveRuleModal companyId={company.id} onClose={() => setModal(null)} onDone={done} />}
       {modal === 'variable' && <VariableModal employees={data.employees} payItems={data.payItems} periods={data.periods} companyId={company.id} onClose={() => setModal(null)} onDone={done} />}
@@ -783,6 +800,74 @@ function EmployeeDetail({ employee, contracts, onClose }: { employee: Any; contr
         <div className="table-wrap"><table><thead><tr><th>{t('common.from')}</th><th>{t('common.to')}</th><th className="num">{t('payroll.col.salary')}</th><th>{t('common.status')}</th><th>{t('payroll.col.reason')}</th></tr></thead><tbody>{contracts.map((c) => <tr key={c.id}><td>{c.effective_from}</td><td>{read(c.effective_to)}</td><td className="num">{c.base_salary}</td><td><Badge kind={badgeKind(c.status)}>{c.status}</Badge></td><td className="small">{c.change_reason}</td></tr>)}</tbody></table></div>
       )}
       <p className="muted small">{t('payroll.detail.demoNotice')}</p>
+    </Modal>
+  );
+}
+
+
+function readFileForImport(file: File, set: (value: { name: string; contentText?: string; contentBase64?: string }) => void) {
+  if (file.name.toLowerCase().endsWith('.xlsx')) {
+    const reader = new FileReader();
+    reader.onload = () => set({ name: file.name, contentBase64: String(reader.result).split(',')[1] ?? '' });
+    reader.readAsDataURL(file);
+  } else {
+    void file.text().then((contentText) => set({ name: file.name, contentText }));
+  }
+}
+
+function TimeImportModal({ companyId, onClose, onDone }: { companyId: string; onClose: () => void; onDone: (msg: string) => void }) {
+  const { t } = useI18n();
+  const [file, setFile] = useState<{ name: string; contentText?: string; contentBase64?: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <Modal open title={t('payroll.time.import')} onClose={onClose}>
+      <ErrorBanner message={error} />
+      <p className="muted small">{t('payroll.time.importHelp')}</p>
+      <Field label={t('payroll.variables.importFile')} hint={t('payroll.variables.importFileHint')}>
+        <input type="file" accept=".csv,.tsv,.txt,.xlsx" onChange={(e) => {
+          const chosen = e.target.files?.[0];
+          if (chosen) readFileForImport(chosen, setFile);
+        }} />
+      </Field>
+      {file && <Badge kind="info">{file.name}</Badge>}
+      <div className="modal-actions"><Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button><Button variant="primary" disabled={!file} onClick={() => {
+        void (async () => {
+          try {
+            const result = await api.post<Any>(`/companies/${companyId}/payroll/time/import-file`, {
+              fileName: file!.name,
+              ...(file!.contentText ? { contentText: file!.contentText } : { contentBase64: file!.contentBase64 }),
+            });
+            onDone(`${t('payroll.time.imported')} : ${result.created} ${t('payroll.variables.createdCount')}, ${result.skipped} ${t('payroll.time.skippedCount')}`);
+          } catch (err) { setError(errorMessage(err, t('common.error')).message); }
+        })();
+      }}>{t('payroll.variables.importAction')}</Button></div>
+    </Modal>
+  );
+}
+
+function HolidayModal({ companyId, onClose, onDone }: { companyId: string; onClose: () => void; onDone: (msg: string) => void }) {
+  const { t } = useI18n();
+  const [form, setForm] = useState({ holidayDate: '', nameEn: '', nameFr: '', source: '' });
+  const [error, setError] = useState<string | null>(null);
+  const set = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
+  return (
+    <Modal open title={t('payroll.time.newHoliday')} onClose={onClose}>
+      <ErrorBanner message={error} />
+      <p className="alert alert-warning">{t('payroll.time.noHolidayInvention')}</p>
+      <div className="form-grid">
+        <Field label={`${t('common.date')} *`}><input type="date" value={form.holidayDate} onChange={(e) => set('holidayDate', e.target.value)} /></Field>
+        <Field label={`${t('payroll.time.nameEn')} *`}><input value={form.nameEn} onChange={(e) => set('nameEn', e.target.value)} /></Field>
+        <Field label={`${t('payroll.time.nameFr')} *`}><input value={form.nameFr} onChange={(e) => set('nameFr', e.target.value)} /></Field>
+        <Field label={t('payroll.rules.source')}><input value={form.source} onChange={(e) => set('source', e.target.value)} /></Field>
+      </div>
+      <div className="modal-actions"><Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button><Button variant="primary" disabled={!form.holidayDate || !form.nameEn || !form.nameFr || !form.source} onClick={() => {
+        void (async () => {
+          try {
+            await api.post(`/companies/${companyId}/payroll/holidays`, form);
+            onDone(t('payroll.time.holidayCreated'));
+          } catch (err) { setError(errorMessage(err, t('common.error')).message); }
+        })();
+      }}>{t('common.create')}</Button></div>
     </Modal>
   );
 }
