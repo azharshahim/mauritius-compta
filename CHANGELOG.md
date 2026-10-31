@@ -1,5 +1,46 @@
 # Journal des versions
 
+## Mission 13 — Multidevises, taux de change et écarts (31 octobre 2026)
+
+> Aucune fusion, aucun déploiement OVH, aucune donnée réelle, aucun fournisseur de
+> taux externe, aucune dépense. PR nº1 laissée en brouillon ; `main` intact.
+
+### Ajouté
+
+- Migration additive `0013_multi_currency.sql` : devises autorisées, réglages FX,
+  registre de taux versionné, événements, écarts réalisés, réévaluations simulées,
+  virements inter-devises, triggers d’immuabilité et verrou de devise fonctionnelle.
+- API `/fx` : configuration, taux (brouillon → validation humaine → rejet /
+  remplacement versionné), résolution exacte paire + date, écarts réalisés
+  proposés puis comptabilisés une seule fois, simulations latentes, aperçus de
+  virements, rapports et CSV par devise.
+- Écran `Comptabilité → Multidevises` FR/EN (configuration, taux & conversion,
+  écarts réalisés, évaluations, virements, rapports), cartes mobile et tableaux
+  desktop, avertissement permanent « taux non officiel ».
+- Démonstration A→J fictive (`demo/fx.ts`, localStorage schéma 11), taux tous
+  marqués `demo`.
+- Assistant lecture seule : `fx.rates`, `fx.convert`, `fx.unrated`, `fx.realized`.
+- 35 tests API mission 13, 8 tests de démonstration, 3 tests d’interface,
+  tests de saisie décimale Android.
+- Documentation : rapport 16 points, architecture multidevise, politique de taux,
+  écarts réalisés/latents, registre de validation expert-comptable, guide.
+
+### Corrigé — ergonomie Samsung
+
+- Cases de sélection du lettrage : dimensions rétablies, zone tactile 44 px,
+  focus clavier conservé.
+- Montants éditables : `50 000,00` / `50,000.00`, saisie point ou virgule sans
+  perte de précision.
+- Marge basse mobile pour que la pastille de l’assistant ne masque plus les
+  boutons et champs, safe-areas conservées.
+
+### Limites
+
+- Changement de devise fonctionnelle après comptabilisation : interdit, procédure
+  non implémentée.
+- Comptabilisation des réévaluations et des virements inter-devises : bloquée.
+- Aucune conformité MRA, aucune règle fiscale mauricienne inventée.
+
 ## Mission 12 — Lettrage comptable & finalisation Banque ↔ Fournisseurs (31 octobre 2026)
 
 > Aucune fusion, aucun déploiement OVH, aucune donnée réelle, aucun fournisseur

@@ -138,6 +138,34 @@ input:focus, select:focus, textarea:focus {
   outline: 2px solid rgba(31, 111, 235, 0.35); outline-offset: 1px; border-color: var(--accent);
 }
 input:disabled, select:disabled { background: #f4f7fb; color: var(--muted); }
+/* Mission 13 (Samsung): the global input rule stretched checkboxes to the full
+   row width with a 38px minimum height. Dimensions are restored, a 44px touch
+   area is provided by the wrapping label, and the keyboard focus ring is kept. */
+input[type='checkbox'], input[type='radio'] {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  flex: 0 0 auto;
+  padding: 0;
+  margin: 0;
+  accent-color: var(--accent);
+}
+input[type='checkbox']:focus-visible, input[type='radio']:focus-visible {
+  outline: 3px solid rgba(31, 111, 235, 0.55);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+.lettering-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  margin: -10px;
+  padding: 10px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
 textarea { min-height: 72px; resize: vertical; }
 .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
 .field-label { font-size: 0.78rem; font-weight: 600; color: var(--muted); }
@@ -671,6 +699,8 @@ tr.total-row td { font-weight: 700; background: #f2f6fb; border-top: 2px solid v
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
   }
+  .page { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .lettering-actions { padding-bottom: 4px; }
   .assistant-messages { padding-bottom: 12px; }
   .assistant-composer { position: sticky; bottom: 0; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
   .assistant-foot { display: none; }
@@ -949,7 +979,8 @@ tr.total-row td { font-weight: 700; background: #f2f6fb; border-top: 2px solid v
 .lettering-filters input, .lettering-filters select { min-width: 0; max-width: 100%; }
 .lettering-table .table { min-width: 860px; }
 .lettering-table .is-selected { background: #eef6ff; }
-.lettering-amount { width: 120px; max-width: 100%; }
+.lettering-amount { width: 130px; max-width: 100%; min-height: 44px; font-variant-numeric: tabular-nums; }
+.lettering-cards li input[type='text'], .lettering-cards li input:not([type]) { min-height: 44px; }
 .lettering-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
 .lettering-suggestions { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .lettering-suggestions li { border: 1px solid var(--border, #d8dee9); border-radius: var(--radius-sm, 8px); padding: 10px 12px; min-width: 0; }

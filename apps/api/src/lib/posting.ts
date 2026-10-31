@@ -40,7 +40,8 @@ export type PostingSource =
   | 'purchase'
   | 'ai'
   | 'migration'
-  | 'migration_opening';
+  | 'migration_opening'
+  | 'fx';
 
 export interface PostingParams {
   companyId: string;

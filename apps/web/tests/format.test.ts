@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { defaultEntryDate, toScaled4, addAmounts, sameAmount } from '../src/format';
+import {
+  amountInputValue,
+  money,
+  defaultEntryDate,
+  normalizeDecimalInput,
+  toScaled4,
+  addAmounts,
+  sameAmount,
+} from '../src/format';
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -35,5 +43,31 @@ describe('exact decimal helpers', () => {
     expect(sameAmount(sum, '0.6000')).toBe(true);
     expect(toScaled4('1234567.8912')).toBe(12345678912n);
     expect(toScaled4('')).toBeNull();
+  });
+});
+
+describe('saisie décimale Android (mission 13, correctif Samsung)', () => {
+  it('accepte le point et la virgule, y compris un clavier français sur Android', () => {
+    expect(normalizeDecimalInput('50000.1234')).toBe('50000.1234');
+    expect(normalizeDecimalInput('50000,1234')).toBe('50000.1234');
+    expect(normalizeDecimalInput('50 000,12')).toBe('50000.12');
+    expect(normalizeDecimalInput('50\u00a0000.12')).toBe('50000.12');
+    expect(normalizeDecimalInput('1.234,56')).toBe('1234.56');
+    expect(normalizeDecimalInput('1,234.56')).toBe('1234.56');
+  });
+
+  it('conserve la précision saisie et ne force pas un arrondi silencieux', () => {
+    expect(normalizeDecimalInput('0,0001')).toBe('0.0001');
+    expect(toScaled4(normalizeDecimalInput('0,0001'))).toBe(1n);
+  });
+
+  it('affiche 50000.0000 comme 50 000,00 en français et 50,000.00 en anglais', () => {
+    expect(amountInputValue('50000.0000', 'fr')).toBe('50\u202f000,00');
+    expect(amountInputValue('50000.0000', 'en')).toBe('50,000.00');
+    expect(money('1234.5678', 'fr')).toBe('1\u202f234,57');
+    expect(money('1234.5678', 'en')).toBe('1,234.57');
+    expect(amountInputValue('', 'fr')).toBe('');
+    expect(amountInputValue('12345.6789', 'fr', true)).toBe('12\u202f345,6789');
+    expect(amountInputValue('12345.6700', 'fr', true)).toMatch(/^12\u202f345,67$/);
   });
 });

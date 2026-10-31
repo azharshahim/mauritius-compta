@@ -282,6 +282,7 @@ const fr: Dict = {
   'nav.cabinet.team': 'Collaborateurs',
   'nav.accounting.purchases': 'Achats & Fournisseurs',
   'nav.accounting.lettering': 'Lettrage',
+  'nav.accounting.multiCurrency': 'Multidevises',
   'lettering.open': 'Voir le lettrage',
   'lettering.traceability':
     'Chaîne consultable : facture → règlement → écriture → lettrage. Aucune écriture n’est modifiée.',
@@ -1234,6 +1235,7 @@ const en: Dict = {
   'nav.cabinet.team': 'Collaborators',
   'nav.accounting.purchases': 'Purchases & Suppliers',
   'nav.accounting.lettering': 'Lettering',
+  'nav.accounting.multiCurrency': 'Multi-currency',
   'lettering.open': 'View lettering',
   'lettering.traceability':
     'Audit trail: invoice → payment → entry → lettering. No entry is modified.',

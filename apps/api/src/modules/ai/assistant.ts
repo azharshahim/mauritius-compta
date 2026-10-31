@@ -161,6 +161,10 @@ export type AssistantIntent =
   | 'lettering_unlettered'
   | 'lettering_partial'
   | 'lettering_payments'
+  | 'fx_rates'
+  | 'fx_convert'
+  | 'fx_unrated'
+  | 'fx_realized'
   | 'help';
 
 const has = (text: string, pattern: RegExp) => pattern.test(text);
@@ -169,6 +173,26 @@ export function detectIntent(raw: string): { intent: AssistantIntent; query?: st
   const text = raw.toLowerCase().replace(/[’']/g, "'").replace(/\s+/g, ' ').trim();
 
   if (has(text, /\b(paie|payroll|bulletin|payslip|paye|csg|nsf)\b/)) return { intent: 'payroll_status' };
+
+  // Multi-currency (mission 13). The assistant may read rates and explain a
+  // conversion, but it never selects a non-validated rate or posts anything.
+  if (
+    has(text, /(sans taux|no rate|taux absent|missing rate|non valid|not validated)/) &&
+    has(text, /(devise|currency|eur|usd|gbp|change|fx)/)
+  ) {
+    return { intent: 'fx_unrated' };
+  }
+  if (has(text, /(taux de change|exchange rate|taux valid|validated rate|taux enregistr)/)) {
+    return { intent: 'fx_rates' };
+  }
+  if (has(text, /(écart réalisé|ecart realise|realized|réalisé|realised)/) && has(text, /(change|fx|devise|currency)/)) {
+    return { intent: 'fx_realized' };
+  }
+  if (
+    has(text, /(convert|conversion|équivalent|equivalent|combien.*(eur|usd|gbp|mur)|how much.*(eur|usd|gbp|mur))/)
+  ) {
+    return { intent: 'fx_convert' };
+  }
 
   // Ledger lettering (mission 12). The assistant only explains and lists:
   // it can never validate, reverse or alter a lettering.
@@ -760,6 +784,32 @@ function planTool(
         : { key: 'lettering.partial', args: { limit: 10 } };
     case 'lettering_payments':
       return { key: 'lettering.payments', args: { limit: 10 } };
+    case 'fx_rates':
+      return { key: 'fx.rates', args: { limit: 20 } };
+    case 'fx_unrated':
+      return { key: 'fx.unrated', args: { limit: 20 } };
+    case 'fx_realized':
+      return { key: 'fx.realized', args: { limit: 20 } };
+    case 'fx_convert': {
+      const amount = extractAmount(text);
+      if (!amount) return null;
+      const currencies = [...text.matchAll(/\b(MUR|EUR|USD|GBP)\b/gi)].map((m) =>
+        m[1]!.toUpperCase(),
+      );
+      const unique = [...new Set(currencies)];
+      const from = unique[0] ?? amount.currency ?? ctx.functionalCurrency;
+      const to = unique.find((c) => c !== from) ?? ctx.functionalCurrency;
+      if (from === to) return null;
+      return {
+        key: 'fx.convert',
+        args: {
+          amount: amount.amount,
+          from,
+          to,
+          date: new Date().toISOString().slice(0, 10),
+        },
+      };
+    }
     case 'proposal_prepare': {
       const amount = extractAmount(text);
       return {

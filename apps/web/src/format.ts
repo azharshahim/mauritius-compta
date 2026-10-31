@@ -38,12 +38,15 @@ function roundToDigits(scaled: bigint, digits: number): bigint {
 }
 
 function formatScaled(scaled: bigint, digits: number, locale: Locale): string {
+  // `roundToDigits` returns the amount expressed at `digits` decimals
+  // (amount × 10^digits), so the integer and decimal parts must be split on
+  // 10^digits — not on 10^(4−digits), which double-divided the value.
   const rounded = roundToDigits(scaled, digits);
   const negative = rounded < 0n;
   const abs = negative ? -rounded : rounded;
-  const unit = 10n ** (SCALE - BigInt(digits));
-  const intPart = (abs / unit).toString();
-  const decPart = digits > 0 ? (abs % unit).toString().padStart(digits, '0') : '';
+  const decUnit = 10n ** BigInt(digits);
+  const intPart = (abs / decUnit).toString();
+  const decPart = digits > 0 ? (abs % decUnit).toString().padStart(digits, '0') : '';
   const grouped = new Intl.NumberFormat(locale === 'fr' ? 'fr-FR' : 'en-GB').format(BigInt(intPart));
   const separator = locale === 'fr' ? ',' : '.';
   return `${negative ? '-' : ''}${grouped}${digits > 0 ? `${separator}${decPart}` : ''}`;
@@ -59,6 +62,48 @@ export function money(
   if (scaled === null) return '—';
   const text = formatScaled(scaled, 2, locale);
   return currency ? `${text} ${currency}` : text;
+}
+
+/**
+ * Normalises a human-entered decimal amount before it is sent to the API.
+ * Android keyboards expose either "." or "," depending on the device locale, so
+ * both separators are accepted. Only the *last* separator is treated as the
+ * decimal mark; earlier separators are thousands grouping and are removed. The
+ * stored precision is never rounded here: the exact typed value is sent.
+ */
+export function normalizeDecimalInput(value: string | number | undefined | null): string {
+  if (value === undefined || value === null) return '';
+  let raw = String(value).trim().replace(/[\s\u00a0\u202f']/g, '');
+  const negative = raw.startsWith('-');
+  raw = raw.replace(/^[+-]/, '');
+  if (!raw) return '';
+  const lastComma = raw.lastIndexOf(',');
+  const lastDot = raw.lastIndexOf('.');
+  let integer = raw;
+  let fraction = '';
+  const separator = Math.max(lastComma, lastDot);
+  if (separator >= 0) {
+    integer = raw.slice(0, separator).replace(/[.,]/g, '');
+    fraction = raw.slice(separator + 1).replace(/[.,]/g, '');
+  }
+  integer = integer.replace(/\D/g, '') || '0';
+  fraction = fraction.replace(/\D/g, '');
+  return `${negative ? '-' : ''}${integer}${fraction ? `.${fraction}` : ''}`;
+}
+
+/** Formats an amount for an editable field: "50000.0000" → "50 000,00". */
+export function amountInputValue(
+  amount: string | number | undefined | null,
+  locale: Locale,
+  preservePrecision = false,
+): string {
+  const scaled = toScaled4(amount);
+  if (scaled === null) return '';
+  // Displaying two decimals is the readable default ("50 000,00"). When the
+  // stored amount carries sub-cent precision, the extra decimals are shown
+  // rather than silently rounded away for a pre-filled allocation.
+  const digits = preservePrecision && scaled % 100n !== 0n ? 4 : 2;
+  return formatScaled(scaled, digits, locale);
 }
 
 export function shortMoney(amount: string | number | undefined | null, locale: Locale): string {

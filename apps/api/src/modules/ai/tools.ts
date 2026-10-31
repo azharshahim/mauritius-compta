@@ -12,6 +12,7 @@ import {
   listLettrableAccounts,
   listLetteringLines,
 } from '../lettering/service.js';
+import { explainConversion, listRealizedAdjustments } from '../fx/service.js';
 
 /**
  * Universal assistant - read-only tool registry (mission 7).
@@ -1290,6 +1291,194 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
                   `${p.number} · ${p.paymentDate} · ${p.partnerName} · unlettered remaining ${p.remaining} ${p.currency}`,
               )
             : ['No recorded payment remains to be allocated.'],
+        },
+      };
+    },
+  },
+
+  // ------------------------------------------------------------- multi-currency
+  {
+    key: 'fx.rates',
+    module: 'accounting',
+    readOnly: true,
+    title: { fr: 'Taux de change validés', en: 'Validated exchange rates' },
+    description: {
+      fr: 'Liste les taux validés par un humain pour les paires et dates exactes. Aucun taux officiel n’est supposé.',
+      en: 'Lists human-validated rates for exact pairs and dates. No official rate is assumed.',
+    },
+    args: z.object({ base: z.string().length(3).optional(), limit: z.number().int().min(1).max(50).optional() }).strict(),
+    async run(ctx, args) {
+      requireAccess(ctx, 'accounting', 'read');
+      const params: unknown[] = [ctx.companyId];
+      let where = "company_id = $1 AND status = 'validated'";
+      if (args.base) {
+        params.push(args.base.toUpperCase());
+        where += ` AND base_currency = $${params.length}`;
+      }
+      params.push(args.limit ?? 20);
+      const res = await ctx.db.query<any>(
+        `SELECT base_currency, quote_currency, rate_date::text, rate::text, source_kind, source,
+                reference, version, validated_at
+           FROM fx_rates WHERE ${where}
+          ORDER BY rate_date DESC, base_currency, quote_currency LIMIT $${params.length}`,
+        params,
+      );
+      return {
+        data: { rates: res.rows, readOnly: true, official: false },
+        rowCount: res.rows.length,
+        lines: {
+          fr: res.rows.length
+            ? res.rows.map(
+                (r) =>
+                  `${r.base_currency}/${r.quote_currency} · ${r.rate_date} · ${r.rate} · ${r.source_kind} · ${r.source} (validé, non officiel)`,
+              )
+            : ['Aucun taux validé n’est enregistré. Aucun taux n’est inventé.'],
+          en: res.rows.length
+            ? res.rows.map(
+                (r) =>
+                  `${r.base_currency}/${r.quote_currency} · ${r.rate_date} · ${r.rate} · ${r.source_kind} · ${r.source} (validated, not official)`,
+              )
+            : ['No validated rate is recorded. No rate is invented.'],
+        },
+      };
+    },
+  },
+  {
+    key: 'fx.convert',
+    module: 'accounting',
+    readOnly: true,
+    title: { fr: 'Expliquer une conversion', en: 'Explain a conversion' },
+    description: {
+      fr: 'Convertit un montant avec le taux validé de la date exacte, sans jamais choisir un autre taux.',
+      en: 'Converts an amount with the exact-date validated rate, never silently choosing another rate.',
+    },
+    args: z
+      .object({
+        amount: z.union([z.string(), z.number()]),
+        from: z.string().length(3),
+        to: z.string().length(3),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      })
+      .strict(),
+    async run(ctx, args) {
+      requireAccess(ctx, 'accounting', 'read');
+      const date = args.date ?? new Date().toISOString().slice(0, 10);
+      const result = await explainConversion(ctx.db, ctx.companyId, {
+        amount: args.amount,
+        from: args.from,
+        to: args.to,
+        date,
+      });
+      return {
+        data: { ...result, readOnly: true },
+        rowCount: 1,
+        lines: {
+          fr: [
+            `${result.amount} ${result.from} × ${result.rate} = ${result.converted} ${result.to} (${date}).`,
+            'Taux saisi et validé pour cette société, non officiel. Aucune écriture n’est créée.',
+          ],
+          en: [
+            `${result.amount} ${result.from} × ${result.rate} = ${result.converted} ${result.to} (${date}).`,
+            'Rate entered and validated for this company, not official. No entry is created.',
+          ],
+        },
+      };
+    },
+  },
+  {
+    key: 'fx.unrated',
+    module: 'accounting',
+    readOnly: true,
+    title: { fr: 'Opérations sans taux validé', en: 'Operations without a validated rate' },
+    description: {
+      fr: 'Liste les factures en devise dont la date ne possède pas de taux validé exact.',
+      en: 'Lists foreign-currency invoices whose date has no exact validated rate.',
+    },
+    args: z.object({ limit: z.number().int().min(1).max(50).optional() }).strict(),
+    async run(ctx, args) {
+      requireAccess(ctx, 'accounting', 'read');
+      const res = await ctx.db.query<any>(
+        `SELECT 'customer' AS side, d.doc_no AS reference, d.currency, d.issue_date::text,
+                d.customer_name AS partner
+           FROM billing_documents d
+          WHERE d.company_id = $1 AND d.currency <> $3
+            AND d.status IN ('issued', 'partially_paid')
+            AND NOT EXISTS (SELECT 1 FROM fx_rates r WHERE r.company_id = d.company_id
+                  AND r.base_currency = d.currency AND r.quote_currency = $3
+                  AND r.rate_date = d.issue_date AND r.status = 'validated')
+          UNION ALL
+          SELECT 'supplier', d.doc_no, d.currency, d.issue_date::text, s.name
+            FROM purchase_documents d JOIN purchase_suppliers s ON s.id = d.supplier_id
+           WHERE d.company_id = $1 AND d.currency <> $3
+             AND d.status = 'validated' AND d.kind = 'invoice'
+             AND NOT EXISTS (SELECT 1 FROM fx_rates r WHERE r.company_id = d.company_id
+                   AND r.base_currency = d.currency AND r.quote_currency = $3
+                   AND r.rate_date = d.issue_date AND r.status = 'validated')
+          ORDER BY issue_date DESC LIMIT $2`,
+        [ctx.companyId, args.limit ?? 20, ctx.functionalCurrency],
+      );
+      return {
+        data: { operations: res.rows, readOnly: true, blocked: true },
+        rowCount: res.rows.length,
+        lines: {
+          fr: res.rows.length
+            ? res.rows.map(
+                (r) =>
+                  `${r.side === 'customer' ? 'Client' : 'Fournisseur'} · ${r.reference ?? 'sans numéro'} · ${r.currency} · ${r.issue_date} : aucun taux validé, comptabilisation bloquée.`,
+              )
+            : ['Toutes les opérations en devise ont un taux validé à leur date.'],
+          en: res.rows.length
+            ? res.rows.map(
+                (r) =>
+                  `${r.side === 'customer' ? 'Customer' : 'Supplier'} · ${r.reference ?? 'no number'} · ${r.currency} · ${r.issue_date}: no validated rate, posting blocked.`,
+              )
+            : ['Every foreign-currency operation has a validated rate on its date.'],
+        },
+      };
+    },
+  },
+  {
+    key: 'fx.realized',
+    module: 'accounting',
+    readOnly: true,
+    title: { fr: 'Écarts de change réalisés', en: 'Realized exchange differences' },
+    description: {
+      fr: 'Liste les écarts réalisés proposés ou comptabilisés, avec taux initial et taux de règlement.',
+      en: 'Lists proposed or posted realized differences with initial and settlement rates.',
+    },
+    args: z.object({ limit: z.number().int().min(1).max(50).optional() }).strict(),
+    async run(ctx, args) {
+      requireAccess(ctx, 'accounting', 'read');
+      const rows = (await listRealizedAdjustments(ctx.db, ctx.companyId, { limit: args.limit ?? 20 })).map(
+        (a) => ({
+          reference: a.invoice_no,
+          payment: a.payment_no,
+          side: a.side,
+          currency: a.currency,
+          direction: a.direction,
+          difference: a.difference,
+          invoiceRate: a.invoice_rate,
+          settlementRate: a.settlement_rate,
+          status: a.status,
+          calculation: `${a.settled_txn_amount} ${a.currency} × (${a.settlement_rate} − ${a.invoice_rate})`,
+        }),
+      );
+      return {
+        data: { adjustments: rows, readOnly: true },
+        rowCount: rows.length,
+        lines: {
+          fr: rows.length
+            ? rows.map(
+                (r) =>
+                  `${r.side === 'customer' ? 'Client' : 'Fournisseur'} · ${r.reference ?? ''} / ${r.payment ?? ''} · ${r.direction} ${r.difference} ${ctx.functionalCurrency} · ${r.status} · ${r.calculation}`,
+              )
+            : ['Aucun écart de change réalisé n’est enregistré.'],
+          en: rows.length
+            ? rows.map(
+                (r) =>
+                  `${r.side === 'customer' ? 'Customer' : 'Supplier'} · ${r.reference ?? ''} / ${r.payment ?? ''} · ${r.direction} ${r.difference} ${ctx.functionalCurrency} · ${r.status} · ${r.calculation}`,
+              )
+            : ['No realized exchange difference is recorded.'],
         },
       };
     },

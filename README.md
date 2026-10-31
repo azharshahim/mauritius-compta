@@ -22,6 +22,11 @@
 > propose des écritures équilibrées issues du plan comptable réel, exige une **validation
 > humaine** puis une **comptabilisation distincte** : aucune écriture n'est créée
 > automatiquement. Le moteur IA est **optionnel**, sans clé par défaut.
+> **Multidevises** (mission 13) : taux saisis et validés par un humain (jamais
+> officiels, aucun fournisseur externe), factures et règlements en devise, écarts
+> réalisés proposés puis comptabilisés une seule fois si les comptes de change sont
+> configurés, réévaluations et virements inter-devises **simulés uniquement**.
+> Voir [`docs/multi-currency.md`](docs/multi-currency.md).
 > Voir [`docs/suite-architecture.md`](docs/suite-architecture.md),
 > [`docs/cabinet-module.md`](docs/cabinet-module.md) et
 > [`docs/bank-import.md`](docs/bank-import.md).
@@ -387,6 +392,12 @@ données, **ni** secret, **ni** donnée réelle.
 | [`docs/supplier-payments.md`](docs/supplier-payments.md) | Règlements partiels/groupés, acomptes, avoirs, banque, concurrence |
 | [`docs/supplier-accounting.md`](docs/supplier-accounting.md) | Propositions comptables, comptes, contrôles, immutabilité |
 | [`docs/mission-12-report.md`](docs/mission-12-report.md) | Rapport final de mission 12 (lettrage, 16 points) |
+| [`docs/mission-13-report.md`](docs/mission-13-report.md) | Rapport final de mission 13 (multidevises, 16 points) |
+| [`docs/multi-currency.md`](docs/multi-currency.md) | Architecture multidevise, schéma, API, rapports |
+| [`docs/exchange-rate-policy.md`](docs/exchange-rate-policy.md) | Catégories de taux, validation, absence de taux officiel |
+| [`docs/fx-gains-losses.md`](docs/fx-gains-losses.md) | Écarts réalisés, latents, virements et limites |
+| [`docs/fx-validation-register.md`](docs/fx-validation-register.md) | Questions ouvertes pour l’expert-comptable |
+| [`docs/multi-currency-user-guide.md`](docs/multi-currency-user-guide.md) | Guide utilisateur multidevises |
 | [`docs/ledger-lettering.md`](docs/ledger-lettering.md) | Lettrage client/fournisseur, partiels, suggestions, rapports |
 | [`docs/lettering-security.md`](docs/lettering-security.md) | Isolation, permissions, verrous, immuabilité, délettrage |
 | [`docs/supplier-bank-ui.md`](docs/supplier-bank-ui.md) | Écran Banque ↔ Fournisseurs, confirmation et limites |

@@ -4,7 +4,7 @@ import { api } from '../../api';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
 import { Badge, Button, Card, EmptyState, ErrorBanner, Field, Modal, Spinner } from '../../components/ui';
-import { money, toScaled4 } from '../../format';
+import { amountInputValue, money, normalizeDecimalInput, toScaled4 } from '../../format';
 
 /**
  * Comptabilité → Lettrage (mission 12).
@@ -409,7 +409,7 @@ export default function LetteringPage() {
     setSelected((current) => {
       const next = { ...current };
       if (next[line.id]) delete next[line.id];
-      else next[line.id] = line.remaining;
+      else next[line.id] = amountInputValue(line.remaining, locale, true);
       return next;
     });
   };
@@ -417,7 +417,22 @@ export default function LetteringPage() {
   const amountOf = (lineId: string) => selected[lineId] ?? '';
 
   const allocations = () =>
-    Object.entries(selected).map(([lineId, amount]) => ({ lineId, amount: amount.trim() }));
+    Object.entries(selected).map(([lineId, amount]) => ({
+      lineId,
+      amount: normalizeDecimalInput(amount),
+    }));
+
+  const onAmountChange = (lineId: string, raw: string) =>
+    setSelected((current) => ({ ...current, [lineId]: raw }));
+
+  const onAmountBlur = (lineId: string) =>
+    setSelected((current) => {
+      const raw = current[lineId];
+      if (!raw) return current;
+      const normalised = normalizeDecimalInput(raw);
+      if (!normalised || toScaled4(normalised) === null) return current;
+      return { ...current, [lineId]: amountInputValue(normalised, locale, true) };
+    });
 
   const openPreview = async () => {
     if (!accountId || Object.keys(selected).length < 2) return;
@@ -440,7 +455,8 @@ export default function LetteringPage() {
 
   const useSuggestion = async (suggestion: Suggestion) => {
     const next: Record<string, string> = {};
-    for (const line of suggestion.suggestedLines) next[line.lineId] = line.amount;
+    for (const line of suggestion.suggestedLines)
+      next[line.lineId] = amountInputValue(line.amount, locale, true);
     setSelected(next);
     await openPreviewWith(next);
   };
@@ -452,7 +468,10 @@ export default function LetteringPage() {
     try {
       const res = await api.post<{ preview: Preview }>(`/companies/${companyId}/lettering/preview`, {
         accountId,
-        allocations: Object.entries(selection).map(([lineId, amount]) => ({ lineId, amount })),
+        allocations: Object.entries(selection).map(([lineId, amount]) => ({
+          lineId,
+          amount: normalizeDecimalInput(amount),
+        })),
       });
       setPreview(res.preview);
       setReviewed(false);
@@ -665,12 +684,14 @@ export default function LetteringPage() {
                         return (
                           <tr key={line.id} className={checked ? 'is-selected' : undefined}>
                             <td>
-                              <input
-                                type="checkbox"
-                                aria-label={`${tr.columns[0]} ${line.entryNo}`}
-                                checked={checked}
-                                onChange={() => toggle(line)}
-                              />
+                              <label className="lettering-check">
+                                <input
+                                  type="checkbox"
+                                  aria-label={`${tr.columns[0]} ${line.entryNo}`}
+                                  checked={checked}
+                                  onChange={() => toggle(line)}
+                                />
+                              </label>
                             </td>
                             <td>
                               <Link to={`/accounting/entries?search=${encodeURIComponent(line.entryNo)}`}>
@@ -715,9 +736,8 @@ export default function LetteringPage() {
                                 inputMode="decimal"
                                 aria-label={`${tr.letteredAmount} ${line.entryNo}`}
                                 value={amountOf(line.id)}
-                                onChange={(e) =>
-                                  setSelected((current) => ({ ...current, [line.id]: e.target.value }))
-                                }
+                                onChange={(e) => onAmountChange(line.id, e.target.value)}
+                                onBlur={() => onAmountBlur(line.id)}
                                 disabled={!checked}
                               />
                             </td>
@@ -734,8 +754,9 @@ export default function LetteringPage() {
                     return (
                       <li key={line.id} className={checked ? 'is-selected' : undefined}>
                         <div className="lettering-card-head">
-                          <label>
+                          <label className="lettering-check">
                             <input type="checkbox" checked={checked} onChange={() => toggle(line)} />{' '}
+                            <span className="sr-only">{tr.columns[0]}</span>
                             <Link to={`/accounting/entries?search=${encodeURIComponent(line.entryNo)}`}>
                               <strong>{line.entryNo}</strong>
                             </Link>
@@ -772,9 +793,8 @@ export default function LetteringPage() {
                             <input
                               inputMode="decimal"
                               value={amountOf(line.id)}
-                              onChange={(e) =>
-                                setSelected((current) => ({ ...current, [line.id]: e.target.value }))
-                              }
+                              onChange={(e) => onAmountChange(line.id, e.target.value)}
+                              onBlur={() => onAmountBlur(line.id)}
                             />
                           </Field>
                         )}

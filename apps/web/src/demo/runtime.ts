@@ -35,6 +35,7 @@ import {
 import { handleDemoBank, seedDemoBank } from './bank';
 import { handleDemoPurchases, seedDemoPurchases } from './purchases';
 import { handleDemoLettering, seedDemoLettering } from './lettering';
+import { handleDemoFx, seedDemoFx } from './fx';
 import {
   IMPORT_FIELDS,
   IMPORT_KIND_LABELS,
@@ -851,6 +852,8 @@ export interface DemoState {
   letteringLines: DemoLetteringLine[];
   letteringEvents: DemoLetteringEvent[];
   letteringSequences: Record<string, number>;
+  /** Mission 13 — fictional multi-currency state (demo only). */
+  fx?: unknown;
 }
 
 /* ------------------------------------------------------------------ money */
@@ -1830,7 +1833,7 @@ function seedState(): DemoState {
   });
 
   const seeded: DemoState = {
-    schema: 10,
+    schema: 11,
     users: [demoUser, ...collaborators],
     session: null,
     companies: [company, ...extraCompanies],
@@ -1914,6 +1917,7 @@ function seedState(): DemoState {
   seedDemoBank(seeded);
   seedDemoPurchases(seeded);
   seedDemoLettering(seeded);
+  seedDemoFx(seeded);
   return seeded;
 }
 
@@ -1939,7 +1943,7 @@ export function loadState(): DemoState {
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as DemoState;
-        if (parsed && parsed.schema === 10) {
+        if (parsed && parsed.schema === 11) {
           state = parsed;
           return state;
         }
@@ -6086,6 +6090,25 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
       if (result === undefined) throw new ApiError(404, 'NOT_FOUND', 'Route de lettrage inconnue');
       if (method !== 'GET') {
         audit(companyId, 'lettering.request', 'ledger_lettering', null, { path: rest, method });
+        persist();
+      }
+      return result as T;
+    }
+
+    // ------------------------------------------------ multi-currency (13)
+    if (rest.startsWith('/fx')) {
+      const member = s.members.find(
+        (m) => m.company_id === companyId && m.user_id === requireUser().id,
+      );
+      if (!member) throw new ApiError(404, 'COMPANY_NOT_FOUND', 'Société introuvable');
+      const writers = ['owner', 'admin', 'accountant', 'manager', 'cabinet_admin'];
+      if (method !== 'GET' && !writers.includes(member.role)) {
+        throw new ApiError(403, 'FORBIDDEN', 'Rôle comptable requis pour les opérations en devise');
+      }
+      const result = handleDemoFx(s, companyId, method, rest.slice(3), Object.fromEntries(query.entries()), payload);
+      if (result === undefined) throw new ApiError(404, 'NOT_FOUND', 'Route multidevise inconnue');
+      if (method !== 'GET') {
+        audit(companyId, 'fx.request', 'fx', null, { path: rest, method, demo: true });
         persist();
       }
       return result as T;
