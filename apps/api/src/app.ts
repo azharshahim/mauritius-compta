@@ -22,6 +22,7 @@ import { billingRoutes } from './modules/billing/routes.js';
 import { payrollRoutes } from './modules/payroll/routes.js';
 import { aiRoutes } from './modules/ai/routes.js';
 import { migrationRoutes } from './modules/migration/routes.js';
+import { bankRoutes } from './modules/bank/routes.js';
 import type { UserRow } from './types.js';
 
 declare module 'fastify' {
@@ -187,6 +188,9 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
       // confirmation, then a single transactional import through the posting
       // service.
       migrationRoutes(secured, db, config);
+      // Bank statement import and reconciliation: proposals only, human
+      // confirmation, never an automatic accounting entry.
+      bankRoutes(secured, db, config);
     });
   }, { prefix: '/api' });
 

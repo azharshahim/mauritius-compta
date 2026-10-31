@@ -330,7 +330,7 @@ export interface ColumnSuggestion {
   candidates: { column: string; confidence: number }[];
 }
 
-function scoreHeader(header: string, aliases: string[]): number {
+export function scoreHeader(header: string, aliases: string[]): number {
   const normalized = normalizeHeader(header);
   if (!normalized) return 0;
   let best = 0;
@@ -352,7 +352,7 @@ function scoreHeader(header: string, aliases: string[]): number {
 }
 
 /** A debit/credit *indicator* must never be read as a debit or credit column. */
-function isIndicatorHeader(header: string): boolean {
+export function isIndicatorHeader(header: string): boolean {
   return /debit.*credit|credit.*debit|indicator|shkzg|sens\b/.test(normalizeHeader(header));
 }
 
