@@ -10,6 +10,7 @@ import LedgerPage from './pages/Ledger';
 import TrialBalancePage from './pages/TrialBalance';
 import StatementsPage from './pages/Statements';
 import EquityPage from './pages/accounting/Equity';
+import FixedAssetsPage from './pages/accounting/FixedAssets';
 import SettingsPage from './pages/Settings';
 import CompanySettingsPage from './pages/company/CompanySettings';
 import CompaniesPage from './pages/Companies';
@@ -219,7 +220,7 @@ export default function App() {
             <Route path="/accounting/lettering" element={<LetteringPage />} />
             <Route path="/accounting/multi-currency" element={<MultiCurrencyPage />} />
             <Route path="/accounting/banking" element={<BankPage />} />
-            <Route path="/accounting/assets" element={<PreparedPage module="accounting" />} />
+            <Route path="/accounting/assets" element={<FixedAssetsPage />} />
             <Route path="/accounting/ifrs" element={<PreparedPage module="accounting" />} />
 
             {/* Facturation opérationnelle (mission 6) */}
