@@ -131,9 +131,11 @@ contrainte `journal_entries.source` (les sources `migration` et
 1 `purchases-ui`) après la dernière exécution locale.
 ✅ Typecheck API/web et builds exécutés localement avant commit.
 ✅ Migration `0011` appliquée par `tests/migrations.test.ts` sur PGlite.
-🟡 **PostgreSQL réel via GitHub Actions : à exécuter après push** ; le
-résultat sera consigné dans la PR nº1. Aucun test CI n'est annoncé vert avant
-son exécution.
+✅ **PostgreSQL réel via GitHub Actions** : run `41199999193` sur le commit
+`b06eacd` — jobs « Migrations against real PostgreSQL », « API tests against
+real PostgreSQL » et « Typecheck, tests and build » **tous verts**. Les tests
+de concurrence ne sont plus ignorés dans ce job. Démo GitHub Pages :
+run `41199999202`, succès.
 ⛔ Non exécutés : navigateur Chrome réel, Samsung Android physique, tests
 Playwright, déploiement OVH (interdit).
 
@@ -149,7 +151,7 @@ aucune release.
 
 Le sous-ledger fournisseur, les avoirs, les règlements, les soldes par devise,
 la démo et la comptabilisation via le moteur existant sont **opérationnels et
-testés localement**. Les limites restantes sont déclarées : interface Banque
-fournisseur partielle, absence de test matériel Android, CI PostgreSQL à
-confirmer après push, écarts de change et conformité fiscale mauricienne
-**NON IMPLÉMENTÉS**.
+testés localement et sur PostgreSQL réel en CI**. Les limites restantes sont
+déclarées : interface Banque fournisseur partielle, absence de test matériel
+Android, écarts de change et conformité fiscale mauricienne **NON
+IMPLÉMENTÉS**.

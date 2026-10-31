@@ -46,7 +46,7 @@
 - Écarts de change, réévaluation, lettrage automatique : `NON IMPLÉMENTÉ`.
 - Conformité fiscale mauricienne, e-invoicing MRA et reverse charge :
   `À VÉRIFIER` / `NON IMPLÉMENTÉ`.
-- Aucun test sur Samsung Android physique ; CI PostgreSQL réel après push.
+- Aucun test sur Samsung Android physique ; CI PostgreSQL réel verte sur `b06eacd`.
 
 ## Mission 10 — rapprochement bancaire avancé & intégration Facturation (31 octobre 2026)
 
