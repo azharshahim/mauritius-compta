@@ -143,17 +143,22 @@
 - Tests web ajoutés : 2 (association depuis l'écran Banque, cartes mobiles).
 - Tests démo ajoutés : 2 (scénarios A→G, rapport détaillé).
 - Typecheck API + web, build production et build démo : réussis.
-- Les workflows CI (qualité, PostgreSQL réel, migrations) sont lancés après
-  push ; leur résultat est reporté dans la conversation finale.
+- CI `41197327498` (push) et `41197332790` (PR) : **succès** ; les trois jobs
+  `quality`, `postgres-tests` et `postgres-migrations` sont verts.
+- Démo Pages `41197195778` (commit `a2fb589`) : **succès**.
 
 ## 13. CI PostgreSQL réel
 
 - Job `postgres-tests` : exécute toute la suite avec `TEST_DATABASE_URL`, donc
-  les trois tests de concurrence.
-- Job `postgres-migrations` : applique les migrations sur PostgreSQL 16.
+  les **7 tests de concurrence** (dont 3 ajoutés en mission 10) — **succès**.
+- Job `postgres-migrations` : applique les migrations `0001`→`0010` sur
+  PostgreSQL 16 réel, les rejoue pour l'idempotence, puis vérifie par `psql` les
+  colonnes `amount`, `billing_invoice_id`, `note`, `updated_at`, les index
+  uniques partiels `bank_matches_*_confirmed` et la contrainte de statut
+  incluant `partially_matched` — **succès**.
 - Les tests PGlite locaux ne remplacent pas cette vérification.
 - **Non exécuté dans le bac à sable** : aucun serveur PostgreSQL local n'est
-  disponible ; l'exécution est déléguée à GitHub Actions.
+  disponible ; l'exécution a eu lieu dans GitHub Actions (runs ci-dessus).
 
 ## 14. Démonstration Pages A → G
 

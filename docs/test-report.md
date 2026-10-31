@@ -15,7 +15,8 @@ Nouveaux fichiers : `apps/api/tests/bank-billing.test.ts` (18),
 `apps/web/tests/demo-bank.test.ts` (2 cas mission 10 ajoutés).
 Les tests de concurrence mission 10 sont dans `tests/concurrency.test.ts`
 (**7 cas au total, ignorés sans `TEST_DATABASE_URL`**) et s'exécutent dans le
-job GitHub Actions PostgreSQL 16. Aucun appareil Samsung physique n'est
+job GitHub Actions PostgreSQL 16 : ils sont **verts** en CI (runs
+`41197327498` et `41197332790`). Aucun appareil Samsung physique n'est
 disponible : les tests mobiles sont des tests de styles/DOM, pas des tests
 matériels.
 
