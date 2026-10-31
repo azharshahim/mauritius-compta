@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { api, downloadExport } from '../../api';
+import { demoEnabled } from '../../demo';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
 import { Badge, Button, Card, EmptyState, ErrorBanner, Field, Modal, Spinner } from '../../components/ui';
@@ -399,6 +400,7 @@ export default function PayrollPage() {
       {section === 'payslips' && (
         <Card title={t('payroll.payslips.title')} actions={<Button variant="ghost" onClick={() => downloadExport(`/companies/${company.id}/payroll/payslips.csv${selectedPeriod ? `?periodId=${selectedPeriod.id}` : ''}`, 'payroll-simulation.csv', 'csv')}>{t('common.exportCsv')}</Button>}>
           <div className="alert alert-warning">{t('payroll.payslips.officialBlocked')}</div>
+          {demoEnabled && <div className="alert alert-info">{t('payroll.payslips.demoPrint')}</div>}
           <div className="table-wrap">
             <table>
               <thead><tr><th>{t('payroll.payslips.number')}</th><th>{t('common.period')}</th><th>{t('payroll.col.number')}</th><th>{t('common.name')}</th><th className="num">{t('payroll.col.gross')}</th><th className="num">{t('payroll.col.netArithmetic')}</th><th>{t('common.status')}</th><th /></tr></thead>
@@ -409,7 +411,7 @@ export default function PayrollPage() {
                     <td className="num">{money(p.snapshot?.totals?.gross, locale, p.snapshot?.currency)}</td>
                     <td className="num">{money(p.snapshot?.totals?.netArithmetic, locale, p.snapshot?.currency)}</td>
                     <td><Badge kind="warning">{p.status}</Badge></td>
-                    <td><Button variant="ghost" onClick={() => downloadExport(`/companies/${company.id}/payroll/payslips/${p.id}/pdf`, `${p.payslip_no}.pdf`, 'pdf')}>{t('common.exportPdf')}</Button></td>
+                    <td><Button variant="ghost" onClick={() => downloadExport(`/companies/${company.id}/payroll/payslips/${p.id}/pdf`, `${p.payslip_no}.pdf`, 'pdf')}>{demoEnabled ? t('payroll.payslips.print') : t('common.exportPdf')}</Button></td>
                   </tr>
                 ))}
               </tbody>

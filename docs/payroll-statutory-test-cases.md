@@ -1,9 +1,11 @@
-# Payroll Statutory Test Cases (Mission 15)
+# Payroll Statutory Test Cases (Missions 15–16)
 
 All identities, wages and documents are fictional. Automated tests are in:
 
 - `apps/api/tests/payroll-statutory.test.ts` — 22 tests (pure formulas + API pipeline).
 - `apps/api/tests/payroll.test.ts` — 48 tests (mission 14 regression).
+- `apps/api/tests/payroll-2026-27.test.ts` — 4 tests (2026/27 engine + PDF snapshot).
+- `apps/api/tests/payroll-pdf.test.ts` — 2 tests (single-page FR/EN bulletin).
 - `apps/api/tests/migrations.test.ts` — 6 tests (fresh database applies 0003→0015).
 - `apps/web/tests/demo-payroll.test.ts` and `apps/web/tests/payroll-ui.test.tsx` — demo and UI.
 
@@ -29,6 +31,8 @@ All identities, wages and documents are fictional. Automated tests are in:
 | P | AR before 1 January 2026 | Zero | Pure AR test |
 | Q | Bonus based on Rs 120,000 annual earnings | 10,000 simulation only; no automatic posting | Pure bonus test |
 | R | Reviewer approval without a note / review request | 400 `PAYROLL_REVIEW_REQUIRED`; valid note → `approved_for_test` but net payable null | API review gate |
+| S | October 2026, Daniel Morel, Rs 30,000, EDF 0 dependant, one elapsed period | AR 635; gross 30,635; PAYE 0 (`EDF_CUMULATIVE`); CSG 459.5250/919.0500; NSF 297.1000/742.7500; levy 459.5250; net after statutory 29,878.3750; employer cost 32,756.3250; net payable null; `expert_review_pending` | API `payroll-2026-27.test.ts` and demo |
+| T | Employee without EDF in 2026/27 | Blocked with `NO_EDF_RULE_NOT_VERIFIED_FOR_PERIOD`; no 15% threshold invented | API statutory |
 
 ## Additional coverage
 
@@ -41,9 +45,11 @@ All identities, wages and documents are fictional. Automated tests are in:
 - Rule validation requires source, reference, URL and fingerprint.
 - A new rule version cannot overlap a historical effective date (`PAYROLL_RULE_VERSION_OVERLAP`).
 - Finalisation is refused even after a test approval; no final slip is produced.
-- A 2026/27 period is blocked rather than reusing 2025/26 PAYE rates.
+- A 2026/27 period uses its own dated PAYE version (0/10/20/35); a period after 30 June 2027 is blocked rather than reusing 2026/27 rates.
+- The 2026/27 version carries `monthlyWithholdingTableVerified: false` and `noEdfRuleAvailable: false`.
+- The PDF has one page, no central watermark, a discreet bilingual footer and exact three-decimal statutory amounts where needed.
 - MRA summary and CSV are marked `PREPARATION_ONLY` / `NOT_SUBMITTED`.
-- Simulation PDF displays statutory values and “NOT FOR PAYMENT”.
+- Simulation PDF displays statutory values, the calculation reference and a bilingual “SIMULATION — NOT VALIDATED FOR PAYMENT” footer.
 
 ## Not testable in this environment
 

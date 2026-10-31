@@ -1,5 +1,43 @@
 # Journal des versions
 
+## Mission 16 — Règles 2026/27, bulletin professionnel et démonstration (31 octobre 2026)
+
+> Aucune fusion, aucun déploiement OVH, aucune donnée réelle, aucune soumission MRA,
+> aucun identifiant MRA, aucun virement. PR nº1 ouverte en brouillon ; `main` intact.
+> Aucune conformité légale affirmée ; les calculs restent non validés pour paiement.
+
+### Ajouté
+
+- Version datée PAYE 2026/27 (`2026-07-01` → `2027-06-30`) : bandes 0/10/20/35 %,
+  `fscApplicable: false`, `noEdfRuleAvailable: false`,
+  `monthlyWithholdingTableVerified: false` ; PAYE 2025/26 close au 30/06/2026 ;
+  AR 2026 close au 31/12/2026.
+- Blocage explicite d’un salarié sans EDF en 2026/27
+  (`NO_EDF_RULE_NOT_VERIFIED_FOR_PERIOD`) au lieu de réutiliser le seuil 2025/26.
+- Scénario fictif *Mauritius Demo Services Ltd* / *Daniel Morel*, octobre 2026 :
+  calcul complet par le moteur réel (AR 635, PAYE 0, CSG 459,525/919,05,
+  NSF 297,10/742,75, levy 459,525, net 29 878,375, coût 32 756,325).
+- Bulletin PDF réécrit : plus de filigrane central, en-tête société, identité,
+  période, tableaux, traçabilité, pied de page bilingue discret.
+- Démonstration Pages : société et scénario 2026/27, bulletin simulé
+  `SIM-202610-0001`, bouton « Vue imprimable / PDF navigateur » explicite.
+- Tests `payroll-2026-27.test.ts` (4) et `payroll-pdf.test.ts` (2).
+
+### Modifié
+
+- Snapshot de calcul enrichi (fonction, contrat, dates de période, référence) et
+  sociétés chargées avec adresse, activité et contacts pour le PDF.
+- Affichage des montants PDF sans perte de décimale ; totaux en BigInt.
+- Registres de sources et de règles, guide utilisateur Windows/Android et
+  documentation de démonstration mis à jour pour 2026/27.
+
+### Non fait volontairement
+
+- Aucune déclaration MRA, aucun paiement, aucun bulletin final.
+- Aucun PDF généré en mode démonstration ; seule l’impression navigateur est proposée.
+- Les sections 7/18/28 du Finance Act 2026 et la table mensuelle cumulative n’étant
+  pas vérifiées verbatim, la revue professionnelle reste obligatoire.
+
 ## Mission 15 — Moteur de paie mauricien sourcé et audit réglementaire (31 octobre 2026)
 
 > Aucune fusion, aucun déploiement OVH, aucune donnée personnelle réelle, aucune

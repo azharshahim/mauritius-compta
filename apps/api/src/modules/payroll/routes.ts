@@ -679,7 +679,11 @@ export function payrollRoutes(app: FastifyInstance, db: Db) {
     const { companyId, payslipId } = req.params as { companyId: string; payslipId: string };
     await actor(req, companyId);
     const payslip = await getPayslip(db, companyId, payslipId);
-    const company = await db.query<any>('SELECT name, brn FROM companies WHERE id = $1', [companyId]);
+    const company = await db.query<any>(
+      `SELECT name, brn, registered_address, business_activity, contact_email, contact_phone
+         FROM companies WHERE id = $1`,
+      [companyId],
+    );
     const locale = String((req.headers['x-locale'] ?? 'fr')).toLowerCase().startsWith('en') ? 'en' : 'fr';
     const pdf = await payrollPdf({
       locale, company: company.rows[0], payslipNo: payslip.payslip_no,

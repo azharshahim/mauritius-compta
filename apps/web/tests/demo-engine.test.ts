@@ -310,11 +310,11 @@ describe('demo backend — cabinet module and module permissions', () => {
       upcoming: unknown[];
       dossiers: unknown[];
     }>('GET', '/cabinet/dashboard');
-    expect(dashboard.metrics.clients).toBe(4);
+    expect(dashboard.metrics.clients).toBe(5);
     expect(dashboard.metrics.archived).toBe(1);
     expect(dashboard.metrics.overdueTasks).toBeGreaterThanOrEqual(1);
     expect(dashboard.metrics.openTasks).toBeGreaterThan(0);
-    expect(dashboard.dossiers).toHaveLength(4);
+    expect(dashboard.dossiers).toHaveLength(5);
     expect(dashboard.upcoming.length).toBeGreaterThan(0);
   });
 

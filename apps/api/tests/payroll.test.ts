@@ -566,13 +566,17 @@ describe('payroll preparation and RH (mission 14)', () => {
   it('seeds official-source rules without pretending an expert validated them', async () => {
     const rules = await api(ctx, owner.cookie, 'GET', `/api/companies/${company.id}/payroll/rules`);
     expect(rules.statusCode, rules.body).toBe(200);
-    const paye = rules.json().rules.find((r: any) => r.rule_code === 'PAYE');
-    expect(paye.rate).toBe('20.00000000');
-    expect(paye.status).toBe('RESEARCHED');
-    expect(paye.source_url).toContain('mra.mu');
-    const refused = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/rules/${paye.id}/validate`, {});
+    const payeVersions = rules.json().rules.filter((r: any) => r.rule_code === 'PAYE');
+    const paye2025 = payeVersions.find((r: any) => r.effective_from === '2025-07-01');
+    const paye2026 = payeVersions.find((r: any) => r.effective_from === '2026-07-01');
+    expect(paye2025.rate).toBe('20.00000000');
+    expect(paye2026.rate).toBe('35.00000000');
+    expect(paye2025.status).toBe('RESEARCHED');
+    expect(paye2026.status).toBe('RESEARCHED');
+    expect(paye2026.source_url).toContain('mra.mu');
+    const refused = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/rules/${paye2026.id}/validate`, {});
     expect(refused.statusCode).toBe(400);
-    const confirmed = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/rules/${paye.id}/validate`, {
+    const confirmed = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/rules/${paye2026.id}/validate`, {
       confirm: true, note: 'Fictional test review — not a legal approval.',
     });
     expect(confirmed.statusCode, confirmed.body).toBe(200);

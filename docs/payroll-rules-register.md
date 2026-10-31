@@ -1,6 +1,6 @@
 # Mauritian Payroll Rules Register
 
-Status: mission 15, 31 October 2026. **No rule is expert-approved.** The detailed source evidence is in [`regulatory-sources-register.md`](regulatory-sources-register.md); the audit narrative is in [`mauritius-regulatory-audit-dossier.md`](mauritius-regulatory-audit-dossier.md).
+Status: mission 16, 31 October 2026. **No rule is expert-approved.** The detailed source evidence is in [`regulatory-sources-register.md`](regulatory-sources-register.md); the audit narrative is in [`mauritius-regulatory-audit-dossier.md`](mauritius-regulatory-audit-dossier.md).
 
 ## 1. Registry contract
 
@@ -14,8 +14,9 @@ Only `EXPERT_VALIDATED` allows `statutory_complete = true`. A required rule that
 
 | Rule code | Scope | Version/effective | Structured parameters | Blocks when absent? |
 |---|---|---|---|---|
-| `PAYE` | Cumulative progressive PAYE 2025/26 | from 2025-07-01 | bands 0/10/20%, monthly scaling | yes |
-| `PAYE_NO_EDF` | Flat 15% without EDF | from 2025-07-01 | threshold 38,462; election 20% not implemented | yes |
+| `PAYE` v1 | Cumulative progressive PAYE 2025/26 | 2025-07-01 → 2026-06-30 | bands 0/10/20%, monthly scaling, FSC applicable | yes |
+| `PAYE` v2 | Cumulative progressive PAYE 2026/27 | from 2026-07-01 | bands 0/10/20/35%, monthly scaling, no individual FSC, no-EDF rule unavailable | yes |
+| `PAYE_NO_EDF` | Flat 15% without EDF, 2025/26 only | 2025-07-01 → 2026-06-30 | threshold 38,462; election 20% not implemented | only for 2025/26 periods |
 | `CSG_PRIVATE` | Private-sector CSG | from 2021-09-01 | 1.5/3/3/6%, threshold 50,000 | yes |
 | `NSF_RATES` | Employee 1% / employer 2.5% | from 2021-09-01 | rates | yes |
 | `NSF_LIMITS` v1 | Min/max by frequency | 2025-07-01 → 2026-06-30 | five frequency tables | yes |
@@ -62,8 +63,8 @@ Leave types exist but no entitlement is seeded. Without a validated rule, the AP
 
 ## 7. Grouped questions for one professional review
 
-1. PAYE 2026/27 bands and 13th-month/bonus scaling.
-2. Fair Share Contribution.
+1. PAYE 2026/27 bands (Finance Act 2026 s.7 not read verbatim), monthly cumulative withholding table (not located) and 13th-month/bonus scaling.
+2. Fair Share Contribution replacement by the 35% band in 2026/27.
 3. Director/board/pensioner PAYE.
 4. Public-sector/PRB CSG and CSG Income Allowance.
 5. CSG/NSF/levy rounding.

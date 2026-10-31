@@ -1,16 +1,18 @@
 # Guide utilisateur — Paie & RH (préparation)
 
 > **Ce module prépare la paie ; il ne produit ni net légal, ni bulletin officiel, ni
-> déclaration.** PAYE, CSG, NSF et cotisations employeur sont bloqués. Les montants
-> affichés sont arithmétiques et fictifs dans la démonstration.
+> déclaration.** Les calculs PAYE, CSG, NSF et Training Levy sont disponibles mais
+> restent `RESEARCHED`, non validés par un expert et **non payables**. La démonstration
+> est entièrement fictive et ne contacte aucun serveur.
 
 ## 1. Accès
 
 1. Se connecter et choisir la société dans la barre supérieure.
 2. Ouvrir **Paie & RH**. Les rôles autorisés sont propriétaire, administrateur,
    administrateur de cabinet et gestionnaire de paie.
-3. La démonstration GitHub Pages contient 12 salariés fictifs A→L ; elle ne contacte
-   aucun serveur.
+3. La démonstration GitHub Pages contient 19 salariés fictifs (A→R sur *Lagon Bleu
+   Trading Ltd*, plus Daniel Morel sur *Mauritius Demo Services Ltd*) ; elle ne
+   contacte aucun serveur.
 
 ## 2. Tableau de bord
 
@@ -102,7 +104,43 @@ et aucune soumission n’est effectuée. Aucun virement n’est émis, aucune é
 n’est générée. L’aperçu comptable indique `postingBlocked: true` et les comptes à
 configurer.
 
-## 11. Mobilité
+## 11. Scénario fictif octobre 2026 (mission 16)
+
+1. Choisir **Mauritius Demo Services Ltd (DEMO)** dans la barre supérieure.
+2. Ouvrir **Paie & RH → Périodes** : la période `10/2026` est déjà calculée.
+3. Ouvrir **Calculs** : Daniel Morel, salaire de base Rs 30 000, AR 2026 Rs 635,
+   brut Rs 30 635, PAYE 0 (barème cumulatif avec EDF), CSG salarié 459,525,
+   CSG employeur 919,05, NSF 297,10/742,75, levy 459,525, net après cotisations
+   29 878,375, coût employeur 32 756,325. Le net à payer reste **non calculé** et le
+   statut est `expert_review_pending`.
+4. Ouvrir **Bulletins** puis **Vue imprimable / PDF navigateur** : le navigateur
+   ouvre son dialogue d’impression. La démo **ne génère aucun PDF serveur** ; un
+   PDF obtenu par « Enregistrer en PDF » est une impression de la page, pas un
+   document officiel. Aucune donnée n’est enregistrée côté serveur.
+
+## 12. Windows et Android — parcours de test
+
+### Windows
+
+1. Ouvrir `https://azharshahim.github.io/mauritius-compta/` dans Chrome ou Edge.
+2. Se connecter avec le compte de démonstration affiché sur l’écran de connexion.
+3. Suivre le scénario de la section 11, vérifier les montants et ouvrir la vue
+   imprimable. Dans Chrome, **Imprimer → Enregistrer en PDF** produit un fichier
+   local ; ce fichier reste une simulation.
+4. Tester aussi le redimensionnement de la fenêtre : les tableaux doivent défiler
+   horizontalement dans leur conteneur, sans déborder la page.
+
+### Android
+
+1. Ouvrir la même adresse dans Chrome Android.
+2. Même connexion et même scénario ; la sélection de société se fait par le menu.
+3. Le clavier ne doit pas s’ouvrir tout seul ; les champs de recherche gardent leur
+   focus visible. Aucun bandeau de démonstration n’est masqué.
+4. **Non vérifié dans cet environnement** : Samsung physique, Chrome réel et lecteur
+   d’écran. Les contrôles restent au niveau CSS/unitaires et sont documentés comme
+   non testés sur appareil.
+
+## 13. Mobilité
 
 Les tableaux défilent dans leur propre conteneur, les cartes passent en une colonne
 sous 640 px et la pastille d’assistant reste visible. Aucun clavier n’est forcé et

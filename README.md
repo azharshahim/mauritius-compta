@@ -18,7 +18,7 @@
 > et ne crée aucun paiement. Facturation (mission 6) :
 > **opérationnelle** — clients, devis, factures, avoirs, encaissements, balance âgée et PDF A4
 > générés par le serveur ; **aucun taux de TVA n'est fourni** et l'e-invoicing MRA reste
-> désactivé. Paie & RH : **préparation et moteur statutaire daté** (mission 15) — dossiers salariés, contrats datés, temps, congés, variables, périodes, PAYE cumulatif, EDF, CSG, NSF, Training Levy et AR 2026 calculés depuis des règles officielles sourcées ; **revue experte en attente**, bulletins de **simulation**, **aucun bulletin final**, aucune déclaration MRA, aucun virement. L'assistant comptable V2
+> désactivé. Paie & RH : **préparation et moteur statutaire daté** (missions 15–16, règles 2026/27) — dossiers salariés, contrats datés, temps, congés, variables, périodes, PAYE cumulatif, EDF, CSG, NSF, Training Levy et AR 2026 calculés depuis des règles officielles sourcées ; **revue experte en attente**, bulletins de **simulation**, **aucun bulletin final**, aucune déclaration MRA, aucun virement. L'assistant comptable V2
 > propose des écritures équilibrées issues du plan comptable réel, exige une **validation
 > humaine** puis une **comptabilisation distincte** : aucune écriture n'est créée
 > automatiquement. Le moteur IA est **optionnel**, sans clé par défaut.
@@ -27,11 +27,11 @@
 > réalisés proposés puis comptabilisés une seule fois si les comptes de change sont
 > configurés, réévaluations et virements inter-devises **simulés uniquement**.
 > Voir [`docs/multi-currency.md`](docs/multi-currency.md).
-> **Paie & RH** (mission 15) : les taux sont datés et sourcés (MRA, Gazette), jamais
+> **Paie & RH** (missions 15–16) : les taux sont datés et sourcés (MRA, Gazette), jamais
 > inventés, et **aucune règle n’est validée par un expert**. Le moteur calcule PAYE,
 > CSG, NSF, Training Levy et AR 2026, mais le net payable reste vide et la
-> finalisation est bloquée ; les bulletins portent
-> « SIMULATION / DRAFT — NOT FOR PAYMENT ». Voir
+> finalisation est bloquée ; les bulletins portent une mention discrète
+> « SIMULATION — NOT VALIDATED FOR PAYMENT » en pied de page. Voir
 > [`docs/mission-15-report.md`](docs/mission-15-report.md),
 > [`docs/regulatory-sources-register.md`](docs/regulatory-sources-register.md) et
 > [`docs/mauritius-regulatory-audit-dossier.md`](docs/mauritius-regulatory-audit-dossier.md).
@@ -403,6 +403,7 @@ données, **ni** secret, **ni** donnée réelle.
 | [`docs/mission-12-report.md`](docs/mission-12-report.md) | Rapport final de mission 12 (lettrage, 16 points) |
 | [`docs/mission-14-report.md`](docs/mission-14-report.md) | Rapport de mission 14 (fondation paie & RH) |
 | [`docs/mission-15-report.md`](docs/mission-15-report.md) | Rapport final de mission 15 (moteur statutaire, 16 points) |
+| [`docs/mission-16-report.md`](docs/mission-16-report.md) | Rapport de mission 16 (règles 2026/27, bulletin, démonstration) |
 | [`docs/regulatory-sources-register.md`](docs/regulatory-sources-register.md) | Registre des sources officielles, statuts et approbation experte |
 | [`docs/mauritius-regulatory-audit-dossier.md`](docs/mauritius-regulatory-audit-dossier.md) | Dossier d’audit réglementaire en anglais, 18 chapitres |
 | [`docs/paye-calculation-specification.md`](docs/paye-calculation-specification.md) | Spécification PAYE cumulative, EDF et FSC bloquée |

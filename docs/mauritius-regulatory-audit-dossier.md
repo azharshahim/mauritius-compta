@@ -1,8 +1,10 @@
 # Mauritius Payroll — Regulatory Audit Dossier
 
-**Version:** mission 15, 31 October 2026.
+**Version:** mission 16, 31 October 2026.
 **Purpose:** give a single expert accountant everything needed to review the payroll statutory engine in one pass.
 **No legal compliance is claimed.** Implementation, source identification and tests are not expert approval.
+
+**Mission 16 addition:** a dated PAYE 2026/27 version (0/10/20/35 %) and the 2026/27 NSF limits are now implemented and tested. The EDF 2026/27 and the MRA communiqué of 5 August 2026 support the bands; Finance Act 2026 ss.7/18/28 and the monthly cumulative withholding table were **not read verbatim**. The no-EDF 2026/27 rule remains unavailable and blocks. See `docs/mission-16-report.md`.
 
 For each rule the dossier separates: (1) the official source, (2) what was verified, (3) the implemented formula, (4) tests, (5) applicability, (6) approval. The canonical row-level evidence is in `docs/regulatory-sources-register.md`.
 

@@ -1184,7 +1184,7 @@ const RULE_SEEDS: RuleSeed[] = [
     sourceReference: 'PAYE Guide Dec 2025 §1 and §6, Table B / Table C',
     sourceUrl: 'https://www.mra.mu/download/PayeGuide.pdf',
     article: 'Finance Act 2025 progressive rates as from July 2025; Fourteenth Schedule',
-    publicationDate: '2025-12-01', effectiveFrom: '2025-07-01',
+    publicationDate: '2025-12-01', effectiveFrom: '2025-07-01', effectiveTo: '2026-06-30',
     rate: '20', threshold: '500000', cap: null,
     rounding: 'Cumulative tax rounded down to the nearest rupee',
     required: true,
@@ -1192,8 +1192,36 @@ const RULE_SEEDS: RuleSeed[] = [
     parameters: {
       bands: [{ upto: '500000', rate: '0' }, { upto: '1000000', rate: '10' }, { upto: null, rate: '20' }],
       annualReliefDivisorMonthly: 13,
+      fscApplicable: true,
+      noEdfRuleAvailable: true,
     },
     notes: 'Bands are annual and scaled by elapsed pay periods with the official 1/13, 1/28 and 1/56 fractions. No Fair Share Contribution is included.',
+  },
+  {
+    ruleCode: 'PAYE', nameEn: 'PAYE progressive cumulative bands from 1 July 2026',
+    nameFr: 'PAYE — tranches progressives cumulatives à partir du 1er juillet 2026',
+    legalSource: 'Finance Act 2026 (Act No. 14 of 2026), section 7; MRA Employee Declaration Form 2026/2027, note 2 “Income Tax Rates and Bands”',
+    sourceReference: 'Finance Act 2026 s.7; EDF 2026/27 note 2; MRA cumulative PAYE method',
+    sourceUrl: 'https://www.mra.mu/download/FinanceAct2026.pdf',
+    article: 'Income Tax Act — rates for the income year 1 July 2026 to 30 June 2027; individual Fair Share Contribution replaced by the 35% band',
+    publicationDate: '2026-08-12', effectiveFrom: '2026-07-01', effectiveTo: '2027-06-30',
+    rate: '35', threshold: '500000', cap: null,
+    rounding: 'Cumulative tax rounded down to the nearest rupee',
+    required: true,
+    formula: 'Cumulative chargeable income = cumulative emoluments − cumulative EDF reliefs; first 500,000 at 0%, next 500,000 at 10%, next 11,000,000 at 20%, remainder at 35%; cumulative PAYE less tax already withheld',
+    parameters: {
+      bands: [
+        { upto: '500000', rate: '0' },
+        { upto: '1000000', rate: '10' },
+        { upto: '12000000', rate: '20' },
+        { upto: null, rate: '35' },
+      ],
+      annualReliefDivisorMonthly: 13,
+      fscApplicable: false,
+      noEdfRuleAvailable: false,
+      monthlyWithholdingTableVerified: false,
+    },
+    notes: 'Annual bands are verified in the enacted Act and the official 2026/27 EDF. As at 31 October 2026 the MRA 2026/27 monthly cumulative withholding table had not been located; the published cumulative 1/13 method is applied and the calculation stays review_required/expert_review_pending. The individual FSC is not applied. No-EDF employees remain blocked until a 2026/27 no-EDF rule is officially verified.',
   },
   {
     ruleCode: 'PAYE_NO_EDF', nameEn: 'PAYE flat rate where no EDF is furnished',
@@ -1311,7 +1339,7 @@ const RULE_SEEDS: RuleSeed[] = [
     sourceReference: 'GN No. 7 of 2026, regulations 3, 4 and 5; Government Gazette No. 4 of 17 January 2026',
     sourceUrl: 'https://www.mra.mu/download/GN15WRA.pdf',
     article: 'Regulation 3(2)(a), 3(2)(b), 5',
-    publicationDate: '2026-01-17', effectiveFrom: '2026-01-01',
+    publicationDate: '2026-01-17', effectiveFrom: '2026-01-01', effectiveTo: '2026-12-31',
     rate: '3.7', threshold: '17110', cap: '635',
     rounding: 'Part-time percentage rounded up to the next rupee; amount capped at Rs 635',
     required: false,
@@ -1396,6 +1424,20 @@ export async function ensureRulePlaceholders(db: Db, actor: PayrollActor) {
         JSON.stringify(seed.parameters), seed.formula, seed.article, seed.publicationDate,
         '2026-10-31', fingerprint],
     );
+    // Close the previous open version the day before a newly seeded version.
+    // Only the effective end date is touched: rates and historical calculations
+    // are never rewritten. This keeps existing databases consistent with a
+    // fresh seed, where the previous version already carries its `effective_to`.
+    if (seed.effectiveFrom) {
+      await db.query(
+        `UPDATE payroll_rules
+            SET effective_to = $3::date - 1, updated_at = now()
+          WHERE company_id = $1 AND upper(rule_code) = $2
+            AND effective_from < $3::date
+            AND (effective_to IS NULL OR effective_to >= $3::date)`,
+        [actor.companyId, seed.ruleCode, seed.effectiveFrom],
+      );
+    }
   }
 }
 
@@ -1550,7 +1592,11 @@ export async function requiredRulesStatus(db: Db, companyId: string, onDate: str
     [companyId, onDate],
   );
   const byCode = new Map(res.rows.map((r) => [r.rule_code, r]));
-  return REQUIRED_RULE_CODES.map((code) => {
+  const effectivePaye = byCode.get('PAYE');
+  const requiredCodes = REQUIRED_RULE_CODES.filter((code) =>
+    code !== 'PAYE_NO_EDF' || !effectivePaye ||
+    effectivePaye.parameters?.noEdfRuleAvailable !== false);
+  return requiredCodes.map((code) => {
     const row = byCode.get(code);
     const sourceComplete = Boolean(row?.legal_source && row?.source_reference && row?.source_url);
     const parametersComplete = Boolean(row && ((row.parameters && Object.keys(row.parameters).length > 0) || row.rate !== null));
@@ -2225,7 +2271,7 @@ export async function calculatePeriod(
         );
         const payeRule = effectiveRules.get('PAYE');
         const noEdfRule = effectiveRules.get('PAYE_NO_EDF');
-        if (!payeRule || !noEdfRule) {
+        if (!payeRule) {
           employeeMissing.push({ ruleCode: 'PAYE', status: 'MISSING', reason: 'PAYE_RULE_UNAVAILABLE' });
         } else if (frequency === 'daily') {
           paye = 0n;
@@ -2237,7 +2283,8 @@ export async function calculatePeriod(
             12_000_000n * 10_000n,
             payPeriodsElapsed(taxYearStart, period.end_date, frequency),
           );
-          if (cumulativeEmoluments > fscThreshold) {
+          const fscApplicable = payeRule.parameters?.fscApplicable !== false;
+          if (fscApplicable && cumulativeEmoluments > fscThreshold) {
             employeeMissing.push({ ruleCode: 'FAIR_SHARE_CONTRIBUTION', status: 'MISSING', reason: 'FAIR_SHARE_CONTRIBUTION_NOT_IMPLEMENTED' });
           } else if (edf.hasEdf) {
             const bands = (payeRule.parameters?.bands ?? []) as PayeBand[];
@@ -2254,6 +2301,8 @@ export async function calculatePeriod(
             if (employee.tax_residency === 'non_resident') {
               reviewReasons.push({ code: 'NON_RESIDENT_NO_RELIEFS', message: 'EDF reliefs ignored for a non-resident as required by the PAYE guide.' });
             }
+          } else if (!noEdfRule) {
+            employeeMissing.push({ ruleCode: 'PAYE_NO_EDF', status: 'MISSING', reason: 'NO_EDF_RULE_NOT_VERIFIED_FOR_PERIOD' });
           } else if (frequency !== 'monthly') {
             employeeMissing.push({ ruleCode: 'PAYE_NO_EDF', status: 'MISSING', reason: 'NO_EDF_NON_MONTHLY_NOT_VERIFIED' });
           } else {
@@ -2476,10 +2525,13 @@ export async function listCalculations(db: Db, companyId: string, periodId: stri
 
 export async function getCalculation(db: Db, companyId: string, id: string) {
   const res = await db.query<any>(
-    `SELECT c.*, e.employee_number, e.full_name, e.bank_name, e.bank_account_last4, p.period_year, p.period_month
+    `SELECT c.*, e.employee_number, e.full_name, e.job_title, e.bank_name, e.bank_account_last4,
+            p.period_year, p.period_month, p.start_date, p.end_date, p.payment_date,
+            ct.contract_type, ct.work_pattern
        FROM payroll_calculations c
        JOIN payroll_employees e ON e.id = c.employee_id
        JOIN payroll_periods p ON p.id = c.period_id
+       LEFT JOIN payroll_contracts ct ON ct.id = c.contract_id
       WHERE c.company_id = $1 AND c.id = $2`,
     [companyId, id],
   );
@@ -2510,7 +2562,11 @@ export async function generatePayslip(db: Db, actor: PayrollActor, calculationId
     );
     if (existing.rows[0]) return { payslip: existing.rows[0], reused: true };
     const calculation = await getCalculation(tx, actor.companyId, calculationId);
-    const company = await tx.query<any>('SELECT name, brn FROM companies WHERE id = $1', [actor.companyId]);
+    const company = await tx.query<any>(
+      `SELECT name, brn, registered_address, business_activity, contact_email, contact_phone
+         FROM companies WHERE id = $1`,
+      [actor.companyId],
+    );
     const sequence = await tx.query<{ count: string }>(
       'SELECT count(*)::text AS count FROM payroll_payslips WHERE company_id = $1',
       [actor.companyId],
@@ -2518,12 +2574,27 @@ export async function generatePayslip(db: Db, actor: PayrollActor, calculationId
     const payslipNo = `SIM-${calculation.period_year}${String(calculation.period_month).padStart(2, '0')}-${String(Number(sequence.rows[0]!.count) + 1).padStart(4, '0')}`;
     const snapshot = {
       disclaimer: 'SIMULATION / DRAFT — NOT FOR PAYMENT. Ce bulletin n’est pas un bulletin officiel et ne peut pas être utilisé pour payer.',
-      company: { name: company.rows[0]?.name, brn: company.rows[0]?.brn },
+      company: {
+        name: company.rows[0]?.name, brn: company.rows[0]?.brn,
+        registered_address: company.rows[0]?.registered_address,
+        business_activity: company.rows[0]?.business_activity,
+        contact_email: company.rows[0]?.contact_email,
+        contact_phone: company.rows[0]?.contact_phone,
+      },
       employee: {
         number: calculation.employee_number, name: calculation.full_name,
+        jobTitle: calculation.job_title,
         bankAccountMasked: calculation.bankAccountMasked,
       },
-      period: { year: calculation.period_year, month: calculation.period_month },
+      contract: {
+        type: calculation.contract_type,
+        workPattern: calculation.work_pattern,
+      },
+      period: {
+        year: calculation.period_year, month: calculation.period_month,
+        start: calculation.start_date, end: calculation.end_date,
+        paymentDate: calculation.payment_date,
+      },
       currency: calculation.currency,
       lines: calculation.lines,
       totals: {
@@ -2543,6 +2614,7 @@ export async function generatePayslip(db: Db, actor: PayrollActor, calculationId
       reviewReasons: calculation.review_reasons,
       missingRules: calculation.missing_rules,
       warnings: calculation.warnings,
+      calculationReference: calculation.id,
       calculationVersion: calculation.version,
       generatedAt: nowIso(),
     };

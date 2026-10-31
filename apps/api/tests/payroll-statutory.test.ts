@@ -341,9 +341,9 @@ describe('payroll statutory pipeline and audit gates (API)', () => {
     expect(['PAYROLL_RULES_NOT_VALIDATED', 'PAYROLL_PERIOD_TRANSITION']).toContain(res.json().error.code);
   });
 
-  it('blocks a 2026/27 period instead of silently reusing 2025/26 PAYE rates', async () => {
+  it('blocks a period after the dated 2026/27 PAYE rule instead of reusing it', async () => {
     const created = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/periods`, {
-      year: 2026, month: 10, paymentDate: '2026-10-31',
+      year: 2027, month: 7, paymentDate: '2027-07-31',
     });
     expect(created.statusCode, created.body).toBe(201);
     const later = created.json().period;

@@ -10,7 +10,7 @@ import { scaled4ToString, toScaled4 } from '../format';
 import type { DemoState } from './runtime';
 import { parseUpload } from '../../../api/src/modules/migration/parse';
 import {
-  computeCsg, computeNsf, computePayeWithoutEdf, computeTrainingLevy, percentage,
+  computeCsg, computeCumulativePaye, computeNsf, computePayeWithoutEdf, computeTrainingLevy, percentage,
 } from '../../../api/src/modules/payroll/statutory';
 
 const uid = () => crypto.randomUUID();
@@ -111,6 +111,11 @@ interface DemoCalculation {
   warnings: { code: string; message: string }[]; input_hash: string; rule_version: string;
   calculated_at: string; lines: DemoLine[]; bankAccountMasked: string | null;
 }
+interface DemoEdf {
+  id: string; company_id: string; employee_id: string; taxYearStart: string;
+  declarationDate: string; effectiveFrom: string; dependentCount: number;
+  totalReliefs: string; status: 'submitted'; revision: number;
+}
 interface DemoPayslip {
   id: string; company_id: string; calculation_id: string; period_id: string; employee_id: string;
   payslip_no: string; status: 'simulation'; version: number; snapshot: any; generated_at: string;
@@ -132,6 +137,7 @@ interface DemoPayrollState {
   calculations: DemoCalculation[];
   payslips: DemoPayslip[];
   sequences: Record<string, number>;
+  edfDeclarations?: DemoEdf[];
 }
 
 const people: [string, string, string, string][] = [
@@ -282,9 +288,142 @@ export function seedDemoPayroll(state: DemoState): void {
     rules, periods: [period], variables, calculations: [], payslips: [], sequences: {},
   };
   demo.calculations = calculate(demo, companyId, period);
-  demo.payslips = [payslipFor(demo, demo.calculations.find((c) => c.employee_number === 'A001')!, `${company.name}`)];
+  demo.payslips = [payslipFor(demo, demo.calculations.find((c) => c.employee_number === 'A001')!, company)];
   demo.periods[0]!.status = demo.calculations.some((c) => c.status === 'rules_incomplete') ? 'blocked' : 'calculated';
+  demo.edfDeclarations = [];
   (state as any).payroll = demo;
+  seedMission16Payroll(state);
+}
+
+/**
+ * Mission 16 October 2026 scenario on a dedicated fictional company.
+ * Daniel Morel is hired on 1 October 2026, files a zero-dependant EDF and is
+ * paid Rs 30,000. The 2026/27 PAYE bands come from Finance Act 2026 and the
+ * official MRA EDF 2026/2027. The scenario stays a simulation.
+ */
+export function seedMission16Payroll(state: DemoState): void {
+  const payroll = (state as any).payroll as DemoPayrollState | undefined;
+  if (!payroll) return;
+  const company = state.companies.find((c) => /Mauritius Demo Services/i.test(c.name));
+  if (!company || payroll.employees.some((e) => e.company_id === company.id)) return;
+  const created = now();
+  const period: DemoPeriod = {
+    id: uid(), company_id: company.id, period_year: 2026, period_month: 10,
+    start_date: '2026-10-01', end_date: '2026-10-31', payment_date: '2026-10-31',
+    status: 'data_collection', version: 1, calculated_at: null,
+  };
+  const employee: DemoEmployee = {
+    id: uid(), company_id: company.id, employee_number: 'MDS001', employee_ref: 'MDS001',
+    first_name: 'Daniel', last_name: 'Morel', full_name: 'Daniel Morel', preferred_name: null,
+    date_of_birth: '1988-04-12', nationality: 'Mauritian', country_of_residence: 'Mauritius',
+    address: '1, Rue Fictive, Port Louis (fictif)', email: 'daniel.morel@demo-fictif.test',
+    phone: '+230 5000 16 16', employment_status: 'active', hire_date: '2026-10-01',
+    termination_date: null, department: 'Administration', job_title: 'Administrative officer (fictif)',
+    work_location: 'Port Louis', manager_employee_id: null, cost_centre: 'CC-MDS-01',
+    payroll_currency: 'MUR', payment_method: 'bank_transfer',
+    bank_name: 'Banque Fictive de Démonstration', bank_account_last4: '1601',
+    statutory_id_last4: '1601', statutory_ref_last4: '0016',
+    emergency_contact_name: 'Contact fictif', emergency_contact_phone: '+230 5000 16 17',
+    emergency_contact_relation: 'Famille (fictif)',
+    notes: 'Scénario fictif Mission 16 — octobre 2026',
+    pay_frequency: 'monthly', worker_type: 'full_time', paye_category: 'standard',
+    tax_residency: 'resident', is_public_sector: false, is_household_worker: false,
+    created_at: created, updated_at: created,
+  };
+  const contract: DemoContract = {
+    id: uid(), company_id: company.id, employee_id: employee.id,
+    contract_type: 'permanent', work_pattern: 'full_time', status: 'active',
+    effective_from: '2026-10-01', effective_to: null, base_salary: '30000.0000',
+    salary_period: 'monthly', currency: 'MUR', weekly_hours: '40.00',
+    department: 'Administration', job_title: 'Administrative officer (fictif)',
+    work_location: 'Port Louis', change_reason: 'Contrat permanent fictif — Mission 16',
+    amendment_of: null, created_at: created,
+  };
+  const ruleBase = {
+    company_id: company.id, legal_source: 'Official Mauritius source (recorded below)',
+    effective_to: null as string | null, calculation_basis: 'basic wage / taxable emoluments',
+    cap_amount: null as string | null, status: 'RESEARCHED',
+    required_for_calculation: true, version: 1, test_cases: [] as unknown[],
+    source_fingerprint: 'demo-fingerprint-mission16',
+    notes: 'Sourced but not expert-approved. Demonstration only.',
+  };
+  const rules: DemoRule[] = [
+    {
+      ...ruleBase, id: uid(), rule_code: 'PAYE',
+      name_en: 'PAYE cumulative bands 2026/27', name_fr: 'PAYE — bandes cumulatives 2026/27',
+      source_reference: 'Finance Act 2026 s.7; MRA EDF 2026/27 note 2',
+      source_url: 'https://www.mra.mu/download/FinanceAct2026.pdf',
+      effective_from: '2026-07-01', effective_to: '2027-06-30',
+      rate: '35', threshold_amount: '500000', rounding_policy: 'Cumulative tax rounded down to the rupee',
+      parameters: {
+        bands: [
+          { upto: '500000', rate: '0' }, { upto: '1000000', rate: '10' },
+          { upto: '12000000', rate: '20' }, { upto: null, rate: '35' },
+        ],
+        fscApplicable: false, monthlyWithholdingTableVerified: false,
+      },
+    },
+    {
+      ...ruleBase, id: uid(), rule_code: 'CSG_PRIVATE',
+      name_en: 'CSG — private-sector rates', name_fr: 'CSG — taux du secteur privé',
+      source_reference: 'MRA CSG page — rate table', source_url: 'https://mra.mu/index.php/business/csg',
+      effective_from: '2021-09-01', rate: '6', threshold_amount: '50000',
+      rounding_policy: 'No statutory rounding rule found; exact to 4 decimals',
+      parameters: { lowEmployeeRate: '1.5', lowEmployerRate: '3', highEmployeeRate: '3', highEmployerRate: '6' },
+    },
+    {
+      ...ruleBase, id: uid(), rule_code: 'NSF_RATES',
+      name_en: 'NSF contribution rates', name_fr: 'NSF — taux de cotisation',
+      source_reference: 'MRA NPF/NSF page §2', source_url: 'https://www.mra.mu/employers/npf-nsf-contributions',
+      effective_from: '2021-09-01', rate: '2.5', threshold_amount: null,
+      rounding_policy: 'No statutory rounding rule found; exact to 4 decimals',
+      parameters: { employeeRate: '1', employerRate: '2.5' },
+    },
+    {
+      ...ruleBase, id: uid(), rule_code: 'NSF_LIMITS',
+      name_en: 'NSF dated minimum and maximum', name_fr: 'NSF — minimum et maximum datés',
+      source_reference: 'MRA NPF/NSF page — table 1 July 2026',
+      source_url: 'https://www.mra.mu/employers/npf-nsf-contributions',
+      effective_from: '2026-07-01', rate: null, threshold_amount: null,
+      rounding_policy: 'Assessable wage table, no rounding',
+      parameters: { limitsByFrequency: {
+        monthly: { minHousehold: '2910', minOther: '4580', max: '29710' },
+      } },
+    },
+    {
+      ...ruleBase, id: uid(), rule_code: 'TRAINING_LEVY',
+      name_en: 'HRDC Training Levy', name_fr: 'Levy de formation HRDC',
+      source_reference: 'MRA NPF/NSF page §3', source_url: 'https://www.mra.mu/employers/npf-nsf-contributions',
+      effective_from: '2021-07-01', rate: '1.5', threshold_amount: null,
+      rounding_policy: 'No statutory rounding rule found; exact to 4 decimals', parameters: {},
+    },
+    {
+      ...ruleBase, id: uid(), rule_code: 'ADDITIONAL_REMUNERATION', required_for_calculation: false,
+      name_en: 'Additional Remuneration 2026', name_fr: 'Rémunération additionnelle 2026',
+      source_reference: 'GN No. 7 of 2026, effective 1 January 2026',
+      source_url: 'https://www.mra.mu/download/GN15WRA.pdf',
+      effective_from: '2026-01-01', effective_to: '2026-12-31', rate: '635', threshold_amount: '17110',
+      rounding_policy: 'Full-time Rs 635; part-time 3.7% rounded up; capped at Rs 635',
+      parameters: { fullTimeAmount: '635', globalThreshold: '50000', partTimeThreshold: '17110', partTimeRate: '3.7', maximum: '635' },
+    },
+  ];
+  payroll.employees.push(employee);
+  payroll.contracts.push(contract);
+  payroll.rules.push(...rules);
+  payroll.periods.unshift(period);
+  payroll.edfDeclarations = [
+    ...(payroll.edfDeclarations ?? []),
+    {
+      id: uid(), company_id: company.id, employee_id: employee.id,
+      taxYearStart: '2026-07-01', declarationDate: '2026-09-30', effectiveFrom: '2026-10-01',
+      dependentCount: 0, totalReliefs: '0.0000', status: 'submitted', revision: 1,
+    },
+  ];
+  const calculated = calculate(payroll, company.id, period);
+  payroll.calculations.push(...calculated);
+  const daniel = calculated.find((c) => c.employee_number === 'MDS001');
+  if (daniel) payroll.payslips.push(payslipFor(payroll, daniel, company));
+  period.status = calculated.some((c) => c.status === 'rules_incomplete') ? 'blocked' : 'calculated';
 }
 
 function periodBounds(year: number, month: number) {
@@ -392,11 +531,49 @@ function calculate(payroll: DemoPayrollState, companyId: string, period: DemoPer
     let nsfEmployee: bigint | null = null;
     let nsfEmployer: bigint | null = null;
     let trainingLevy: bigint | null = null;
+    let payeBasis = 'NO_EDF_FLAT_15';
     if (employeeMissing.length === 0) {
-      const noEdf = payroll.rules.find((r) => r.rule_code === 'PAYE_NO_EDF');
-      const csgRule = payroll.rules.find((r) => r.rule_code === 'CSG_PRIVATE');
-      const levyRule = payroll.rules.find((r) => r.rule_code === 'TRAINING_LEVY');
-      paye = computePayeWithoutEdf({ periodEmoluments: gross, threshold: noEdf?.threshold_amount ?? '38462', rate: noEdf?.rate ?? '15' }).value;
+      const effective = (code: string) => payroll.rules
+        .filter((r) => r.company_id === companyId && r.rule_code === code &&
+          (!r.effective_from || r.effective_from <= period.end_date) &&
+          (!r.effective_to || r.effective_to >= period.end_date))
+        .sort((a, b) => b.version - a.version)[0];
+      const payeRule = effective('PAYE');
+      const noEdf = effective('PAYE_NO_EDF');
+      const csgRule = effective('CSG_PRIVATE');
+      const levyRule = effective('TRAINING_LEVY');
+      const edf = (payroll.edfDeclarations ?? []).find((d) => d.company_id === companyId &&
+        d.employee_id === employee.id && d.taxYearStart <= period.start_date &&
+        d.effectiveFrom <= period.end_date && d.status === 'submitted');
+      if (edf && payeRule?.parameters?.bands) {
+        const taxYearStart = period.start_date.slice(5) >= '07-01'
+          ? `${period.start_date.slice(0, 4)}-07-01`
+          : `${Number(period.start_date.slice(0, 4)) - 1}-07-01`;
+        const prior = payroll.calculations.filter((c) => c.company_id === companyId &&
+          c.employee_id === employee.id && c.period_id !== period.id &&
+          (payroll.periods.find((p) => p.id === c.period_id)?.end_date ?? '') >= taxYearStart &&
+          (payroll.periods.find((p) => p.id === c.period_id)?.end_date ?? '') < period.start_date &&
+          c.status !== 'rules_incomplete');
+        const priorGross = prior.reduce((sum, c) => sum + money(c.gross), 0n);
+        const previousWithheld = prior.reduce((sum, c) => sum + money(c.paye), 0n);
+        const [sy = 0, sm = 1] = taxYearStart.slice(0, 7).split('-').map(Number);
+        const [ey = 0, em = 1] = period.end_date.slice(0, 7).split('-').map(Number);
+        const periodsElapsed = Math.max(1, (ey - sy) * 12 + (em - sm) + 1);
+        const cumulativeReliefs = roundDiv(money(edf.totalReliefs), 13n) * BigInt(periodsElapsed);
+        const result = computeCumulativePaye({
+          cumulativeEmoluments: priorGross + gross,
+          cumulativeReliefs,
+          periodsElapsed,
+          previousWithheld,
+          bands: payeRule.parameters.bands as any,
+        });
+        paye = result.value.currentPaye;
+        payeBasis = 'EDF_CUMULATIVE';
+      } else if (noEdf) {
+        paye = computePayeWithoutEdf({ periodEmoluments: gross, threshold: noEdf.threshold_amount ?? '38462', rate: noEdf.rate ?? '15' }).value;
+      } else {
+        employeeMissing.push({ ruleCode: 'PAYE_NO_EDF', status: 'MISSING', reason: 'NO_EDF_RULE_NOT_VERIFIED_FOR_PERIOD' });
+      }
       const csg = computeCsg({
         amount: basicWage, threshold: csgRule?.threshold_amount ?? '50000',
         lowEmployeeRate: '1.5', lowEmployerRate: '3', highEmployeeRate: '3', highEmployerRate: '6',
@@ -409,7 +586,9 @@ function calculate(payroll: DemoPayrollState, companyId: string, period: DemoPer
       }).value;
       nsfEmployee = nsf.employee; nsfEmployer = nsf.employer;
       trainingLevy = computeTrainingLevy({ basicWage, rate: levyRule?.rate ?? '1.5', exempt: false }).value;
-      lines.push({ line_no: lineNo++, code: 'PAYE', label_en: 'PAYE withheld (no EDF)', label_fr: 'PAYE retenu (sans EDF)', line_type: 'deduction', quantity: null, rate: null, amount: fmt(paye), source: 'statutory_rule', note: 'Flat 15% — no EDF in the demo.' });
+      if (paye !== null) {
+        lines.push({ line_no: lineNo++, code: 'PAYE', label_en: 'PAYE withheld', label_fr: 'PAYE retenu', line_type: 'deduction', quantity: null, rate: null, amount: fmt(paye), source: 'statutory_rule', note: payeBasis === 'EDF_CUMULATIVE' ? 'Cumulative bands 2026/27, EDF reliefs applied.' : 'Flat 15% — no EDF in the demo.' });
+      }
       if (csgEmployee > 0n) lines.push({ line_no: lineNo++, code: 'CSG_EE', label_en: 'CSG employee', label_fr: 'CSG salarié', line_type: 'deduction', quantity: null, rate: null, amount: fmt(csgEmployee), source: 'statutory_rule', note: null });
       if (nsfEmployee > 0n) lines.push({ line_no: lineNo++, code: 'NSF_EE', label_en: 'NSF employee', label_fr: 'NSF salarié', line_type: 'deduction', quantity: null, rate: null, amount: fmt(nsfEmployee), source: 'statutory_rule', note: null });
       if (csgEmployer > 0n) lines.push({ line_no: lineNo++, code: 'CSG_ER', label_en: 'CSG employer', label_fr: 'CSG employeur', line_type: 'employer', quantity: null, rate: null, amount: fmt(csgEmployer), source: 'statutory_rule', note: null });
@@ -429,12 +608,12 @@ function calculate(payroll: DemoPayrollState, companyId: string, period: DemoPer
       net_arithmetic: fmt(net), paye: blocked ? null : fmt(paye ?? 0n), csg: blocked ? null : fmt(csgEmployee ?? 0n),
       nsf: blocked ? null : fmt(nsfEmployee ?? 0n), employer_contributions: blocked ? null : fmt(employerContributions),
       statutory_complete: false, taxable_emoluments: fmt(gross), basic_wage: fmt(basicWage),
-      paye_basis: blocked ? null : 'NO_EDF_FLAT_15', csg_employee: blocked ? null : fmt(csgEmployee ?? 0n),
+      paye_basis: blocked ? null : payeBasis, csg_employee: blocked ? null : fmt(csgEmployee ?? 0n),
       csg_employer: blocked ? null : fmt(csgEmployer ?? 0n), nsf_employee: blocked ? null : fmt(nsfEmployee ?? 0n),
       nsf_employer: blocked ? null : fmt(nsfEmployer ?? 0n), training_levy: blocked ? null : fmt(trainingLevy ?? 0n),
       additional_remuneration: fmt(additionalRemuneration), employer_cost: blocked ? null : fmt(gross + reimbursements + employerContributions),
       net_after_statutory: netAfterStatutory === null ? null : fmt(netAfterStatutory), net_payable: null,
-      statutory_status: blocked ? 'RULES_INCOMPLETE' : 'EXPERT_REVIEW_PENDING', edf_basis: 'NO_EDF',
+      statutory_status: blocked ? 'RULES_INCOMPLETE' : 'EXPERT_REVIEW_PENDING', edf_basis: payeBasis === 'EDF_CUMULATIVE' ? 'EDF_CUMULATIVE' : 'NO_EDF',
       rules_applied: rulesApplied, review_reasons: [],
       missing_rules: employeeMissing, warnings, input_hash: `demo-${Date.now()}-${employee.id}`,
       rule_version: 'rules:RESEARCHED;engine=mission15-demo', calculated_at: now(), lines,
@@ -443,18 +622,32 @@ function calculate(payroll: DemoPayrollState, companyId: string, period: DemoPer
   });
 }
 
-function payslipFor(payroll: DemoPayrollState, calculation: DemoCalculation, companyName: string): DemoPayslip {
+function payslipFor(payroll: DemoPayrollState, calculation: DemoCalculation, company: { name: string; brn?: string | null; registered_address?: string | null; business_activity?: string | null; contact_email?: string | null; contact_phone?: string | null }): DemoPayslip {
   const employee = payroll.employees.find((e) => e.id === calculation.employee_id)!;
+  const period = payroll.periods.find((p) => p.id === calculation.period_id)!;
+  const contract = payroll.contracts.find((c) => c.id === calculation.contract_id);
   return {
     id: uid(), company_id: calculation.company_id, calculation_id: calculation.id,
     period_id: calculation.period_id, employee_id: calculation.employee_id,
-    payslip_no: `SIM-202601-${String(payroll.payslips.length + 1).padStart(4, '0')}`,
+    payslip_no: `SIM-${period.period_year}${String(period.period_month).padStart(2, '0')}-${String(payroll.payslips.filter((p) => p.company_id === calculation.company_id).length + 1).padStart(4, '0')}`,
     status: 'simulation', version: 1, generated_at: now(),
     snapshot: {
       disclaimer: 'SIMULATION / DRAFT — NOT FOR PAYMENT. Ce bulletin n’est pas officiel.',
-      company: { name: companyName, brn: 'BRN-DEMO-FICTIF' },
-      employee: { number: employee.employee_number, name: employee.full_name, bankAccountMasked: calculation.bankAccountMasked },
-      period: { year: 2026, month: 1 }, currency: calculation.currency,
+      company: {
+        name: company.name, brn: company.brn ?? 'BRN-DEMO-FICTIF',
+        registered_address: company.registered_address, business_activity: company.business_activity,
+        contact_email: company.contact_email, contact_phone: company.contact_phone,
+      },
+      employee: {
+        number: employee.employee_number, name: employee.full_name,
+        jobTitle: employee.job_title, bankAccountMasked: calculation.bankAccountMasked,
+      },
+      contract: { type: contract?.contract_type, workPattern: contract?.work_pattern },
+      period: {
+        year: period.period_year, month: period.period_month,
+        start: period.start_date, end: period.end_date, paymentDate: period.payment_date,
+      },
+      currency: calculation.currency,
       lines: calculation.lines,
       totals: {
         base: calculation.base_amount, additionalRemuneration: calculation.additional_remuneration,
@@ -469,7 +662,8 @@ function payslipFor(payroll: DemoPayrollState, calculation: DemoCalculation, com
       statutoryStatus: calculation.statutory_status, payeBasis: calculation.paye_basis,
       rulesApplied: calculation.rules_applied, reviewReasons: calculation.review_reasons,
       missingRules: calculation.missing_rules, warnings: calculation.warnings,
-      calculationVersion: 1, generatedAt: now(),
+      calculationReference: calculation.id,
+      calculationVersion: calculation.version, generatedAt: now(),
     },
   };
 }
@@ -866,7 +1060,7 @@ export function handleDemoPayroll(
     if (calculationMatch[2] && method === 'POST') {
       const existing = payroll.payslips.find((p) => p.calculation_id === calculationMatch[1]);
       if (existing) return { payslip: existing, reused: true };
-      const payslip = payslipFor(payroll, calculation, company.name);
+      const payslip = payslipFor(payroll, calculation, company);
       payroll.payslips.push(payslip);
       return { payslip, reused: false };
     }

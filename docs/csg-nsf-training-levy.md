@@ -1,6 +1,6 @@
 # CSG, NSF and HRDC Training Levy — Implemented Rules
 
-Status: **implemented and tested, expert approval pending.** No MRA compliance is claimed.
+Status: **implemented and tested, expert approval pending.** No MRA compliance is claimed. For October 2026, the dated NSF limits effective 1 July 2026 are selected (monthly maximum Rs 29,710); CSG and the 1.5% Training Levy are unchanged from the prior period.
 
 ## 1. CSG (private sector)
 

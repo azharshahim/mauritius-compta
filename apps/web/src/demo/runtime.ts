@@ -1158,6 +1158,17 @@ function seedState(): DemoState {
       manager: null as string | null,
       status: 'archived' as const,
     },
+    {
+      name: 'Mauritius Demo Services Ltd (DEMO)',
+      brn: 'DEMO-BRN-0016',
+      vat: 'DEMO-VAT-0016',
+      crn: 'CRN-DEMO-0016',
+      code: 'DEMO-016',
+      activity: 'Services administratifs (fictif)',
+      address: 'Level 3, Fictitious Tower, Port Louis (fictif)',
+      manager: collaborators[0]!.id,
+      status: 'active' as const,
+    },
   ];
 
   const minimalChart: [string, string, DemoAccount['type']][] = [

@@ -139,3 +139,54 @@ describe('démo paie — moteur déterministe bloqué', () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe('démo mission 16 — octobre 2026 sur Mauritius Demo Services Ltd', () => {
+  beforeEach(() => {
+    resetDemo();
+    localStorage.clear();
+  });
+
+  it('calcule Daniel Morel avec les règles 2026/27 et garde le paiement bloqué', () => {
+    call('POST', '/auth/login', { email: DEMO_EMAIL, password: DEMO_PASSWORD });
+    const companies = call<{ companies: { id: string; name: string }[] }>('GET', '/companies').companies;
+    const company = companies.find((c) => /Mauritius Demo Services/i.test(c.name));
+    expect(company).toBeTruthy();
+    const periods = call<any>('GET', `/companies/${company!.id}/payroll/periods`).periods;
+    expect(periods).toHaveLength(1);
+    expect(periods[0]).toMatchObject({ period_year: 2026, period_month: 10 });
+    const calculations = call<any>('GET', `/companies/${company!.id}/payroll/periods/${periods[0].id}/calculations`).calculations;
+    expect(calculations).toHaveLength(1);
+    const daniel = calculations[0];
+    expect(daniel.full_name).toBe('Daniel Morel');
+    expect(daniel.base_amount).toBe('30000.0000');
+    expect(daniel.additional_remuneration).toBe('635.0000');
+    expect(daniel.gross).toBe('30635.0000');
+    expect(daniel.paye).toBe('0.0000');
+    expect(daniel.paye_basis).toBe('EDF_CUMULATIVE');
+    expect(daniel.csg_employee).toBe('459.5250');
+    expect(daniel.csg_employer).toBe('919.0500');
+    expect(daniel.nsf_employee).toBe('297.1000');
+    expect(daniel.nsf_employer).toBe('742.7500');
+    expect(daniel.training_levy).toBe('459.5250');
+    expect(daniel.net_after_statutory).toBe('29878.3750');
+    expect(daniel.employer_cost).toBe('32756.3250');
+    expect(daniel.net_payable).toBeNull();
+    expect(daniel.status).toBe('expert_review_pending');
+    expect(daniel.missing_rules).toEqual([]);
+    expect(daniel.rules_applied.some((r: any) => r.ruleCode === 'PAYE' && r.effectiveFrom === '2026-07-01')).toBe(true);
+  });
+
+  it('génère un bulletin de simulation octobre 2026 sans net payable', () => {
+    call('POST', '/auth/login', { email: DEMO_EMAIL, password: DEMO_PASSWORD });
+    const companies = call<{ companies: { id: string; name: string }[] }>('GET', '/companies').companies;
+    const company = companies.find((c) => /Mauritius Demo Services/i.test(c.name))!;
+    const periods = call<any>('GET', `/companies/${company.id}/payroll/periods`).periods;
+    const payslips = call<any>('GET', `/companies/${company.id}/payroll/payslips?periodId=${periods[0].id}`).payslips;
+    expect(payslips).toHaveLength(1);
+    expect(payslips[0].payslip_no).toBe('SIM-202610-0001');
+    expect(payslips[0].snapshot.period).toMatchObject({ year: 2026, month: 10, start: '2026-10-01', end: '2026-10-31' });
+    expect(payslips[0].snapshot.employee.jobTitle).toContain('Administrative');
+    expect(payslips[0].snapshot.totals.netPayable).toBeNull();
+    expect(payslips[0].snapshot.disclaimer).toContain('NOT FOR PAYMENT');
+  });
+});
