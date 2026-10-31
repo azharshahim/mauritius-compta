@@ -1,5 +1,53 @@
 # Journal des versions
 
+## Mission 22 — Stocks, charges à payer/avances et provisions (1er novembre 2026)
+
+> Aucune fusion, aucun déploiement, aucune donnée réelle, aucun paiement, aucune déclaration
+> MRA. Aucune règle mauricienne, aucun référentiel IAS 37/IFRS, aucun taux ni compte imposé.
+> PR ouverte en brouillon ; `main` intact.
+
+### Ajouté
+
+- Migration `0020_inventory_accruals_provisions.sql` : catégories, emplacements, articles,
+  soldes, lots FIFO, mouvements et allocations de lots, inventaires physiques, dépréciations,
+  échéanciers de charges/produits différés et registre de provisions ; triggers d’isolation
+  société et d’immuabilité. Sources d’écriture `inventory`, `accrual`, `provision`.
+- Module `inventory` : FIFO et coût moyen pondéré en décimales exactes, stock d’ouverture,
+  réceptions, sorties, ajustements, transferts, inventaires physiques, dépréciations/reprises,
+  valorisation, rapprochement sous-registre ↔ grand livre agrégé par compte, refus du stock
+  négatif, ponts explicites depuis une facture fournisseur validée et une facture client émise.
+- Module `accruals` : charges à payer, produits à recevoir, charges constatées d’avance et
+  produits constatés d’avance ; allocation mensuelle exacte, approbation humaine, comptabilisation
+  des échéances dues, protection des périodes closes, extournes motivées, rapport et rapprochement.
+- Module `provisions` : registre documenté, reconnaissance/révision/utilisation/reprise, preuves,
+  part courante/non courante, rapports de mouvements et rapprochement à la date d’arrêté.
+- Checklist de clôture : `ACCRUALS_PREPAYMENTS`, `PROVISIONS` et `INVENTORY` deviennent des
+  contrôles réels ; un registre vide reste `pending`, jamais un faux vert.
+- Écrans **Comptabilité → Stocks**, **Charges à payer & avances** et **Provisions**, FR/EN,
+  responsive, avec propositions, décisions humaines et rapprochements.
+- Démonstration navigateur schéma 16 : deux sociétés fictives, stock FIFO et coût moyen,
+  inventaire physique, dépréciation, assurance payée d’avance, charges à payer, revenus différés,
+  provision litige avec utilisation et reprise, rapprochements. Aucun appel réseau.
+- Documentation : [`docs/mission-22-report.md`](docs/mission-22-report.md).
+
+### Corrigé
+
+- `PNL_OPENING_PRESENT` : la fixture comparait des mouvements bruts au lieu des soldes nets de
+  balance. Les soldes d’ouverture sont désormais nets, sans disparition de solde ni écriture
+  dupliquée ; un exercice précédent encore ouvert produit un avertissement
+  `PNL_OPENING_PENDING_CLOSE`, pas un blocage.
+
+### Sécurité et limites
+
+- Toute comptabilisation de stock, d’échéancier ou de provision exige une approbation humaine
+  motivée ; aucune suggestion automatique n’est comptabilisée.
+- Les périodes closes restent protégées et les lignes comptabilisées ne sont jamais modifiées.
+- Aucune conformité IAS 37, IFRS ou MRA n’est affirmée ; aucun seuil, taux ou compte mauricien
+  n’est inventé.
+- Le pont achats/facturation est manuel et explicite ; il ne recrée pas les modules existants.
+- Aucun test sur appareil Android physique ni Chrome Windows réel ; limites détaillées dans le
+  rapport de mission.
+
 ## Mission 21 — Exercices, soldes d’ouverture, ajustements antérieurs et archives (31 octobre 2026)
 
 > Aucune fusion, aucun déploiement, aucune donnée réelle, aucun paiement, aucune déclaration

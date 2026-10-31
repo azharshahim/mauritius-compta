@@ -167,9 +167,9 @@ describe('démo banque — rapprochement et propositions', () => {
     const res = call<any>('POST', `/companies/${company}/bank/transactions/${txn.id}/proposals`, {});
     expect(res.proposal.status).toBe('proposed');
     expect(transactions().find((t) => t.id === txn.id)!.status).toBe('unmatched');
-    const entriesBefore = call<any>('GET', `/companies/${company}/entries`).entries.length;
+    const entriesBefore = call<any>('GET', `/companies/${company}/entries?limit=500`).entries.length;
     call('POST', `/companies/${company}/bank/proposals/${res.proposal.id}/accept`, { confirm: true });
-    const entriesAfter = call<any>('GET', `/companies/${company}/entries`).entries.length;
+    const entriesAfter = call<any>('GET', `/companies/${company}/entries?limit=500`).entries.length;
     expect(entriesAfter).toBe(entriesBefore + 1);
   });
 

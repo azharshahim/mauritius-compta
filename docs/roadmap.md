@@ -1,7 +1,13 @@
 # Feuille de route — fonctionnalités restant à développer
 
-_État au 31 octobre 2026 (version 0.1.0). Missions 19 à 21 livrées sur branches, PR en
+_État au 1er novembre 2026 (version 0.1.0). Missions 19 à 22 livrées sur branches, PR en
 brouillon ; aucune fusion, aucun déploiement._
+
+**Mission 22 — stocks, charges à payer/avances et provisions** : sous-registre FIFO et coût moyen
+pondéré, inventaires physiques, dépréciations, échéanciers de charges/produits différés avec
+extournes contrôlées, registre de provisions à validation humaine, ponts explicites avec les
+achats et la facturation, contrôles réels dans la checklist de clôture, écrans FR/EN et
+démonstration schéma 16. Voir [`mission-22-report.md`](mission-22-report.md).
 
 **Mission 21 — exercices, soldes d’ouverture, ajustements antérieurs et archives** :
 grand livre continu sans report dupliqué, reprise externe initiale, registre PPA avec
@@ -23,7 +29,8 @@ reconstruction.
 Reste ouvert (par ordre de priorité) :
 
 1. **Exécuter réellement les tests navigateur Chromium** (desktop + Android) et les intégrer à la
-   CI — les scénarios existent, ils n'ont pas tourné.
+   CI — les scénarios existent, ils n'ont pas tourné. La mission 22 ajoute des tests DOM, pas des
+   essais sur appareil physique.
 2. ~~**Écritures de clôture et report à nouveau**~~ — **livré en mission 19** : registre des
    capitaux propres, clôture contrôlée, ouverture de l'exercice suivant et affectation
    documentée. Reste à valider les comptes et destinations avec l'expert-comptable.

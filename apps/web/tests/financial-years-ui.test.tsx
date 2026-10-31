@@ -73,7 +73,9 @@ describe('exercices & archives (interface démonstration)', () => {
     expect(await screen.findByText('PYA-2025-0002')).toBeTruthy();
     fireEvent.click(screen.getByRole('tab', { name: /Contrôles de clôture/i }));
     expect(await screen.findByText(/Les contrôles indisponibles ou en attente ne sont jamais présentés comme réussis/i)).toBeTruthy();
-    expect((await screen.findAllByText('unavailable')).length).toBeGreaterThanOrEqual(3);
+    // Mission 22 controls are real: no module is presented as unavailable.
+    expect(screen.queryAllByText('unavailable')).toHaveLength(0);
+    expect((await screen.findAllByText('warning')).length).toBeGreaterThanOrEqual(1);
     fireEvent.click(screen.getByRole('tab', { name: 'Archives' }));
     expect((await screen.findAllByText(/Archives annuelles/i)).length).toBeGreaterThanOrEqual(1);
     // Select the closed 2024/2025 exercise (two later exercises are open).

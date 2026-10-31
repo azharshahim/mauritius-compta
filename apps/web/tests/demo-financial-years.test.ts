@@ -51,24 +51,34 @@ describe('démo exercices, soldes d’ouverture, ajustements et archives', () =>
   it('carries balances forward without duplicating opening entries', () => {
     const { base } = login();
     const timeline = call<any>('GET', `${base}/financial-years/timeline`);
-    const open = timeline.periods.find((p: any) => p.status === 'open')!;
-    const first = call<any>('GET', `${base}/financial-years/opening-balances?periodId=${open.id}`);
+    const current = timeline.currentPeriod!;
+    const first = call<any>('GET', `${base}/financial-years/opening-balances?periodId=${current.id}`);
+    expect(current.startDate).toBe('2025-07-01');
     expect(first.method).toBe('continuous_ledger');
     expect(first.balanced).toBe(true);
     expect(first.continuity).toBe(true);
     expect(first.differences).toHaveLength(0);
     expect(first.totals.openingDebit).toBe(first.totals.openingCredit);
-    // The pre-existing mission-19 demonstration closing is partial: residual
-    // profit-or-loss balances are detected and reported, never hidden.
-    expect(first.profitAndLossOpening.length).toBeGreaterThan(0);
-    expect(first.checks.find((c: any) => c.code === 'PNL_OPENING_PRESENT').severity).toBe('block');
+    // Mission 22 correction: opening balances are NET balances. The prior
+    // demonstration closing zeroed profit or loss, so no residual remains.
+    expect(first.profitAndLossOpening).toHaveLength(0);
+    expect(first.checks.find((c: any) => c.code === 'NO_PNL_OPENING').severity).toBe('ok');
+    expect(first.checks.some((c: any) => c.code === 'PNL_OPENING_PRESENT')).toBe(false);
     expect(first.checks.find((c: any) => c.code === 'OPENING_BALANCED').severity).toBe('ok');
     expect(first.preserved.customerOpenItems).toHaveProperty('count');
-    expect(first.preserved.fixedAssets.count).toBeGreaterThan(0);
     expect(first.preserved.loans.status).toBe('UNAVAILABLE');
 
+    // A later open exercise follows a still-open exercise: net P&L balances
+    // are current-year accumulations and must be a warning, never a false block.
+    const later = timeline.periods.find((p: any) => p.status === 'open' && p.startDate === '2026-07-01')!;
+    const laterOpening = call<any>('GET', `${base}/financial-years/opening-balances?periodId=${later.id}`);
+    expect(laterOpening.profitAndLossOpening.length).toBeGreaterThan(0);
+    expect(laterOpening.checks.find((c: any) => c.code === 'PNL_OPENING_PENDING_CLOSE').severity).toBe('warning');
+    expect(laterOpening.checks.some((c: any) => c.code === 'PNL_OPENING_PRESENT')).toBe(false);
+    expect(laterOpening.preserved.fixedAssets.count).toBeGreaterThan(0);
+
     const before = call<any>('GET', `${base}/entries?limit=500`).entries.length;
-    const second = call<any>('GET', `${base}/financial-years/opening-balances?periodId=${open.id}`);
+    const second = call<any>('GET', `${base}/financial-years/opening-balances?periodId=${current.id}`);
     const after = call<any>('GET', `${base}/entries?limit=500`).entries.length;
     expect(second.totals).toEqual(first.totals);
     expect(after).toBe(before);
@@ -112,9 +122,14 @@ describe('démo exercices, soldes d’ouverture, ajustements et archives', () =>
     const open = call<any>('GET', `${base}/financial-years/timeline`).periods.find((p: any) => p.status === 'open')!;
     const checklist = call<any>('GET', `${base}/financial-years/checklist?periodId=${open.id}`);
     const byCode = (code: string) => checklist.items.find((i: any) => i.code === code);
-    expect(byCode('PROVISIONS').state).toBe('unavailable');
-    expect(byCode('INVENTORY').state).toBe('unavailable');
-    expect(byCode('ACCRUALS_PREPAYMENTS').state).toBe('unavailable');
+    // Mission 22 delivers these controls in the demo too: none is unavailable,
+    // and none is a false green while period lines remain unposted.
+    for (const code of ['PROVISIONS', 'INVENTORY', 'ACCRUALS_PREPAYMENTS']) {
+      expect(byCode(code).state).not.toBe('unavailable');
+    }
+    expect(byCode('ACCRUALS_PREPAYMENTS').state).toBe('warning');
+    expect(byCode('INVENTORY').state).toBe('ok');
+    expect(byCode('PROVISIONS').state).toBe('ok');
     expect(byCode('SUSPENSE_ACCOUNTS').state).toBe('pending');
     expect(byCode('MISSING_SUPPORTING_DOCUMENTS').state).toBe('pending');
     expect(checklist.ready).toBe(false);

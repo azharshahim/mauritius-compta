@@ -289,12 +289,14 @@ describe('financial years, carry-forward, adjustments and archives', () => {
     const preview = await api(ctx, cookie, 'GET', `${base()}/checklist?periodId=${periodA.id}`);
     expect(preview.statusCode).toBe(200);
     const items = preview.json().items;
-    expect(items.find((i: any) => i.code === 'ACCRUALS_PREPAYMENTS').state).toBe('unavailable');
-    expect(items.find((i: any) => i.code === 'PROVISIONS').state).toBe('unavailable');
-    expect(items.find((i: any) => i.code === 'INVENTORY').state).toBe('unavailable');
+    // Mission 22 delivers real controls for these three modules: an empty
+    // register is "pending", never "unavailable", and never a false green.
+    for (const code of ['ACCRUALS_PREPAYMENTS', 'PROVISIONS', 'INVENTORY']) {
+      expect(items.find((i: any) => i.code === code).state).not.toBe('unavailable');
+    }
     expect(items.find((i: any) => i.code === 'SUSPENSE_ACCOUNTS').state).toBe('pending');
     expect(items.find((i: any) => i.code === 'TRIAL_BALANCE_INTEGRITY').state).toBe('ok');
-    expect(preview.json().counts.unavailable).toBe(3);
+    expect(preview.json().counts.unavailable).toBe(0);
 
     const settings = await api(ctx, cookie, 'PUT', `${base()}/settings`, {
       suspenseAccountIds: [acc('1100').id], retentionMonths: 60,

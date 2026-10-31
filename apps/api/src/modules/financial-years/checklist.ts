@@ -11,6 +11,9 @@ import { formatAmount, parseAmount } from '../../lib/money.js';
 import { computeTrialBalance } from '../reports/service.js';
 import { writeAudit } from '../../lib/audit.js';
 import type { ChecklistItem, FinancialYearActor } from './types.js';
+import { accrualCheck } from '../accruals/service.js';
+import { inventoryCheck, valuationReport } from '../inventory/service.js';
+import { provisionCheck } from '../provisions/service.js';
 
 function count(value: unknown): number { return Number(value ?? 0); }
 function money(value: unknown): string { return String(value ?? '0'); }
@@ -82,12 +85,67 @@ export async function buildChecklist(db: Db, companyIdValue: string, periodId: s
     detailEn: assetCount === 0 ? 'No asset in service.' : batchCount === 0 ? `${assetCount} asset(s) in service but no posted depreciation batch.` : `${assetCount} asset(s), last posted depreciation period ending ${lastEnd}.`,
     detailFr: assetCount === 0 ? 'Aucune immobilisation en service.' : batchCount === 0 ? `${assetCount} immobilisation(s) en service mais aucun lot d’amortissement comptabilisé.` : `${assetCount} immobilisation(s), dernier lot d’amortissement arrêté au ${lastEnd}.` });
 
-  // 6/7. Accruals, provisions and inventory are genuinely absent.
-  for (const [code, module, en, fr, detailEn, detailFr] of [
-    ['ACCRUALS_PREPAYMENTS', 'accruals', 'Accruals and prepayments', 'Charges à payer et produits constatés d’avance', 'Module not implemented: the check is unavailable, not passed.', 'Module non implémenté : le contrôle est indisponible, pas réussi.'],
-    ['PROVISIONS', 'provisions', 'Provisions', 'Provisions', 'Module not implemented: the check is unavailable, not passed.', 'Module non implémenté : le contrôle est indisponible, pas réussi.'],
-    ['INVENTORY', 'inventory', 'Inventory', 'Stocks', 'Module not implemented: the check is unavailable, not passed.', 'Module non implémenté : le contrôle est indisponible, pas réussi.'],
-  ] as const) add({ code, module, labelEn: en, labelFr: fr, state: 'unavailable', detailEn, detailFr });
+  // 6. Accruals, prepayments and deferred income (mission 22).
+  const accruals = await accrualCheck(db, companyIdValue, period.start_date, period.end_date);
+  const accrualSchedules = await db.query<any>(`SELECT count(*)::int AS count FROM accrual_schedules
+    WHERE company_id=$1 AND start_date <= $2 AND end_date >= $3`, [companyIdValue, period.end_date, period.start_date]);
+  const accrualCount = count(accrualSchedules.rows[0]?.count);
+  if (accrualCount === 0) {
+    add({ code: 'ACCRUALS_PREPAYMENTS', module: 'accruals', labelEn: 'Accruals and prepayments', labelFr: 'Charges à payer et produits constatés d’avance',
+      state: 'pending', detailEn: 'No accrual, prepayment or deferred-income schedule covers this period. Completeness cannot be asserted automatically.', detailFr: 'Aucun échéancier de charges à payer, charges constatées d’avance ou produits différés ne couvre cette période. L’exhaustivité ne peut pas être affirmée automatiquement.' });
+  } else if (!accruals.report.balanced) {
+    add({ code: 'ACCRUALS_PREPAYMENTS', module: 'accruals', labelEn: 'Accruals and prepayments', labelFr: 'Charges à payer et produits constatés d’avance',
+      state: 'block', count: accruals.pendingLines, detailEn: 'One or more accrual balance accounts do not reconcile with the general ledger.', detailFr: 'Un ou plusieurs comptes de bilan d’échéanciers ne se rapprochent pas du grand livre.' });
+  } else {
+    const issues = accruals.pendingLines + accruals.draftSchedules + accruals.missingDocuments;
+    add({ code: 'ACCRUALS_PREPAYMENTS', module: 'accruals', labelEn: 'Accruals and prepayments', labelFr: 'Charges à payer et produits constatés d’avance',
+      state: issues > 0 ? 'warning' : 'ok', count: issues,
+      detailEn: issues > 0 ? `${accruals.pendingLines} pending line(s), ${accruals.draftSchedules} draft schedule(s), ${accruals.missingDocuments} missing document(s).` : `${accrualCount} schedule(s) reconcile with the ledger and no line is pending.`,
+      detailFr: issues > 0 ? `${accruals.pendingLines} ligne(s) en attente, ${accruals.draftSchedules} échéancier(s) en brouillon, ${accruals.missingDocuments} justificatif(s) manquant(s).` : `${accrualCount} échéancier(s) se rapprochent du grand livre et aucune ligne n’est en attente.` });
+  }
+
+  // 7. Provisions (mission 22) — no IAS 37 or Mauritian rule is asserted.
+  const provisions = await provisionCheck(db, companyIdValue, period.end_date);
+  const provisionRows = await db.query<any>('SELECT count(*)::int AS count FROM provisions WHERE company_id=$1', [companyIdValue]);
+  const provisionCount = count(provisionRows.rows[0]?.count);
+  if (provisionCount === 0) {
+    add({ code: 'PROVISIONS', module: 'provisions', labelEn: 'Provisions', labelFr: 'Provisions',
+      state: 'pending', detailEn: 'No provision is recorded. Completeness cannot be asserted automatically and no recognition rule is selected.', detailFr: 'Aucune provision n’est enregistrée. L’exhaustivité ne peut pas être affirmée automatiquement et aucune règle de reconnaissance n’est sélectionnée.' });
+  } else if (!provisions.reconciliation.balanced) {
+    add({ code: 'PROVISIONS', module: 'provisions', labelEn: 'Provisions', labelFr: 'Provisions',
+      state: 'block', count: provisions.pendingMovements,
+      detailEn: 'The provision register does not reconcile with its liability account(s).', detailFr: 'Le registre des provisions ne se rapproche pas de son ou de ses comptes de dettes.' });
+  } else {
+    const issues = provisions.pendingMovements + provisions.missingEvidence;
+    add({ code: 'PROVISIONS', module: 'provisions', labelEn: 'Provisions', labelFr: 'Provisions',
+      state: issues > 0 ? 'warning' : 'ok', count: issues,
+      detailEn: issues > 0 ? `${provisions.pendingMovements} movement(s) await approval or posting; ${provisions.missingEvidence} provision(s) lack evidence.` : `${provisionCount} provision(s) reconcile with the ledger; no movement is pending.`,
+      detailFr: issues > 0 ? `${provisions.pendingMovements} mouvement(s) en attente d’approbation ou de comptabilisation ; ${provisions.missingEvidence} provision(s) sans preuve.` : `${provisionCount} provision(s) se rapprochent du grand livre ; aucun mouvement en attente.` });
+  }
+
+  // 8. Inventory (mission 22).
+  const inventory = await inventoryCheck(db, companyIdValue, period.end_date);
+  if (inventory.itemCount === 0) {
+    add({ code: 'INVENTORY', module: 'inventory', labelEn: 'Inventory', labelFr: 'Stocks',
+      state: 'pending', detailEn: 'No active inventory item is configured. If the company holds stock, the register must be completed.', detailFr: 'Aucun article de stock actif n’est configuré. Si la société détient du stock, le registre doit être complété.' });
+  } else if (inventory.negativeBalances > 0 || !inventory.reconciliation.balanced) {
+    add({ code: 'INVENTORY', module: 'inventory', labelEn: 'Inventory', labelFr: 'Stocks',
+      state: 'block', count: inventory.negativeBalances,
+      detailEn: inventory.negativeBalances > 0 ? `${inventory.negativeBalances} stock balance(s) are negative.` : 'The inventory subledger does not reconcile with the general ledger.',
+      detailFr: inventory.negativeBalances > 0 ? `${inventory.negativeBalances} solde(s) de stock sont négatifs.` : 'Le sous-registre des stocks ne se rapproche pas du grand livre.' });
+  } else {
+    const pending = inventory.pendingMovements + inventory.pendingCounts + inventory.pendingWriteDowns;
+    const valuation = await valuationReport(db, companyIdValue, period.end_date);
+    add({ code: 'INVENTORY', module: 'inventory', labelEn: 'Inventory', labelFr: 'Stocks',
+      state: pending > 0 || inventory.missingJournal > 0 ? 'warning' : 'ok', count: pending,
+      amount: valuation.totals.value,
+      detailEn: pending > 0 || inventory.missingJournal > 0
+        ? `${inventory.pendingMovements} movement(s), ${inventory.pendingCounts} count(s) and ${inventory.pendingWriteDowns} write-down(s) await approval or posting; ${inventory.missingJournal} approved movement(s) lack an active journal.`
+        : `Valuation at ${period.end_date}: ${valuation.totals.value}; ${inventory.itemCount} active item(s), reconciled with the ledger.`,
+      detailFr: pending > 0 || inventory.missingJournal > 0
+        ? `${inventory.pendingMovements} mouvement(s), ${inventory.pendingCounts} inventaire(s) et ${inventory.pendingWriteDowns} dépréciation(s) en attente d’approbation ou de comptabilisation ; ${inventory.missingJournal} mouvement(s) approuvé(s) sans journal actif.`
+        : `Valorisation au ${period.end_date} : ${valuation.totals.value} ; ${inventory.itemCount} article(s) actif(s), rapproché(s) du grand livre.` });
+  }
 
   // 8. Customer and supplier balances.
   const customer = await db.query<any>(`SELECT count(*)::int AS count, COALESCE(SUM(total_amount),0)::text AS total FROM billing_documents WHERE company_id = $1 AND kind = 'invoice' AND status = 'issued' AND issue_date <= $2`, [companyIdValue, period.end_date]);

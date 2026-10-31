@@ -141,10 +141,16 @@ export async function previewOpening(db: Db, companyIdValue: string, periodId: s
     rowAmount(totals.openingDebit) === rowAmount(totals.openingCredit)
       ? { code: 'OPENING_BALANCED', severity: 'ok', messageEn: 'Opening debit and credit totals are equal.', messageFr: 'Les totaux débit et crédit d’ouverture sont égaux.' }
       : { code: 'OPENING_UNBALANCED', severity: 'block', messageEn: 'Opening debit and credit totals differ.', messageFr: 'Les totaux débit et crédit d’ouverture diffèrent.' },
-    pnlOpening.length === 0
-      ? { code: 'NO_PNL_OPENING', severity: 'ok', messageEn: 'No profit or loss account has an ordinary opening balance.', messageFr: 'Aucun compte de résultat ne porte de solde d’ouverture ordinaire.' }
-      : { code: 'PNL_OPENING_PRESENT', severity: 'block', messageEn: `${pnlOpening.length} profit or loss account(s) carry an opening balance.`, messageFr: `${pnlOpening.length} compte(s) de résultat portent un solde d’ouverture.` },
   ];
+  if (pnlOpening.length === 0) {
+    checks.push({ code: 'NO_PNL_OPENING', severity: 'ok', messageEn: 'No profit or loss account has an ordinary opening balance.', messageFr: 'Aucun compte de résultat ne porte de solde d’ouverture ordinaire.' });
+  } else if (previous && previous.status !== 'closed') {
+    // The preceding year is still open: its profit-or-loss balances are
+    // current-year accumulations, not an opening balance to close.
+    checks.push({ code: 'PNL_OPENING_PENDING_CLOSE', severity: 'warning', messageEn: `${pnlOpening.length} profit or loss account(s) carry current-year balances because the preceding period is not closed yet.`, messageFr: `${pnlOpening.length} compte(s) de résultat portent des soldes de l’exercice en cours car la période précédente n’est pas encore clôturée.` });
+  } else {
+    checks.push({ code: 'PNL_OPENING_PRESENT', severity: 'block', messageEn: `${pnlOpening.length} profit or loss account(s) carry an opening balance after a closed period.`, messageFr: `${pnlOpening.length} compte(s) de résultat portent un solde d’ouverture après une période clôturée.` });
+  }
   if (previous) {
     checks.push(diffs.length === 0
       ? { code: 'CARRY_FORWARD_CONTINUOUS', severity: 'ok', messageEn: 'Opening balances equal the preceding period closing balances.', messageFr: 'Les soldes d’ouverture égalent les soldes de clôture de la période précédente.' }
