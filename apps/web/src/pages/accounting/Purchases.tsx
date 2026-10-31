@@ -22,6 +22,9 @@ interface Supplier {
   name: string;
   reference: string | null;
   country: string;
+  address_line1: string | null;
+  city: string | null;
+  contact_name: string | null;
   contact_email: string | null;
   contact_phone: string | null;
   registration_number: string | null;
@@ -168,7 +171,9 @@ export default function PurchasesPage() {
     name: '',
     reference: '',
     country: 'MU',
+    addressLine1: '',
     city: '',
+    contactName: '',
     contactEmail: '',
     contactPhone: '',
     registrationNumber: '',
@@ -308,7 +313,9 @@ export default function PurchasesPage() {
         name: supplierForm.name,
         reference: supplierForm.reference || null,
         country: supplierForm.country,
+        addressLine1: supplierForm.addressLine1 || null,
         city: supplierForm.city || null,
+        contactName: supplierForm.contactName || null,
         contactEmail: supplierForm.contactEmail || null,
         contactPhone: supplierForm.contactPhone || null,
         registrationNumber: supplierForm.registrationNumber || null,
@@ -960,8 +967,14 @@ export default function PurchasesPage() {
           <Field label={L('Téléphone', 'Phone')}>
             <input value={supplierForm.contactPhone} onChange={(e) => setSupplierForm({ ...supplierForm, contactPhone: e.target.value })} />
           </Field>
+          <Field label={L('Adresse', 'Address')}>
+            <input value={supplierForm.addressLine1} onChange={(e) => setSupplierForm({ ...supplierForm, addressLine1: e.target.value })} />
+          </Field>
           <Field label={L('Ville', 'City')}>
             <input value={supplierForm.city} onChange={(e) => setSupplierForm({ ...supplierForm, city: e.target.value })} />
+          </Field>
+          <Field label={L('Personne de contact', 'Contact name')}>
+            <input value={supplierForm.contactName} onChange={(e) => setSupplierForm({ ...supplierForm, contactName: e.target.value })} />
           </Field>
           <Field label={L('Notes internes', 'Internal notes')}>
             <input value={supplierForm.notes} onChange={(e) => setSupplierForm({ ...supplierForm, notes: e.target.value })} />
@@ -979,6 +992,8 @@ export default function PurchasesPage() {
             <div className="detail-grid">
               <div><span className="muted">{L('Référence', 'Reference')}</span><br />{supplierDetail.reference ?? '—'}</div>
               <div><span className="muted">{L('Pays', 'Country')}</span><br />{supplierDetail.country}</div>
+              <div><span className="muted">{L('Adresse', 'Address')}</span><br />{supplierDetail.address_line1 ?? '—'}</div>
+              <div><span className="muted">{L('Ville', 'City')}</span><br />{supplierDetail.city ?? '—'}</div>
               <div><span className="muted">{L('Enregistrement', 'Registration')}</span><br />{supplierDetail.registration_number ?? '—'}</div>
               <div><span className="muted">{L('Fiscal', 'Tax')}</span><br />{supplierDetail.tax_number ?? '—'}</div>
               <div><span className="muted">{L('E-mail', 'Email')}</span><br />{supplierDetail.contact_email ?? '—'}</div>
