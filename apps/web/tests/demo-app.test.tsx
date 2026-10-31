@@ -90,6 +90,9 @@ describe('demo build (jsdom)', () => {
     await screen.findByRole('heading', { name: /Tableau de bord/i });
     fireEvent.click(navLink(/Écritures/));
     await screen.findByRole('heading', { name: /Écritures/ });
+    // Mission 19 adds entries to the shared demo ledger: the invoice asserted
+    // here now lives on the second page of the paginated journal.
+    fireEvent.click(screen.getByRole('button', { name: '›' }));
     expect(await screen.findByText(/Facture de vente fictive FA-2025-001/)).toBeTruthy();
     expect(window.location.hash).toBe('#/accounting/entries');
 
