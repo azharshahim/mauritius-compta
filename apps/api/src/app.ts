@@ -28,6 +28,7 @@ import { letteringRoutes } from './modules/lettering/routes.js';
 import { fxRoutes } from './modules/fx/routes.js';
 import { equityRoutes } from './modules/equity/routes.js';
 import { fixedAssetRoutes } from './modules/fixed-assets/routes.js';
+import { financialYearRoutes } from './modules/financial-years/routes.js';
 import type { UserRow } from './types.js';
 
 declare module 'fastify' {
@@ -205,6 +206,7 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
       // human approval before any irreversible posting.
       equityRoutes(secured, db);
       fixedAssetRoutes(secured, db);
+      financialYearRoutes(secured, db);
     });
   }, { prefix: '/api' });
 

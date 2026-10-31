@@ -1,5 +1,42 @@
 # Journal des versions
 
+## Mission 21 — Exercices, soldes d’ouverture, ajustements antérieurs et archives (31 octobre 2026)
+
+> Aucune fusion, aucun déploiement, aucune donnée réelle, aucun paiement, aucune déclaration
+> MRA. Aucune règle mauricienne, aucun référentiel IFRS, aucune durée légale de conservation
+> n’est inventé. PR ouverte en brouillon ; `main` intact.
+
+### Ajouté
+
+- Migration `0019_financial_years_archives.sql` : paramètres annuels (comptes d’attente,
+  politique de rétention facultative), lots d’ouverture externe, ajustements sur exercices
+  antérieurs, checklists versionnées et archives annuelles scellées avec manifeste et empreintes ;
+  triggers d’isolation société et d’immuabilité. Source d’écriture `prior_year_adjustment`.
+- Module `financial-years` réutilisant le moteur d’écritures et la clôture existants :
+  aperçu des soldes d’ouverture en grand livre continu (aucune écriture de report dupliquée),
+  contrôles d’équilibre, de continuité et d’absence de comptes de résultat en ouverture,
+  reprise externe limitée au premier exercice, registre des ajustements antérieurs avec
+  approbation humaine, checklist de clôture à treize contrôles et archives JSON/ZIP.
+- Écran **Comptabilité → Exercices & archives** en cinq onglets, FR/EN, responsive : chronologie,
+  soldes d’ouverture, ajustements, contrôles et paramètres, archives en lecture seule.
+- Démonstration navigateur schéma 15 : deux exercices clôturés et archivés, exercices ouverts
+  (dont l’exercice de paie existant), ajustement antérieur comptabilisé et ajustement proposé,
+  preuves de rapprochement reprises des modules existants. Empreintes de démonstration
+  explicitement non cryptographiques, aucun appel réseau.
+- Documentation : [`docs/mission-21-report.md`](docs/mission-21-report.md).
+
+### Sécurité et limites
+
+- Les exercices clôturés ne sont jamais rouverts ni modifiés ; un ajustement antérieur crée une
+  nouvelle écriture datée dans l’exercice courant, avec référence d’origine, motif et justificatif.
+- Aucun traitement comptable automatique : le traitement PPA et les comptes sont choisis
+  explicitement, sans règle mauricienne ou IFRS appliquée en silence.
+- Les contrôles des modules absents (provisions, stocks, charges constatées d’avance, pièces
+  jointes en démonstration) restent `unavailable` ou `pending`, jamais `ok`.
+- Aucune durée légale de conservation affirmée ; la rétention est une décision humaine.
+- Un paquet d’archive reste un instantané comptable avec empreintes : ni certification légale,
+  ni sauvegarde des documents scannés, ni ZIP serveur en mode démonstration.
+
 ## Mission 20 — Immobilisations et amortissements (31 octobre 2026)
 
 > Aucune fusion, aucun déploiement, aucune donnée réelle, aucun paiement, aucune déclaration
