@@ -451,9 +451,9 @@ export default function BankPage() {
   const loadImports = useCallback(async () => {
     if (!companyId) return;
     try {
-      const suffix = new URLSearchParams({ bankAccountId: accountId }).toString();
+      const suffix = accountId ? `?bankAccountId=${accountId}` : '';
       const res = await api.get<{ imports: BankImportRow[] }>(
-        `/companies/${companyId}/bank/imports?${suffix}`,
+        `/companies/${companyId}/bank/imports${suffix}`,
       );
       setImports(res.imports);
     } catch (err) {
