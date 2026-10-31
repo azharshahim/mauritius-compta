@@ -305,7 +305,9 @@ npm run verify      # les trois ci-dessus, dans l'ordre
   Ces tests **n'ont pas pu être exécutés dans l'environnement d'audit** (aucun binaire
   Chromium disponible) : ne pas les considérer comme validés tant qu'ils n'ont pas tourné.
 - **Tests web (jsdom)** : `npm run test -w @mc/web` → 28 tests (moteur de démonstration,
-  parcours React des quatre espaces, formatage).
+  parcours React des quatre espaces, formatage). `npm test` exécute l'API **et** le web :
+  **112 tests passés | 4 ignorés (116)** au total ; les 4 ignorés sont les tests de
+  concurrence qui exigent un vrai PostgreSQL (exécutés en CI).
 - Détail des scénarios et des résultats : [`docs/test-report.md`](docs/test-report.md) et
   [`docs/mission-4-report.md`](docs/mission-4-report.md).
 

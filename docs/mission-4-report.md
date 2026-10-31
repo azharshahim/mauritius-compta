@@ -159,8 +159,8 @@ anciennes URL), `src/pages/cabinet/{CabinetDashboard,Dossier,Tasks,Team}.tsx` (n
 | Commande | Résultat |
 |---|---|
 | `npm run typecheck` (racine) | **0 erreur** (API + web) |
-| `npm test` (racine : racine + API + web) | **9 fichiers passed | 1 skipped** — **84 passed | 4 skipped (88)** |
-| `npx vitest run` dans `apps/web` | **3 fichiers passed** — **28 passed (28)** |
+| `npm test` (racine : API puis web) | **12 fichiers exécutés** — **112 passed | 4 skipped (116)** (API : 9 fichiers passed + 1 skipped, 84 passed | 4 skipped ; web : 3 fichiers, 28 passed) |
+| `npm run test -w @mc/web` (sous-ensemble web du précédent) | **3 fichiers passed** — **28 passed (28)** |
 | `VITE_DEMO_MODE=true npm run build:demo` | OK — JS **460,47 kB** (gzip 130,75 kB), CSS 15,72 kB |
 
 Répartition des 28 tests web : `demo-engine.test.ts` 17, `demo-app.test.tsx` 7, `format.test.ts` 4.
@@ -230,7 +230,7 @@ Aucun secret, `.env`, base réelle, sauvegarde ou `node_modules` n'est publié ;
 | Base commune unique | ✅ `companies` étendue, domains logiques, migration 0004 |
 | Facturation/Paie préparées sans faux calculs | ✅ `501`, `available: false`, listes vides |
 | Démo GitHub Pages accessible | ✅ run 41149489345, URL vérifiée |
-| Tests verts | ✅ 84 passed | 4 skipped (racine), 28 (web) |
+| Tests verts | ✅ 112 passed | 4 skipped (116), dont 28 tests web jsdom |
 | Aucun secret | ✅ |
 | `main` non modifiée, PR non fusionnée | ✅ branche de session, PR #1 en brouillon |
 
