@@ -10,6 +10,25 @@ import {
   type TestUser,
 } from './helpers.js';
 import { usingRealPostgres } from './helpers.js';
+import { strToU8, zipSync } from 'fflate';
+
+function buildXlsx(headers: string[], rows: string[][]): Uint8Array {
+  const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const line = (values: string[], rowNo: number) => `<row r="${rowNo}">${values.map((v, i) => {
+    const ref = `${String.fromCharCode(65 + i)}${rowNo}`;
+    return /^-?\d+(\.\d+)?$/.test(v)
+      ? `<c r="${ref}"><v>${v}</v></c>`
+      : `<c r="${ref}" t="inlineStr"><is><t>${esc(v)}</t></is></c>`;
+  }).join('')}</row>`;
+  const sheet = `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${[headers, ...rows].map((r, i) => line(r, i + 1)).join('')}</sheetData></worksheet>`;
+  return zipSync({
+    '[Content_Types].xml': strToU8('<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'),
+    '_rels/.rels': strToU8('<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'),
+    'xl/workbook.xml': strToU8('<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Variables" sheetId="1" r:id="rId1"/></sheets></workbook>'),
+    'xl/_rels/workbook.xml.rels': strToU8('<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>'),
+    'xl/worksheets/sheet1.xml': strToU8(sheet),
+  });
+}
 
 /**
  * Mission 14 - Mauritian payroll preparation. Every person, salary, bank
@@ -347,6 +366,25 @@ describe('payroll preparation and RH (mission 14)', () => {
     const first = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/periods/${period.id}/variables/import`, { source: 'xlsx', rows });
     expect(first.statusCode, first.body).toBe(200);
     expect(first.json().created).toBe(1);
+  });
+
+  it('imports a real CSV file and a real XLSX workbook idempotently', async () => {
+    const csv = 'employeeNumber;payItemCode;amount;externalRef\r\nL012;PRIME_TEST;420;FICT-FILE-1';
+    const csvRes = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/periods/${period.id}/variables/import-file`, {
+      fileName: 'variables.csv', contentText: csv,
+    });
+    expect(csvRes.statusCode, csvRes.body).toBe(200);
+    expect(csvRes.json().created).toBe(1);
+    const xlsx = buildXlsx(['employeeNumber', 'payItemCode', 'amount', 'externalRef'], [['L012', 'IND_TEST', '180', 'FICT-FILE-2']]);
+    const xlsxRes = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/periods/${period.id}/variables/import-file`, {
+      fileName: 'variables.xlsx', contentBase64: Buffer.from(xlsx).toString('base64'),
+    });
+    expect(xlsxRes.statusCode, xlsxRes.body).toBe(200);
+    expect(xlsxRes.json().created).toBe(1);
+    const again = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/payroll/periods/${period.id}/variables/import-file`, {
+      fileName: 'variables.xlsx', contentBase64: Buffer.from(xlsx).toString('base64'),
+    });
+    expect(again.json().reused).toBe(1);
   });
 
   it('rejects an import row with an unknown employee', async () => {

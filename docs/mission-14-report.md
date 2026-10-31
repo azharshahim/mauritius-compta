@@ -119,7 +119,7 @@ Détail : `docs/payroll-security.md`.
 - API : **370 tests verts**, 11 ignorés (concurrence locale), dont **44** nouveaux
   tests paie.
 - Migrations : **6/6**, dont la migration 0014.
-- Web : **179 tests verts** (167 existants + 12 paie/démo).
+- Web : **180 tests verts** (167 existants + 13 paie/démo).
 - Typechecks API et web : 0 erreur.
 - Builds API, web et démo Pages vérifiés (voir CI).
 - Tests PostgreSQL réels exécutés par le job CI `postgres-tests` ; concurrence

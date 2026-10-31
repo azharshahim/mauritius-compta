@@ -6,6 +6,7 @@ import { requireModuleAccess } from '../../lib/permissions.js';
 import { cabinetForCompanyUser } from '../../lib/cabinets.js';
 import { badRequest, notFound } from '../../lib/errors.js';
 import { payrollPdf } from './pdf.js';
+import { MigrationParseError, parseUpload } from '../migration/parse.js';
 import {
   calculatePeriod,
   changePeriodStatus,
@@ -427,6 +428,64 @@ export function payrollRoutes(app: FastifyInstance, db: Db) {
   app.post('/companies/:companyId/payroll/variables/:variableId/validate', async (req) => {
     const { companyId, variableId } = req.params as { companyId: string; variableId: string };
     return { variable: await validateVariable(db, await actor(req, companyId, 'write'), variableId) };
+  });
+
+  app.post('/companies/:companyId/payroll/periods/:periodId/variables/import-file', async (req) => {
+    const { companyId, periodId } = req.params as { companyId: string; periodId: string };
+    const a = await actor(req, companyId, 'write');
+    const input = parse(z.object({
+      fileName: z.string().trim().min(1).max(200),
+      contentBase64: z.string().max(12_000_000).optional(),
+      contentText: z.string().max(12_000_000).optional(),
+      sheetName: z.string().max(120).nullish(),
+    }).strict(), req.body);
+    if (!input.contentBase64 && !input.contentText) {
+      throw badRequest('PAYROLL_IMPORT_INVALID', 'A file content is required');
+    }
+    try {
+      const bytes = input.contentBase64
+        ? new Uint8Array(Buffer.from(input.contentBase64, 'base64'))
+        : new Uint8Array(Buffer.from(input.contentText!, 'utf8'));
+      const parsed = parseUpload(input.fileName, bytes);
+      const sheet = (input.sheetName && parsed.sheets.find((sh) => sh.name === input.sheetName)) || parsed.sheets[0];
+      if (!sheet) throw badRequest('PAYROLL_IMPORT_INVALID', 'No readable sheet');
+      const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const aliases: Record<string, string> = {
+        employeenumber: 'employeeNumber', employeeno: 'employeeNumber', matricule: 'employeeNumber',
+        employeenumberref: 'employeeNumber', payitemcode: 'payItemCode', payitem: 'payItemCode',
+        rubrique: 'payItemCode', code: 'payItemCode', quantity: 'quantity', quantite: 'quantity',
+        rate: 'rate', taux: 'rate', amount: 'amount', montant: 'amount',
+        externalref: 'externalRef', reference: 'externalRef', note: 'note',
+      };
+      const headerMap = sheet.headers.map((h) => aliases[normalize(h)] ?? null);
+      if (!headerMap.includes('employeeNumber') || !headerMap.includes('payItemCode')) {
+        throw badRequest('PAYROLL_IMPORT_INVALID',
+          'The file must contain employeeNumber and payItemCode columns');
+      }
+      if (sheet.rows.length === 0) throw badRequest('PAYROLL_IMPORT_INVALID', 'No row to import');
+      if (sheet.rows.length > 1000) throw badRequest('PAYROLL_IMPORT_INVALID', 'At most 1000 rows per import');
+      const rows = sheet.rows.map((values) => {
+        const row: Record<string, string | undefined> = {};
+        headerMap.forEach((key, index) => {
+          if (key) row[key] = values[index]?.trim() || undefined;
+        });
+        return {
+          employeeNumber: row.employeeNumber ?? '',
+          payItemCode: row.payItemCode ?? '',
+          ...(row.quantity ? { quantity: row.quantity } : {}),
+          ...(row.rate ? { rate: row.rate } : {}),
+          ...(row.amount ? { amount: row.amount } : {}),
+          externalRef: row.externalRef ?? undefined,
+          note: row.note ?? undefined,
+        };
+      });
+      return importVariables(db, a, periodId, rows, parsed.format === 'xlsx' ? 'xlsx' : 'csv');
+    } catch (error) {
+      if (error instanceof MigrationParseError) {
+        throw badRequest('PAYROLL_IMPORT_INVALID', error.message, { code: error.code });
+      }
+      throw error;
+    }
   });
 
   app.post('/companies/:companyId/payroll/periods/:periodId/variables/import', async (req) => {

@@ -684,6 +684,7 @@ function VariableModal({ companyId, employees, payItems, periods, onClose, onDon
 function ImportModal({ companyId, period, onClose, onDone }: { companyId: string; period: Any | undefined; onClose: () => void; onDone: (msg: string) => void }) {
   const { t } = useI18n();
   const [text, setText] = useState('employeeNumber;payItemCode;amount;externalRef\nA001;PRIME_DEMO;750;FICT-001');
+  const [file, setFile] = useState<{ name: string; contentText?: string; contentBase64?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   return (
     <Modal open title={t('payroll.variables.import')} onClose={onClose} wide>
@@ -692,19 +693,41 @@ function ImportModal({ companyId, period, onClose, onDone }: { companyId: string
       {!period ? <p className="alert alert-warning">{t('payroll.noPeriods')}</p> : (
         <>
           <Field label={t('common.period')}><input readOnly value={`${period.period_month}/${period.period_year}`} /></Field>
-          <Field label={t('payroll.variables.importText')}><textarea rows={8} value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} /></Field>
+          <Field label={t('payroll.variables.importFile')} hint={t('payroll.variables.importFileHint')}>
+            <input type="file" accept=".csv,.tsv,.txt,.xlsx" onChange={(e) => {
+              const chosen = e.target.files?.[0];
+              if (!chosen) return;
+              if (chosen.name.toLowerCase().endsWith('.xlsx')) {
+                const reader = new FileReader();
+                reader.onload = () => setFile({ name: chosen.name, contentBase64: String(reader.result).split(',')[1] ?? '' });
+                reader.readAsDataURL(chosen);
+              } else {
+                void chosen.text().then((contentText) => setFile({ name: chosen.name, contentText }));
+              }
+            }} />
+          </Field>
+          {file && <p className="small"><Badge kind="info">{file.name}</Badge> <Button variant="ghost" onClick={() => setFile(null)}>{t('common.remove')}</Button></p>}
+          <Field label={t('payroll.variables.importText')}><textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} /></Field>
           <div className="modal-actions"><Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button><Button variant="primary" onClick={() => {
             void (async () => {
               try {
-                const [header, ...lines] = text.trim().split(/\r?\n/);
-                const columns = (header ?? '').split(';');
-                const rows = lines.filter(Boolean).map((line) => {
-                  const values = line.split(';');
-                  const row: Any = {};
-                  columns.forEach((col, i) => { row[col.trim()] = values[i]?.trim(); });
-                  return row;
-                });
-                const result = await api.post<Any>(`/companies/${companyId}/payroll/periods/${period.id}/variables/import`, { source: 'csv', rows });
+                let result: Any;
+                if (file) {
+                  result = await api.post<Any>(`/companies/${companyId}/payroll/periods/${period.id}/variables/import-file`, {
+                    fileName: file.name,
+                    ...(file.contentText ? { contentText: file.contentText } : { contentBase64: file.contentBase64 }),
+                  });
+                } else {
+                  const [header, ...lines] = text.trim().split(/\r?\n/);
+                  const columns = (header ?? '').split(';');
+                  const rows = lines.filter(Boolean).map((line) => {
+                    const values = line.split(';');
+                    const row: Any = {};
+                    columns.forEach((col, i) => { row[col.trim()] = values[i]?.trim(); });
+                    return row;
+                  });
+                  result = await api.post<Any>(`/companies/${companyId}/payroll/periods/${period.id}/variables/import`, { source: 'csv', rows });
+                }
                 onDone(`${t('payroll.variables.imported')} : ${result.created} ${t('payroll.variables.createdCount')}, ${result.reused} ${t('payroll.variables.reusedCount')}`);
               } catch (err) { setError(errorMessage(err, t('common.error')).message); }
             })();

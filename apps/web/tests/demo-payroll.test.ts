@@ -78,6 +78,20 @@ describe('démo paie — moteur déterministe bloqué', () => {
     expect(second.reused).toBe(1);
   });
 
+  it('importe un fichier CSV tabulaire avec les mêmes garanties', () => {
+    const company = loginAndCompany();
+    const period = call<any>('GET', `/companies/${company}/payroll/periods`).periods[0];
+    const contentText = 'employeeNumber;payItemCode;amount;externalRef\nL012;PRIME_DEMO;640;FICT-FILE-1';
+    const first = call<any>('POST', `/companies/${company}/payroll/periods/${period.id}/variables/import-file`, {
+      fileName: 'variables.csv', contentText,
+    });
+    expect(first.created).toBe(1);
+    const second = call<any>('POST', `/companies/${company}/payroll/periods/${period.id}/variables/import-file`, {
+      fileName: 'variables.csv', contentText,
+    });
+    expect(second.reused).toBe(1);
+  });
+
   it('exporte un CSV de simulation avec net payable vide', () => {
     const company = loginAndCompany();
     const { text, mode } = demoCsv(`/companies/${company}/payroll/payslips.csv`, 'csv');

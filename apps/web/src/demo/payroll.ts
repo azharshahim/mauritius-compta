@@ -8,6 +8,7 @@
 import { ApiError } from '../errors';
 import { scaled4ToString, toScaled4 } from '../format';
 import type { DemoState } from './runtime';
+import { parseUpload } from '../../../api/src/modules/migration/parse';
 
 const uid = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
@@ -596,6 +597,46 @@ export function handleDemoPayroll(
       return { period: periodView(period), version: period.version, calculations, blocked: true, statutoryComplete: false, missingRules: calculations[0]?.missing_rules ?? [], missingEngine: 'PAYROLL_STATUTORY_ENGINE_NOT_IMPLEMENTED' };
     }
     if (tail === '/calculations' && method === 'GET') return { calculations: payroll.calculations.filter((c) => c.period_id === period.id && c.company_id === companyId) };
+    if (tail === '/variables/import-file' && method === 'POST') {
+      let sheetRows: string[][] = [];
+      let headers: string[] = [];
+      try {
+        const bytes = payload.contentBase64
+          ? Uint8Array.from(atob(String(payload.contentBase64)), (ch) => ch.charCodeAt(0))
+          : new TextEncoder().encode(String(payload.contentText ?? ''));
+        const parsed = parseUpload(String(payload.fileName ?? 'variables.csv'), bytes);
+        const sheet = parsed.sheets[0];
+        headers = sheet?.headers ?? [];
+        sheetRows = sheet?.rows ?? [];
+      } catch {
+        throw new ApiError(400, 'PAYROLL_IMPORT_INVALID', 'Fichier illisible : utilisez CSV, TSV ou XLSX');
+      }
+      const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const keys = headers.map((h) => {
+        const n = normalize(h);
+        if (n.includes('employee') || n.includes('matricule')) return 'employeeNumber';
+        if (n.includes('payitem') || n.includes('rubrique')) return 'payItemCode';
+        if (n.includes('amount') || n.includes('montant')) return 'amount';
+        if (n.includes('quantity') || n.includes('quantit')) return 'quantity';
+        if (n.includes('rate') || n.includes('taux')) return 'rate';
+        if (n.includes('ref')) return 'externalRef';
+        return '';
+      });
+      let created = 0;
+      let reused = 0;
+      sheetRows.forEach((values) => {
+        const row: Record<string, string> = {};
+        keys.forEach((key, i) => { if (key) row[key] = values[i] ?? ''; });
+        const employee = employees.find((e) => e.employee_number === row.employeeNumber);
+        const item = payroll.payItems.find((i) => i.code === row.payItemCode);
+        if (!employee || !item) throw new ApiError(400, 'PAYROLL_IMPORT_INVALID', 'Ligne invalide : salarié ou rubrique inconnue');
+        const importKey = `${row.externalRef ?? row.employeeNumber}-${row.payItemCode}-${period.id}`;
+        if (payroll.variables.some((v) => v.import_key === importKey)) { reused += 1; return; }
+        payroll.variables.push({ id: uid(), company_id: companyId, period_id: period.id, employee_id: employee.id, pay_item_id: item.id, quantity: '1.0000', rate: '0.0000', amount: fmt(money(row.amount ?? 0)), note: null, status: 'draft', source: String(payload.fileName ?? '').endsWith('.xlsx') ? 'xlsx' : 'csv', import_key: importKey, created_at: now() });
+        created += 1;
+      });
+      return { created, reused, skipped: 0, rows: created };
+    }
     if (tail === '/variables/import' && method === 'POST') {
       const rows = Array.isArray(payload.rows) ? payload.rows : [];
       let created = 0; let reused = 0;
