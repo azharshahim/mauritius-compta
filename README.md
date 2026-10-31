@@ -302,7 +302,7 @@ Sous Windows, les mêmes commandes fonctionnent (PowerShell ou `cmd.exe`).
 
 ```bash
 npm run typecheck   # TypeScript strict, API + interface
-npm test            # API + web : 329 tests passés | 4 ignorés (333)
+npm test            # API + web : 336 tests passés | 4 ignorés (340)
 npm run build       # build de production
 npm run verify      # les trois ci-dessus, dans l'ordre
 ```
@@ -314,9 +314,9 @@ npm run verify      # les trois ci-dessus, dans l'ordre
   `npm run test:e2e -w @mc/web` (voir [`docs/browser-tests.md`](docs/browser-tests.md)).
   Ces tests **n'ont pas pu être exécutés dans l'environnement d'audit** (aucun binaire
   Chromium disponible) : ne pas les considérer comme validés tant qu'ils n'ont pas tourné.
-- **Tests web (jsdom)** : `npm run test -w @mc/web` → **116 tests** (démo comptable,
+- **Tests web (jsdom)** : `npm run test -w @mc/web` → **123 tests** (démo comptable,
   facturation, IA, migration, banque, clavier Android, formatage). `npm test` exécute
-  l'API **et** le web : **329 tests passés | 4 ignorés (333)** au total ; les 4 ignorés
+  l'API **et** le web : **336 tests passés | 4 ignorés (340)** au total ; les 4 ignorés
   sont les tests de concurrence qui exigent un vrai PostgreSQL (exécutés en CI).
 - **Clavier Android** : `apps/web/tests/input-focus.test.tsx` saisit caractère par caractère
   dans tous les formulaires et vérifie que le champ garde le focus et n'est jamais démonté.

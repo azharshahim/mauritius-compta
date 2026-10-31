@@ -953,6 +953,8 @@ const fr: Dict = {
   'migration.history.kind': 'Type',
   'migration.history.date': 'Date',
   'migration.history.open': 'Ouvrir',
+  'upload.unsupported':
+    'Format non pris en charge. Choisissez un fichier .csv, .tsv, .txt ou .xlsx.',
   'migration.error.empty': 'Le fichier est vide.',
   'migration.error.tooLarge': 'Fichier trop volumineux pour cet import.',
 };
@@ -1896,6 +1898,8 @@ const en: Dict = {
   'migration.history.kind': 'Type',
   'migration.history.date': 'Date',
   'migration.history.open': 'Open',
+  'upload.unsupported':
+    'Unsupported format. Choose a .csv, .tsv, .txt or .xlsx file.',
   'migration.error.empty': 'The file is empty.',
   'migration.error.tooLarge': 'File too large for this import.',
 

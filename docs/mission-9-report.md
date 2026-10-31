@@ -102,9 +102,10 @@ n'affiche pas de doublon FR+EN.
 |---|---|
 | API bancaire `tests/bank.test.ts` | **28 / 28** |
 | API complète | **213 réussis, 4 ignorés** |
-| Web complète | **116 réussis (12 fichiers)** |
+| Web complète | **123 réussis (13 fichiers)** |
 | Dont démo banque | **17 / 17** |
-| Dont UI banque + indicateur démo | **2 / 2** |
+| Dont UI banque + indicateur démo | **3 / 3** |
+| Dont politique d’upload Android | **6 / 6** |
 | Typecheck API | 0 erreur |
 | Typecheck web | 0 erreur |
 | Build production / build démo | OK |
@@ -112,7 +113,7 @@ n'affiche pas de doublon FR+EN.
 | Chrome/Android réels | **Non exécutés** ; tests jsdom uniquement |
 
 Les 30 scénarios du brief sont couverts par la combinaison des tests API
-(28), des tests de démonstration (17) et des tests d'interface (2). La
+(28), des tests de démonstration (17) et des tests d'interface (3). La
 correspondance détaillée figure dans `docs/test-report.md`.
 
 ## 12. CI et PostgreSQL
@@ -171,3 +172,33 @@ et une ergonomie mobile corrigée. Aucune fonctionnalité simulée n'est
 présentée comme de production ; les cas complexes sont bloqués et documentés.
 Aucun dépôt tiers n'a été modifié, aucune PR n'a été fusionnée, aucune dépense
 n'a été engagée.
+
+
+## Correctif suite au test réel Samsung Android
+
+**Symptôme transmis** : dans Banque, le gestionnaire de fichiers s'ouvre mais
+les CSV de Téléchargements sont grisés ; risque identique en migration.
+
+**Cause identifiée** : Android filtre par MIME. Selon Samsung « Mes
+fichiers », un CSV est exposé en `text/comma-separated-values`, `text/plain`
+ou `application/octet-stream`, alors que Banque ne déclarait que des
+extensions et Migration seulement `text/csv` (sans `.txt`).
+
+**Correctif livré** :
+
+- politique commune `apps/web/src/lib/upload.ts`, utilisée par Banque **et**
+  Migration : extensions CSV/TSV/TXT/XLSX + MIME Android génériques
+  (`text/*`, `text/plain`, `text/comma-separated-values`,
+  `application/vnd.ms-excel`, XLSX OOXML, ZIP, `application/octet-stream`) ;
+- validation stricte après sélection (extension insensible à la casse, fichier
+  non vide, plafond de taille), puis validation du contenu par le moteur ;
+- message explicite pour un format refusé, aucun téléversement ;
+- réinitialisation de l'input pour permettre de resélectionner le même fichier.
+
+**Tests ajoutés** : `tests/upload-policy.test.ts` (6), assertions `accept` et
+refus PDF dans `bank-ui.test.tsx` (3 au total), assertions `accept` dans
+`migration-ui.test.tsx` (3). Web : **123 réussis / 13 fichiers**.
+
+**Limite de vérification** : aucun appareil Samsung ni navigateur Android réel
+n'est disponible dans l'environnement ; le correctif n'a pas été rejoué sur le
+téléphone. Les tests jsdom ne simulent pas le filtre MIME natif de Samsung.

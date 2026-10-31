@@ -166,9 +166,10 @@ réel. Les fichiers d'exemple sont fictifs.
 | --- | --- | --- |
 | API bancaire | `npx vitest run tests/bank.test.ts` | **28 réussis / 28** |
 | API complète | `npm test -w @mc/api` | **213 réussis, 4 ignorés** |
-| Web complète | `npm test -w @mc/web` | **116 réussis (12 fichiers)** |
+| Web complète | `npm test -w @mc/web` | **123 réussis (13 fichiers)** |
 | Démo banque | `tests/demo-bank.test.ts` | **17 réussis** |
-| UI banque + indicateur démo | `tests/bank-ui.test.tsx` | **2 réussis** |
+| UI banque + indicateur démo | `tests/bank-ui.test.tsx` | **3 réussis** |
+| Politique d’upload Android | `tests/upload-policy.test.ts` | **6 réussis** |
 | Typecheck | `npm run typecheck` | 0 erreur |
 | Build démo | `npm run build:demo` | OK, 4 relevés fictifs copiés |
 
@@ -205,7 +206,7 @@ Correspondance avec les 30 scénarios du brief :
 | 27 | proposition non comptabilisée | API 23, démo 12 |
 | 28 | idempotence | API 7, 24, démo 3 |
 | 29 | rapport d'écart | API 25, démo 16 |
-| 30 | régression missions 1–8 + UI Android | API 26 + suite complète 213/116, `bank-ui` indicateur compact |
+| 30 | régression missions 1–8 + UI Android | API 26 + suite complète 213/123, `bank-ui` indicateur compact |
 
 Notes : les 28 tests API couvrent aussi le TSV (27) et les droits `viewer`
 en lecture seule (28). Les cas UI Android restent des tests jsdom : aucun
@@ -214,3 +215,17 @@ appareil physique n'a été utilisé.
 **Non réalisé** (et non revendiqué) : aucun test Chrome/Samsung/Android réel,
 aucune donnée bancaire réelle, aucun fichier client, aucune connexion bancaire,
 aucun fournisseur IA. Les fichiers de test sont fictifs.
+
+
+## Correctif Android — sélection des fichiers (mission 9)
+
+- `tests/upload-policy.test.ts` : `accept` contient les extensions et MIME
+  Android ; CSV au MIME `application/octet-stream` ou vide accepté ; PDF,
+  `.xls`, `.xlsm` et `.zip` refusés même avec MIME générique ; taille et
+  fichier vide contrôlés.
+- `tests/bank-ui.test.tsx` : attribut `accept` réellement rendu, sélection du
+  CSV fictif, refus d'un PDF après sélection sans appel d'import.
+- `tests/migration-ui.test.tsx` : `accept` commun contient `.txt`,
+  `text/comma-separated-values` et `application/octet-stream`.
+- Aucun téléphone Samsung/Android physique n'a été utilisé : la limite est
+  explicite et le parcours manuel reste à rejouer sur l'URL Pages.

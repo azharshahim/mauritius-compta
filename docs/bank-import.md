@@ -107,3 +107,29 @@ Régénération : `npm run samples:bank`.
   feuille contenant un tableau, ou celle choisie explicitement.
 - Aucun format propriétaire bancaire mauricien spécifique n'est certifié.
 - Aucun rapprochement automatique n'est effectué à l'import.
+
+## Sélection des fichiers sur Samsung Android (correctif mission 9)
+
+Le sélecteur du module Banque et celui de la migration partagent désormais
+`apps/web/src/lib/upload.ts`.
+
+- **Symptôme réel** : sur Samsung Android, le gestionnaire de fichiers
+  s'ouvrait, les CSV de `Téléchargements` apparaissaient **grisés**.
+- **Cause** : Android filtre par **MIME**, pas par extension. Selon le
+  fournisseur, un CSV est annoncé `text/comma-separated-values`, `text/plain`
+  ou `application/octet-stream` au lieu de `text/csv`. L'ancien `accept` du
+  module Banque ne contenait que des extensions ; celui de la migration ne
+  contenait que `text/csv` et omettait `.txt`.
+- **Correctif** : `accept` élargi aux extensions CSV/TSV/TXT/XLSX et aux MIME
+  réellement renvoyés par Android (dont `text/*`, `text/plain`,
+  `text/comma-separated-values`, `application/vnd.ms-excel`, MIME XLSX OOXML,
+  ZIP et `application/octet-stream`).
+- **Sécurité conservée** : après sélection, l'extension est vérifiée sans tenir
+  compte de la casse, la taille est contrôlée et le contenu reste validé par le
+  moteur d'import. Un PDF renommé ne passe pas ; un CSV au MIME générique
+  passe.
+- Le même fichier peut être resélectionné après une erreur (valeur de l'input
+  réinitialisée).
+
+Limite : ce correctif n'a pas été rejoué sur un appareil Samsung physique dans
+l'environnement de développement ; les tests sont exécutés sous jsdom.

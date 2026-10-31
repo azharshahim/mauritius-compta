@@ -74,6 +74,9 @@ jobs:
           grep -q 'Banque & rapprochement' apps/web/dist/assets/*.js
           grep -q 'Libellé de paie détecté' apps/web/dist/assets/*.js
           grep -q 'Import bloqué' apps/web/dist/assets/*.js
+          # Correctif Samsung Android : MIME génériques présents dans le bundle
+          grep -q 'text/comma-separated-values' apps/web/dist/assets/*.js
+          grep -q 'application/octet-stream' apps/web/dist/assets/*.js
           grep -q 'VAT_SOURCE_REQUIRED' apps/web/dist/assets/*.js
           ls apps/web/dist/assets/AssistantPanel-*.js >/dev/null
           test -f apps/web/dist/404.html
@@ -151,6 +154,9 @@ jobs:
           grep -q 'releve-bancaire-fictif.csv' /tmp/app.js
           grep -q 'Confirmer le rapprochement' /tmp/app.js
           grep -q 'Libellé de paie détecté' /tmp/app.js
+          # Correctif mission 9 : filtre MIME Android publié
+          grep -q 'text/comma-separated-values' /tmp/app.js
+          grep -q 'application/octet-stream' /tmp/app.js
           SAMPLE=$(curl -s -o /tmp/sample.csv -w '%{http_code}' "$BASE/samples/plan-comptable-fictif.csv")
           echo "sample plan comptable fictif: $SAMPLE"
           test "$SAMPLE" = "200"

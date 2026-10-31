@@ -74,6 +74,12 @@ describe('banque & rapprochement (démo)', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: /Importer un relevé/i }));
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    // Samsung My Files filtre par MIME : le CSV doit rester sélectionnable même
+    // lorsqu'Android annonce text/comma-separated-values ou octet-stream.
+    expect(input.accept).toContain('.csv');
+    expect(input.accept).toContain('.txt');
+    expect(input.accept).toContain('text/comma-separated-values');
+    expect(input.accept).toContain('application/octet-stream');
     fireEvent.change(input, {
       target: { files: [makeFile(sample, 'releve-bancaire-fictif.csv')] },
     });
@@ -102,6 +108,19 @@ describe('banque & rapprochement (démo)', () => {
     expect((await screen.findAllByText(/Libellé de paie détecté/i)).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/aucune paie (n’est )?calculée/i).length).toBeGreaterThan(0);
 
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('refuse un faux format après sélection sans appeler l’import', async () => {
+    await login();
+    window.location.hash = '#/accounting/banking';
+    await screen.findByRole('heading', { name: /Banque & rapprochement/i });
+    fireEvent.click(screen.getByRole('tab', { name: /Importer un relevé/i }));
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const pdf = new File(['%PDF-1.4 fictif'], 'facture.pdf', { type: 'application/pdf' });
+    fireEvent.change(input, { target: { files: [pdf] } });
+    expect(await screen.findByText(/Format non pris en charge/i)).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: /Synthèse/i })).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

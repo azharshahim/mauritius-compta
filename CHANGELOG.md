@@ -1,5 +1,31 @@
 # Journal des versions
 
+## Correctif mission 9 — sélection des fichiers sur Samsung Android (31 octobre 2026)
+
+> Corrige le grisement des CSV/TSV/TXT/XLSX dans le sélecteur Android des
+> modules Banque et Migration. Aucune modification du moteur comptable, du
+> rapprochement ou des règles IA.
+
+### Corrigé
+
+- Politique d'upload commune `apps/web/src/lib/upload.ts` (Banque + Migration).
+- `accept` élargi : `.csv`, `.tsv`, `.txt`, `.xlsx` et MIME Android
+  `text/*`, `text/csv`, `text/comma-separated-values`,
+  `text/plain`, `application/vnd.ms-excel`, XLSX OOXML, ZIP,
+  `application/octet-stream`.
+- Validation après sélection conservée : extension insensible à la casse,
+  fichier vide/plafond, puis validation du contenu par le moteur d'import.
+- Message explicite pour un format refusé ; input réinitialisé pour permettre
+  la resélection du même fichier.
+- Tests : `upload-policy.test.ts` (6), UI Banque (3), UI Migration (3
+  assertions d'`accept`). Web : **123 réussis / 13 fichiers**.
+
+### Limite
+
+Aucun appareil Samsung/Android physique dans l'environnement : le filtre MIME
+natif n'est pas rejoué par jsdom. Le parcours manuel reste à confirmer sur le
+téléphone après déploiement Pages.
+
 ## Mauritius Business Suite — 31 octobre 2026 (mission 9)
 
 > Import bancaire, rapprochement comptable et ergonomie Android. Aucune

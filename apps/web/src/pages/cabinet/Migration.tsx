@@ -4,6 +4,7 @@ import { api } from '../../api';
 import { demoEnabled } from '../../demo';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
+import { ACCOUNTING_UPLOAD_ACCEPT, validateAccountingUpload } from '../../lib/upload';
 import { Badge, Button, Card, ErrorBanner, Spinner } from '../../components/ui';
 import type { PreviewResult } from '../../../../api/src/modules/migration/validate';
 import type {
@@ -276,10 +277,13 @@ export default function MigrationPage() {
     setReport(null);
     setUploading(true);
     try {
-      if (file.size === 0) throw new Error(t('migration.error.empty'));
-      if (file.size > (catalogue?.limits.maxBytes ?? 5 * 1024 * 1024)) {
-        throw new Error(t('migration.error.tooLarge'));
-      }
+      const rejection = validateAccountingUpload(
+        file,
+        catalogue?.limits.maxBytes ?? 5 * 1024 * 1024,
+      );
+      if (rejection === 'empty') throw new Error(t('migration.error.empty'));
+      if (rejection === 'too-large') throw new Error(t('migration.error.tooLarge'));
+      if (rejection === 'unsupported') throw new Error(t('upload.unsupported'));
       const bytes = new Uint8Array(await file.arrayBuffer());
       const created = await api.post<JobView>(`/companies/${targetCompanyId}/migration/jobs`, {
         source,
@@ -607,7 +611,7 @@ export default function MigrationPage() {
                 <input
                   ref={fileInput}
                   type="file"
-                  accept=".csv,.tsv,.xlsx,text/csv"
+                  accept={ACCOUNTING_UPLOAD_ACCEPT}
                   className="migration-file-input"
                   aria-label={t('migration.step2.chooseFile')}
                   onChange={(event) => {

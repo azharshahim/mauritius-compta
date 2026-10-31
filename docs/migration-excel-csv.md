@@ -98,3 +98,35 @@ Génération reproductible : `node scripts/generate-migration-samples.mjs`
   strictement compatible ; sinon refus explicite, aucune facture partielle ;
 - axes analytiques / cost centers : `NON IMPLÉMENTÉ` ;
 - pièces jointes binaires et images.
+
+## 9. Sélection des fichiers sur Samsung Android (correctif mission 9)
+
+Le bouton d'import utilise désormais la politique commune
+`apps/web/src/lib/upload.ts`, partagée avec le module Banque.
+
+**Cause** : Android ne filtre pas la boîte de dialogue par extension mais par
+**type MIME**. Chrome traduit `.csv` en `text/csv`, tandis que Samsung
+« Mes fichiers » / Téléchargements peut annoncer un CSV comme
+`text/comma-separated-values`, `text/plain` ou `application/octet-stream`. Le
+fichier était alors présent mais grisé, car son MIME n'était pas dans
+`accept` ; `.txt` était aussi absent de l'ancien attribut de migration.
+
+**Correction** :
+
+- `accept` commun : `.csv`, `.tsv`, `.txt`, `.xlsx` **et** les MIME
+  `text/*`, `text/csv`, `text/comma-separated-values`,
+  `text/x-comma-separated-values`, `application/csv`, `application/x-csv`,
+  `application/x-comma-separated-values`, `text/tab-separated-values`,
+  `application/tab-separated-values`, `text/plain`,
+  `application/vnd.ms-excel`, MIME XLSX OOXML, ZIP et
+  `application/octet-stream` ;
+- validation après sélection, indépendante du MIME : extension autorisée
+  (insensible à la casse), taille non nulle et plafond respecté ; sinon message
+  explicite sans téléversement ;
+- le contenu reste ensuite validé par le parseur/API (signature ZIP, encodage,
+  tableau, colonnes).
+
+`accept` n'est qu'une aide à la sélection : il ne constitue jamais un contrôle
+de sécurité. Les tests `apps/web/tests/upload-policy.test.ts` et les parcours
+UI vérifient ces garanties sous jsdom ; **aucun appareil Samsung physique n'a
+été utilisé dans l'environnement de développement**.

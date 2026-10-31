@@ -3,6 +3,7 @@ import { api, ApiError } from '../../api';
 import { demoEnabled } from '../../demo';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
+import { ACCOUNTING_UPLOAD_ACCEPT, validateAccountingUpload } from '../../lib/upload';
 import { Badge, Button, Card, EmptyState, ErrorBanner, Field, Spinner } from '../../components/ui';
 import type { BankPreview, BankFinding } from '../../../../api/src/modules/bank/engine';
 import type { AccountSuggestion, MatchSuggestion } from '../../../../api/src/modules/bank/reconcile';
@@ -109,6 +110,9 @@ const L = {
     exchangeRate: 'Taux de change explicite (devise ≠ MUR)',
     exchangeHint: 'Aucun taux n’est inventé : laissez vide si le compte est en devise fonctionnelle.',
     loadError: 'Impossible de charger le module Banque.',
+    unsupported: 'Format non pris en charge. Choisissez un fichier .csv, .tsv, .txt ou .xlsx.',
+    androidHint:
+      'Sur Android, les types MIME génériques des fichiers téléchargés sont acceptés. Le contenu est vérifié après sélection.',
   },
   en: {
     title: 'Bank & reconciliation',
@@ -201,6 +205,9 @@ const L = {
     exchangeRate: 'Explicit exchange rate (currency ≠ MUR)',
     exchangeHint: 'No rate is invented: leave empty for the functional currency.',
     loadError: 'Unable to load the Bank module.',
+    unsupported: 'Unsupported format. Choose a .csv, .tsv, .txt or .xlsx file.',
+    androidHint:
+      'On Android, generic MIME types from downloaded files are accepted. Content is checked after selection.',
   },
 } as const;
 
@@ -466,11 +473,32 @@ export default function BankPage() {
   }, [tab, loadImports]);
 
   const chooseFile = async (file: File) => {
-    setPendingFile(file);
+    setPendingFile(null);
     setPreview(null);
     setImportSummary(null);
-    setBusy(true);
     setError(null);
+    const rejection = validateAccountingUpload(
+      file,
+      catalogue?.limits.maxBytes ?? 8 * 1024 * 1024,
+    );
+    if (rejection) {
+      setBusy(false);
+      setError(
+        rejection === 'empty'
+          ? locale === 'fr'
+            ? 'Le fichier est vide.'
+            : 'The file is empty.'
+          : rejection === 'too-large'
+            ? locale === 'fr'
+              ? 'Fichier trop volumineux pour cet import.'
+              : 'File too large for this import.'
+            : tr.unsupported,
+      );
+      if (fileInput.current) fileInput.current.value = '';
+      return;
+    }
+    setPendingFile(file);
+    setBusy(true);
     try {
       const contentBase64 = await fileToBase64(file);
       const res = await api.post<PreviewResponse>(`/companies/${companyId}/bank/preview`, {
@@ -484,6 +512,8 @@ export default function BankPage() {
       setError(errorMessage(err, tr.loadError).message);
     } finally {
       setBusy(false);
+      // Allows selecting the same file again after a failed preview.
+      if (fileInput.current) fileInput.current.value = '';
     }
   };
 
@@ -796,7 +826,7 @@ export default function BankPage() {
               <input
                 ref={fileInput}
                 type="file"
-                accept=".csv,.tsv,.txt,.xlsx"
+                accept={ACCOUNTING_UPLOAD_ACCEPT}
                 aria-label={tr.file}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -809,6 +839,7 @@ export default function BankPage() {
             {locale === 'fr' ? 'Formats réels' : 'Supported formats'} : CSV, TSV/TXT, XLSX ·{' '}
             {catalogue?.limits.maxRows ?? 5000} {locale === 'fr' ? 'lignes' : 'rows'}
           </p>
+          <p className="muted small">{tr.androidHint}</p>
           <div className="bank-import-history">
             <h3>{tr.history}</h3>
             {imports.length === 0 ? (

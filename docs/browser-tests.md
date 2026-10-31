@@ -225,3 +225,15 @@ pas le rendu du clavier virtuel ni le défilement tactile d'un appareil physique
   elle doit être rejouée sur l'URL GitHub Pages après déploiement.
 - Limite : jsdom ne calcule pas les safe-areas ni le clavier virtuel. Les
   garanties CSS sont vérifiées par revue, pas par un appareil réel.
+
+
+## Correctif mission 9 — sélection Samsung Android
+
+- `upload-policy.test.ts` vérifie la liste `accept` et la validation après
+  sélection (MIME génériques Android, extension prioritaire, faux formats).
+- `bank-ui.test.tsx` vérifie l'attribut réellement rendu et le refus d'un PDF
+  sans appel réseau.
+- `migration-ui.test.tsx` vérifie que l'input de migration accepte aussi
+  `.txt`, `text/comma-separated-values` et `application/octet-stream`.
+- **Non exécuté** : filtre MIME natif de Samsung « Mes fichiers », sélecteur
+  Android réel, appareil physique. jsdom ne reproduit pas cette couche.

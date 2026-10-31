@@ -76,6 +76,9 @@ describe('assistant de migration (démo)', () => {
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     expect(input).toBeTruthy();
+    expect(input.accept).toContain('.txt');
+    expect(input.accept).toContain('text/comma-separated-values');
+    expect(input.accept).toContain('application/octet-stream');
     fireEvent.change(input, { target: { files: [makeFile(JOURNAL_CSV, 'journal-ui.csv')] } });
 
     // Step 3 — column mapping with the detected columns.
