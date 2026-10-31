@@ -180,8 +180,9 @@ Exécuté localement le 31 octobre 2026 :
 Les tests ciblés couvrent : soldes d’ouverture équilibrés, absence de report en double,
 continuité pluriannuelle, immuabilité des périodes clôturées, approbation PPA, intégrité et
 vérification des archives, isolation entre sociétés et régression des missions 19/20.
-La CI GitHub Actions est déclenchée par la PR brouillon ; son résultat est vérifié après le push
-et ne peut pas être affirmé avant son exécution.
+CI GitHub Actions sur la PR brouillon #4 : **3/3 tâches réussies** (API PostgreSQL, migrations
+PostgreSQL, typecheck/tests/build). Déploiement de la démonstration GitHub Pages depuis la
+branche active : **réussi** (run `41249915860`).
 
 ## 11. Limites et manques réels
 
