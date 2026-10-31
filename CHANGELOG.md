@@ -1,5 +1,48 @@
 # Journal des versions
 
+## Mission 17 — Bulletins individuels et préparation des déclarations MRA (31 octobre 2026)
+
+> Aucune fusion, aucun déploiement OVH, aucune donnée réelle, aucune soumission MRA,
+> aucun identifiant MRA réel, aucun virement, aucun fichier PACO officiel. PR nº1
+> ouverte en brouillon ; `main` intact. Aucune conformité légale affirmée.
+
+### Ajouté
+
+- Vue de bulletin **isolée** `/payroll/payslips/:id` : bouton « Imprimer ce
+  bulletin » qui n’imprime que ce bulletin, masque navigation, menus, boutons et
+  pastille IA, et force une page A4 (`@page size A4`, `payslip-print-mode`).
+- Module **Déclarations** dans Paie & RH : société, période, identifiant employeur
+  fictif, nombre de salariés, totaux rémunérations/PAYE/CSG/NSF/levy calculés
+  depuis les bulletins enregistrés, détail par salarié et historique versionné.
+- API `POST /companies/:id/payroll/declarations`, `GET …/declarations`,
+  `GET …/declarations/:declarationId`, `GET …/declarations/:declarationId/internal-csv`
+  et `GET …/periods/:periodId/mra-return` (préparation interne).
+- Contrôles de déclaration : couverture salariés, calculs bloqués, valeurs
+  statutaires nulles, doublons de matricule, devises mixtes, règles non validées,
+  isolation société, identifiant employeur.
+- Export **interne** `MRA-INTERNAL-PREPARATION-…csv` (UTF-8 BOM, CRLF),
+  explicitement non transmissible ; export officiel **indisponible** et expliqué
+  (NIC/NCID complet, ERN, modèle de décembre 2024, règle d’arrondi).
+- Historisation par `payroll_events` (`payroll.mra.prepare`) et `audit_log`,
+  versions incrémentales sous verrou de période.
+- Démonstration : déclarations fictives de octobre 2026, société bloquée
+  `Lagon Bleu`, isolation des sociétés, export interne.
+- Documentation : [`docs/mra-declarations.md`](docs/mra-declarations.md),
+  [`docs/mission-17-report.md`](docs/mission-17-report.md).
+
+### Modifié
+
+- Filigranes centraux et bandeaux supprimés des bulletins ; seul demeure le pied
+  de page discret `SIMULATION — NON VALIDÉ POUR PAIEMENT`.
+- `EMPLOYER_IDENTIFIER_REQUIRED` devient un avertissement d’archivage ; les
+  contrôles bloquants de l’export officiel restent inchangés.
+- Montants affichés via `moneyExact` pour ne perdre aucune décimale.
+
+### Tests
+
+- API : `payroll-declarations.test.ts` (5) ; suite 407 réussis, 11 ignorés.
+- Web : `demo-declarations.test.ts` (4), `payroll-ui.test.tsx` (7) ; suite 190 réussis.
+
 ## Mission 16 — Règles 2026/27, bulletin professionnel et démonstration (31 octobre 2026)
 
 > Aucune fusion, aucun déploiement OVH, aucune donnée réelle, aucune soumission MRA,

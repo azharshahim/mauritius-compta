@@ -36,7 +36,7 @@ import { handleDemoBank, seedDemoBank } from './bank';
 import { handleDemoPurchases, seedDemoPurchases } from './purchases';
 import { handleDemoLettering, seedDemoLettering } from './lettering';
 import { handleDemoFx, seedDemoFx } from './fx';
-import { handleDemoPayroll, payrollCsv, payrollReturnCsv, seedDemoPayroll } from './payroll';
+import { handleDemoPayroll, payrollCsv, payrollReturnCsv, demoDeclarationCsv, seedDemoPayroll } from './payroll';
 import {
   IMPORT_FIELDS,
   IMPORT_KIND_LABELS,
@@ -8262,6 +8262,21 @@ export function demoCsv(path: string, format: 'csv' | 'pdf'): { text?: string; m
   const returnMatch = /^\/companies\/([0-9a-f-]{36})\/payroll\/periods\/([0-9a-f-]{36})\/mra-return\.csv$/.exec(base ?? '');
   if (returnMatch) {
     return { text: payrollReturnCsv(loadState(), returnMatch[1]!, returnMatch[2]!), mode: 'download' };
+  }
+  const declarationMatch = /^\/companies\/([0-9a-f-]{36})\/payroll\/declarations\/([0-9a-f-]{36})\/csv$/.exec(base ?? '');
+  if (declarationMatch) {
+    const state = loadState();
+    const user = currentUser();
+    if (!user) throw new Error('UNAUTHORIZED');
+    const companyId = declarationMatch[1]!;
+    if (!state.members.some((member) => member.user_id === user.id && member.company_id === companyId)) {
+      throw new Error('FORBIDDEN');
+    }
+    const declaration = (state as any).payroll?.mraDeclarations?.find(
+      (d: any) => d.id === declarationMatch[2] && d.company_id === companyId,
+    );
+    if (!declaration) throw new Error('PAYROLL_DECLARATION_NOT_FOUND');
+    return { text: demoDeclarationCsv(declaration), mode: 'download' };
   }
   return { text: exportCsv(base ?? '', query, user?.locale ?? 'fr'), mode: 'download' };
 }

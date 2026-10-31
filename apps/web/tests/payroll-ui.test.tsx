@@ -72,7 +72,7 @@ describe('paie & RH (interface démonstration)', () => {
     window.location.hash = '#/payroll/payslips';
     await screen.findByRole('heading', { name: /Paie & RH/i });
     expect(await screen.findByText('SIM-202601-0001')).toBeTruthy();
-    expect((await screen.findAllByText(/SIMULATION \/ DRAFT/i)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/SIMULATION — NON VALIDÉ POUR PAIEMENT/i)).length).toBeGreaterThan(0);
     expect(screen.getByText(/Aucun bulletin final n’est possible/i)).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Finaliser/i })).toBeNull();
   });
@@ -87,10 +87,51 @@ describe('paie & RH (interface démonstration)', () => {
     expect(await screen.findByText(/PAYE, CSG, NSF and Training Levy are computed from sourced official rules/i)).toBeTruthy();
   });
 
+  it('isole le bulletin individuel et n’imprime que ce document', async () => {
+    await login();
+    const companySelect = screen.getByRole('combobox', { name: /Société/i }) as HTMLSelectElement;
+    const option = [...companySelect.options].find((item) => /Mauritius Demo Services/i.test(item.textContent ?? ''));
+    expect(option).toBeTruthy();
+    fireEvent.change(companySelect, { target: { value: option!.value } });
+    window.location.hash = '#/payroll/payslips';
+    expect(await screen.findByText('SIM-202610-0001')).toBeTruthy();
+    fireEvent.click(await screen.findByRole('link', { name: /Ouvrir \/ Imprimer/i }));
+    expect(await screen.findByText('Daniel Morel')).toBeTruthy();
+    expect(document.body.classList.contains('payslip-print-mode')).toBe(true);
+    expect(screen.getByRole('button', { name: /Imprimer ce bulletin/i })).toBeTruthy();
+    expect(screen.queryByText(/SIMULATION \/ DRAFT/i)).toBeNull();
+    expect(document.querySelector('.topbar')).toBeTruthy();
+    const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
+    fireEvent.click(screen.getByRole('button', { name: /Imprimer ce bulletin/i }));
+    expect(print).toHaveBeenCalledTimes(1);
+    print.mockRestore();
+  });
+
+  it('prépare et archive une déclaration mensuelle fictive avec export interne', async () => {
+    await login();
+    const companySelect = screen.getByRole('combobox', { name: /Société/i }) as HTMLSelectElement;
+    const option = [...companySelect.options].find((item) => /Mauritius Demo Services/i.test(item.textContent ?? ''));
+    fireEvent.change(companySelect, { target: { value: option!.value } });
+    window.location.hash = '#/payroll/declarations';
+    await screen.findByRole('heading', { name: /Paie & RH/i });
+    expect(await screen.findByText(/Export officiel non disponible/i)).toBeTruthy();
+    expect((await screen.findAllByText(/30[\s\u00a0\u202f]635,00/)).length).toBeGreaterThan(0);
+    const archive = await screen.findByRole('button', { name: /Archiver la préparation/i });
+    expect((archive as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(archive);
+    expect(await screen.findByText(/Préparation archivée/i)).toBeTruthy();
+    expect((await screen.findAllByRole('button', { name: /Télécharger l’export interne/i })).length).toBeGreaterThan(0);
+    expect(await screen.findByText('DEMO-ERN-0016')).toBeTruthy();
+  });
+
   it('conserve des tableaux contenus et une mise en page mobile sans débordement horizontal', () => {
     const css = readFileSync(resolve(__dirname, '../src/styles.css'), 'utf8');
     expect(css).toMatch(/\.table-wrap[^}]*overflow-x: auto/s);
     expect(css).toMatch(/@media \(max-width: 640px\)[^}]*\.payroll-columns \{ grid-template-columns: 1fr; \}/s);
     expect(css).toMatch(/\.payroll-toolbar[^}]*flex-wrap: wrap/s);
+    expect(css).toMatch(/@page \{ size: A4 portrait; margin: 10mm; \}/);
+    expect(css).toMatch(/body\.payslip-print-mode #root \.payslip-print-root/);
+    expect(css).toMatch(/body\.payslip-print-mode \.payslip-actions[^}]*display: none !important/s);
+    expect(css).toMatch(/body\.payslip-print-mode \.payslip-sheet[^}]*font-size: 8\.8pt/s);
   });
 });

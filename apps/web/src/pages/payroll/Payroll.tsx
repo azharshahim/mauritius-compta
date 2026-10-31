@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { api, downloadExport } from '../../api';
 import { demoEnabled } from '../../demo';
+import DeclarationsPanel from './Declarations';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
 import { Badge, Button, Card, EmptyState, ErrorBanner, Field, Modal, Spinner } from '../../components/ui';
@@ -312,7 +313,7 @@ export default function PayrollPage() {
         </>
       )}
 
-      {['variables', 'periods', 'calculations', 'payslips'].includes(section) && (
+      {['variables', 'periods', 'calculations', 'payslips', 'declarations'].includes(section) && (
         <div className="toolbar payroll-toolbar">
           <label className="field-inline"><span>{t('common.period')}</span>
             <select value={selectedPeriod?.id ?? ''} onChange={(e) => setPeriodId(e.target.value)}>
@@ -354,7 +355,7 @@ export default function PayrollPage() {
                         {p.status === 'draft' && <Button variant="ghost" onClick={() => void act(() => api.patch(`/companies/${company.id}/payroll/periods/${p.id}/status`, { status: 'data_collection' }), t('payroll.period.collect'))}>{t('payroll.period.startCollect')}</Button>}
                         {['data_collection', 'ready_for_review', 'blocked'].includes(p.status) && <Button variant="primary" onClick={() => void act(() => api.post(`/companies/${company.id}/payroll/periods/${p.id}/calculate`, {}), t('payroll.period.calculated'))}>{t('payroll.period.calculate')}</Button>}
                         {p.status === 'blocked' && <Button variant="ghost" onClick={() => void act(() => api.patch(`/companies/${company.id}/payroll/periods/${p.id}/status`, { status: 'ready_for_review' }), t('payroll.period.review'))}>{t('payroll.period.review')}</Button>}
-                        {['calculated', 'blocked'].includes(p.status) && <a className="btn btn-ghost" href={`#`} onClick={(e) => { e.preventDefault(); void downloadExport(`/companies/${company.id}/payroll/periods/${p.id}/mra-return.csv`, `MRA-preparation-${periodLabel(p)}.csv`, 'csv').catch(() => setError(t('payroll.mra.preparationOnly'))); }}>{t('payroll.mra.prepare')}</a>}
+                        {['calculated', 'blocked'].includes(p.status) && <Link className="btn btn-ghost" to="/payroll/declarations">{t('payroll.mra.prepare')}</Link>}
                       </div>
                     </td>
                   </tr>
@@ -411,7 +412,7 @@ export default function PayrollPage() {
                     <td className="num">{money(p.snapshot?.totals?.gross, locale, p.snapshot?.currency)}</td>
                     <td className="num">{money(p.snapshot?.totals?.netArithmetic, locale, p.snapshot?.currency)}</td>
                     <td><Badge kind="warning">{p.status}</Badge></td>
-                    <td><Button variant="ghost" onClick={() => downloadExport(`/companies/${company.id}/payroll/payslips/${p.id}/pdf`, `${p.payslip_no}.pdf`, 'pdf')}>{demoEnabled ? t('payroll.payslips.print') : t('common.exportPdf')}</Button></td>
+                    <td><Link className="btn btn-ghost" to={`/payroll/payslips/${p.id}`}>{t('payroll.payslips.open')}</Link></td>
                   </tr>
                 ))}
               </tbody>
@@ -484,15 +485,24 @@ export default function PayrollPage() {
         </>
       )}
 
-      {(section === 'declarations' || section === 'transfer') && (
-        <Card title={section === 'declarations' ? t('payroll.declarations.title') : t('payroll.transfer.title')}>
+      {section === 'declarations' && (
+        <DeclarationsPanel
+          company={company}
+          periods={data.periods}
+          selectedPeriod={selectedPeriod ?? null}
+          onSelectPeriod={setPeriodId}
+        />
+      )}
+
+      {section === 'transfer' && (
+        <Card title={t('payroll.transfer.title')}>
           <div className="alert alert-warning">{t('payroll.notImplemented')}</div>
           <ul className="payroll-list">
             <li>{t('payroll.transfer.never')}</li>
             <li>{t('payroll.declarations.never')}</li>
             <li>{t('payroll.transfer.accounts')}</li>
           </ul>
-          {section === 'transfer' && selectedPeriod && (
+          {selectedPeriod && (
             <Button variant="ghost" onClick={() => void act(async () => {
               const preview = await api.get<Any>(`/companies/${company.id}/payroll/periods/${selectedPeriod.id}/accounting-preview`);
               setNotice(`${t('payroll.transfer.preview')} : ${preview.postingBlocked ? t('payroll.transfer.blocked') : ''} — ${preview.note ?? ''}`);

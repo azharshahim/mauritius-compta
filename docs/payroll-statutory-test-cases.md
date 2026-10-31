@@ -1,4 +1,4 @@
-# Payroll Statutory Test Cases (Missions 15–16)
+# Payroll Statutory Test Cases (Missions 15–17)
 
 All identities, wages and documents are fictional. Automated tests are in:
 
@@ -7,7 +7,8 @@ All identities, wages and documents are fictional. Automated tests are in:
 - `apps/api/tests/payroll-2026-27.test.ts` — 4 tests (2026/27 engine + PDF snapshot).
 - `apps/api/tests/payroll-pdf.test.ts` — 2 tests (single-page FR/EN bulletin).
 - `apps/api/tests/migrations.test.ts` — 6 tests (fresh database applies 0003→0015).
-- `apps/web/tests/demo-payroll.test.ts` and `apps/web/tests/payroll-ui.test.tsx` — demo and UI.
+- `apps/api/tests/payroll-declarations.test.ts` — 5 tests (totals, official export blocked, versions, internal CSV, isolation).
+- `apps/web/tests/demo-payroll.test.ts`, `apps/web/tests/demo-declarations.test.ts` (4) and `apps/web/tests/payroll-ui.test.tsx` (7) — demo, declarations and isolated printing.
 
 ## A→R case matrix
 
@@ -50,6 +51,12 @@ All identities, wages and documents are fictional. Automated tests are in:
 - The PDF has one page, no central watermark, a discreet bilingual footer and exact three-decimal statutory amounts where needed.
 - MRA summary and CSV are marked `PREPARATION_ONLY` / `NOT_SUBMITTED`.
 - Simulation PDF displays statutory values, the calculation reference and a bilingual “SIMULATION — NOT VALIDATED FOR PAYMENT” footer.
+- Declaration totals are summed from persisted employee calculations (October 2026: 30,635 gross; PAYE 0; CSG 459.5250/919.0500; NSF 297.1000/742.7500; levy 459.5250), never from a cached `totals` object.
+- The official MRA export is always blocked (`EMPLOYEE_FULL_NIC_MISSING`, `EMPLOYER_ERN_MISSING`, `TEMPLATE_NOT_FULLY_VERIFIED`, `WHOLE_RUPEE_RULE_UNVERIFIED`) while the internal preparation CSV remains available.
+- A blocked calculation (`CALCULATIONS_INCOMPLETE`) blocks archiving and the internal export for that period.
+- Company isolation: a user who is not a member of the company gets 403/404 and no declaration or CSV line.
+- Preparing twice creates versions 1 then 2 through `payroll_events`; the version query uses `details->'declaration'->'period'->>'id'`.
+- Printing: the isolated payslip route adds `payslip-print-mode`, calls `window.print()` once, hides the app shell, and the stylesheet declares `@page { size: A4 }`.
 
 ## Not testable in this environment
 

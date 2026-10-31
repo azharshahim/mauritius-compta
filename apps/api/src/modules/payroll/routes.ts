@@ -48,6 +48,11 @@ import {
   payrollDashboard,
   payrollReturnCsv,
   payrollReturnSummary,
+  buildMonthlyDeclaration,
+  prepareMraDeclaration,
+  listMraDeclarations,
+  getMraDeclaration,
+  mraDeclarationCsv,
   requestExpertReview,
   requiredRulesStatus,
   updateEmployee,
@@ -778,7 +783,41 @@ export function payrollRoutes(app: FastifyInstance, db: Db) {
 
   app.get('/companies/:companyId/payroll/periods/:periodId/mra-return', async (req) => {
     const { companyId, periodId } = req.params as { companyId: string; periodId: string };
-    return payrollReturnSummary(db, await actor(req, companyId), periodId);
+    await actor(req, companyId);
+    const q = req.query as Record<string, string | undefined>;
+    return buildMonthlyDeclaration(db, companyId, periodId, q.employerIdentifier ?? null);
+  });
+
+  app.post('/companies/:companyId/payroll/periods/:periodId/mra-return', async (req, reply) => {
+    const { companyId, periodId } = req.params as { companyId: string; periodId: string };
+    const input = parse(z.object({
+      employerIdentifier: z.string().trim().min(1).max(40),
+      note: z.string().trim().max(500).nullish(),
+    }).strict(), req.body);
+    const declaration = await prepareMraDeclaration(db, await actor(req, companyId, 'write'), periodId, input);
+    return reply.code(201).send({ declaration });
+  });
+
+  app.get('/companies/:companyId/payroll/declarations', async (req) => {
+    const { companyId } = req.params as { companyId: string };
+    await actor(req, companyId);
+    const q = req.query as Record<string, string | undefined>;
+    return { declarations: await listMraDeclarations(db, companyId, q.periodId) };
+  });
+
+  app.get('/companies/:companyId/payroll/declarations/:declarationId', async (req) => {
+    const { companyId, declarationId } = req.params as { companyId: string; declarationId: string };
+    await actor(req, companyId);
+    return { declaration: await getMraDeclaration(db, companyId, declarationId) };
+  });
+
+  app.get('/companies/:companyId/payroll/declarations/:declarationId/csv', async (req, reply) => {
+    const { companyId, declarationId } = req.params as { companyId: string; declarationId: string };
+    await actor(req, companyId);
+    const declaration = await getMraDeclaration(db, companyId, declarationId);
+    reply.header('content-type', 'text/csv; charset=utf-8');
+    reply.header('content-disposition', `attachment; filename="MRA-INTERNAL-PREPARATION-${declaration.period?.year}-${String(declaration.period?.month).padStart(2, '0')}-v${declaration.version}.csv"`);
+    return mraDeclarationCsv(declaration);
   });
 
   app.get('/companies/:companyId/payroll/periods/:periodId/mra-return.csv', async (req, reply) => {

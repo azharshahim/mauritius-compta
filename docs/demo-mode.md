@@ -29,7 +29,7 @@ Lorsque `demoEnabled` est vrai, les appels ne partent pas en `fetch` mais sont t
 |---|---|
 | `apps/web/src/demo/runtime.ts` | « Backend » navigateur : auth, sociétés, comptes, journaux, écritures, rapports, périodes, taux, membres, audit, exports CSV |
 | `apps/web/src/demo/seed-data.ts` | Données fictives de départ : société `Lagon Bleu Trading Ltd (DEMO)`, 35 comptes, 5 journaux, 9 écritures (dont 1 brouillon et 1 contrepassation) |
-| `apps/web/src/demo/payroll.ts` | Paie fictive : 18 salariés A→R, puis scénario mission 16 (`Mauritius Demo Services Ltd`, Daniel Morel, octobre 2026, règles datées 2026/27) |
+| `apps/web/src/demo/payroll.ts` | Paie fictive : 18 salariés A→R, scénario mission 16 (`Mauritius Demo Services Ltd`, Daniel Morel, octobre 2026), puis préparations MRA internes mission 17 |
 | `apps/web/src/demo/index.ts` | Interrupteur `demoEnabled` + ré-exports |
 | `apps/web/src/errors.ts` | `ApiError` partagé entre le client réel et la démo |
 | `apps/web/src/components/DemoBanner.tsx` | Bandeau permanent + réinitialisation |
@@ -81,7 +81,8 @@ Caractéristiques techniques :
 | Fonction | Pourquoi |
 |---|---|
 | Pièces jointes (téléversement/téléchargement) | Stockage serveur, contrôle binaire → `501 DEMO_UNSUPPORTED` |
-| Export **PDF** officiel | Généré par PDFKit côté API ; en démo le bouton ouvre l'impression du navigateur. **Aucun PDF serveur n'est produit en démo** et le bulletin reste une simulation non valide pour paiement |
+| Export **PDF** officiel | Généré par PDFKit côté API. En démo, **Ouvrir / Imprimer** affiche une vue individuelle isolée puis ouvre l'impression du navigateur. **Aucun PDF serveur n'est produit en démo** et le bulletin reste une simulation non valide pour paiement |
+| Déclarations MRA | Préparation interne calculée depuis les bulletins fictifs ; historique et export interne seulement. Aucune soumission, aucun fichier officiel PACO |
 | Multi-utilisateurs réels, sessions persistées, mots de passe hachés | Le backend applique Argon2id, cookies `HttpOnly`, verrouillage de compte |
 | Persistance réelle, sauvegardes, audit inaltérable | PostgreSQL + triggers d'intégrité |
 | Contrôles de concurrence (contrepassation concurrente, isolation multi-société en base) | Garantis par les contraintes PostgreSQL |

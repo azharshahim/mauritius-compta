@@ -1,10 +1,12 @@
 # Mauritius Payroll — Regulatory Audit Dossier
 
-**Version:** mission 16, 31 October 2026.
+**Version:** mission 17, 31 October 2026.
 **Purpose:** give a single expert accountant everything needed to review the payroll statutory engine in one pass.
 **No legal compliance is claimed.** Implementation, source identification and tests are not expert approval.
 
 **Mission 16 addition:** a dated PAYE 2026/27 version (0/10/20/35 %) and the 2026/27 NSF limits are now implemented and tested. The EDF 2026/27 and the MRA communiqué of 5 August 2026 support the bands; Finance Act 2026 ss.7/18/28 and the monthly cumulative withholding table were **not read verbatim**. The no-EDF 2026/27 rule remains unavailable and blocks. See `docs/mission-16-report.md`.
+
+**Mission 17 addition:** the monthly PAYE/CSG/NSF preparation now reads the December 2024 PACO specification, lists the official fields, computes company totals from persisted per-employee calculations, records versioned preparations and produces an explicitly internal CSV. The official PACO export remains blocked: the official December 2024 CSV template returned HTTP 500, the full NIC/NCID and employer ERN are not stored, and no official whole-rupee rounding rule was found. No submission exists. See `docs/mission-17-report.md` and `docs/mra-declarations.md`.
 
 For each rule the dossier separates: (1) the official source, (2) what was verified, (3) the implemented formula, (4) tests, (5) applicability, (6) approval. The canonical row-level evidence is in `docs/regulatory-sources-register.md`.
 
@@ -111,11 +113,18 @@ Hours, overtime hours, leave days and public holidays are recorded. The engine *
 
 ## 12. MRA returns — preparation only
 
-`GET /periods/:id/mra-return` and `.csv` produce a local summary: gross, PAYE, CSG employee/employer, NSF employee/employer, Training Levy, employee count, incomplete calculations, approval count. Every output carries:
+`GET /periods/:id/mra-return` returns the monthly preparation: company, period, local fictitious employer identifier, per-employee amounts (basic wage, gross, taxable emoluments, PAYE, CSG employee/employer, NSF employee/employer, Training Levy), nine recomputed totals, controls, official-export blocking reasons and versioned history.
 
-`PREPARATION ONLY - NOT SUBMITTED TO MRA`
+`POST /periods/:id/mra-return` archives a preparation only when no internal blocking control exists. It writes `payroll_events` (`payroll.mra.prepare`) and `audit_log`; versions are incremental and never overwritten.
 
-There is no MRA credential, no endpoint, no submission and no claim that the CSV is an accepted MRA format. Deadlines and file specifications remain open.
+`GET /declarations/:id/csv` returns the **internal** file:
+
+- first line `PAYROLL DECLARATION - INTERNAL PREPARATION - NOT SUBMITTED TO MRA`;
+- UTF-8 BOM, CRLF, RFC 4180 quoting;
+- totals, per-employee detail, controls and the reasons why no official file exists;
+- final block `OFFICIAL MRA CSV / NOT GENERATED`.
+
+The official PACO export is **not generated**. The December 2024 specification was read but the official CSV template file returned HTTP 500; the full 14-character NIC/NCID, ERN, declarant and mandatory contacts are not stored; and no official rounding rule for CSG/NSF/levy was located, while the template expects whole rupees. There is no MRA credential, no endpoint, no submission, no acceptance claim and no invented MRA column or code. Deadlines, amendments and file layout remain open for the professional review.
 
 ## 13. Rule engine and versioning
 
@@ -158,7 +167,7 @@ There is no MRA credential, no endpoint, no submission and no claim that the CSV
 5. Statutory rounding for CSG/NSF/levy absent from official text.
 6. Bonus s.54 text not re-read; EOYGA 2001 not read.
 7. AR piece-rate schedule and atypical workers.
-8. MRA return file specification and deadlines.
+8. MRA return official CSV template, line layout, rounding, deadlines and rectification handling.
 9. Wages Regulation Orders 2026 and overtime/leave rates: not loaded.
 10. Physical Android and assistive technology not tested.
 

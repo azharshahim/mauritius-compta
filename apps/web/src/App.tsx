@@ -31,6 +31,7 @@ import BillingDocumentsPage from './pages/billing/Documents';
 import BillingPaymentsPage from './pages/billing/Payments';
 import BillingAgingPage from './pages/billing/Aging';
 import PayrollPage from './pages/payroll/Payroll';
+import PayslipViewPage from './pages/payroll/PayslipView';
 import { MODULES, LEGACY_REDIRECTS, moduleByPath, type ModuleKey } from './modules';
 import { Spinner } from './components/ui';
 import { DemoBanner } from './components/DemoBanner';
@@ -234,6 +235,7 @@ export default function App() {
 
             {/* Paie & RH : préparation vérifiable, moteur réglementaire bloqué. */}
             <Route path="/payroll" element={<PayrollPage />} />
+            <Route path="/payroll/payslips/:payslipId" element={<PayslipViewPage />} />
             <Route path="/payroll/:section" element={<PayrollPage />} />
 
             {LEGACY_REDIRECTS.map((r) => (

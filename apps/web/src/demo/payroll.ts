@@ -116,6 +116,16 @@ interface DemoEdf {
   declarationDate: string; effectiveFrom: string; dependentCount: number;
   totalReliefs: string; status: 'submitted'; revision: number;
 }
+interface DemoMraDeclaration {
+  id: string; company_id: string; period_id: string; version: number;
+  preparedAt: string; preparedBy: string | null; status: string;
+  employerIdentifier: string | null; period: any; company: any; currency: string;
+  employees: any[]; totals: any; checks: any[]; officialChecks: any[];
+  blockers: any[]; warnings: any[]; officialCsv: any;
+  internalCsvAvailable: boolean; regulatoryExportBlocked: boolean;
+  regulatoryStatus: string; submission: string; employeesActive: number;
+  notice: string; noticeEn: string;
+}
 interface DemoPayslip {
   id: string; company_id: string; calculation_id: string; period_id: string; employee_id: string;
   payslip_no: string; status: 'simulation'; version: number; snapshot: any; generated_at: string;
@@ -138,6 +148,7 @@ interface DemoPayrollState {
   payslips: DemoPayslip[];
   sequences: Record<string, number>;
   edfDeclarations?: DemoEdf[];
+  mraDeclarations?: DemoMraDeclaration[];
 }
 
 const people: [string, string, string, string][] = [
@@ -285,7 +296,7 @@ export function seedDemoPayroll(state: DemoState): void {
   }];
   const demo: DemoPayrollState = {
     employees, contracts, events: [], payItems, assignments, time, holidays: [], absences, leaveRules: [],
-    rules, periods: [period], variables, calculations: [], payslips: [], sequences: {},
+    rules, periods: [period], variables, calculations: [], payslips: [], sequences: {}, mraDeclarations: [],
   };
   demo.calculations = calculate(demo, companyId, period);
   demo.payslips = [payslipFor(demo, demo.calculations.find((c) => c.employee_number === 'A001')!, company)];
@@ -927,6 +938,19 @@ export function handleDemoPayroll(
     payroll.periods.push(period);
     return { period };
   }
+  if (rest === '/declarations' && method === 'GET') {
+    const declarations = (payroll.mraDeclarations ?? [])
+      .filter((d) => d.company_id === companyId && (!query.periodId || d.period_id === query.periodId))
+      .sort((a, b) => b.preparedAt.localeCompare(a.preparedAt));
+    return { declarations };
+  }
+  const declarationMatch = /^\/declarations\/([^/]+)(\/csv)?$/.exec(rest);
+  if (declarationMatch && method === 'GET') {
+    const declaration = (payroll.mraDeclarations ?? []).find((d) => d.id === declarationMatch[1] && d.company_id === companyId);
+    if (!declaration) throw new ApiError(404, 'PAYROLL_DECLARATION_NOT_FOUND', 'Préparation introuvable');
+    if (declarationMatch[2]) return { csv: demoDeclarationCsv(declaration) };
+    return { declaration };
+  }
   const periodMatch = /^\/periods\/([^/]+)(\/.*)?$/.exec(rest);
   if (periodMatch) {
     const period = payroll.periods.find((p) => p.id === periodMatch[1] && p.company_id === companyId);
@@ -949,17 +973,19 @@ export function handleDemoPayroll(
     }
     if (tail === '/calculations' && method === 'GET') return { calculations: payroll.calculations.filter((c) => c.period_id === period.id && c.company_id === companyId) };
     if (tail === '/mra-return' && method === 'GET') {
-      const latest = payroll.calculations.filter((c) => c.period_id === period.id && c.company_id === companyId);
-      const sum = (field: keyof DemoCalculation) => latest.reduce((total, c) => total + money(c[field] as string | null), 0n);
-      return {
-        period: { id: period.id, year: period.period_year, month: period.period_month, start: period.start_date, end: period.end_date, status: period.status },
-        employees: latest.length, gross: fmt(sum('gross')), paye: fmt(sum('paye')), csg_employee: fmt(sum('csg_employee')),
-        csg_employer: fmt(sum('csg_employer')), nsf_employee: fmt(sum('nsf_employee')), nsf_employer: fmt(sum('nsf_employer')),
-        training_levy: fmt(sum('training_levy')), incomplete: latest.filter((c) => c.status === 'rules_incomplete').length,
-        approved_for_test: latest.filter((c) => c.status === 'approved_for_test').length,
-        submission: 'NOT_SUBMITTED', status: 'PREPARATION_ONLY',
-        notice: 'Préparation locale fictive. Aucune soumission MRA, aucun identifiant réel.',
+      return demoDeclarationSummary(state, companyId, period.id, query.employerIdentifier ?? null);
+    }
+    if (tail === '/mra-return' && method === 'POST') {
+      const summary = demoDeclarationSummary(state, companyId, period.id, payload.employerIdentifier ?? null);
+      if (summary.blockers.length > 0) throw new ApiError(409, 'PAYROLL_DECLARATION_BLOCKED', 'Préparation bloquée par les contrôles de paie');
+      const history = payroll.mraDeclarations ?? (payroll.mraDeclarations = []);
+      const version = history.filter((d) => d.period_id === period.id && d.company_id === companyId).length + 1;
+      const declaration: DemoMraDeclaration = {
+        ...summary, id: uid(), company_id: companyId, period_id: period.id,
+        version, preparedAt: now(), preparedBy: 'Démonstration',
       };
+      history.push(declaration);
+      return { declaration };
     }
     if (tail === '/variables/import-file' && method === 'POST') {
       let sheetRows: string[][] = [];
@@ -1077,6 +1103,248 @@ export function handleDemoPayroll(
   return undefined;
 }
 
+const declarationAmount = (value: unknown): string | null =>
+  value === null || value === undefined || value === '' ? null : fmt(money(value));
+const joinedAmounts = (values: (string | null)[]): string | null =>
+  values.some((value) => value === null) ? null : fmt(values.reduce((sum, value) => sum + money(value), 0n));
+
+export function demoDeclarationSummary(
+  state: DemoState, companyId: string, periodId: string, employerIdentifier?: string | null,
+) {
+  const payroll = asState(state, companyId);
+  const period = payroll.periods.find((p) => p.id === periodId && p.company_id === companyId);
+  if (!period) throw new ApiError(404, 'PAYROLL_PERIOD_NOT_FOUND', 'Période introuvable');
+  const company = state.companies.find((c) => c.id === companyId);
+  const latest = new Map<string, DemoCalculation>();
+  for (const calculation of payroll.calculations.filter((c) => c.period_id === periodId && c.company_id === companyId)) {
+    const current = latest.get(calculation.employee_id);
+    if (!current || calculation.version > current.version) latest.set(calculation.employee_id, calculation);
+  }
+  const employees = [...latest.values()]
+    .map((calculation) => {
+      const employee = payroll.employees.find((e) => e.id === calculation.employee_id && e.company_id === companyId);
+      return {
+        employeeId: calculation.employee_id,
+        employeeNumber: calculation.employee_number,
+        fullName: calculation.full_name,
+        payFrequency: employee?.pay_frequency ?? 'monthly',
+        workerType: employee?.worker_type ?? 'full_time',
+        householdWorker: Boolean(employee?.is_household_worker),
+        statutoryIdMasked: employee?.bank_account_last4 ? `•••• ${employee.statutory_id_last4 ?? ''}` : null,
+        hasFullStatutoryId: false,
+        currency: calculation.currency,
+        basicWage: declarationAmount(calculation.basic_wage),
+        gross: declarationAmount(calculation.gross),
+        taxableEmoluments: declarationAmount(calculation.taxable_emoluments),
+        paye: declarationAmount(calculation.paye),
+        csgEmployee: declarationAmount(calculation.csg_employee),
+        csgEmployer: declarationAmount(calculation.csg_employer),
+        nsfEmployee: declarationAmount(calculation.nsf_employee),
+        nsfEmployer: declarationAmount(calculation.nsf_employer),
+        trainingLevy: declarationAmount(calculation.training_levy),
+        status: calculation.status,
+        missingRules: calculation.missing_rules,
+      };
+    })
+    .sort((a, b) => String(a.employeeNumber).localeCompare(String(b.employeeNumber)));
+  const fields = [
+    'basicWage', 'gross', 'taxableEmoluments', 'paye', 'csgEmployee', 'csgEmployer',
+    'nsfEmployee', 'nsfEmployer', 'trainingLevy',
+  ] as const;
+  const totals = Object.fromEntries(
+    fields.map((field) => [field, joinedAmounts(employees.map((employee) => employee[field]))]),
+  ) as Record<(typeof fields)[number], string | null>;
+  const currencies = [...new Set(employees.map((employee) => employee.currency).filter(Boolean))];
+  const incomplete = employees.filter((employee) => employee.status === 'rules_incomplete' || employee.missingRules.length > 0);
+  const nullStatutory = employees.filter((employee) =>
+    [employee.paye, employee.csgEmployee, employee.csgEmployer, employee.nsfEmployee,
+      employee.nsfEmployer, employee.trainingLevy].some((value) => value === null));
+  const active = payroll.employees.filter((employee) => employee.company_id === companyId &&
+    ['active', 'probation'].includes(employee.employment_status));
+  const missingNumbers = employees.filter((employee) => !employee.employeeNumber);
+  const duplicateNumbers = Object.entries(employees.reduce<Record<string, number>>((acc, employee) => {
+    acc[employee.employeeNumber] = (acc[employee.employeeNumber] ?? 0) + 1;
+    return acc;
+  }, {})).filter(([, count]) => count > 1).map(([number]) => number);
+  const unvalidatedRules = payroll.rules.filter((rule) => rule.company_id === companyId &&
+    rule.required_for_calculation && rule.status !== 'EXPERT_VALIDATED');
+  const employer = String(employerIdentifier ?? '').trim();
+  const checks: any[] = [
+    { code: 'COMPANY_ISOLATION', severity: 'ok', scope: 'internal',
+      messageEn: 'All rows are restricted to the selected company.', messageFr: 'Toutes les lignes sont limitées à la société sélectionnée.' },
+    employees.length > 0
+      ? { code: 'EMPLOYEES_PRESENT', severity: 'ok', scope: 'internal',
+          messageEn: `${employees.length} calculation(s) found.`, messageFr: `${employees.length} calcul(s) trouvé(s).` }
+      : { code: 'EMPLOYEES_PRESENT', severity: 'block', scope: 'internal',
+          messageEn: 'No payroll calculation exists for this period.', messageFr: 'Aucun calcul de paie n’existe pour cette période.' },
+    active.length > employees.length
+      ? { code: 'EMPLOYEE_COVERAGE', severity: 'warning', scope: 'internal',
+          messageEn: `${active.length - employees.length} active employee(s) have no calculation in this period.`,
+          messageFr: `${active.length - employees.length} salarié(s) actif(s) n’ont pas de calcul sur cette période.`,
+          count: active.length - employees.length }
+      : { code: 'EMPLOYEE_COVERAGE', severity: 'ok', scope: 'internal',
+          messageEn: 'Every active employee has a calculation.', messageFr: 'Chaque salarié actif possède un calcul.' },
+    incomplete.length > 0
+      ? { code: 'CALCULATIONS_INCOMPLETE', severity: 'block', scope: 'internal',
+          messageEn: `${incomplete.length} calculation(s) are blocked by missing rules.`,
+          messageFr: `${incomplete.length} calcul(s) sont bloqués par des règles manquantes.`, count: incomplete.length }
+      : { code: 'CALCULATIONS_COMPLETE', severity: 'ok', scope: 'internal',
+          messageEn: 'Every calculation uses a complete rule set.', messageFr: 'Chaque calcul utilise un jeu de règles complet.' },
+    nullStatutory.length > 0
+      ? { code: 'STATUTORY_VALUES_NULL', severity: 'block', scope: 'internal',
+          messageEn: 'A statutory amount is unknown (null); zero is never substituted.',
+          messageFr: 'Un montant statutaire est inconnu (null) ; zéro n’est jamais substitué.', count: nullStatutory.length }
+      : { code: 'STATUTORY_VALUES_PRESENT', severity: 'ok', scope: 'internal',
+          messageEn: 'PAYE, CSG, NSF and Training Levy are present for every employee.',
+          messageFr: 'PAYE, CSG, NSF et Training Levy sont présents pour chaque salarié.' },
+    currencies.length > 1
+      ? { code: 'CURRENCY_MISMATCH', severity: 'block', scope: 'internal',
+          messageEn: 'Several currencies are present in one monthly declaration.',
+          messageFr: 'Plusieurs devises figurent dans une même déclaration mensuelle.', count: currencies.length }
+      : { code: 'CURRENCY_CONSISTENCY', severity: 'ok', scope: 'internal',
+          messageEn: `Single currency: ${currencies[0] ?? 'MUR'}.`, messageFr: `Devise unique : ${currencies[0] ?? 'MUR'}.` },
+    duplicateNumbers.length > 0
+      ? { code: 'DUPLICATE_EMPLOYEE_NUMBER', severity: 'block', scope: 'internal',
+          messageEn: `Duplicate employee number(s): ${duplicateNumbers.join(', ')}.`,
+          messageFr: `Numéro(s) de salarié en doublon : ${duplicateNumbers.join(', ')}.`, count: duplicateNumbers.length }
+      : { code: 'NO_DUPLICATE_EMPLOYEE', severity: 'ok', scope: 'internal',
+          messageEn: 'No duplicate employee number in the latest calculation set.',
+          messageFr: 'Aucun numéro de salarié en doublon dans les derniers calculs.' },
+    missingNumbers.length > 0
+      ? { code: 'EMPLOYEE_NUMBER_MISSING', severity: 'block', scope: 'internal',
+          messageEn: 'An employee has no payroll number.', messageFr: 'Un salarié n’a pas de matricule.', count: missingNumbers.length }
+      : { code: 'TOTALS_RECOMPUTED', severity: 'ok', scope: 'internal',
+          messageEn: 'Company totals are recomputed from every employee amount.',
+          messageFr: 'Les totaux société sont recalculés depuis chaque montant salarié.' },
+    employer
+      ? { code: 'EMPLOYER_IDENTIFIER_PRESENT', severity: 'ok', scope: 'internal',
+          messageEn: 'A local employer identifier is recorded. It is not an MRA credential.',
+          messageFr: 'Un identifiant employeur local est enregistré. Ce n’est pas un identifiant MRA.' }
+      : { code: 'EMPLOYER_IDENTIFIER_REQUIRED', severity: 'warning', scope: 'internal',
+          messageEn: 'A fictitious employer identifier is required before archiving the preparation.',
+          messageFr: 'Un identifiant employeur fictif est requis avant d’archiver la préparation.' },
+    unvalidatedRules.length > 0
+      ? { code: 'RULES_NOT_VALIDATED', severity: 'warning', scope: 'internal',
+          messageEn: `${unvalidatedRules.length} required rule(s) are not expert-validated.`,
+          messageFr: `${unvalidatedRules.length} règle(s) obligatoire(s) ne sont pas validées par un expert.`, count: unvalidatedRules.length }
+      : { code: 'RULES_VALIDATED', severity: 'ok', scope: 'internal',
+          messageEn: 'Every required rule is expert-validated.', messageFr: 'Toutes les règles obligatoires sont validées par un expert.' },
+  ];
+  const officialReasons = [
+    { code: 'EMPLOYEE_FULL_NIC_MISSING',
+      messageEn: 'The official PACO template requires the full 14-character employee NIC/NCID; this application stores only the last four digits and a fingerprint.',
+      messageFr: 'Le modèle officiel PACO exige le NIC/NCID complet du salarié (14 caractères) ; cette application ne conserve que les quatre derniers chiffres et une empreinte.' },
+    { code: 'EMPLOYER_ERN_MISSING',
+      messageEn: 'The employer ERN, declarant name and mandatory contact fields are not stored.',
+      messageFr: 'L’ERN employeur, le nom du déclarant et les coordonnées obligatoires ne sont pas stockés.' },
+    { code: 'TEMPLATE_NOT_FULLY_VERIFIED',
+      messageEn: 'The December 2024 MRA specification fields were read, but the official CSV template file was unavailable (HTTP 500), so the complete line layout was not verified.',
+      messageFr: 'Les champs de la spécification MRA de décembre 2024 ont été lus, mais le modèle CSV officiel était indisponible (HTTP 500) ; la structure complète des lignes n’a pas été vérifiée.' },
+    { code: 'WHOLE_RUPEE_RULE_UNVERIFIED',
+      messageEn: 'The official template requires whole rupees without cents; no law fixes a rounding rule for CSG/NSF/levy, so exact four-decimal values are kept and never rounded silently.',
+      messageFr: 'Le modèle officiel exige des roupies entières sans centimes ; aucun texte ne fixe l’arrondi CSG/NSF/levy, donc les valeurs exactes à quatre décimales sont conservées et jamais arrondies en silence.' },
+  ];
+  const officialChecks = officialReasons.map((reason) => ({ ...reason, severity: 'block', scope: 'official' }));
+  const blockers = checks.filter((check) => check.severity === 'block');
+  const warnings = checks.filter((check) => check.severity === 'warning');
+  return {
+    id: null as string | null,
+    version: null as number | null,
+    preparedAt: null as string | null,
+    preparedBy: null as string | null,
+    company: {
+      id: companyId, name: company?.name ?? null, brn: company?.brn ?? null,
+      contactEmail: (company as any)?.contact_email ?? null,
+      contactPhone: (company as any)?.contact_phone ?? null,
+    },
+    period: {
+      id: period.id, year: period.period_year, month: period.period_month,
+      start: period.start_date, end: period.end_date, status: period.status,
+      label: `${String(period.period_month).padStart(2, '0')}/${period.period_year}`,
+    },
+    employerIdentifier: employer || null,
+    currency: currencies[0] ?? 'MUR',
+    employees,
+    totals,
+    checks,
+    officialChecks,
+    blockers,
+    warnings,
+    officialCsv: {
+      available: false, status: 'NOT_AVAILABLE', reasons: officialReasons,
+      specificationUrl: 'https://www.mra.mu/download/SpecsMonthlyPACODec2024.pdf',
+      templateUrl: 'https://www.mra.mu/download/csvTemplate_paco_Dec2024.csv',
+    },
+    internalCsvAvailable: blockers.length === 0 && Boolean(employer),
+    canPrepare: blockers.length === 0 && Boolean(employer),
+    regulatoryExportBlocked: true,
+    regulatoryStatus: 'NOT_SUBMITTED',
+    status: 'PREPARATION_ONLY',
+    preparationStatus: blockers.length > 0 ? 'BLOCKED' : 'PREPARATION_ONLY',
+    employeesActive: active.length,
+    submission: 'NOT_SUBMITTED',
+    notice: 'Préparation locale et fictive. Aucune transmission MRA, aucun identifiant réel, aucun paiement.',
+    noticeEn: 'Local, fictional preparation. No MRA transmission, no real credential, no payment.',
+    gross: fmt(employees.reduce((sum, employee) => sum + money(employee.gross), 0n)),
+    paye: fmt(employees.reduce((sum, employee) => sum + money(employee.paye), 0n)),
+    csg_employee: fmt(employees.reduce((sum, employee) => sum + money(employee.csgEmployee), 0n)),
+    csg_employer: fmt(employees.reduce((sum, employee) => sum + money(employee.csgEmployer), 0n)),
+    nsf_employee: fmt(employees.reduce((sum, employee) => sum + money(employee.nsfEmployee), 0n)),
+    nsf_employer: fmt(employees.reduce((sum, employee) => sum + money(employee.nsfEmployer), 0n)),
+    training_levy: fmt(employees.reduce((sum, employee) => sum + money(employee.trainingLevy), 0n)),
+    employeesCount: employees.length,
+    employees_count: employees.length,
+    approved_for_test: employees.filter((employee) => employee.status === 'approved_for_test').length,
+    incomplete: incomplete.length,
+  };
+}
+
+const csvCell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+const csvLine = (cells: unknown[]) => cells.map(csvCell).join(',');
+
+export function demoDeclarationCsv(declaration: DemoMraDeclaration): string {
+  const rows: string[] = [];
+  rows.push(csvLine(['PAYROLL DECLARATION - INTERNAL PREPARATION - NOT SUBMITTED TO MRA']));
+  rows.push(csvLine(['SIMULATION - NOT VALIDATED FOR PAYMENT']));
+  rows.push(csvLine(['Declaration ID', declaration.id]));
+  rows.push(csvLine(['Prepared at', declaration.preparedAt ?? '']));
+  rows.push(csvLine(['Company', declaration.company?.name ?? '']));
+  rows.push(csvLine(['Employer identifier (local, fictitious)', declaration.employerIdentifier ?? '']));
+  rows.push(csvLine(['Period', declaration.period?.label ?? '']));
+  rows.push(csvLine(['Currency', declaration.currency ?? '']));
+  rows.push(csvLine(['Status', declaration.status ?? 'BLOCKED']));
+  rows.push(csvLine(['Submission', 'NOT_SUBMITTED']));
+  rows.push('');
+  rows.push(csvLine(['TOTALS']));
+  rows.push(csvLine(['Employees', declaration.employees?.length ?? 0]));
+  rows.push(csvLine(['Gross emoluments', declaration.totals?.gross ?? '']));
+  rows.push(csvLine(['Basic wage', declaration.totals?.basicWage ?? '']));
+  rows.push(csvLine(['Taxable emoluments', declaration.totals?.taxableEmoluments ?? '']));
+  rows.push(csvLine(['PAYE withheld', declaration.totals?.paye ?? '']));
+  rows.push(csvLine(['CSG employee', declaration.totals?.csgEmployee ?? '']));
+  rows.push(csvLine(['CSG employer', declaration.totals?.csgEmployer ?? '']));
+  rows.push(csvLine(['NSF employee', declaration.totals?.nsfEmployee ?? '']));
+  rows.push(csvLine(['NSF employer', declaration.totals?.nsfEmployer ?? '']));
+  rows.push(csvLine(['Training Levy', declaration.totals?.trainingLevy ?? '']));
+  rows.push('');
+  rows.push(csvLine(['EMPLOYEE DETAILS']));
+  rows.push(csvLine(['Employee number', 'Employee', 'Pay frequency', 'Currency', 'Basic wage',
+    'Gross emoluments', 'Taxable emoluments', 'PAYE', 'CSG employee', 'CSG employer',
+    'NSF employee', 'NSF employer', 'Training Levy', 'Calculation status']));
+  for (const employee of declaration.employees ?? []) {
+    rows.push(csvLine([employee.employeeNumber, employee.fullName, employee.payFrequency, employee.currency,
+      employee.basicWage, employee.gross, employee.taxableEmoluments, employee.paye,
+      employee.csgEmployee, employee.csgEmployer, employee.nsfEmployee, employee.nsfEmployer,
+      employee.trainingLevy, employee.status]));
+  }
+  rows.push('');
+  rows.push(csvLine(['OFFICIAL MRA CSV', 'NOT GENERATED', 'This file must not be submitted to the MRA']));
+  for (const reason of declaration.officialCsv?.reasons ?? []) {
+    rows.push(csvLine([reason.code, reason.messageEn, reason.messageFr]));
+  }
+  return '\uFEFF' + rows.join('\r\n');
+}
+
 export function payrollReturnCsv(state: DemoState, companyId: string, periodId: string): string {
   const payroll = asState(state, companyId);
   const period = payroll.periods.find((p) => p.id === periodId && p.company_id === companyId);
@@ -1099,7 +1367,10 @@ export function payrollCsv(state: DemoState, companyId: string): string {
   for (const payslip of payroll.payslips.filter((p) => p.company_id === companyId)) {
     const employee = payroll.employees.find((e) => e.id === payslip.employee_id);
     const snap = payslip.snapshot;
-    rows.push([payslip.payslip_no, payslip.status, '2026-07', employee?.employee_number ?? '', employee?.full_name ?? '', snap.currency, snap.totals.gross, snap.totals.deductions, snap.totals.netArithmetic, '', 'SIMULATION - NOT FOR PAYMENT']);
+    const period = snap.period?.year
+      ? `${snap.period.year}-${String(snap.period.month).padStart(2, '0')}`
+      : '';
+    rows.push([payslip.payslip_no, payslip.status, period, employee?.employee_number ?? '', employee?.full_name ?? '', snap.currency, snap.totals.gross, snap.totals.deductions, snap.totals.netArithmetic, '', 'SIMULATION - NOT FOR PAYMENT']);
   }
   return '\uFEFF' + rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\r\n');
 }

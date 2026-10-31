@@ -65,6 +65,30 @@ export function money(
 }
 
 /**
+ * Exact display for payroll documents: keeps up to four decimals, trims
+ * insignificant zeros but always shows at least two. It never rounds a
+ * statutory amount to the nearest cent for presentation.
+ */
+export function moneyExact(
+  amount: string | number | undefined | null,
+  locale: Locale,
+  currency?: string,
+): string {
+  const scaled = toScaled4(amount);
+  if (scaled === null) return '—';
+  const negative = scaled < 0n;
+  const abs = negative ? -scaled : scaled;
+  const intPart = (abs / SCALE_FACTOR).toString();
+  const rawDec = (abs % SCALE_FACTOR).toString().padStart(4, '0');
+  let dec = rawDec.replace(/0+$/, '');
+  if (dec.length < 2) dec = (dec + '00').slice(0, 2);
+  const grouped = new Intl.NumberFormat(locale === 'fr' ? 'fr-FR' : 'en-GB').format(BigInt(intPart));
+  const separator = locale === 'fr' ? ',' : '.';
+  const text = `${negative ? '-' : ''}${grouped}${separator}${dec}`;
+  return currency ? `${text} ${currency}` : text;
+}
+
+/**
  * Normalises a human-entered decimal amount before it is sent to the API.
  * Android keyboards expose either "." or "," depending on the device locale, so
  * both separators are accepted. Only the *last* separator is treated as the

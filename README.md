@@ -18,7 +18,7 @@
 > et ne crée aucun paiement. Facturation (mission 6) :
 > **opérationnelle** — clients, devis, factures, avoirs, encaissements, balance âgée et PDF A4
 > générés par le serveur ; **aucun taux de TVA n'est fourni** et l'e-invoicing MRA reste
-> désactivé. Paie & RH : **préparation et moteur statutaire daté** (missions 15–16, règles 2026/27) — dossiers salariés, contrats datés, temps, congés, variables, périodes, PAYE cumulatif, EDF, CSG, NSF, Training Levy et AR 2026 calculés depuis des règles officielles sourcées ; **revue experte en attente**, bulletins de **simulation**, **aucun bulletin final**, aucune déclaration MRA, aucun virement. L'assistant comptable V2
+> désactivé. Paie & RH : **préparation et moteur statutaire daté** (missions 15–17, règles 2026/27) — dossiers salariés, contrats datés, temps, congés, variables, périodes, PAYE cumulatif, EDF, CSG, NSF, Training Levy et AR 2026 calculés depuis des règles officielles sourcées ; **revue experte en attente**, bulletins de **simulation**, **aucun bulletin final**, **préparation interne de déclarations MRA sans aucune soumission ni export officiel**, aucun virement. L'assistant comptable V2
 > propose des écritures équilibrées issues du plan comptable réel, exige une **validation
 > humaine** puis une **comptabilisation distincte** : aucune écriture n'est créée
 > automatiquement. Le moteur IA est **optionnel**, sans clé par défaut.
@@ -404,6 +404,8 @@ données, **ni** secret, **ni** donnée réelle.
 | [`docs/mission-14-report.md`](docs/mission-14-report.md) | Rapport de mission 14 (fondation paie & RH) |
 | [`docs/mission-15-report.md`](docs/mission-15-report.md) | Rapport final de mission 15 (moteur statutaire, 16 points) |
 | [`docs/mission-16-report.md`](docs/mission-16-report.md) | Rapport de mission 16 (règles 2026/27, bulletin, démonstration) |
+| [`docs/mission-17-report.md`](docs/mission-17-report.md) | Rapport de mission 17 (impression individuelle, déclarations MRA, exports internes) |
+| [`docs/mra-declarations.md`](docs/mra-declarations.md) | Champs MRA vérifiés, contrôles, export interne, raisons du blocage officiel |
 | [`docs/regulatory-sources-register.md`](docs/regulatory-sources-register.md) | Registre des sources officielles, statuts et approbation experte |
 | [`docs/mauritius-regulatory-audit-dossier.md`](docs/mauritius-regulatory-audit-dossier.md) | Dossier d’audit réglementaire en anglais, 18 chapitres |
 | [`docs/paye-calculation-specification.md`](docs/paye-calculation-specification.md) | Spécification PAYE cumulative, EDF et FSC bloquée |
@@ -462,7 +464,7 @@ données, **ni** secret, **ni** donnée réelle.
 
 **Réglementaire** (aucune conformité n'est revendiquée) :
 
-- Aucun calcul de TVA/GST, aucune déclaration MRA, aucune facturation électronique.
+- Aucun calcul de TVA/GST, **aucune déclaration MRA transmise, aucun fichier PACO officiel**, aucune facturation électronique.
 - Aucun impôt sur les sociétés, aucune paie, aucun taux légal codé en dur.
 - États financiers **provisoires**, non certifiés IFRS, sans notes annexes ni écritures de
   clôture/report à nouveau.
@@ -489,7 +491,7 @@ des permissions et des tables séparées par module :
 | Cabinet | `/cabinet` | **opérationnel** : tableau de bord, dossiers clients, fiche dossier, tâches & échéances, collaborateurs |
 | Comptabilité | `/accounting` | **opérationnel** : fonctions V0.1.1 (plan comptable, écritures, grand livre, balance, états financiers, périodes, devises, audit) + **Banque & rapprochement** (import CSV/TSV/XLSX, rapprochement humain, propositions, rapport) + **Achats & Fournisseurs** (fournisseurs, factures d'achat, avoirs, règlements, échéancier par devise) |
 | Facturation | `/billing` | **opérationnel** : clients, devis, factures, avoirs, encaissements, balance âgée, PDF serveur ; e-invoicing MRA désactivé |
-| Paie & RH | `/payroll` | **préparation et simulation** : salariés, contrats, temps, congés, variables, périodes, PAYE/CSG/NSF/levy sourcés, EDF, AR 2026, bulletins de simulation ; revue experte en attente, aucun bulletin final, aucune déclaration MRA |
+| Paie & RH | `/payroll` | **préparation et simulation** : salariés, contrats, temps, congés, variables, périodes, PAYE/CSG/NSF/levy sourcés, EDF, AR 2026, bulletins de simulation imprimables un par un, déclarations MRA en préparation interne ; revue experte en attente, aucun bulletin final, aucune soumission MRA |
 
 - Rôles : `cabinet_admin`, `manager`, `accountant`, `billing_clerk`, `payroll_manager`,
   `viewer` (+ `owner`/`admin` historiques) — voir
