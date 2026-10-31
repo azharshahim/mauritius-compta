@@ -1,7 +1,13 @@
 # Feuille de route — fonctionnalités restant à développer
 
-_État au 31 octobre 2026 (version 0.1.0). Missions 19 et 20 livrées sur branches, PR en
+_État au 31 octobre 2026 (version 0.1.0). Missions 19 à 21 livrées sur branches, PR en
 brouillon ; aucune fusion, aucun déploiement._
+
+**Mission 21 — exercices, soldes d’ouverture, ajustements antérieurs et archives** :
+grand livre continu sans report dupliqué, reprise externe initiale, registre PPA avec
+approbation humaine, checklist à treize contrôles, archives scellées avec manifeste et
+empreintes, écran **Exercices & archives** et démonstration schéma 15. Voir
+[`mission-21-report.md`](mission-21-report.md).
 
 **Mission 20 — immobilisations et amortissements** : registre, catégories configurables,
 moteur linéaire/dégressif avec prorata, propositions d'écritures, sept états, démonstration

@@ -45,6 +45,15 @@ import {
   type DemoFiscalClosing,
 } from './equity';
 import { fixedAssetCsv, handleDemoFixedAssets, seedDemoFixedAssets } from './fixed-assets';
+import {
+  handleDemoFinancialYears,
+  seedDemoFinancialYears,
+  type DemoArchive,
+  type DemoChecklist,
+  type DemoFiscalYearSettings,
+  type DemoOpeningBatch,
+  type DemoPriorYearAdjustment,
+} from './financial-years';
 import { handleDemoPayroll, payrollCsv, payrollReturnCsv, demoDeclarationCsv, demoAccountingTransferCsv, seedDemoPayroll } from './payroll';
 import {
   IMPORT_FIELDS,
@@ -120,7 +129,7 @@ export interface DemoEntry {
   currency: string;
   exchange_rate: string;
   status: 'draft' | 'posted';
-  source: 'manual' | 'reversal' | 'billing' | 'purchase' | 'ai' | 'migration' | 'migration_opening' | 'equity' | 'closing' | 'equity_allocation' | 'asset';
+  source: 'manual' | 'reversal' | 'billing' | 'purchase' | 'ai' | 'migration' | 'migration_opening' | 'opening' | 'equity' | 'closing' | 'equity_allocation' | 'asset' | 'prior_year_adjustment';
   reversal_of_entry_id: string | null;
   posted_at: string | null;
   created_at: string;
@@ -870,6 +879,12 @@ export interface DemoState {
   fiscalClosings?: DemoFiscalClosing[];
   equityAllocations?: DemoEquityAllocation[];
   equityAllocationLines?: DemoEquityAllocationLine[];
+  /** Mission 21 — financial years, opening batches, adjustments, checklists, archives. */
+  fySettings?: DemoFiscalYearSettings[];
+  fyOpeningBatches?: DemoOpeningBatch[];
+  fyAdjustments?: DemoPriorYearAdjustment[];
+  fyChecklists?: DemoChecklist[];
+  fyArchives?: DemoArchive[];
 }
 
 /* ------------------------------------------------------------------ money */
@@ -1865,7 +1880,7 @@ function seedState(): DemoState {
   });
 
   const seeded: DemoState = {
-    schema: 14,
+    schema: 15,
     users: [demoUser, ...collaborators],
     session: null,
     companies: [company, ...extraCompanies],
@@ -1953,6 +1968,7 @@ function seedState(): DemoState {
   seedDemoPayroll(seeded);
   seedDemoEquity(seeded);
   seedDemoFixedAssets(seeded);
+  seedDemoFinancialYears(seeded);
   return seeded;
 }
 
@@ -1978,8 +1994,15 @@ export function loadState(): DemoState {
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as DemoState;
+        if (parsed && parsed.schema === 15) {
+          state = parsed;
+          return state;
+        }
         if (parsed && parsed.schema === 14) {
           state = parsed;
+          state.schema = 15;
+          seedDemoFinancialYears(state);
+          persist();
           return state;
         }
       } catch {
@@ -6188,6 +6211,23 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
       if (result === undefined) throw new ApiError(404, 'NOT_FOUND', 'Route multidevise inconnue');
       if (method !== 'GET') {
         audit(companyId, 'fx.request', 'fx', null, { path: rest, method, demo: true });
+        persist();
+      }
+      return result as T;
+    }
+
+    // ------------------------------------- mission 21 — financial years
+    if (rest.startsWith('/financial-years')) {
+      const member = s.members.find(
+        (m) => m.company_id === companyId && m.user_id === requireUser().id,
+      );
+      if (!member) throw new ApiError(404, 'COMPANY_NOT_FOUND', 'Société introuvable');
+      const result = handleDemoFinancialYears(
+        s, companyId, method, rest.slice('/financial-years'.length),
+        Object.fromEntries(query.entries()), payload,
+      );
+      if (method !== 'GET') {
+        audit(companyId, 'financial_year.request', 'financial_year', null, { path: rest, method, demo: true });
         persist();
       }
       return result as T;
