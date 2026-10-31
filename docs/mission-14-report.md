@@ -42,7 +42,8 @@ fusion. Aucun numéro complet stocké. Référence : `docs/employee-master-data.
 
 Permanent/durée déterminée, temps plein/partiel, dates d’effet, salaire mensuel/
 horaire/journalier, devise, horaire, fonction, département, lieu, essai, motif,
-avenant, suspension, fin. Supersession datée + événement ; aucun écrasement
+avenant, fin. Le statut `suspended` existe, mais la **suspension datée et son effet
+sur la paie ne sont pas implémentés**. Supersession datée + événement ; aucun écrasement
 silencieux ; un contrat actif par salarié (index unique partiel).
 
 ## 6. Rémunérations
@@ -133,7 +134,8 @@ Détail : `docs/payroll-security.md`.
 Non implémenté : moteur réglementaire PAYE/CSG/NSF/employeur, taux et seuils, congés
 acquis, majorations d’heures supplémentaires, bulletins finaux, déclarations
 officielles, virements, génération automatique d’écritures, réévaluations de paie,
-export de fichiers bancaires, rétention/effacement, catégories statutaires et permis.
+export de fichiers bancaires, rétention/effacement, catégories statutaires et permis,
+suspension de contrat pilotée par des dates et reprise associée.
 
 Aucune conformité MRA/PAYE/CSG/NSF n’est affirmée. Aucune donnée personnelle réelle,
 aucune dépense, aucune clé API, aucun accès bancaire.
