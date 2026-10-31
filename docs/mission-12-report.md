@@ -149,9 +149,10 @@ Tests :
 - web : **153 verts**, démo lettrage **8**, interface lettrage **5**,
   Banque **6** ;
 - typecheck, builds et migrations validés ;
-- CI GitHub sur `16c6193` : runs `41203043988` et `41203040241` (CI),
-  `41203040366` (Pages) — **tous verts**, y compris PostgreSQL réel et les
-  migrations rejouées.
+- CI GitHub sur `fc3746b` : runs `41203793625` et `41203798262` (CI),
+  `41203793643` (Pages) — **tous verts**, y compris PostgreSQL réel et les
+  migrations rejouées. Les runs antérieurs `41203043988`, `41203040241` et
+  `41203040366` sur `16c6193` étaient également verts.
 
 ### Limites honnêtes
 
