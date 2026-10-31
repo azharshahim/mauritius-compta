@@ -70,7 +70,18 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Vitest suite on PostgreSQL (includes concurrency tests)
-        run: npm test
+        run: |
+          set +e
+          npm test 2>&1 | tee /tmp/api-tests.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            # GitHub annotations keep the failing test names visible even when
+            # the raw step log is unavailable to the reviewer's network.
+            grep -E "FAIL |AssertionError|Error:|→|expected|×" /tmp/api-tests.log \
+              | head -40 | sed 's/%/%25/g; s/\r//g' \
+              | while IFS= read -r line; do echo "::error title=Vitest::$line"; done
+          fi
+          exit "$status"
 
   postgres-migrations:
     name: Migrations against real PostgreSQL
