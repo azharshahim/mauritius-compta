@@ -119,10 +119,16 @@ describe('universal assistant - context, tools and permissions', () => {
     const res = await api(ctx, owner.cookie, 'GET', `/api/companies/${company.id}/ai/assistant/tools`);
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.mode).toBe('deterministic-read-only');
+    expect(body.mode).toBe('deterministic-supervised');
+    expect(body.governance.executionEnabled).toBe(false);
+    expect(body.governance.availableModes).toEqual(['read', 'prepare']);
+    expect(body.governance.humanValidationRequired).toBe(true);
     expect(body.provider).toBeNull();
     expect(body.tools.length).toBeGreaterThan(8);
     expect(body.tools.every((t: any) => t.readOnly === true)).toBe(true);
+    const prepare = body.tools.find((t: any) => t.key === 'accounting.proposal.prepare');
+    expect(prepare).toMatchObject({ mode: 'prepare', risk: 'medium', requiredAccess: 'write', humanValidation: true, audit: true, companyScoped: true });
+    expect(body.tools.filter((t: any) => t.mode === 'read').every((t: any) => t.humanValidation === false)).toBe(true);
     const keys = body.tools.map((t: any) => t.key);
     expect(keys).toEqual(
       expect.arrayContaining([

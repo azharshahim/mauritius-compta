@@ -178,7 +178,7 @@ export default function SettingsPage() {
                 autoComplete="current-password"
               />
             </Field>
-            <Field label={t('settings.newPassword')} hint="10+ caractères, lettres et chiffres">
+            <Field label={t('settings.newPassword')} hint={t('settings.passwordHint')}>
               <input
                 type="password"
                 value={newPassword}
@@ -399,7 +399,7 @@ export default function SettingsPage() {
               <input
                 value={rateForm.source}
                 onChange={(e) => setRateForm({ ...rateForm, source: e.target.value })}
-                placeholder="Bank of Mauritius (saisi manuellement)"
+                placeholder={t('settings.rateSourcePlaceholder')}
               />
             </Field>
             <Button
@@ -479,7 +479,7 @@ export default function SettingsPage() {
                 <option value="viewer">{t('role.viewer')}</option>
               </select>
             </Field>
-            <Field label={t('settings.temporaryPassword')} hint="Uniquement pour un nouvel utilisateur">
+            <Field label={t('settings.temporaryPassword')} hint={t('settings.tempPasswordHint')}>
               <input
                 type="password"
                 value={memberForm.temporaryPassword}
@@ -519,7 +519,7 @@ export default function SettingsPage() {
                     <th>{t('settings.date')}</th>
                     <th>{t('settings.user')}</th>
                     <th>{t('settings.action')}</th>
-                    <th>Type</th>
+                    <th>{t('common.type')}</th>
                   </tr>
                 </thead>
                 <tbody>

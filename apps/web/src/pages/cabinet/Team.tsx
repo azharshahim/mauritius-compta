@@ -88,13 +88,13 @@ export default function TeamPage() {
                                 void changeRole(a.companyId, person.userId, e.target.value)
                               }
                             >
-                              <option value="cabinet_admin">cabinet_admin</option>
-                              <option value="manager">manager</option>
-                              <option value="accountant">accountant</option>
-                              <option value="billing_clerk">billing_clerk</option>
-                              <option value="payroll_manager">payroll_manager</option>
-                              <option value="viewer">viewer</option>
-                              {a.role === 'owner' && <option value="owner">owner</option>}
+                              <option value="cabinet_admin">{t('role.cabinet_admin')}</option>
+                              <option value="manager">{t('role.manager')}</option>
+                              <option value="accountant">{t('role.accountant')}</option>
+                              <option value="billing_clerk">{t('role.billing_clerk')}</option>
+                              <option value="payroll_manager">{t('role.payroll_manager')}</option>
+                              <option value="viewer">{t('role.viewer')}</option>
+                              {a.role === 'owner' && <option value="owner">{t('role.owner')}</option>}
                             </select>
                           </li>
                         ))}

@@ -365,6 +365,66 @@ describe('inventory, accruals and provisions', () => {
     expect(duplicate.json().error.code).toBe('INVENTORY_SOURCE_QUANTITY_INVALID');
   });
 
+  it('updates inventory master data through the API', async () => {
+    const category = await api(ctx, cookie, 'PUT', `${base()}/inventory/categories/${categoryId}`, {
+      name: 'Fictitious traded goods (edited)', allowNegativeStock: false,
+    });
+    expect(category.statusCode).toBe(200);
+    expect(category.json().category.name).toBe('Fictitious traded goods (edited)');
+
+    const location = await api(ctx, cookie, 'PUT', `${base()}/inventory/locations/${locationB}`, {
+      name: 'Fictitious second store (edited)',
+    });
+    expect(location.statusCode).toBe(200);
+    expect(location.json().location.name).toBe('Fictitious second store (edited)');
+
+    const item = await api(ctx, cookie, 'PUT', `${base()}/inventory/items/${itemId}`, {
+      name: 'Fictitious item (edited)', isActive: true,
+    });
+    expect(item.statusCode).toBe(200);
+    expect(item.json().item.name).toBe('Fictitious item (edited)');
+  });
+
+  it('bridges an issued customer invoice into proposed stock issues', async () => {
+    const customer = (await api(ctx, cookie, 'POST', `${base()}/billing/customers`, {
+      name: 'Fictitious stock customer', brn: 'BRN-STOCK-0001',
+    })).json().customer;
+    const billingItem = (await api(ctx, cookie, 'POST', `${base()}/billing/items`, {
+      reference: 'GOODS-STOCK-01', labelFr: 'Marchandise fictive', unitPrice: '30.00',
+      vatTreatment: 'zero_rated', revenueAccountId: acc('4000').id,
+    })).json().item;
+    const document = (await api(ctx, cookie, 'POST', `${base()}/billing/documents`, {
+      kind: 'invoice', customerId: customer.id, issueDate: '2025-12-02',
+      lines: [{ itemId: billingItem.id, quantity: '2' }],
+    })).json().document;
+    const issued = await api(ctx, cookie, 'POST', `${base()}/billing/documents/${document.id}/issue`, {});
+    expect(issued.statusCode).toBe(200);
+    const lineId = issued.json().document.lines[0].id;
+    const stockItem = (await api(ctx, cookie, 'POST', `${base()}/inventory/items`, {
+      categoryId, sku: 'BRIDGE-SALE-001', name: 'Fictitious sold item', unit: 'unit',
+    })).json().item;
+    const bridged = await api(ctx, cookie, 'POST', `${base()}/inventory/movements/from-billing/${document.id}`, {
+      journalId: journal().id,
+      lines: [{ billingLineId: lineId, itemId: stockItem.id, locationId: locationB, quantity: '2' }],
+    });
+    expect(bridged.statusCode).toBe(201);
+    expect(bridged.json().movements).toHaveLength(1);
+    expect(bridged.json().movements[0].status).toBe('PROPOSED');
+    expect(bridged.json().movements[0].direction).toBe('out');
+    expect(bridged.json().movements[0].documentRef).toBe(`billing:${issued.json().document.number}`);
+    const tooMuch = await api(ctx, cookie, 'POST', `${base()}/inventory/movements/from-billing/${document.id}`, {
+      journalId: journal().id,
+      lines: [{ billingLineId: lineId, itemId: stockItem.id, locationId: locationB, quantity: '3' }],
+    });
+    expect(tooMuch.statusCode).toBe(400);
+    expect(tooMuch.json().error.code).toBe('INVENTORY_SOURCE_QUANTITY_INVALID');
+    // Keep later reconciliations clean: a rejected proposal leaves no open movement.
+    const rejected = await api(ctx, cookie, 'POST',
+      `${base()}/inventory/movements/${bridged.json().movements[0].id}/reject`,
+      { reason: 'Fictitious mission 24 test cleanup.' });
+    expect(rejected.statusCode).toBe(200);
+  });
+
   it('refuses to post into a closed period without reopening it', async () => {
     const schedule = await api(ctx, cookie, 'POST', `${base()}/accruals`, {
       reference: 'ACC-CLOSED-001', kind: 'accrued_expense', description: 'Fictitious closed-period accrual.',

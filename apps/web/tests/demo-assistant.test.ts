@@ -123,6 +123,45 @@ describe('démonstration — assistant IA universel', () => {
     expect(res.messages[1]!.payload.actions).toEqual([]);
   });
 
+  it('expose un catalogue d’outils gouverné, sans exécution ni secret', () => {
+    const company = companyId();
+    const catalogue = call<{
+      mode: string;
+      governance: {
+        executionEnabled: boolean;
+        availableModes: string[];
+        humanValidationRequired: boolean;
+        companyScoped: boolean;
+        auditTable: string;
+        secretsInFrontend: boolean;
+      };
+      tools: {
+        key: string;
+        mode: string;
+        risk: string;
+        requiredAccess: string;
+        humanValidation: boolean;
+        audit: boolean;
+        companyScoped: boolean;
+      }[];
+    }>('GET', `/companies/${company}/ai/assistant/tools`);
+    expect(catalogue.mode).toBe('deterministic-supervised');
+    expect(catalogue.governance).toMatchObject({
+      executionEnabled: false,
+      availableModes: ['read', 'prepare'],
+      humanValidationRequired: true,
+      companyScoped: true,
+      auditTable: 'ai_tool_runs',
+      secretsInFrontend: false,
+    });
+    expect(catalogue.tools.every((tool) => tool.audit && tool.companyScoped)).toBe(true);
+    const prepare = catalogue.tools.find((tool) => tool.key === 'accounting.proposal.prepare');
+    expect(prepare).toMatchObject({
+      mode: 'prepare', risk: 'medium', requiredAccess: 'write', humanValidation: true,
+    });
+    expect(catalogue.tools.filter((tool) => tool.mode === 'execute')).toEqual([]);
+  });
+
   it('ne contacte aucun fournisseur externe (aucun fetch)', () => {
     const spy = vi.spyOn(globalThis, 'fetch');
     const company = companyId();

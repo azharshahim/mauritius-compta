@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useI18n } from '../i18n';
 import { demoEnabled, isDemoVolatile, resetDemo } from '../demo';
+import { APP_VERSION, SHORT_COMMIT } from '../version';
 
 /**
  * Permanent demonstration marker (mission 9, point L).
@@ -11,7 +12,7 @@ import { demoEnabled, isDemoVolatile, resetDemo } from '../demo';
  * good: as long as `demoEnabled` is true, the chip is rendered.
  */
 export function DemoBanner({ login = false }: { login?: boolean }) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   if (!demoEnabled) return null;
@@ -54,10 +55,9 @@ export function DemoBanner({ login = false }: { login?: boolean }) {
           </div>
           <p>{t('demo.text')}</p>
           {isDemoVolatile() && <p className="muted small">{t('demo.volatile')}</p>}
-          <p className="muted small">
-            {locale === 'fr'
-              ? 'Aucune donnée réelle, aucune connexion bancaire, aucun appel réseau : tout reste dans ce navigateur.'
-              : 'No real data, no bank connection, no network call: everything stays in this browser.'}
+          <p className="muted small">{t('demo.noNetwork')}</p>
+          <p className="muted small mono">
+            {t('app.version')} {APP_VERSION} · {t('app.commit')} {SHORT_COMMIT}
           </p>
           <div className="demo-popover-actions">
             <button type="button" className="btn btn-danger" onClick={reset} disabled={busy}>

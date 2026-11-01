@@ -1,17 +1,28 @@
 name: Demo (GitHub Pages)
 
 # Publishes the *demonstration* build of the web app on GitHub Pages.
-# It runs from the active development branch, never from `main`, and does not
-# touch the API: the page is a 100 % client-side simulation (fictional data in
-# the browser, no database, no secrets).
+#
+# Mission 24: `main` is the only publication source, and only after an approved
+# merge. Arena branches and pull requests run the same typecheck, tests and
+# demo build but never upload or deploy the public artifact. A manual dispatch
+# is also restricted to `main`. The page is a 100 % client-side simulation
+# (fictional data in the browser, no database, no API key, no server call).
 
 on:
   push:
     branches:
-      - arena/b0b62798-mauritius-compta
-      - arena/4b8027f5-mauritius-compta
-      - arena/1aa34791-mauritius-compta
-      - arena/fa7ebd6c-mauritius-compta
+      - main
+      # Arena branches build and test the demo but never publish it: the
+      # deployment condition below requires refs/heads/main.
+      - 'arena/**'
+    paths:
+      - 'apps/web/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/pages.yml'
+  pull_request:
+    branches:
+      - main
     paths:
       - 'apps/web/**'
       - 'package.json'
@@ -23,7 +34,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -50,6 +61,7 @@ jobs:
         run: npm run build:demo
         env:
           VITE_DEMO_MODE: 'true'
+          VITE_BUILD_COMMIT: ${{ github.sha }}
 
       - name: Check bundle references the project base path
         run: |
@@ -57,6 +69,9 @@ jobs:
           grep -q 'src="/mauritius-compta/assets/' apps/web/dist/index.html
           grep -q 'MODE DÉMONSTRATION' apps/web/dist/assets/*.js
           grep -q 'Simulation IA' apps/web/dist/assets/*.js
+          # Mission 24 : version et commit visibles dans la démo
+          grep -q 'Version' apps/web/dist/assets/*.js
+          grep -q "${GITHUB_SHA:0:7}" apps/web/dist/assets/*.js
           # Mission 7 : assistant universel, paramètres société et TVA de démo
           grep -q 'Assistant IA' apps/web/dist/assets/*.js
           grep -q 'Paramètres société' apps/web/dist/assets/*.js
@@ -86,9 +101,28 @@ jobs:
           grep -q 'Immobilisations et amortissements' apps/web/dist/assets/*.js
           grep -q 'Pick-up utilitaire' apps/web/dist/assets/*.js
           grep -q 'Local en construction' apps/web/dist/assets/*.js
+          # Mission 23 : OCR, plan bilingue et import MCB dans la démo préenregistrée
+          grep -q 'Scan et import de documents' apps/web/dist/assets/*.js
+          grep -q 'Importer un relevé MCB' apps/web/dist/assets/*.js
+          grep -q 'ACME OFFICE SUPPLIES LTD' apps/web/dist/assets/*.js
+          grep -q 'PLH-2210' apps/web/dist/assets/*.js
+          # Mission 24 : mappings comptables et passerelle stock depuis la facturation
+          grep -q 'Mappings comptables' apps/web/dist/assets/*.js
+          grep -q 'Proposer les mouvements de stock' apps/web/dist/assets/*.js
           test -f apps/web/dist/404.html
 
+      - name: Scan the demo bundle for secrets
+        run: |
+          set -euo pipefail
+          # No provider key and no private key may ever reach the public demo.
+          if grep -RIlE 'sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY-----' apps/web/dist; then
+            echo "::error::A secret-like value was found in the demo bundle."
+            exit 1
+          fi
+          echo "OK: aucun secret détecté dans le bundle de démonstration"
+
       - uses: actions/upload-pages-artifact@v3
+        if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' }}
         with:
           path: apps/web/dist
 
@@ -96,9 +130,13 @@ jobs:
     name: Deploy to GitHub Pages
     needs: build
     runs-on: ubuntu-latest
-    # No `environment:` block: the repository's `github-pages` environment only
-    # allows protected branches, and this demo must deploy from the development
-    # branch without touching `main`. Permissions below are what deploy-pages needs.
+    if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    # Deployment is restricted to `main` above: a pull request or an Arena
+    # branch can never replace the public demo. Permissions below are what
+    # deploy-pages needs.
     permissions:
       pages: write
       id-token: write
@@ -183,6 +221,12 @@ jobs:
           # Le panneau est chargé à la demande (chunk séparé vérifié au build) ;
           # la pastille, elle, est dans le bundle principal.
           grep -q 'assistant-panel' /tmp/app.js
+          # Mission 24 : version/commit visibles, fonctionnalités 23 et mappings 24 publiés
+          grep -q 'Version' /tmp/app.js
+          grep -q 'Scan et import de documents' /tmp/app.js
+          grep -q 'Importer un relevé MCB' /tmp/app.js
+          grep -q 'Mappings comptables' /tmp/app.js
+          grep -q 'Proposer les mouvements de stock' /tmp/app.js
           FOUR04=$(curl -s -o /tmp/404.html -w '%{http_code}' "$BASE/404.html")
           echo "404.html: $FOUR04"
           DEEP=$(curl -s -o /tmp/deep.html -w '%{http_code}' "$BASE/entries")

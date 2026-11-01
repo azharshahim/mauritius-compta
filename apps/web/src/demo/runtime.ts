@@ -4769,7 +4769,9 @@ const DEMO_ASSISTANT_TOOLS = [
   { key: 'accounting.proposal.prepare', module: 'accounting', readOnly: true },
   { key: 'accounting.proposal.check', module: 'accounting', readOnly: true },
   { key: 'payroll.status', module: 'payroll', readOnly: true },
-];
+].map((tool) => tool.key === 'accounting.proposal.prepare'
+  ? { ...tool, mode: 'prepare', risk: 'medium', requiredAccess: 'write', humanValidation: true, audit: true, companyScoped: true }
+  : { ...tool, mode: 'read', risk: 'low', requiredAccess: 'read', humanValidation: false, audit: true, companyScoped: true });
 
 function demoTaxRateView(rate: DemoTaxRate) {
   return {
@@ -6598,7 +6600,15 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
       return {
         tools: DEMO_ASSISTANT_TOOLS,
         provider: null,
-        mode: 'deterministic-read-only',
+        mode: 'deterministic-supervised',
+        governance: {
+          executionEnabled: false,
+          availableModes: ['read', 'prepare'],
+          humanValidationRequired: true,
+          companyScoped: true,
+          auditTable: 'ai_tool_runs',
+          secretsInFrontend: false,
+        },
         demo: true,
         disclaimer: {
           fr: 'Réponses construites à partir des données fictives du dossier actif. Aucune écriture comptable n’est créée par l’assistant.',

@@ -445,6 +445,7 @@ données, **ni** secret, **ni** donnée réelle.
 | [`docs/migration-security.md`](docs/migration-security.md) | Permissions, isolation, limites anti-abus, injection CSV, audit |
 | [`docs/migration-user-guide.md`](docs/migration-user-guide.md) | Guide des six étapes et questions fréquentes |
 | [`docs/ai-universal-assistant.md`](docs/ai-universal-assistant.md) | Pastille IA, contexte serveur, orchestration, rétention |
+| [`docs/accounting-ai-agent-roadmap.md`](docs/accounting-ai-agent-roadmap.md) | Feuille de route de l'agent comptable, modes, risques, paie supervisée |
 | [`docs/ai-tool-permissions.md`](docs/ai-tool-permissions.md) | Matrice outil × module × permission, anti-injection |
 | [`docs/company-settings.md`](docs/company-settings.md) | Référentiel unique des paramètres société |
 | [`docs/vat-configuration.md`](docs/vat-configuration.md) | Traitements TVA, vérification humaine, historique |
@@ -505,6 +506,13 @@ des permissions et des tables séparées par module :
   prévisualisation, OCR natif (Tesseract local, sans service externe) et importeur MCB
   Savings Regular Account limité au jeu fictif initial. Aucun numéro de compte mauricien n’est
   présenté comme obligatoire. Voir [`docs/mission-23-report.md`](docs/mission-23-report.md).
+- **Mission 24** : audit et correction FR/EN (1 605 clés par langue, glossaire centralisé,
+  64 codes d'erreur traduits), édition des stocks et pont facture → mouvements de stock,
+  mappings comptables lisibles, navigation OCR → écritures et MCB → rapprochement,
+  gouvernance du catalogue d'outils IA et feuille de route de l'agent. Voir
+  [`docs/mission-24-report.md`](docs/mission-24-report.md) et
+  [`docs/accounting-ai-agent-roadmap.md`](docs/accounting-ai-agent-roadmap.md) et
+  [`docs/mission-24-demo-verification.md`](docs/mission-24-demo-verification.md).
 - Documentation : [`docs/suite-architecture.md`](docs/suite-architecture.md),
   [`docs/cabinet-module.md`](docs/cabinet-module.md),
   [`docs/module-integration.md`](docs/module-integration.md).
@@ -535,6 +543,11 @@ métier, capable d'utiliser plusieurs fournisseurs sans modifier le code de la s
   comptable réel** de la société, avec catégorie, justification, confiance et statut
   « À vérifier ». L'utilisateur accepte, corrige ou refuse ; une règle réutilisable peut
   être mémorisée. **Aucune écriture comptable n'est jamais créée par l'IA.**
+- **Gouvernance (mission 24)** : le catalogue expose le mode (`read`/`prepare`), le
+  risque, l'accès requis et la validation humaine ; l'exécution reste désactivée
+  (`executionEnabled: false`). Aucun appel LLM n'est utilisé par l'assistant pour choisir
+  un outil : le routeur est déterministe. Voir
+  [`docs/accounting-ai-agent-roadmap.md`](docs/accounting-ai-agent-roadmap.md).
 - **Documentation** : [`docs/ai-architecture.md`](docs/ai-architecture.md),
   [`docs/ai-providers.md`](docs/ai-providers.md),
   [`docs/ai-security.md`](docs/ai-security.md),

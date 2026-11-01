@@ -88,7 +88,7 @@ const L = {
     scan: 'Rechercher les écarts réalisés', noAdjustments: 'Aucun écart réalisé proposé ou comptabilisé.', calc: 'Calcul', invoiceFunctional: 'Valeur comptable facture', settlementFunctional: 'Valeur comptable règlement', difference: 'Écart', posted: 'Comptabilisé', proposed: 'Proposé', post: 'Comptabiliser', rejectAdj: 'Rejeter', postTitle: 'Comptabiliser l’écart de change', postHint: 'Une écriture unique sera créée dans le journal des opérations diverses, si les comptes de gain et de perte sont configurés. Aucun compte n’est inventé.', confirmPost: 'Je confirme le calcul et la justification de cet écart.', rationale: 'Justification', postDone: 'Écart comptabilisé.', adjRejected: 'Écart rejeté.',
     valuationDate: 'Date d’évaluation', simulate: 'Simuler l’évaluation', noValuations: 'Aucune évaluation simulée.', blockedReason: 'Blocage', blocked: 'ligne(s) bloquée(s)', validateValuation: 'Valider la simulation', postBlocked: 'Comptabilisation de la réévaluation bloquée : aucune politique comptable n’a été validée. Seule la simulation est disponible.', valuationValidated: 'Simulation validée (aucune écriture créée).', detail: 'Détail',
     transfers: 'Virement inter-devises', from: 'Compte source', to: 'Compte destination', fee: 'Frais bancaires (distincts, même devise que la source)', preview: 'Calculer et enregistrer la simulation', noTransfers: 'Aucun virement simulé.', transferBlocked: 'Comptabilisation du virement bloquée : un virement interne ne doit créer ni produit ni charge, et les frais doivent rester distincts de l’écart de change.', feeDistinct: 'Frais distincts', sameAccount: 'Choisissez deux comptes distincts.',
-    report: 'Rapports par devise', receivables: 'Créances clients', payables: 'Dettes fournisseurs', bank: 'Soldes bancaires', realized: 'Gains et pertes réalisés', blockedOps: 'Opérations bloquées (taux absent)', txn: 'Montant devise', func: 'Contre-valeur', docs: 'Documents', noRows: 'Aucune ligne.', csv: 'Télécharger le CSV', noTotal: 'Aucun total n’est additionné entre devises.', loadErr: 'Chargement impossible',
+    customer: 'Client', supplier: 'Fournisseur', gainShort: 'Gain', lossShort: 'Perte', type: 'Type', report: 'Rapports par devise', receivables: 'Créances clients', payables: 'Dettes fournisseurs', bank: 'Soldes bancaires', realized: 'Gains et pertes réalisés', blockedOps: 'Opérations bloquées (taux absent)', txn: 'Montant devise', func: 'Contre-valeur', docs: 'Documents', noRows: 'Aucune ligne.', csv: 'Télécharger le CSV', noTotal: 'Aucun total n’est additionné entre devises.', loadErr: 'Chargement impossible',
   },
   en: {
     title: 'Multi-currency', intro: 'Foreign-currency invoices, human-validated rates, proposed realized differences and simulated latent revaluations. No official rate is assumed and no FX entry is created automatically.',
@@ -102,7 +102,7 @@ const L = {
     scan: 'Find realized differences', noAdjustments: 'No proposed or posted realized difference.', calc: 'Calculation', invoiceFunctional: 'Invoice carrying value', settlementFunctional: 'Settlement carrying value', difference: 'Difference', posted: 'Posted', proposed: 'Proposed', post: 'Post', rejectAdj: 'Reject', postTitle: 'Post the exchange difference', postHint: 'A single entry will be created in the miscellaneous journal when both FX accounts are configured. No account is invented.', confirmPost: 'I confirm the calculation and rationale of this difference.', rationale: 'Rationale', postDone: 'Difference posted.', adjRejected: 'Difference rejected.',
     valuationDate: 'Valuation date', simulate: 'Simulate valuation', noValuations: 'No simulated valuation.', blockedReason: 'Blocked', blocked: 'blocked line(s)', validateValuation: 'Validate simulation', postBlocked: 'Revaluation posting is blocked: no accounting policy has been validated. Only simulation is available.', valuationValidated: 'Simulation validated (no entry created).', detail: 'Detail',
     transfers: 'Cross-currency transfer', from: 'Source account', to: 'Destination account', fee: 'Bank fee (distinct, in the source currency)', preview: 'Compute and save simulation', noTransfers: 'No simulated transfer.', transferBlocked: 'Transfer posting is blocked: an internal transfer must create neither income nor expense, and fees must stay distinct from the exchange difference.', feeDistinct: 'Distinct fee', sameAccount: 'Choose two distinct accounts.',
-    report: 'Reports by currency', receivables: 'Customer receivables', payables: 'Supplier payables', bank: 'Bank balances', realized: 'Realized gains and losses', blockedOps: 'Blocked operations (missing rate)', txn: 'Currency amount', func: 'Functional value', docs: 'Documents', noRows: 'No line.', csv: 'Download CSV', noTotal: 'No total is added across currencies.', loadErr: 'Unable to load',
+    customer: 'Customer', supplier: 'Supplier', gainShort: 'Gain', lossShort: 'Loss', type: 'Type', report: 'Reports by currency', receivables: 'Customer receivables', payables: 'Supplier payables', bank: 'Bank balances', realized: 'Realized gains and losses', blockedOps: 'Blocked operations (missing rate)', txn: 'Currency amount', func: 'Functional value', docs: 'Documents', noRows: 'No line.', csv: 'Download CSV', noTotal: 'No total is added across currencies.', loadErr: 'Unable to load',
   },
 } as const;
 
@@ -110,7 +110,7 @@ const badge = (status: string): 'success' | 'warning' | 'danger' | 'neutral' =>
   status === 'validated' || status === 'posted' ? 'success' : status === 'rejected' ? 'danger' : status === 'draft' || status === 'proposed' || status === 'simulated' ? 'warning' : 'neutral';
 
 export function MultiCurrencyPage() {
-  const { locale } = useI18n();
+  const { t, locale } = useI18n();
   const tr = L[locale];
   const { company } = useSession();
   const companyId = company?.id ?? '';
@@ -533,13 +533,13 @@ export function MultiCurrencyPage() {
                   {Object.entries(valuation.totalsByCurrency).map(([code, total]) => (
                     <div className="lettering-currency" key={code}>
                       <strong>{code}</strong>
-                      <span>Gain {display(total.gain)} · Perte {display(total.loss)}</span>
+                      <span>{tr.gainShort} {display(total.gain)} · {tr.lossShort} {display(total.loss)}</span>
                       {total.blocked > 0 && <Badge kind="warning">{total.blocked} {tr.blocked}</Badge>}
                     </div>
                   ))}
                 </div>
               )}
-              <div className="table-wrap"><table className="table"><thead><tr><th>Type</th><th>{tr.txn}</th><th>{tr.func}</th><th>{tr.difference}</th><th>{tr.blockedReason}</th></tr></thead>
+              <div className="table-wrap"><table className="table"><thead><tr><th>{tr.type}</th><th>{tr.txn}</th><th>{tr.func}</th><th>{tr.difference}</th><th>{tr.blockedReason}</th></tr></thead>
                 <tbody>{(valuation.lines ?? []).map((line) => (
                   <tr key={line.id}><td>{line.source_type} · {line.document_no ?? '—'} · {line.currency}</td>
                     <td>{display(line.revalued_functional)}</td><td>{line.direction ?? '—'}</td>
@@ -641,7 +641,7 @@ export function MultiCurrencyPage() {
             <p><strong>{rateToValidate.base_currency}/{rateToValidate.quote_currency}</strong> · {rateToValidate.rate_date} · {rateToValidate.rate}</p>
             <p className="small">{rateToValidate.source_kind} · {rateToValidate.source}{rateToValidate.reference ? ` · ${rateToValidate.reference}` : ''}</p>
             <label className="checkbox"><input type="checkbox" checked={rateReviewed} onChange={(e) => setRateReviewed(e.target.checked)} /><span>{tr.confirmValidate}</span></label>
-            <div className="form-row"><Button variant="primary" onClick={doValidateRate} disabled={!rateReviewed || busy}>{tr.validate}</Button><Button variant="ghost" onClick={() => setRateToValidate(null)}>Annuler / Cancel</Button></div>
+            <div className="form-row"><Button variant="primary" onClick={doValidateRate} disabled={!rateReviewed || busy}>{tr.validate}</Button><Button variant="ghost" onClick={() => setRateToValidate(null)}>{t('common.cancel')}</Button></div>
           </div>
         )}
       </Modal>
@@ -649,21 +649,21 @@ export function MultiCurrencyPage() {
       <Modal open={Boolean(rateToReject)} title={tr.reject} onClose={() => setRateToReject(null)}>
         <div className="stack">
           <Field label={tr.rejectReason}><textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} rows={3} /></Field>
-          <div className="form-row"><Button variant="danger" onClick={doRejectRate} disabled={!rejectReason.trim() || busy}>{tr.confirmReject}</Button><Button variant="ghost" onClick={() => setRateToReject(null)}>Annuler / Cancel</Button></div>
+          <div className="form-row"><Button variant="danger" onClick={doRejectRate} disabled={!rejectReason.trim() || busy}>{tr.confirmReject}</Button><Button variant="ghost" onClick={() => setRateToReject(null)}>{t('common.cancel')}</Button></div>
         </div>
       </Modal>
 
       <Modal open={Boolean(adjustmentToPost)} title={tr.postTitle} onClose={() => setAdjustmentToPost(null)} wide>
         {adjustmentToPost && (
           <div className="stack">
-            <p>{adjustmentToPost.side === 'customer' ? 'Client' : 'Fournisseur'} · {adjustmentToPost.partner_name} · {adjustmentToPost.invoice_no} / {adjustmentToPost.payment_no}</p>
+            <p>{adjustmentToPost.side === 'customer' ? tr.customer : tr.supplier} · {adjustmentToPost.partner_name} · {adjustmentToPost.invoice_no} / {adjustmentToPost.payment_no}</p>
             <p><strong>{adjustmentToPost.direction === 'gain' ? '+' : '−'}{display(adjustmentToPost.difference)} {config?.functionalCurrency}</strong></p>
             <p className="small">{adjustmentToPost.settled_txn_amount} {adjustmentToPost.currency} × ({adjustmentToPost.settlement_rate} − {adjustmentToPost.invoice_rate})</p>
             <p className="small">{tr.invoiceFunctional} {display(adjustmentToPost.invoice_functional)} · {tr.settlementFunctional} {display(adjustmentToPost.settlement_functional)}</p>
             <p className="muted small">{tr.postHint}</p>
             <Field label={tr.rationale}><textarea value={adjustmentRationale} onChange={(e) => setAdjustmentRationale(e.target.value)} rows={3} /></Field>
             <label className="checkbox"><input type="checkbox" checked={adjustmentReviewed} onChange={(e) => setAdjustmentReviewed(e.target.checked)} /><span>{tr.confirmPost}</span></label>
-            <div className="form-row"><Button variant="primary" onClick={doPostAdjustment} disabled={!adjustmentReviewed || busy}>{tr.post}</Button><Button variant="ghost" onClick={() => setAdjustmentToPost(null)}>Annuler / Cancel</Button></div>
+            <div className="form-row"><Button variant="primary" onClick={doPostAdjustment} disabled={!adjustmentReviewed || busy}>{tr.post}</Button><Button variant="ghost" onClick={() => setAdjustmentToPost(null)}>{t('common.cancel')}</Button></div>
           </div>
         )}
       </Modal>

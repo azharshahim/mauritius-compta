@@ -553,7 +553,7 @@ function EmployeeModal({ companyId, onClose, onDone }: { companyId: string; onCl
         <Field label={t('payroll.job')}><input value={form.jobTitle} onChange={(e) => set('jobTitle', e.target.value)} /></Field>
         <Field label={t('payroll.location')}><input value={form.workLocation} onChange={(e) => set('workLocation', e.target.value)} /></Field>
         <Field label={t('payroll.costCentre')}><input value={form.costCentre} onChange={(e) => set('costCentre', e.target.value)} /></Field>
-        <Field label={t('payroll.payment')}><select value={form.paymentMethod} onChange={(e) => set('paymentMethod', e.target.value)}><option value="bank_transfer">bank_transfer</option><option value="cheque">cheque</option><option value="cash">cash</option></select></Field>
+        <Field label={t('payroll.payment')}><select value={form.paymentMethod} onChange={(e) => set('paymentMethod', e.target.value)}><option value="bank_transfer">{t('payroll.option.payment.bank_transfer')}</option><option value="cheque">{t('payroll.option.payment.cheque')}</option><option value="cash">{t('payroll.option.payment.cash')}</option></select></Field>
         <Field label={t('payroll.bankName')}><input value={form.bankName} onChange={(e) => set('bankName', e.target.value)} /></Field>
         <Field label={t('payroll.bankNumber')} hint={t('payroll.bankHint')}><input value={form.bankAccountNumber} onChange={(e) => set('bankAccountNumber', e.target.value)} /></Field>
         <Field label={t('payroll.statutoryId')}><input value={form.statutoryId} onChange={(e) => set('statutoryId', e.target.value)} /></Field>
@@ -585,12 +585,12 @@ function ContractModal({ companyId, employees, onClose, onDone }: { companyId: s
       <p className="alert alert-info">{t('payroll.contracts.history')}</p>
       <div className="form-grid">
         <Field label={`${t('payroll.employee')} *`}><select value={form.employeeId} onChange={(e) => set('employeeId', e.target.value)}>{employees.map((e) => <option key={e.id} value={e.id}>{e.employee_number} — {e.full_name}</option>)}</select></Field>
-        <Field label={t('payroll.contract.type')}><select value={form.contractType} onChange={(e) => set('contractType', e.target.value)}><option value="permanent">permanent</option><option value="fixed_term">fixed_term</option></select></Field>
-        <Field label={t('payroll.contract.pattern')}><select value={form.workPattern} onChange={(e) => set('workPattern', e.target.value)}><option value="full_time">full_time</option><option value="part_time">part_time</option></select></Field>
+        <Field label={t('payroll.contract.type')}><select value={form.contractType} onChange={(e) => set('contractType', e.target.value)}><option value="permanent">{t('payroll.option.contract.permanent')}</option><option value="fixed_term">{t('payroll.option.contract.fixed_term')}</option></select></Field>
+        <Field label={t('payroll.contract.pattern')}><select value={form.workPattern} onChange={(e) => set('workPattern', e.target.value)}><option value="full_time">{t('payroll.option.pattern.full_time')}</option><option value="part_time">{t('payroll.option.pattern.part_time')}</option></select></Field>
         <Field label={`${t('common.from')} *`}><input type="date" value={form.effectiveFrom} onChange={(e) => set('effectiveFrom', e.target.value)} /></Field>
         <Field label={t('common.to')}><input type="date" value={form.effectiveTo} onChange={(e) => set('effectiveTo', e.target.value)} /></Field>
         <Field label={`${t('payroll.col.salary')} *`}><input inputMode="decimal" value={form.baseSalary} onChange={(e) => set('baseSalary', e.target.value)} /></Field>
-        <Field label={t('payroll.contract.salaryPeriod')}><select value={form.salaryPeriod} onChange={(e) => set('salaryPeriod', e.target.value)}><option value="monthly">monthly</option><option value="hourly">hourly</option><option value="daily">daily</option></select></Field>
+        <Field label={t('payroll.contract.salaryPeriod')}><select value={form.salaryPeriod} onChange={(e) => set('salaryPeriod', e.target.value)}><option value="monthly">{t('payroll.option.period.monthly')}</option><option value="hourly">{t('payroll.option.period.hourly')}</option><option value="daily">{t('payroll.option.period.daily')}</option></select></Field>
         <Field label={t('common.currency')}><input value={form.currency} onChange={(e) => set('currency', e.target.value.toUpperCase())} /></Field>
         <Field label={t('payroll.weeklyHours')}><input inputMode="decimal" value={form.weeklyHours} onChange={(e) => set('weeklyHours', e.target.value)} /></Field>
       </div>
@@ -701,7 +701,7 @@ function VariableModal({ companyId, employees, payItems, periods, onClose, onDon
         <Field label={t('payroll.employee')}><select value={form.employeeId} onChange={(e) => set('employeeId', e.target.value)}>{employees.map((e) => <option key={e.id} value={e.id}>{e.employee_number} — {e.full_name}</option>)}</select></Field>
         <Field label={t('payroll.col.item')}><select value={form.payItemId} onChange={(e) => set('payItemId', e.target.value)}>{payItems.map((i) => <option key={i.id} value={i.id}>{i.code} — {i.category}</option>)}</select></Field>
         <Field label={t('common.amount')}><input inputMode="decimal" value={form.amount} onChange={(e) => set('amount', e.target.value)} /></Field>
-        <Field label={t('common.status')}><select value={form.status} onChange={(e) => set('status', e.target.value)}><option value="draft">draft</option><option value="validated">validated</option></select></Field>
+        <Field label={t('common.status')}><select value={form.status} onChange={(e) => set('status', e.target.value)}><option value="draft">{t('payroll.option.status.draft')}</option><option value="validated">{t('payroll.option.status.validated')}</option></select></Field>
       </div>
       <Field label={t('payroll.notes')}><input value={form.note} onChange={(e) => set('note', e.target.value)} /></Field>
       <div className="modal-actions"><Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button><Button variant="primary" onClick={() => {

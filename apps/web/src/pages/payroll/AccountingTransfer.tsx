@@ -24,7 +24,7 @@ const COPY = {
     refresh: 'Actualiser', lines: 'Lignes débit / crédit', line: 'Ligne', category: 'Rubrique',
     accountCol: 'Compte', description: 'Description', debit: 'Débit', credit: 'Crédit',
     totals: 'Totaux de contrôle', difference: 'Écart', balanced: 'Équilibrée',
-    checks: 'Contrôles et anomalies', severity: 'Gravité', detail: 'Détail',
+    checks: 'Contrôles et anomalies', severity: 'Gravité', code: 'Code', detail: 'Détail',
     blocking: 'bloquant', warning: 'avertissement', ok: 'conforme',
     missingMapping: 'Aucune correspondance validée. Générez d’abord les correspondances.',
     noPeriod: 'Aucune période de paie disponible.', noPreview: 'Aucune prévisualisation.',
@@ -63,7 +63,7 @@ const COPY = {
     refresh: 'Refresh', lines: 'Debit / credit lines', line: 'Line', category: 'Category',
     accountCol: 'Account', description: 'Description', debit: 'Debit', credit: 'Credit',
     totals: 'Control totals', difference: 'Difference', balanced: 'Balanced',
-    checks: 'Controls and exceptions', severity: 'Severity', detail: 'Detail',
+    checks: 'Controls and exceptions', severity: 'Severity', code: 'Code', detail: 'Detail',
     blocking: 'blocking', warning: 'warning', ok: 'ok',
     missingMapping: 'No validated mapping. Validate mappings first.',
     noPeriod: 'No payroll period available.', noPreview: 'No preview.',
@@ -116,7 +116,7 @@ export default function AccountingTransferPanel({
   selectedPeriod: Any | null;
   onSelectPeriod: (id: string) => void;
 }) {
-  const { locale } = useI18n();
+  const { t, locale } = useI18n();
   const c = COPY[locale];
   const [config, setConfig] = useState<Any | null>(null);
   const [preview, setPreview] = useState<Any | null>(null);
@@ -348,7 +348,7 @@ export default function AccountingTransferPanel({
             <Card title={c.checks}>
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>{c.severity}</th><th>Code</th><th>{c.detail}</th></tr></thead>
+                  <thead><tr><th>{c.severity}</th><th>{c.code}</th><th>{c.detail}</th></tr></thead>
                   <tbody>
                     {[...(preview.checks ?? [])].map((check: Any) => (
                       <tr key={`${check.code}-${check.scope}`}>
@@ -506,7 +506,7 @@ export default function AccountingTransferPanel({
         })}
         <Field label={c.note}>
           <input value={form.note ?? ''} maxLength={500} onChange={(e) => setForm({ ...form, note: e.target.value })}
-            placeholder="Référence de vérification interne" />
+            placeholder={t('payroll.verificationRef')} />
         </Field>
         <label className="check"><input type="checkbox" checked={form.confirm === true}
           onChange={(e) => setForm({ ...form, confirm: e.target.checked })} /> {c.confirmMapping}</label>
