@@ -154,7 +154,8 @@ Contrats conservés et revérifiés :
 ## 11. Livraison
 
 - Branche : `arena/e1f93b22-mauritius-compta`, synchronisée avec `main` (`0a365d2`) avant travaux.
-- PR : **brouillon**, ouverte depuis cette branche ; lien et numéro consignés dans la conversation et dans la PR.
+- PR : **brouillon nº21** — https://github.com/azharshahim/mauritius-compta/pull/21
+- Commit de référence (code + rapports) : `315a2e9`.
 - Aucune fusion, aucune publication GitHub Pages, aucun déploiement OVH.
 - En attente de la vérification par ChatGPT et de l’autorisation explicite de l’utilisateur.
 
