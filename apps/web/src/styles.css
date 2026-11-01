@@ -68,8 +68,8 @@ a:hover { text-decoration: underline; }
 .brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px 18px; }
 .brand-mark {
   width: 34px; height: 34px; border-radius: 9px;
-  background: linear-gradient(135deg, #2f80ed, #0f9d8a);
-  display: grid; place-items: center; font-weight: 800; color: #fff;
+  display: block; flex: 0 0 auto; object-fit: contain;
+  box-shadow: 0 2px 8px rgba(4, 18, 35, 0.18);
 }
 .brand-name { font-weight: 700; font-size: 0.98rem; line-height: 1.15; }
 .brand-tag { font-size: 0.7rem; color: #a8bed6; }
@@ -106,6 +106,14 @@ a:hover { text-decoration: underline; }
   border-left: 1px solid rgba(255, 255, 255, 0.14);
 }
 .nav-group.active-group .nav-group-items { border-left-color: rgba(89, 166, 255, 0.65); }
+.sidebar-brand {
+  display: flex; align-items: center; gap: 10px; padding: 2px 10px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 8px;
+}
+.sidebar-close { margin-left: auto; color: #dbe8f5; }
+body.nav-open { overflow: hidden; }
+.sidebar-brand .brand-name { color: #fff; font-size: 1rem; }
+.sidebar-brand .brand-tag { color: #a8bed6; }
 .sidebar-foot { font-size: 0.68rem; color: #93aac2; padding: 10px 10px 0; border-top: 1px solid rgba(255,255,255,0.1); }
 
 .main { grid-area: main; min-width: 0; display: flex; flex-direction: column; }
@@ -510,11 +518,19 @@ tr.total-row td { font-weight: 700; background: #f2f6fb; border-top: 2px solid v
   .auth-hero { display: none; }
   .sidebar {
     position: fixed; inset: 0 auto 0 0; z-index: 50; transform: translateX(-100%);
-    transition: transform 0.22s ease; width: min(300px, 88vw); max-width: 88vw;
-    height: 100dvh; padding-bottom: calc(12px + env(safe-area-inset-bottom));
-    box-shadow: 12px 0 30px rgba(11, 37, 69, 0.25);
+    transition: transform 0.22s ease; width: min(320px, 92vw); max-width: 92vw;
+    height: 100vh; height: 100dvh; max-height: 100dvh;
+    padding: max(14px, env(safe-area-inset-top)) 10px max(12px, env(safe-area-inset-bottom));
+    overflow: hidden; box-shadow: 12px 0 30px rgba(11, 37, 69, 0.25);
+    touch-action: pan-y; -webkit-tap-highlight-color: transparent;
+    visibility: hidden;
+    transition: transform 0.22s ease, visibility 0.22s ease;
   }
-  .sidebar.open { transform: translateX(0); }
+  .sidebar.open { transform: translateX(0); visibility: visible; }
+  .sidebar .nav { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; }
+  .sidebar-brand, .sidebar-foot { flex: 0 0 auto; }
+  .drawer-backdrop { z-index: 45; }
+  .sidebar-close { display: inline-flex; }
   .mobile-only { display: inline-flex; }
   /* Comfortable touch targets on Android phones. */
   .btn, .nav a, .nav-group-toggle, .topbar select, .icon-btn { min-height: 44px; }
@@ -527,7 +543,7 @@ tr.total-row td { font-weight: 700; background: #f2f6fb; border-top: 2px solid v
      shifts the layout while the on-screen keyboard is open. */
   input, select, textarea { font-size: 16px; }
   .page { padding: 14px; }
-  .topbar { padding: 8px 12px; gap: 8px; }
+  .topbar { padding: max(8px, env(safe-area-inset-top)) 12px 8px; gap: 8px; }
   .topbar select { max-width: 150px; }
   .entry-line { grid-template-columns: 1fr 1fr; }
   .entry-line > :nth-child(1) { grid-column: span 2; }
@@ -641,7 +657,7 @@ tr.total-row td { font-weight: 700; background: #f2f6fb; border-top: 2px solid v
       'topbar'
       'main';
   }
-  .sidebar { grid-area: unset; width: min(300px, 88vw); }
+  .sidebar { grid-area: unset; width: min(320px, 92vw); }
   .brand-inline .brand-tag { display: none; }
   .company-select { max-width: 140px; }
   .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1484,7 +1500,7 @@ table { font-size: 0.865rem; }
 .sidebar {
   background: linear-gradient(180deg, var(--navy) 0%, var(--navy-2) 100%);
   box-shadow: inset -1px 0 rgba(255, 255, 255, 0.06);
-  padding-top: 20px;
+  padding-top: max(20px, env(safe-area-inset-top));
 }
 .nav a, .nav-group-toggle { transition: background 0.16s ease, color 0.16s ease; }
 .nav a { border-radius: 10px; }
@@ -1698,4 +1714,11 @@ table { font-size: 0.865rem; }
   .doc-review-grid { grid-template-columns: minmax(0, 1fr); }
   .doc-review-grid .doc-view iframe { height: 360px; }
   .doc-review-grid .doc-view img { max-height: 360px; }
+}
+
+/* Final mobile overrides — must come after the desktop theme blocks above. */
+@media (max-width: 900px) {
+  .topbar { padding: max(9px, env(safe-area-inset-top)) 12px 9px; }
+  .sidebar { padding-top: max(14px, env(safe-area-inset-top)); }
+  .drawer-backdrop { z-index: 45; }
 }

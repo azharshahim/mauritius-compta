@@ -9,6 +9,8 @@ export default defineConfig({
   plugins: [react()],
   define: {
     'import.meta.env.VITE_DEMO_MODE': JSON.stringify('true'),
+    __DEMO_EMAIL__: JSON.stringify('demo@mauritius-compta.test'),
+    __DEMO_PASSWORD__: JSON.stringify('DemoPassw0rd2026'),
   },
   test: {
     include: ['tests/**/*.test.{ts,tsx}'],

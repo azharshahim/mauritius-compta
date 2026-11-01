@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<browserconfig>
+  <!-- COMPTAI — Windows tile resources (provisional brand). -->
+  <msapplication>
+    <tile>
+      <square150x150logo src="icons/mstile-150.png"/>
+      <TileColor>#0b2545</TileColor>
+    </tile>
+  </msapplication>
+</browserconfig>

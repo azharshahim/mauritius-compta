@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../api';
-import { demoEnabled } from '../../demo';
+import { demoEnabled } from '../../demo/mode';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
 import { amountInputValue, date, money, normalizeDecimalInput, today } from '../../format';

@@ -1,11 +1,11 @@
 /**
- * Demo switch.
+ * Demo entry point used by tests and by the opt-in demo build.
  *
- * `VITE_DEMO_MODE=true` is set only by the GitHub Pages workflow. The production
- * build served by the Fastify API keeps `false` and talks to the real backend.
+ * Runtime screens import `demoEnabled` from `./mode`; the real application calls
+ * `./runtime` only through explicit dynamic imports, so fictional data cannot
+ * become a fallback when the API is unreachable.
  */
-export const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true';
-
+export { demoEnabled, appMode } from './mode';
 export {
   DEMO_EMAIL,
   DEMO_PASSWORD,

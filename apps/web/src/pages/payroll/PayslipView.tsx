@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, downloadExport } from '../../api';
-import { demoEnabled } from '../../demo';
+import { demoEnabled } from '../../demo/mode';
 import { moneyExact, toScaled4 } from '../../format';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';

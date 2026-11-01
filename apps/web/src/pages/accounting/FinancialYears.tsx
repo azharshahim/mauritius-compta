@@ -5,7 +5,7 @@ import { useSession } from '../../store';
 import { useAsync } from '../../hooks';
 import { Badge, Button, Card, DemoNotice, EmptyState, ErrorBanner, Field, Modal, Spinner } from '../../components/ui';
 import { money, today } from '../../format';
-import { demoEnabled } from '../../demo';
+import { demoEnabled } from '../../demo/mode';
 
 interface Account { id: string; code: string; name: string; type: string; is_active: boolean }
 interface Journal { id: string; code: string; name: string; is_active: boolean }

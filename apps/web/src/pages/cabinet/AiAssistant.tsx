@@ -3,7 +3,7 @@ import { api } from '../../api';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
 import { Badge, Button, Card, EmptyState, ErrorBanner, Field, Spinner } from '../../components/ui';
-import { demoEnabled } from '../../demo';
+import { demoEnabled } from '../../demo/mode';
 
 interface Account {
   id: string;

@@ -25,6 +25,10 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(version),
     __BUILD_COMMIT__: JSON.stringify(buildCommit),
     __BUILD_DATE__: JSON.stringify(buildDate),
+    // Fictional demo credentials are injected only into the opt-in demo build.
+    // The real bundle receives empty strings, so no credential is embedded.
+    __DEMO_EMAIL__: JSON.stringify(demoMode ? 'demo@mauritius-compta.test' : ''),
+    __DEMO_PASSWORD__: JSON.stringify(demoMode ? 'DemoPassw0rd2026' : ''),
   },
   server: {
     host: '0.0.0.0',

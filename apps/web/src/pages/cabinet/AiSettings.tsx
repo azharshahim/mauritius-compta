@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../../api';
 import { useI18n } from '../../i18n';
 import { Badge, Button, Card, ErrorBanner, Field, Modal, Spinner } from '../../components/ui';
-import { demoEnabled } from '../../demo';
+import { demoEnabled } from '../../demo/mode';
 
 interface ProviderView {
   key: string;

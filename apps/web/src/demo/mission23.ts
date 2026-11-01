@@ -18,6 +18,16 @@ export interface DemoDocument {
   due_date: string | null; currency: string | null; subtotal: string | null;
   vat_total: string | null; total_amount: string | null; duplicate_of: string | null;
   document_type?: 'invoice' | 'credit_note' | 'unknown';
+  discount_total?: string | null;
+  tax_ids?: {
+    supplierBrn?: string | null; supplierVat?: string | null;
+    customerBrn?: string | null; customerVat?: string | null;
+  };
+  purchase_order?: string | null;
+  payment_terms?: string | null;
+  field_confidence?: Record<string, number>;
+  uncertain_fields?: string[];
+  extraction_quality?: Record<string, unknown>;
   created_at: string; approved_at?: string | null;
 }
 export interface DemoDocumentLine {
@@ -182,6 +192,53 @@ const FIXTURE_DOCS: Omit<DemoDocument, 'company_id' | 'id' | 'created_at'>[] = [
   },
 ];
 
+const DEMO_TAX_IDS = {
+  supplierBrn: 'C12345678901',
+  supplierVat: 'VAT20345678',
+  customerBrn: 'C98765432109',
+  customerVat: 'VAT20987654',
+};
+
+/**
+ * Mission 29/30 — add the verification fields expected by the current screens.
+ * Idempotent so an existing browser demo state can be upgraded in place without
+ * changing its accounting data.
+ */
+function withVerificationFields(doc: DemoDocument, index: number): DemoDocument {
+  const confidence = Number(doc.confidence ?? 0);
+  const lowConfidence = confidence > 0 && confidence < 0.8;
+  return {
+    ...doc,
+    document_type: doc.document_type ?? 'invoice',
+    discount_total: doc.discount_total ?? null,
+    tax_ids: doc.tax_ids ?? (index === 0 || index === 5 ? DEMO_TAX_IDS : {}),
+    purchase_order: doc.purchase_order ?? (index === 0 ? 'PO-7788' : null),
+    payment_terms: doc.payment_terms ?? (index === 0 ? 'Net 30 days' : null),
+    field_confidence: doc.field_confidence ?? {
+      supplierName: confidence || 0.9,
+      invoiceNumber: lowConfidence ? 0.58 : 0.92,
+      invoiceDate: lowConfidence ? 0.62 : 0.9,
+      currency: confidence || 0.9,
+      total: confidence || 0.9,
+      vatTotal: confidence || 0.9,
+    },
+    uncertain_fields: doc.uncertain_fields
+      ?? (lowConfidence ? ['invoiceNumber', 'invoiceDate'] : []),
+    extraction_quality: doc.extraction_quality ?? {
+      method: doc.extraction_method,
+      confidence: Number(confidence.toFixed(4)),
+      pageCount: doc.page_count,
+      demoFixture: true,
+      warnings: doc.warnings,
+    },
+  };
+}
+
+export function upgradeDemoMission23(state: DemoState): void {
+  if (!state.mission23) return;
+  state.mission23.documents = state.mission23.documents.map(withVerificationFields);
+}
+
 export function seedDemoMission23(state: DemoState): void {
   for (const account of state.accounts as (DemoAccount & {
     name_en?: string | null; name_fr?: string | null; posting_allowed?: boolean;
@@ -202,16 +259,16 @@ export function seedDemoMission23(state: DemoState): void {
       last_used_at: mapping.last_used_at ?? NOW,
       is_active: mapping.is_active ?? true,
     }));
+    upgradeDemoMission23(state);
     return;
   }
   const company = state.companies[0];
   const other = state.companies[1];
   if (!company) return;
-  const documents: DemoDocument[] = FIXTURE_DOCS.map((doc, index) => ({
+  const documents: DemoDocument[] = FIXTURE_DOCS.map((doc, index) => withVerificationFields({
     ...doc, id: `demo-doc-${index + 1}`, company_id: company.id, created_at: NOW,
-    document_type: 'invoice',
     duplicate_of: index === 5 ? 'demo-doc-1' : null,
-  }));
+  }, index));
   const account = (code: string) => state.accounts.find((a) => a.company_id === company.id && a.code === code);
   const journal = (type: string) => state.journals.find((j) => j.company_id === company.id && j.type === type);
   const line = (code: string, description: string, debit: string, credit: string): DemoProposalLine => {
@@ -387,9 +444,11 @@ function mcbPreview(s: DemoState, companyId: string, payload: Record<string, any
       profile: 'MCB Savings Regular Account — fictional demonstration extract',
       compatibilityNote: 'Demonstration fixture only. Compatibility with real MCB statements is not asserted.',
       bankName: 'Mauritius Commercial Bank (fictif)',
+      // Fictional MCB account used by the demo only (never a real customer account).
       accountNumber: '000123456789',
       periodStart: '2026-01-01', periodEnd: '2026-01-31', currency: account.currency,
       profileKey: 'mcb',
+      detectedBankKey: 'mcb',
     },
     extraction: { method: 'pdf_text', pageCount: 2,
       warnings: ['MODE DÉMONSTRATION : extraction préenregistrée, aucun OCR réel exécuté.'] },
@@ -532,8 +591,23 @@ export function handleDemoMission23(
     if (suffix === '' && method === 'GET') return docView(state, s, doc);
     if (suffix === '/file' && method === 'GET') throw new ApiError(404, 'DEMO_FILE_UNAVAILABLE', 'Fichier non stocké dans la démonstration');
     if (suffix === '' && method === 'PATCH') {
-      for (const key of ["party_name", "invoice_number", "invoice_date", "due_date", "currency", "subtotal", "vat_total", "total_amount"] as const) {
+      for (const key of ["party_name", "invoice_number", "invoice_date", "due_date", "currency", "subtotal", "vat_total", "total_amount", "document_type", "discount_total", "purchase_order", "payment_terms"] as const) {
         if (payload[key] !== undefined) (doc as any)[key] = payload[key] || null;
+      }
+      if (payload.tax_ids && typeof payload.tax_ids === 'object') {
+        doc.tax_ids = { ...(doc.tax_ids ?? {}), ...payload.tax_ids };
+      }
+      // A human correction removes the field from the uncertainty list.
+      if (Array.isArray(doc.uncertain_fields)) {
+        const corrected = Object.keys(payload).map((key) =>
+          key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()));
+        doc.uncertain_fields = doc.uncertain_fields.filter((field) => !corrected.some((key) =>
+          key === field || (key === 'partyName' && field === 'supplierName') ||
+          (key === 'vat_total' && field === 'vatTotal') ||
+          (key === 'total_amount' && field === 'total') ||
+          (key === 'discount_total' && field === 'discountTotal') ||
+          (key === 'document_type' && field === 'documentType') ||
+          (key === 'purchase_order' && field === 'purchaseOrder')));
       }
       return { document: doc };
     }

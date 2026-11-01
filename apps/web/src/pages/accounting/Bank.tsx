@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../../api';
-import { demoEnabled } from '../../demo';
+import { demoEnabled } from '../../demo/mode';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
 import { ACCOUNTING_UPLOAD_ACCEPT, validateAccountingUpload } from '../../lib/upload';

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../../api';
-import { demoEnabled } from '../../demo';
+import { demoEnabled } from '../../demo/mode';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
 import { useAsync } from '../../hooks';

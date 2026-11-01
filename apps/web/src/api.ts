@@ -1,4 +1,4 @@
-import { demoCsv, demoEnabled, demoRequest } from './demo';
+import { demoEnabled } from './demo/mode';
 import { ApiError } from './errors';
 
 export { ApiError };
@@ -21,6 +21,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     if (body instanceof FormData) {
       throw new ApiError(501, 'DEMO_UNSUPPORTED', 'Upload indisponible en démonstration');
     }
+    const { demoRequest } = await import('./demo/runtime');
     return demoRequest<T>(method as 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE', path, body);
   }
 
@@ -75,6 +76,7 @@ export async function downloadExport(path: string, filename: string, format: 'cs
     // The browser demo can compute CSV exactly. A real PDF is produced by the
     // server (PDFKit), so in demo mode the button opens the print dialog and the
     // user can "Save as PDF" — this fact is stated in the demo banner.
+    const { demoCsv } = await import('./demo/runtime');
     const { text, mode } = demoCsv(path, format);
     if (mode === 'print' || !text) {
       window.print();

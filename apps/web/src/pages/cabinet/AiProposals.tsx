@@ -4,7 +4,7 @@ import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
 import { Badge, Button, Card, EmptyState, ErrorBanner, Field, Spinner } from '../../components/ui';
 import { money, scaled4ToString, toScaled4 } from '../../format';
-import { demoEnabled } from '../../demo';
+import { demoEnabled } from '../../demo/mode';
 
 interface Account {
   id: string;

@@ -33,7 +33,13 @@ import {
   type DemoMigrationTemplate,
 } from './migration';
 import { handleDemoBank, seedDemoBank } from './bank';
-import { handleDemoMission23, seedDemoMission23, type DemoMission23State } from './mission23';
+import { DEMO_EMAIL, DEMO_PASSWORD } from './mode';
+import {
+  handleDemoMission23,
+  seedDemoMission23,
+  upgradeDemoMission23,
+  type DemoMission23State,
+} from './mission23';
 import { handleDemoPurchases, seedDemoPurchases } from './purchases';
 import { handleDemoLettering, seedDemoLettering } from './lettering';
 import { handleDemoFx, seedDemoFx } from './fx';
@@ -952,8 +958,8 @@ function reciprocal(rateScaled: bigint): string {
 /* --------------------------------------------------------------- storage */
 
 const STORAGE_KEY = 'mc.demo.state.v1';
-export const DEMO_EMAIL = 'demo@mauritius-compta.test';
-export const DEMO_PASSWORD = 'DemoPassw0rd2026';
+
+export { DEMO_EMAIL, DEMO_PASSWORD };
 
 const uid = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
@@ -2010,6 +2016,10 @@ export function loadState(): DemoState {
         if (parsed && parsed.schema === 17) {
           state = parsed;
           if (!state.mission23) seedDemoMission23(state);
+          // Mission 30: an existing browser demo keeps its accounting data but
+          // gains the verification fields added by mission 29.
+          else upgradeDemoMission23(state);
+          persist();
           return state;
         }
         if (parsed && parsed.schema === 16) {

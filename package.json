@@ -2,7 +2,7 @@
   "name": "mauritius-compta",
   "version": "0.1.1",
   "private": true,
-  "description": "Mauritius Compta - bilingue FR/EN accounting software for Mauritian businesses",
+  "description": "COMPTAI - bilingue FR/EN accounting software for Mauritian businesses",
   "license": "UNLICENSED",
   "workspaces": [
     "apps/api",

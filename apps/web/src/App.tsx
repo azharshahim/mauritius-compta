@@ -51,6 +51,7 @@ import { Spinner } from './components/ui';
 import { DemoBanner } from './components/DemoBanner';
 import { AssistantLauncher } from './components/AssistantLauncher';
 import { AppIcon } from './components/AppIcon';
+import { BrandMark } from './components/BrandMark';
 
 const ACCESS_WEIGHT: Record<string, number> = { none: 0, read: 1, write: 2, admin: 3 };
 
@@ -99,7 +100,13 @@ export default function App() {
       if (event.key === 'Escape') setMenuOpen(false);
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // Prevent the page behind the Android drawer from scrolling while it is
+    // open; the drawer's own navigation remains scrollable.
+    document.body.classList.add('nav-open');
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.classList.remove('nav-open');
+    };
   }, [menuOpen]);
 
   if (!initialized) {
@@ -136,11 +143,12 @@ export default function App() {
           onClick={() => setMenuOpen((v) => !v)}
           aria-label={t('nav.menu')}
           aria-expanded={menuOpen}
+          aria-controls="app-sidebar"
         >
           <AppIcon name="menu" />
         </button>
         <div className="brand-inline">
-          <div className="brand-mark">M</div>
+          <BrandMark />
           <div>
             <div className="brand-name">{t('suite.name')}</div>
             <div className="brand-tag">{t('suite.tagline')}</div>
@@ -189,7 +197,26 @@ export default function App() {
         </button>
       </header>
 
-      <aside className={`sidebar ${menuOpen ? 'open' : ''}`} aria-label={t('nav.menu')}>
+      <aside
+        className={`sidebar ${menuOpen ? 'open' : ''}`}
+        id="app-sidebar"
+        aria-label={t('nav.menu')}
+      >
+        <div className="sidebar-brand">
+          <BrandMark size={38} />
+          <div>
+            <div className="brand-name">{t('suite.name')}</div>
+            <div className="brand-tag">{t('suite.tagline')}</div>
+          </div>
+          <button
+            type="button"
+            className="icon-btn sidebar-close mobile-only"
+            onClick={closeMenu}
+            aria-label={t('common.close')}
+          >
+            <AppIcon name="close" size={20} />
+          </button>
+        </div>
         <div className="sidebar-title">{t('nav.menu')}</div>
         <nav className="nav" onClick={closeMenu}>
           {visibleGroups.map((group) => {
