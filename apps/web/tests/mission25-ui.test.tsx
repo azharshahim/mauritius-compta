@@ -97,7 +97,7 @@ describe('mission 25 — MRA e-Invoicing, à venir', () => {
     ).toBe('page');
 
     fireEvent.click(screen.getByRole('link', { name: 'Ouvrir la facturation classique' }));
-    expect(await screen.findByRole('heading', { name: /^Factures$/ })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: /^Factures clients$/ })).toBeTruthy();
     expect(await screen.findByText('FAC-DEMO-0002')).toBeTruthy();
 
     expect(fetchSpy).not.toHaveBeenCalled();

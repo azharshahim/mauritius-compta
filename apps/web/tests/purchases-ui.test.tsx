@@ -1,5 +1,5 @@
 /**
- * Écran Achats & Fournisseurs — parcours réel du build de démonstration.
+ * Écran Achats et dépenses — parcours réel du build de démonstration.
  * Aucun réseau : les données fictives viennent du backend embarqué.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -47,32 +47,32 @@ describe('achats & fournisseurs (démo)', () => {
   it('affiche le tableau de bord, les factures et l’échéancier fictifs', async () => {
     await login();
     window.location.hash = '#/accounting/purchases';
-    await screen.findByRole('heading', { name: /Achats & Fournisseurs/i });
+    await screen.findByRole('heading', { name: /Achats et dépenses/i });
 
     expect(screen.getByRole('tab', { name: /Tableau de bord/i })).toBeTruthy();
-    expect(screen.getByRole('tab', { name: /Fournisseurs/i })).toBeTruthy();
-    expect(screen.getByRole('tab', { name: /Factures d’achat/i })).toBeTruthy();
-    expect(screen.getByRole('tab', { name: /Règlements/i })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: /^Fournisseurs$/ })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: /Factures fournisseurs/i })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: /^Règlements fournisseurs$/ })).toBeTruthy();
 
     expect((await screen.findAllByText(/MUR/)).length).toBeGreaterThan(0);
     expect(fetchSpy).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('tab', { name: /Fournisseurs/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /^Fournisseurs$/ }));
     expect((await screen.findAllByText(/Atelier Rivière Ltda/i)).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Oceanic Supplies SARL/i).length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole('tab', { name: /Factures d’achat/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /Factures fournisseurs/i }));
     expect((await screen.findAllByText(/FAC-DEMO-1001/i)).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/50 000,00/).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /Nouveau document/i })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('tab', { name: /Avoirs/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /^Avoirs fournisseurs$/ }));
     expect((await screen.findAllByText(/AVOIR-DEMO-3001/i)).length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole('tab', { name: /Règlements/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /^Règlements fournisseurs$/ }));
     expect((await screen.findAllByText(/RF-2026-0001/i)).length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole('tab', { name: /Échéancier/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /^Comptes fournisseurs$/ }));
     expect(await screen.findByText(/Échéancier des dettes fournisseurs/i)).toBeTruthy();
     expect(screen.getAllByText(/EUR/).length).toBeGreaterThan(0);
     expect(fetchSpy).not.toHaveBeenCalled();

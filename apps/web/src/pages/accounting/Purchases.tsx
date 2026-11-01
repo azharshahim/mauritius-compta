@@ -499,7 +499,7 @@ export default function PurchasesPage() {
     <div className="purchases-page">
       <header className="page-head">
         <div>
-          <h1>{L('Achats & Fournisseurs', 'Purchases & Suppliers')}</h1>
+          <h1>{L('Achats et dépenses', 'Purchases & Expenses')}</h1>
           <p className="muted">
             {L(
               'Sous-ledger fournisseur : factures, avoirs et règlements. La comptabilisation reste humaine, via le moteur existant.',
@@ -517,10 +517,10 @@ export default function PurchasesPage() {
         {([
           ['dashboard', L('Tableau de bord', 'Dashboard')],
           ['suppliers', L('Fournisseurs', 'Suppliers')],
-          ['invoices', L('Factures d’achat', 'Purchase invoices')],
-          ['credit-notes', L('Avoirs', 'Credit notes')],
-          ['payments', L('Règlements', 'Payments')],
-          ['aging', L('Échéancier', 'Aging')],
+          ['invoices', L('Factures fournisseurs', 'Bills')],
+          ['credit-notes', L('Avoirs fournisseurs', 'Supplier credit notes')],
+          ['payments', L('Règlements fournisseurs', 'Supplier payments')],
+          ['aging', L('Comptes fournisseurs', 'Accounts payable')],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
@@ -663,7 +663,7 @@ export default function PurchasesPage() {
 
           {(tab === 'invoices' || tab === 'credit-notes') && (
             <Card
-              title={tab === 'invoices' ? L('Factures d’achat', 'Purchase invoices') : L('Avoirs fournisseurs', 'Supplier credit notes')}
+              title={tab === 'invoices' ? L('Factures fournisseurs', 'Bills') : L('Avoirs fournisseurs', 'Supplier credit notes')}
               actions={
                 <div className="page-actions">
                   {tab === 'credit-notes' && (

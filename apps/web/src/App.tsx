@@ -246,7 +246,7 @@ export default function App() {
                         to={item.search ? `${item.to}?${new URLSearchParams(item.search).toString()}` : item.to}
                         end={item.end}
                         className={() =>
-                          `nav-item ${isNavItemActive(item, location.pathname, location.search) ? 'active' : ''}`
+                          `nav-item ${isNavItemActive(item, location.pathname, location.search, group.items) ? 'active' : ''}`
                         }
                       >
                         <span className="nav-icon"><AppIcon name={item.icon} size={17} /></span>
