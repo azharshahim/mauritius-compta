@@ -12,6 +12,9 @@ on:
   push:
     branches:
       - main
+      # Arena branches build and test the demo but never publish it: the
+      # deployment condition below requires refs/heads/main.
+      - 'arena/**'
     paths:
       - 'apps/web/**'
       - 'package.json'

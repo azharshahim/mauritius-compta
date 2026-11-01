@@ -823,13 +823,27 @@ export function handleDemoMission22(state: DemoState, companyId: string, method:
     const doc = state.billingDocuments.find((d) => d.id === bridgeMatch[1] && d.company_id === companyId);
     if (!doc) throw new ApiError(404, 'INVENTORY_SOURCE_NOT_FOUND', 'Facture introuvable');
     if (doc.kind !== 'invoice' || doc.status !== 'issued') throw new ApiError(409, 'INVENTORY_SOURCE_INVALID', 'Facture émise requise');
+    const lines = Array.isArray(payload.lines) ? payload.lines : [];
+    if (lines.length === 0) throw new ApiError(400, 'INVENTORY_SOURCE_LINES_REQUIRED', 'Au moins une ligne est requise');
     const docNo = doc.doc_no ?? doc.id.slice(0, 8);
-    const movements = (payload.lines ?? []).map((line: any) => createMovement(state, companyId, {
-      itemId: line.itemId, locationId: line.locationId, movementDate: doc.issue_date,
-      direction: 'out', sourceKind: 'issue', quantity: line.quantity, unitCost: null,
-      reference: docNo, description: `Sortie ${docNo}`, documentRef: `billing:${docNo}`,
-      journalId: payload.journalId, counterpartAccountId: null,
-    }));
+    // Mirror the API controls: each line must belong to this invoice and may not
+    // exceed the invoiced quantity. The demonstration must not accept a
+    // movement the real server would reject.
+    const movements = lines.map((line: any) => {
+      const billingLine = state.billingLines.find(
+        (l) => l.id === line.billingLineId && l.document_id === doc.id && l.company_id === companyId);
+      if (!billingLine) throw new ApiError(400, 'INVENTORY_SOURCE_LINE_INVALID', 'Ligne absente de cette facture');
+      const requested = amt(line.quantity);
+      if (requested <= 0n || requested > amt(billingLine.quantity)) {
+        throw new ApiError(400, 'INVENTORY_SOURCE_QUANTITY_INVALID', 'Quantité supérieure à la quantité facturée');
+      }
+      return createMovement(state, companyId, {
+        itemId: line.itemId, locationId: line.locationId, movementDate: doc.issue_date,
+        direction: 'out', sourceKind: 'issue', quantity: fmt(requested), unitCost: null,
+        reference: docNo, description: `Sortie ${docNo} — ${billingLine.description}`,
+        documentRef: `billing:${docNo}`, journalId: payload.journalId, counterpartAccountId: null,
+      });
+    });
     return { document: { id: doc.id, docNo }, movements: movements.map((m: DemoInvMovement) => movementView(state, m)) };
   }
   if (rest === '/movements' && method === 'GET') {
