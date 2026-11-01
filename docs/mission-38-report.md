@@ -6,7 +6,7 @@
 **Date :** 1er novembre 2026  
 **Branche :** `arena/ec20d0f3-mauritius-compta`  
 **Base :** `main` `83cfc9a21bfc980d8b9af60f7177ecad58ee153b` (fusion de la PR nº18, mission 37)  
-**PR :** à créer en brouillon après le premier commit  
+**PR :** nº19 (brouillon) — https://github.com/azharshahim/mauritius-compta/pull/19  
 **Statut :** implémentation et tests locaux terminés ; **non fusionnée**, **non publiée**, **non déployée**  
 **Données :** fictives uniquement ; aucun moteur comptable, fiscal ou de paie modifié
 
@@ -217,7 +217,7 @@ Les tests n’ont pas été affaiblis : les assertions M26/M36/M37 ont été ada
 |---|---|
 | Branche | `arena/ec20d0f3-mauritius-compta` |
 | Base | `main` `83cfc9a` |
-| Commit HEAD | à compléter après commit |
-| PR | à compléter après création (brouillon) |
-| CI | à compléter après exécution GitHub Actions |
+| Commit d’implémentation | `6f05e91` — le HEAD final est le dernier commit de la branche |
+| PR | **nº19** (brouillon) — https://github.com/azharshahim/mauritius-compta/pull/19 |
+| CI | à vérifier sur la PR nº19 après le push final (GitHub Actions) |
 | Fusion | **interdite sans autorisation explicite** |
