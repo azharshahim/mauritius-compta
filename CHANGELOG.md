@@ -1,5 +1,51 @@
 # Journal des versions
 
+## Mission 24 — Qualité FR/EN, finitions et préparation de l’agent IA (1er novembre 2026)
+
+> PR en brouillon, aucune fusion, aucun déploiement Pages/OVH, aucune donnée réelle,
+> aucun envoi, aucun bulletin réel, aucune déclaration MRA, aucune clé API exposée.
+> `main` reste intact.
+
+### Ajouté
+
+- Glossaire comptable centralisé `apps/web/src/glossary.ts` (plan comptable, grand livre,
+  balance, compte de résultat, bilan, immobilisations, régularisations, provisions,
+  rapprochement bancaire, bulletin de paie, écriture).
+- 1 605 clés FR et EN, 64 codes d’erreur traduits, traduction des erreurs serveur dans le
+  navigateur avec repli sur le message localisé de l’API.
+- Test `i18n-quality.test.ts` : parité des clés, glossaire, absence de fuite de l’autre
+  langue, résolution de toutes les clés littérales utilisées.
+- Version et commit de build affichés dans l’application et le bandeau de démonstration.
+- Édition des catégories, emplacements et articles de stock (`PUT`), avec colonne Actions.
+- Pont facture client émise → mouvements de stock proposés, avec pré-mapping SKU/référence,
+  choix du journal, quantités et lien vers les mouvements. Aucun mouvement validé sans
+  décision humaine.
+- Carte des mappings comptables (rôle → compte actif, rôles manquants, compteur).
+- Navigation OCR → écritures (`?search=`), MCB → rapprochement (`?bankAccountId=`) et
+  onglets Stocks (`?tab=`).
+- Gouvernance du catalogue d’outils IA : `mode`, `risk`, `requiredAccess`,
+  `humanValidation`, `audit`, `companyScoped` ; bloc `governance` avec exécution désactivée.
+- Feuille de route `docs/accounting-ai-agent-roadmap.md` (phases 1 à 4, paie supervisée,
+  décisions professionnelles) et rapport `docs/mission-24-report.md`.
+- Tests API : édition des données de stock et pont facture → stock, y compris refus d’une
+  quantité supérieure à la quantité facturée.
+
+### Modifié
+
+- Workflow Pages : `main` devient la seule source de publication ; les PR et branches Arena
+  exécutent tests et builds sans upload ni déploiement. Le build vérifie version, commit et
+  écrans des missions 23–24.
+- Libellés paie techniques remplacés par des libellés naturels FR/EN ; séparateurs et
+  en-têtes de tableaux bancaires/devises traduits.
+- Correction de la coquille « La demander » dans l’assistant.
+
+### Non livré
+
+- Aucun appel LLM ajouté à l’assistant (routeur toujours déterministe).
+- Aucun connecteur d’envoi de bulletins, contrats ou relances.
+- Aucune édition des régularisations/provisions : l’API ne l’expose pas.
+- Aucune vérification sur Samsung Android physique ni Chrome Windows.
+
 ## Mission 23 — OCR natif, import bancaire MCB et plan comptable bilingue (1er novembre 2026)
 
 > Aucune fusion, aucun déploiement, aucune donnée réelle, aucun paiement, aucune déclaration
