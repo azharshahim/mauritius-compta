@@ -18,7 +18,8 @@
 > et ne crée aucun paiement. Facturation (mission 6) :
 > **opérationnelle** — clients, devis, factures, avoirs, encaissements, balance âgée et PDF A4
 > générés par le serveur ; **aucun taux de TVA n'est fourni** et l'e-invoicing MRA reste
-> désactivé. Paie & RH : **préparation et moteur statutaire daté** (missions 15–17, règles 2026/27) — dossiers salariés, contrats datés, temps, congés, variables, périodes, PAYE cumulatif, EDF, CSG, NSF, Training Levy et AR 2026 calculés depuis des règles officielles sourcées ; **revue experte en attente**, bulletins de **simulation**, **aucun bulletin final**, **préparation interne de déclarations MRA sans aucune soumission ni export officiel**, aucun virement. L'assistant comptable V2
+> **désactivé** ; un écran informatif « MRA e-Invoicing — À venir » documente la préparation
+> sans aucune connexion ni transmission MRA. Paie & RH : **préparation et moteur statutaire daté** (missions 15–17, règles 2026/27) — dossiers salariés, contrats datés, temps, congés, variables, périodes, PAYE cumulatif, EDF, CSG, NSF, Training Levy et AR 2026 calculés depuis des règles officielles sourcées ; **revue experte en attente**, bulletins de **simulation**, **aucun bulletin final**, **préparation interne de déclarations MRA sans aucune soumission ni export officiel**, aucun virement. L'assistant comptable V2
 > propose des écritures équilibrées issues du plan comptable réel, exige une **validation
 > humaine** puis une **comptabilisation distincte** : aucune écriture n'est créée
 > automatiquement. Le moteur IA est **optionnel**, sans clé par défaut.
@@ -446,6 +447,8 @@ données, **ni** secret, **ni** donnée réelle.
 | [`docs/migration-user-guide.md`](docs/migration-user-guide.md) | Guide des six étapes et questions fréquentes |
 | [`docs/ai-universal-assistant.md`](docs/ai-universal-assistant.md) | Pastille IA, contexte serveur, orchestration, rétention |
 | [`docs/accounting-ai-agent-roadmap.md`](docs/accounting-ai-agent-roadmap.md) | Feuille de route de l'agent comptable, modes, risques, paie supervisée |
+| [`docs/mra-e-invoicing-roadmap.md`](docs/mra-e-invoicing-roadmap.md) | MRA e-Invoicing : sources officielles, six volets de préparation, points confirmés / à vérifier / hypothèses |
+| [`docs/mission-25-report.md`](docs/mission-25-report.md) | Rapport de mission 25 (écran À venir, vérification de publication, tests) |
 | [`docs/ai-tool-permissions.md`](docs/ai-tool-permissions.md) | Matrice outil × module × permission, anti-injection |
 | [`docs/company-settings.md`](docs/company-settings.md) | Référentiel unique des paramètres société |
 | [`docs/vat-configuration.md`](docs/vat-configuration.md) | Traitements TVA, vérification humaine, historique |
@@ -467,7 +470,7 @@ données, **ni** secret, **ni** donnée réelle.
 
 **Réglementaire** (aucune conformité n'est revendiquée) :
 
-- Aucun calcul de TVA/GST, **aucune déclaration MRA transmise, aucun fichier PACO officiel**, aucune facturation électronique.
+- Aucun calcul de TVA/GST, **aucune déclaration MRA transmise, aucun fichier PACO officiel**, aucune facturation électronique ; l’écran **MRA e-Invoicing — À venir** est purement informatif et n’active aucune connexion.
 - Aucun impôt sur les sociétés, aucune paie, aucun taux légal codé en dur.
 - États financiers **provisoires**, non certifiés IFRS, sans notes annexes ni écritures de
   clôture/report à nouveau.
@@ -494,13 +497,18 @@ des permissions et des tables séparées par module :
 | Cabinet | `/cabinet` | **opérationnel** : tableau de bord, dossiers clients, fiche dossier, tâches & échéances, collaborateurs |
 | Documents | `/documents` | **opérationnel** : import PDF/JPG/PNG, extraction PDF native, **OCR réel** sur images et PDF scannés, corrections, propositions d’écriture équilibrées, validation humaine, historique ; aucune comptabilisation automatique |
 | Comptabilité | `/accounting` | **opérationnel** : fonctions V0.1.1 (plan comptable bilingue, écritures, grand livre, balance, états financiers, périodes, devises, audit) + **Banque & rapprochement** (import CSV/TSV/XLSX, **import MCB PDF dédié**, rapprochement humain, propositions, rapport) + **Achats & Fournisseurs** (fournisseurs, factures d'achat, avoirs, règlements, échéancier par devise) |
-| Facturation | `/billing` | **opérationnel** : clients, devis, factures, avoirs, encaissements, balance âgée, PDF serveur ; e-invoicing MRA désactivé |
+| Facturation | `/billing` | **opérationnel** : clients, devis, factures, avoirs, encaissements, balance âgée, PDF serveur ; **MRA e-Invoicing — À venir** : écran informatif, intégration non activée, aucune connexion MRA |
 | Paie & RH | `/payroll` | **préparation et simulation** : salariés, contrats, temps, congés, variables, périodes, PAYE/CSG/NSF/levy sourcés, EDF, AR 2026, bulletins de simulation imprimables un par un, déclarations MRA en préparation interne ; revue experte en attente, aucun bulletin final, aucune soumission MRA |
 
 - Rôles : `cabinet_admin`, `manager`, `accountant`, `billing_clerk`, `payroll_manager`,
   `viewer` (+ `owner`/`admin` historiques) — voir
   [`docs/permissions-matrix.md`](docs/permissions-matrix.md).
 - Les anciennes URL (`/entries`, `/companies`, …) redirigent : aucun signet n'est cassé.
+- **Mission 25** : écran bilingue **MRA e-Invoicing — À venir** (route stable
+  `/billing/e-invoicing`, six fonctions annoncées non disponibles, paramètres futurs inactifs,
+  aucun appel réseau, aucune inscription ni certification), feuille de route
+  [`docs/mra-e-invoicing-roadmap.md`](docs/mra-e-invoicing-roadmap.md), vérification de la
+  publication Mission 24 sur GitHub Pages. Voir [`docs/mission-25-report.md`](docs/mission-25-report.md).
 - **Mission 23** : plan comptable bilingue avec trois profils (`PENDING PROFESSIONAL VALIDATION`,
   `AWAITING FIRM CONFIRMATION`, plan propre à la société), import CSV/XLSX avec mapping et
   prévisualisation, OCR natif (Tesseract local, sans service externe) et importeur MCB
