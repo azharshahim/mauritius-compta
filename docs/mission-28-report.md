@@ -264,12 +264,12 @@ Aucune donnée existante n'est supprimée. Les règles historiques deviennent ac
 
 ## 17. État CI
 
-Au moment de la rédaction, les contrôles de la PR nº 11 comprenaient :
+Les contrôles requis de la PR nº 11 ont été exécutés et sont réussis :
 
 - Migrations PostgreSQL : réussi ;
 - Tests API PostgreSQL : réussi ;
+- Typecheck, tests et build : réussi ;
 - Build demo : réussi ;
-- Typecheck/tests/build : à confirmer sur le dernier commit de documentation ;
 - Déploiement Pages : ignoré comme prévu pour une PR.
 
-Le résultat final doit être lu dans l'onglet Checks de la PR. Aucune fusion ne sera effectuée sans validation explicite.
+Le rapport de documentation est poussé après le commit de code ; les contrôles sont relancés sur ce dernier commit. Aucune fusion ne sera effectuée sans validation explicite.
