@@ -196,6 +196,16 @@ Executed in this sandbox on the branch head's parent (identical source):
 | real bundle build + `verify-demo.mjs --real-dist` | **5 controls, 0 failures** |
 | Playwright e2e (`apps/web/e2e/mission44-workspace.spec.ts`) | **NOT EXECUTED** — no Chromium binary and no browser-download network access in this sandbox. The spec is written for both declared projects (desktop 1440×900, Pixel 7) and the exact commands are in its header. |
 
+CI on PR #24 (`gh pr checks 24`, after the second push):
+
+| Check | Result |
+| --- | --- |
+| Typecheck, tests and build | **pass** (2m56s) |
+| API tests against real PostgreSQL | **pass** (3m5s) |
+| Migrations against real PostgreSQL | **pass** (41s) |
+| Build demo bundle | **pass** (1m57s) |
+| Deploy to GitHub Pages | skipped — expected, the job only runs on `main` |
+
 New tests added by this mission:
 
 * `apps/api/tests/mission44-progress.test.ts` — 12 cases (step statuses,
