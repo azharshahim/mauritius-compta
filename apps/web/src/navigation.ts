@@ -3,18 +3,19 @@ import type { IconName } from './components/AppIcon';
 import { demoEnabled } from './demo/mode';
 
 /**
- * Mission 36 — professional accounting navigation.
+ * Mission 38 — professional accounting navigation.
  *
- * The eleven groups follow the vocabulary of QuickBooks, Sage, Xero and Odoo:
+ * Ten groups follow the vocabulary of QuickBooks, Sage, Xero and Odoo:
  * accounting first for the accountant, operational modules next, reports and
  * settings last. Every destination is an existing screen: no menu entry is
  * invented to fill a group. The legacy module registry in `modules.ts` is still
  * used by the prepared-feature screen and by old bookmarks.
  *
- * Fixed assets and inventory share one group because each has a single screen;
- * journals are separated from accounting so that the core accounting group
- * stays readable. This is a deliberate deviation from a single "Accounting"
- * menu, documented in `docs/mission-36-report.md`.
+ * Journal types are tabs inside Journal Entries, not five sidebar entries that
+ * all open the same screen. Year-End Closing stays a separate shortcut because
+ * it opens a different tab (the closing checklist). Opening Balances remains a
+ * tab of Financial Years. The rationale is documented in
+ * `docs/comptai-navigation-duplicate-audit.md`.
  */
 export interface NavItem {
   to: string;
@@ -84,13 +85,6 @@ export const NAV_GROUPS: NavGroup[] = [
       },
       {
         to: '/accounting/financial-years',
-        key: 'nav.accounting.openingBalances',
-        icon: 'fiscalYears',
-        module: 'accounting',
-        search: { tab: 'opening' },
-      },
-      {
-        to: '/accounting/financial-years',
         key: 'nav.accounting.yearEndClosing',
         icon: 'check',
         module: 'accounting',
@@ -99,22 +93,11 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    key: 'journals',
-    labelKey: 'nav.group.journals',
-    icon: 'journals',
-    items: [
-      { to: '/accounting/journals', key: 'nav.journals.all', icon: 'journals', module: 'accounting', end: true },
-      { to: '/accounting/journals/purchases', key: 'nav.journals.purchases', icon: 'purchases', module: 'accounting' },
-      { to: '/accounting/journals/sales', key: 'nav.journals.sales', icon: 'sales', module: 'accounting' },
-      { to: '/accounting/journals/bank', key: 'nav.journals.bank', icon: 'bank', module: 'accounting' },
-      { to: '/accounting/journals/general', key: 'nav.journals.general', icon: 'ledger', module: 'accounting' },
-    ],
-  },
-  {
     key: 'bank',
     labelKey: 'nav.group.bank',
     icon: 'bank',
     items: [
+      { to: '/accounting/banking', key: 'nav.bank.accounts', icon: 'bank', module: 'accounting', end: true },
       {
         to: '/accounting/banking',
         key: 'nav.bank.reconciliation',
@@ -122,7 +105,6 @@ export const NAV_GROUPS: NavGroup[] = [
         module: 'accounting',
         search: { tab: 'transactions' },
       },
-      { to: '/accounting/banking', key: 'nav.bank.accounts', icon: 'bank', module: 'accounting', end: true },
       { to: '/accounting/banking', key: 'nav.bank.import', icon: 'import', module: 'accounting', search: { tab: 'import' } },
       {
         to: '/accounting/banking/bulk-reconciliation',

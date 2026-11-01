@@ -185,7 +185,7 @@ export default function EntriesPage({
       : journalType === 'bank'
         ? 'journal.importBank'
         : null;
-  const journalPath = journalType ? `/accounting/journals/${journalType}` : '/accounting/journals';
+  const journalPath = journalType ? `/accounting/journals/${journalType}` : '/accounting/entries';
   const importPath = journalType === 'purchases'
     ? '/accounting/journals/purchases/import'
     : journalType === 'sales'
@@ -372,6 +372,29 @@ export default function EntriesPage({
             </Button>
           </>
         )}
+      </div>
+
+      {/* Mission 38 — the journal types are tabs on one register, not five
+          duplicate sidebar entries. The routes are unchanged so old bookmarks
+          and the import screens keep working. */}
+      <div className="tabs" role="tablist" aria-label={t('nav.entries')}>
+        {([
+          [undefined, '/accounting/entries', 'nav.journals.all'],
+          ['purchases', '/accounting/journals/purchases', 'nav.journals.purchases'],
+          ['sales', '/accounting/journals/sales', 'nav.journals.sales'],
+          ['bank', '/accounting/journals/bank', 'nav.journals.bank'],
+          ['general', '/accounting/journals/general', 'nav.journals.general'],
+        ] as [JournalType | undefined, string, string][]).map(([type, to, key]) => (
+          <Link
+            key={key}
+            to={to}
+            role="tab"
+            aria-selected={journalType === type}
+            className={journalType === type ? 'active' : ''}
+          >
+            {t(key)}
+          </Link>
+        ))}
       </div>
 
       <Card>

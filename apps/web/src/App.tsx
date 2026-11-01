@@ -58,6 +58,13 @@ import { demoEnabled } from './demo/mode';
 
 const ACCESS_WEIGHT: Record<string, number> = { none: 0, read: 1, write: 2, admin: 3 };
 
+/** Mission 38: the old All Journals bookmark becomes the Journal Entries
+ * register, keeping a search or filter query intact. */
+function JournalRegisterRedirect() {
+  const { search } = useLocation();
+  return <Navigate to={`/accounting/entries${search}`} replace />;
+}
+
 export default function App() {
   const { t, locale, setLocale } = useI18n();
   const { user, initialized, companies, company, setCompany, logout } = useSession();
@@ -302,7 +309,7 @@ export default function App() {
             <Route path="/accounting" element={<DashboardPage />} />
             <Route path="/accounting/accounts" element={<AccountsPage />} />
             <Route path="/accounting/entries" element={<EntriesPage />} />
-            <Route path="/accounting/journals" element={<EntriesPage titleKey="nav.journals.all" />} />
+            <Route path="/accounting/journals" element={<JournalRegisterRedirect />} />
             <Route path="/accounting/journals/purchases" element={<EntriesPage journalType="purchases" titleKey="nav.journals.purchases" />} />
             <Route path="/accounting/journals/sales" element={<EntriesPage journalType="sales" titleKey="nav.journals.sales" />} />
             <Route path="/accounting/journals/bank" element={<EntriesPage journalType="bank" titleKey="nav.journals.bank" />} />

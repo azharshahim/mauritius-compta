@@ -71,7 +71,7 @@ describe('demo build (jsdom)', () => {
     expect(navGroup(/^Tableau de bord$/)).toBeTruthy();
     expect(navGroup(/^Clients et sociétés$/)).toBeTruthy();
     expect(navGroup(/^Comptabilité$/)).toBeTruthy();
-    expect(navGroup(/^Journaux$/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Journaux$/ })).toBeNull();
     expect(navGroup(/^Banque$/)).toBeTruthy();
     expect(navGroup(/^Ventes et facturation$/)).toBeTruthy();
     expect(navGroup(/^Achats et dépenses$/)).toBeTruthy();
@@ -86,15 +86,16 @@ describe('demo build (jsdom)', () => {
     expect(await tableText(/Case Noyale Retail Ltd \(DEMO\)/)).toBeTruthy();
     expect(window.location.hash).toBe('#/cabinet/companies');
 
-    // Accounting space: the V0.1 screens are still there, reachable through
-    // the collapsible journals group.
-    fireEvent.click(navLink(/^Tous les journaux$/));
-    await screen.findByRole('heading', { name: /^Tous les journaux$/ });
+    // Accounting space: Journal Entries carries the five journal tabs since
+    // mission 38, so the old separate Journals group is gone.
+    fireEvent.click(navLink(/^Écritures comptables$/));
+    await screen.findByRole('heading', { name: /^Écritures comptables$/ });
+    expect(screen.getByRole('tab', { name: /^Tous les journaux$/ }).getAttribute('aria-selected')).toBe('true');
     // Mission 19 adds entries to the shared demo ledger: the invoice asserted
     // here now lives on the second page of the paginated journal.
     fireEvent.click(screen.getByRole('button', { name: '›' }));
     expect(await screen.findByText(/Fictitious sales invoice FA-2025-001/)).toBeTruthy();
-    expect(window.location.hash).toBe('#/accounting/journals');
+    expect(window.location.hash).toBe('#/accounting/entries');
 
     fireEvent.click(navLink(/Balance générale/));
     await screen.findByRole('heading', { name: /Balance générale/ });
@@ -196,7 +197,7 @@ describe('demo build (jsdom)', () => {
     const language = screen.getByLabelText(/Langue/i);
     fireEvent.change(language, { target: { value: 'en' } });
     expect(navGroup(/^Clients & Companies$/)).toBeTruthy();
-    expect(navLink(/Client dossiers/)).toBeTruthy();
+    expect(navLink(/Client Portfolios/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText(/Language/i), { target: { value: 'fr' } });
     expect(await screen.findByText(/Dossiers clients/i)).toBeTruthy();
 

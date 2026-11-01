@@ -64,8 +64,10 @@ describe.each(LOCALES)('mission 36 — parcours comptable (%s)', (locale) => {
     await screen.findByRole('heading', { name: t(locale, /^Plan comptable$/, /^Chart of Accounts$/) });
     expect((await screen.findAllByText(/PENDING PROFESSIONAL VALIDATION/)).length).toBeGreaterThanOrEqual(1);
 
-    fireEvent.click(navLink(t(locale, /^Soldes d’ouverture$/, /^Opening Balances$/)));
-    const tab = await screen.findByRole('tab', { name: t(locale, /^Soldes d’ouverture$/, /^Opening balances$/) });
+    fireEvent.click(navLink(t(locale, /^Exercices comptables$/, /^Financial Years$/)));
+    await screen.findByRole('heading', { name: t(locale, /Exercices & archives/, /Financial Years & Archives/) });
+    fireEvent.click(await screen.findByRole('tab', { name: t(locale, /^Soldes d’ouverture$/, /^Opening Balances$/) }));
+    const tab = await screen.findByRole('tab', { name: t(locale, /^Soldes d’ouverture$/, /^Opening Balances$/) });
     expect(tab.getAttribute('aria-selected')).toBe('true');
     expect(await screen.findByText(t(locale, /Aperçu des soldes d’ouverture/, /Opening-balance overview/))).toBeTruthy();
 
@@ -128,7 +130,7 @@ describe.each(LOCALES)('mission 36 — parcours comptable (%s)', (locale) => {
 
     // The invoice is never posted by the billing screen: the accountant goes
     // through the existing proposal → human validation → posting path.
-    fireEvent.click(navLink(t(locale, /^Écritures proposées$/, /^Proposed entries$/)));
+    fireEvent.click(navLink(t(locale, /^Écritures proposées$/, /^AI Proposals$/)));
     await screen.findByRole('heading', { name: t(locale, /^Écritures proposées$/, /^Proposed entries$/) });
     const fromInvoice = (await screen.findByLabelText(
       t(locale, /Proposer depuis une facture émise/, /Propose from an issued invoice/),
@@ -159,7 +161,7 @@ describe.each(LOCALES)('mission 36 — parcours comptable (%s)', (locale) => {
 
   it('4. facture fournisseur → proposition → dettes fournisseurs', async () => {
     await login();
-    fireEvent.click(navLink(t(locale, /^Tableau de bord Achats$/, /^Purchases dashboard$/)));
+    fireEvent.click(navLink(t(locale, /^Tableau de bord Achats$/, /^Purchases Dashboard$/)));
     await screen.findByRole('heading', { name: t(locale, /^Achats et dépenses$/, /^Purchases & Expenses$/) });
     fireEvent.click(screen.getByRole('tab', { name: t(locale, /^Factures fournisseurs$/, /^Bills$/) }));
 
@@ -169,7 +171,7 @@ describe.each(LOCALES)('mission 36 — parcours comptable (%s)', (locale) => {
     fireEvent.click(within(row).getByRole('button', { name: t(locale, /^Proposition$/, /^Proposal$/) }));
     expect(await screen.findByText(t(locale, /Proposition préparée/, /Proposal prepared/))).toBeTruthy();
 
-    fireEvent.click(navLink(t(locale, /^Comptes fournisseurs — balance âgée$/, /^Accounts Payable aging$/)));
+    fireEvent.click(navLink(t(locale, /^Comptes fournisseurs — balance âgée$/, /^Accounts Payable Aging$/)));
     await screen.findByRole('heading', { name: t(locale, /Échéancier des dettes fournisseurs/, /Supplier debt aging/) });
     expect((await screen.findAllByText(/Atelier Rivière|Oceanic Supplies/)).length).toBeGreaterThanOrEqual(1);
 
@@ -178,7 +180,7 @@ describe.each(LOCALES)('mission 36 — parcours comptable (%s)', (locale) => {
 
   it('5. rapprochement bancaire et rapport', async () => {
     await login();
-    fireEvent.click(navLink(t(locale, /^Rapprochement bancaire$/, /^Bank reconciliation$/)));
+    fireEvent.click(navLink(t(locale, /^Rapprochement bancaire$/, /^Bank Reconciliation$/)));
     await screen.findByRole('heading', { name: t(locale, /Banque & rapprochement/, /Bank & reconciliation/) });
 
     const transactions = await screen.findByRole('tab', { name: t(locale, /^Transactions$/, /^Transactions$/) });
@@ -205,7 +207,7 @@ describe.each(LOCALES)('mission 36 — parcours comptable (%s)', (locale) => {
     expect((await screen.findAllByText(t(locale, /^Produits$/, /^Revenue$/))).length).toBeGreaterThanOrEqual(1);
     expect((await screen.findAllByText(t(locale, /^Résultat de la période$/, /^Profit for the period$/))).length).toBeGreaterThanOrEqual(1);
 
-    fireEvent.click(navLink(t(locale, /^Tous les états financiers$/, /^All financial statements$/)));
+    fireEvent.click(navLink(t(locale, /^Tous les états financiers$/, /^Financial Statements$/)));
     await screen.findByRole('heading', { name: t(locale, /^États financiers \(provisoires\)$/, /^Financial Statements \(provisional\)$/) });
 
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -240,7 +242,7 @@ describe.each(LOCALES)('mission 36 — parcours comptable (%s)', (locale) => {
     fireEvent.click(navLink(t(locale, /^Stocks$/, /^Inventory$/)));
     await screen.findByRole('heading', { name: t(locale, /^Stocks$/, /^Inventory$/) });
 
-    fireEvent.click(navLink(t(locale, /^Tableau de bord Paie$/, /^Payroll dashboard$/)));
+    fireEvent.click(navLink(t(locale, /^Tableau de bord Paie$/, /^Payroll Dashboard$/)));
     await screen.findByRole('heading', { name: t(locale, /^Paie & RH$/, /^Payroll & HR$/) });
 
     expect(fetchSpy).not.toHaveBeenCalled();

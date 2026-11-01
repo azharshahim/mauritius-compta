@@ -26,7 +26,7 @@ export const GLOSSARY = {
   suppliers: { fr: 'Fournisseurs', en: 'Suppliers' },
   salesInvoices: { fr: 'Factures clients', en: 'Sales Invoices' },
   bills: { fr: 'Factures fournisseurs', en: 'Bills' },
-  bankReconciliation: { fr: 'Rapprochement bancaire', en: 'Bank reconciliation' },
+  bankReconciliation: { fr: 'Rapprochement bancaire', en: 'Bank Reconciliation' },
   statementOfProfitOrLoss: { fr: 'Compte de résultat', en: 'Profit & Loss' },
   balanceSheet: { fr: 'Bilan', en: 'Balance Sheet' },
   cashFlowStatement: { fr: 'Tableau des flux de trésorerie', en: 'Cash Flow Statement' },
@@ -41,11 +41,11 @@ export const GLOSSARY = {
   retainedEarnings: { fr: 'Résultats reportés', en: 'Retained Earnings' },
   // Mission 24 additions kept for the accrual/provision and MRA screens.
   prepayments: { fr: 'Charges constatées d’avance', en: 'Prepayments' },
-  accruedExpenses: { fr: 'Charges à payer', en: 'Accrued expenses' },
+  accruedExpenses: { fr: 'Charges à payer', en: 'Accrued Expenses' },
   provisions: { fr: 'Provisions', en: 'Provisions' },
   payslip: { fr: 'Bulletin de paie', en: 'Payslip' },
-  journalEntry: { fr: 'Écriture comptable', en: 'Journal entry' },
-  accrualsAndPrepayments: { fr: 'Régularisations', en: 'Accruals & prepayments' },
+  journalEntry: { fr: 'Écriture comptable', en: 'Journal Entry' },
+  accrualsAndPrepayments: { fr: 'Régularisations', en: 'Accruals & Prepayments' },
   electronicBillingSystem: {
     fr: 'Système de facturation électronique (EBS)',
     en: 'Electronic Billing System (EBS)',

@@ -1,9 +1,11 @@
 /**
  * Mission 36 — professional accounting navigation.
  *
- * These tests protect the discoverability gains: the eleven groups, the
+ * These tests protect the discoverability gains: the professional groups, the
  * mandatory accounting vocabulary, direct links to existing screens and the
  * absence of invented destinations (cash-flow statement, cost centres).
+ * Mission 38 folded the five journal entries into tabs of Journal Entries and
+ * removed the duplicate Opening Balances sidebar shortcut.
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -38,12 +40,11 @@ function routeMatches(pattern: string, destination: string): boolean {
 }
 
 describe('mission 36 — accountant navigation', () => {
-  it('exposes the eleven ordered professional groups', () => {
+  it('exposes the ten ordered professional groups', () => {
     expect(NAV_GROUPS.map((group) => group.key)).toEqual([
       'home',
       'clients',
       'accounting',
-      'journals',
       'bank',
       'billing',
       'purchases',
@@ -52,7 +53,7 @@ describe('mission 36 — accountant navigation', () => {
       'reports',
       'settings',
     ]);
-    expect(NAV_GROUPS).toHaveLength(11);
+    expect(NAV_GROUPS).toHaveLength(10);
   });
 
   it('keeps every group readable: ten destinations maximum', () => {
@@ -80,12 +81,12 @@ describe('mission 36 — accountant navigation', () => {
       'nav.ledger': ['Grand livre', 'General Ledger'],
       'nav.trialBalance': ['Balance générale', 'Trial Balance'],
       'nav.entries': ['Écritures comptables', 'Journal Entries'],
-      'nav.journals.all': ['Tous les journaux', 'All journals'],
+      'nav.journals.all': ['Tous les journaux', 'All Journals'],
       'nav.billing.customers': ['Clients', 'Customers'],
       'nav.purchases.suppliers': ['Fournisseurs', 'Suppliers'],
       'nav.billing.invoices': ['Factures clients', 'Sales Invoices'],
       'nav.purchases.invoices': ['Factures fournisseurs', 'Bills'],
-      'nav.bank.reconciliation': ['Rapprochement bancaire', 'Bank reconciliation'],
+      'nav.bank.reconciliation': ['Rapprochement bancaire', 'Bank Reconciliation'],
       'nav.reports.profitLoss': ['Compte de résultat', 'Profit & Loss'],
       'nav.reports.balanceSheet': ['Bilan', 'Balance Sheet'],
       'nav.accounting.assets': ['Immobilisations', 'Fixed Assets'],
@@ -94,8 +95,7 @@ describe('mission 36 — accountant navigation', () => {
       'nav.accounting.yearEndClosing': ['Clôture annuelle', 'Year-End Closing'],
       'nav.settings.audit': ['Piste d’audit', 'Audit Trail'],
       'nav.settings.periods': ['Périodes comptables', 'Accounting Periods'],
-      'nav.accounting.openingBalances': ['Soldes d’ouverture', 'Opening Balances'],
-      'nav.accounting.equity': ['Capitaux propres et résultats reportés', 'Equity & retained earnings'],
+      'nav.accounting.equity': ['Capitaux propres et résultats reportés', 'Equity & Retained Earnings'],
     };
     for (const [key, [french, english]] of Object.entries(pairs)) {
       expect(fr[key], key).toBe(french);
@@ -157,7 +157,6 @@ describe('mission 36 — accountant navigation', () => {
       ['nav.trialBalance', '/accounting/trial-balance'],
       ['nav.bank.reconciliation', '/accounting/banking'],
       ['nav.accounting.yearEndClosing', '/accounting/financial-years'],
-      ['nav.accounting.openingBalances', '/accounting/financial-years'],
       ['nav.reports.profitLoss', '/accounting/statements/profit-loss'],
       ['nav.reports.balanceSheet', '/accounting/statements/balance-sheet'],
       ['nav.settings.audit', '/accounting/settings'],
@@ -177,14 +176,12 @@ describe('mission 36 — accountant navigation', () => {
 
   it('activates one entry per query-string tab', () => {
     const financialYears = item('nav.accounting.financialYears')!;
-    const opening = item('nav.accounting.openingBalances')!;
     const closing = item('nav.accounting.yearEndClosing')!;
     expect(isNavItemActive(financialYears, '/accounting/financial-years', '')).toBe(true);
-    expect(isNavItemActive(financialYears, '/accounting/financial-years', '?tab=opening', [financialYears, opening, closing])).toBe(false);
-    expect(isNavItemActive(financialYears, '/accounting/financial-years', '?tab=timeline', [financialYears, opening, closing])).toBe(true);
-    expect(isNavItemActive(opening, '/accounting/financial-years', '?tab=opening')).toBe(true);
-    expect(isNavItemActive(opening, '/accounting/financial-years', '?tab=checklist')).toBe(false);
+    expect(isNavItemActive(financialYears, '/accounting/financial-years', '?tab=opening', [financialYears, closing])).toBe(true);
+    expect(isNavItemActive(financialYears, '/accounting/financial-years', '?tab=timeline', [financialYears, closing])).toBe(true);
     expect(isNavItemActive(closing, '/accounting/financial-years', '?tab=checklist')).toBe(true);
+    expect(isNavItemActive(closing, '/accounting/financial-years', '?tab=opening')).toBe(false);
 
     const sales = item('nav.billing.dashboard')!;
     const bills = item('nav.purchases.invoices')!;

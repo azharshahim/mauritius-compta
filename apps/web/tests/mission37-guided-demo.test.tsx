@@ -59,8 +59,8 @@ describe('mission 37 — guided demonstration', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Sign in/i }));
     await screen.findByRole('heading', { name: /Cabinet dashboard/i });
 
-    fireEvent.click(navLink(/Guided demo/));
-    await screen.findByRole('heading', { name: 'Guided demo' });
+    fireEvent.click(navLink(/Guided Demo/));
+    await screen.findByRole('heading', { name: 'Guided Demo' });
     expect((await screen.findAllByText('Island Trading Ltd — DEMO COMPANY')).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByRole('button', { name: /Reset demo data/i })).toBeTruthy();
 

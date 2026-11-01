@@ -40,7 +40,9 @@ describe('mission 26 — journal imports and light home (demo)', () => {
 
   it('puts the purchase import next to the journal entry action', async () => {
     await login();
-    fireEvent.click(navLink(/Journal des achats/));
+    fireEvent.click(navLink(/^Écritures comptables$/));
+    await screen.findByRole('heading', { name: /^Écritures comptables$/ });
+    fireEvent.click(screen.getByRole('tab', { name: /^Journal des achats$/ }));
     await screen.findByRole('heading', { name: /Journal des achats/i });
     const importLink = screen.getByRole('link', { name: /Importer une facture d’achat/i });
     fireEvent.click(importLink);
