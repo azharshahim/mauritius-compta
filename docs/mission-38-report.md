@@ -188,7 +188,7 @@ Les redirections V0.1 `/companies`, `/accounts`, `/entries`, `/ledger`, `/trial-
 | Tests API | **521 réussis + 11 ignorés** (532) |
 | Typecheck | **0 erreur** (`@mc/api` et `@mc/web`, tests inclus) |
 | Build réel | **réussi** — `1 256,14 kB` (`311,74 kB` gzip) |
-| Build démonstration | **réussi** — `1 280,84 kB` (`319,63 kB` gzip) + `runtime` `717,98 kB` (`199,42 kB` gzip) |
+| Build démonstration | **réussi** — `1 280,83 kB` (`319,63 kB` gzip) + `runtime` `717,98 kB` (`199,42 kB` gzip) |
 | Vérificateur démo | **50/50** |
 | Vérificateur build réel | **5/5** |
 | `/#/demo` | **14 destinations, 16 étapes, 8 contrôles de santé** |
