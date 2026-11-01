@@ -133,6 +133,7 @@ Ajouts :
 - `mission39-ui.test.tsx` : 16 tests (15 scénarios, dont dialogues, langue, étapes précédente/suivante et sortie du parcours).
 - Les suites M26/M30/M36/M37/M38 restent vertes.
 - Stabilisation d’un test M23 préexistant : il attend désormais le chargement asynchrone des comptes bancaires (`findByRole` au lieu de `getByRole`). L’assertion métier est inchangée ; aucun défaut de l’application n’est masqué.
+- Stabilisation d’un test M39 : après le retour vers le registre, il attend le rendu de l’onglet (`waitFor`) avant de vérifier `aria-selected`. Aucune assertion n’a été supprimée ou affaiblie.
 
 ### Limite de navigateur réel
 
@@ -163,10 +164,12 @@ Ajouts :
 
 - Branche : `arena/1f7e6933-mauritius-compta`
 - PR : **nº20**, en **brouillon** — https://github.com/azharshahim/mauritius-compta/pull/20
-- Commit de contenu : **`a689c96`** (`feat(web): add global contextual navigation and responsive shell (M39)`)
-- CI : **run `41341576294` vert** (typecheck, tests et build ; migrations PostgreSQL ; tests API PostgreSQL)
-- Démo : **run `41341576351` vert** (build du bundle ; déploiement GitHub Pages ignoré)
-- Les éventuels commits documentaires suivants ne modifient pas le code validé ci-dessus.
+- Commit de contenu initial : **`a689c96`** (`feat(web): add global contextual navigation and responsive shell (M39)`)
+- Correctif de test : **`5e95fef`** (`test(m39): await the tab render after Back navigation`)
+- CI de référence : **run `41342324960` vert** sur `5e95fef` — typecheck/tests/build, migrations PostgreSQL, tests API PostgreSQL
+- Démo : **run `41342324964` vert** — build du bundle ; déploiement GitHub Pages ignoré
+- Un run intermédiaire (`41341963031`) a échoué sur une attente de rendu d’onglet dans `mission39-ui` ; l’assertion est inchangée, le test attend désormais le cycle de rendu. La CI ci-dessus est la référence.
+- Les éventuels commits documentaires suivants ne modifient ni le code ni les tests validés ci-dessus.
 
 La PR reste **en brouillon** : aucune fusion, aucune publication, aucun déploiement.
 
