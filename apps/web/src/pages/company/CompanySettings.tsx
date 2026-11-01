@@ -340,7 +340,14 @@ export default function CompanySettingsPage() {
               <Field label={t('settings.company.functionalCurrency')}>
                 <input value={accounting.functionalCurrency} disabled />
               </Field>
-              <Field label={t('settings.company.presentationCurrency')}>
+              <Field
+                label={t('settings.company.presentationCurrency')}
+                hint={
+                  accounting.presentationCurrency !== accounting.functionalCurrency
+                    ? t('settings.company.presentationCurrencyHint')
+                    : undefined
+                }
+              >
                 <input
                   value={accounting.presentationCurrency}
                   onChange={(e) => setAccounting({ ...accounting, presentationCurrency: e.target.value.toUpperCase() })}

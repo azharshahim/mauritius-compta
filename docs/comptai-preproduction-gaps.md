@@ -1,9 +1,9 @@
 # COMPTAI — écarts avant production
 
 **Mission 32 — audit fonctionnel**
-**Date : 1er novembre 2026**
-**Base : `main` = `05a0f53807c79d66368f427b588ebca77c095589`, version 0.1.1**
-**Nature : constats d'audit. Aucune correction fonctionnelle n'a été appliquée.**
+**Mise à jour mission 33 — statut de P0-01 : 1er novembre 2026**
+**Base auditée : `main` = `c9d20cf7a9e664b30b7e9bdd81fccdda0548acd0`, version 0.1.1**
+**Nature : constats d'audit et statut de la correction P0-01. La conversion multidevise complète n'est pas implémentée.**
 
 > **Règle de lecture.** Un P0 n'est pas une opinion de priorité : c'est un point qui bloque une
 > mise en production, peut produire une erreur comptable ou fiscale, ou expose à un risque de
@@ -11,7 +11,7 @@
 > améliorent l'exploitabilité ; les P3 sont du confort. Aucun P0 ne doit rester ouvert au moment
 > d'une décision de mise en service.
 
-**Documents liés :** [rapport d'audit](./mission-32-audit.md) · [couverture fonctionnelle](./comptai-functional-coverage.md) · [matrice QuickBooks](./comptai-quickbooks-test-matrix.md)
+**Documents liés :** [rapport d'audit](./mission-32-audit.md) · [couverture fonctionnelle](./comptai-functional-coverage.md) · [matrice QuickBooks](./comptai-quickbooks-test-matrix.md) · [rapport mission 33](./mission-33-report.md)
 
 ## 1. Définitions
 
@@ -26,9 +26,9 @@
 
 | Priorité | Nombre | Objet dominant |
 |---|---:|---|
-| P0 | 5 | Erreur comptable, perte de données, sécurité, conformité MRA, paie non payable |
+| P0 | 4 | Perte de données, sécurité, conformité MRA, paie non payable |
 | P1 | 15 | États financiers, fiscalité, exports QuickBooks, preuves de production, exploitation |
-| P2 | 12 | Sous-registres, parcours utilisateur, cohérence, métadonnées, accessibilité |
+| P2 | 13 | Conversion multidevise, sous-registres, parcours utilisateur, cohérence, métadonnées, accessibilité |
 | P3 | 5 | Finition, documentation secondaire, impression |
 | **Total** | **37** | — |
 
@@ -39,7 +39,7 @@ propre numérotation ; la correspondance est donnée pour éviter toute confusio
 
 | Registre des écarts | Anomalie du rapport d'audit | Remarque |
 |---|---|---|
-| P0-01 | P0-01 | Même anomalie de devise de présentation. |
+| P0-01 (historique) | P0-01 | **Neutralisé en mission 33** pour le risque d'affichage ; la conversion complète devient P2-13. |
 | P1-01 | P1-01 | Le registre ajoute l'absence de flux, de notes et de comparatif à l'aplatissement des groupes. |
 | P1-03 | P2-03 (AR Aging) | La priorité du registre est plus élevée car l'export bloque la recette QuickBooks. |
 | P1-05 | P2-04 | La priorité du registre est plus élevée car le contrôle conditionne des factures réelles. |
@@ -54,9 +54,17 @@ correspondent pas à une anomalie de calcul isolée dans le rapport.
 
 ## 3. P0 — blocages de production
 
+### 3.1 P0-01 — risque d'affichage neutralisé, conversion non implémentée
+
+La mission 33 a fermé le risque d'affichage trompeur : les états financiers, les exports CSV,
+les PDF et l'écran affichent désormais la **devise fonctionnelle** dans laquelle les montants sont
+réellement calculés. La devise de présentation configurée est conservée et signalée comme **non
+appliquée**. Aucun taux de change, aucune méthode de conversion et aucun arrondi n'ont été
+inventés. La conversion multidevise complète reste absente : elle est suivie en **P2-13**, et non
+plus comme un P0 d'affichage.
+
 | ID | Écart | Impact | Preuve | Recommandation | Porte de sortie |
 |---|---|---|---|---|---|
-| **P0-01** | **Devise de présentation non convertie** : les états et le tableau de bord libellent en devise de présentation des montants calculés en devise fonctionnelle. | Erreur de présentation matérielle dès que les deux devises diffèrent ; un bilan en EUR peut contenir des montants MUR. | `reports/routes.ts` l. 179 ; `reports/service.ts` `computeStatements` ; `reports/pdf.ts` l. 75 ; `Statements.tsx` | Soit implémenter une conversion avec taux, méthode et arrondis validés, soit **interdire une devise de présentation différente** de la devise fonctionnelle jusqu'à validation. Ajouter un test de non-régression. | Validation comptable de la méthode ; test prouvant l'égalité ou la conversion. |
 | **P0-02** | **Aucune sauvegarde/restauration testée et aucun export complet d'un dossier.** | Perte de données irréversible en cas d'incident ; impossibilité de migrer ou d'archiver un client. | `roadmap.md` D-11 ; aucun test de `pg_dump`/`pg_restore` ; aucun export complet par société | Mettre en place une sauvegarde chiffrée, une restauration testée sur une base vierge, un export complet par société et un registre des restaurations. | Test de restauration réussi, documenté et daté. |
 | **P0-03** | **Pas de revue de sécurité indépendante ni de test d'intrusion ; isolation multi-société non exhaustivement testée route par route.** | Risque de fuite entre dossiers clients, d'élévation de privilèges ou de compromission de données comptables. | `preproduction-audit-checklist.md` ; `permissions-matrix.md` ; tests ciblés mais pas d'audit exhaustif | Faire réaliser une revue indépendante, un test d'autorisation par route, un test d'intrusion et une revue de la journalisation. | Rapport de pentest et plan de remédiation clos ou accepté formellement. |
 | **P0-04** | **MRA e-Invoicing non intégré** alors que des jalons réglementaires sont publiés comme lancés. | Une société assujettie ne peut pas émettre de facture fiscale conforme par COMPTAI ; l'écran informatif ne doit pas être confondu avec une intégration. | `MraEInvoicing.tsx` ; `mra-e-invoicing-roadmap.md` ; textes MRA cités dans le rapport d'audit, section 5 | Trancher le périmètre clients, obtenir l'enregistrement éditeur EBS, les spécifications à jour et un environnement de test ; ne pas commercialiser l'e-invoicing avant auto-certification. | Décision écrite : hors périmètre pour un client donné, ou intégration testée et auto-certifiée. |
@@ -98,6 +106,7 @@ correspondent pas à une anomalie de calcul isolée dans le rapport.
 | **P2-10** | Chunk web de 1 238 kB. | Chargement mobile lent. | Build `vite` | Découpage par route, mesure réseau. |
 | **P2-11** | Registre de sources fiscales encore majoritairement `À VÉRIFIER`. | Risque de fausse assurance. | `docs/mauritius-regulations/*` | Archiver les textes, dater les vérifications, identifier le réviseur. |
 | **P2-12** | Politique de conservation/archivage non validée. | Risque de purge ou de conservation non conforme. | `financial-years/archive`, `checklist settings` | Faire fixer les durées par le cabinet et les appliquer. |
+| **P2-13** | **Conversion multidevise complète des états financiers non implémentée** : une société dont la devise de présentation diffère de la devise fonctionnelle voit ses états en devise fonctionnelle, avec une mention explicite. | La présentation demandée par l'utilisateur n'est pas produite ; aucune conversion historique validée n'existe. Le risque d'affichage trompeur est toutefois neutralisé. | `reports/service.ts` (`currencyBasis`, `presentationCurrencyApplied`) ; `reports/routes.ts` ; `reports/pdf.ts` ; `Statements.tsx` ; `mission33-statements-currency.test.ts` | Ne pas convertir tant que les taux historiques, la méthode (clôture, moyenne, transaction), les arrondis et les écarts de conversion ne sont pas validés par un expert. Conserver la devise de présentation comme préférence non appliquée. Porte de sortie : règles écrites, jeu de taux historiques, tests de conversion et validation du cabinet. |
 
 ## 6. P3 — confort et finition
 
@@ -127,7 +136,7 @@ ci-dessous.
 
 ## 8. Décision recommandée
 
-1. **Ne pas mettre en production** tant que P0-01, P0-02 et P0-03 sont ouverts.
+1. **Ne pas mettre en production** tant que P0-02 et P0-03 sont ouverts. P0-01 est neutralisé pour l'affichage, mais la conversion complète reste P2-13.
 2. **Ne pas vendre la paie comme opérationnelle** tant que P0-05 et P1-06 ne sont pas clos.
 3. **Ne pas vendre l'e-invoicing** tant que P0-04 n'est pas tranché ; l'écran actuel doit rester
    explicitement informatif.

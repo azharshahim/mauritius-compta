@@ -204,6 +204,9 @@ const fr: Dict = {
   'st.unappropriated': 'Résultat non affecté',
   'st.balanced': 'Bilan équilibré (provisoire)',
   'st.unbalanced': 'Le bilan ne s’équilibre pas — vérifiez les écritures',
+  'st.amountsIn': 'Montants exprimés en',
+  'st.presentationNotApplied':
+    'Devise de présentation configurée non appliquée à ces états :',
   'st.disclaimer':
     'Présentation provisoire calculée à partir des écritures validées. Non conforme IFRS en l’état : voir docs/mauritius-regulations/accounting.md.',
   'settings.title': 'Paramètres',
@@ -1287,6 +1290,10 @@ const fr: Dict = {
   'settings.company.activity': 'Activité',
   'settings.company.functionalCurrency': 'Devise fonctionnelle',
   'settings.company.presentationCurrency': 'Devise de présentation',
+  'settings.company.presentationCurrencyHint':
+    'Cette devise est conservée pour une future conversion. Tant que la conversion n’est pas validée, les états financiers restent exprimés en devise fonctionnelle.',
+  'settings.presentationCurrencyHint':
+    'Devise de présentation configurée non appliquée : les états financiers restent exprimés en devise fonctionnelle jusqu’à la validation d’une conversion.',
   'settings.company.fyStart': 'Début de l’exercice',
   'settings.company.fyEnd': 'Fin de l’exercice',
   'settings.company.fyRule':
@@ -2169,6 +2176,9 @@ const en: Dict = {
   'st.unappropriated': 'Result not yet appropriated',
   'st.balanced': 'Balance sheet balances (provisional)',
   'st.unbalanced': 'The balance sheet does not balance — check your entries',
+  'st.amountsIn': 'Amounts expressed in',
+  'st.presentationNotApplied':
+    'Configured presentation currency not applied to these statements:',
   'st.disclaimer':
     'Provisional presentation computed from posted entries. Not IFRS compliant as-is: see docs/mauritius-regulations/accounting.md.',
   'settings.title': 'Settings',
@@ -3246,6 +3256,10 @@ const en: Dict = {
   'settings.company.activity': 'Activity',
   'settings.company.functionalCurrency': 'Functional currency',
   'settings.company.presentationCurrency': 'Presentation currency',
+  'settings.company.presentationCurrencyHint':
+    'This currency is kept for a future conversion. Until that conversion is validated, financial statements remain in the functional currency.',
+  'settings.presentationCurrencyHint':
+    'Configured presentation currency not applied: financial statements remain in the functional currency until a conversion is validated.',
   'settings.company.fyStart': 'Financial year start',
   'settings.company.fyEnd': 'Financial year end',
   'settings.company.fyRule':

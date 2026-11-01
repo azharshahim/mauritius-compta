@@ -176,9 +176,21 @@ export function reportRoutes(app: FastifyInstance, db: Db) {
     const range = parseRange(query, ctx.company);
     const format = query.format ?? 'json';
     const locale = pickLocale(query, user.locale);
-    const currency = ctx.company.presentation_currency || ctx.company.functional_currency;
+    // P0-01: amounts are always computed in the functional currency. The
+    // configured presentation currency is returned as metadata but is not
+    // applied until a validated historical-rate conversion exists. Never pass
+    // presentation_currency as the currency of the amounts.
+    const currency = ctx.company.functional_currency;
+    const presentationCurrency =
+      ctx.company.presentation_currency || ctx.company.functional_currency;
 
-    const statements = await computeStatements(db, companyId, currency, range);
+    const statements = await computeStatements(
+      db,
+      companyId,
+      currency,
+      range,
+      presentationCurrency,
+    );
 
     if (format === 'csv') {
       const rows: (string | number)[][] = [
@@ -231,6 +243,10 @@ export function reportRoutes(app: FastifyInstance, db: Db) {
       ]);
       rows.push(['', '', t(locale, 'csv.profitForPeriod'), statements.profitAndLoss.profit]);
       rows.push([]);
+      // Make the export self-describing: the amounts above are in the
+      // functional currency, even when a different presentation currency is
+      // configured on the company.
+      rows.push([t(locale, 'pdf.currency'), statements.currency]);
       rows.push([t(locale, 'csv.demoNote')]);
       reply
         .header('content-type', 'text/csv; charset=utf-8')

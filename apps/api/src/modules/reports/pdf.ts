@@ -74,6 +74,20 @@ function header(doc: PDFKit.PDFDocument, company: PdfCompany, title: string, loc
   meta.push(`${t(locale, 'pdf.period')}: ${period}`);
   meta.push(`${t(locale, 'pdf.currency')}: ${company.functional_currency}`);
   doc.text(meta.join('   |   '));
+  if (company.presentation_currency && company.presentation_currency !== company.functional_currency) {
+    doc.moveDown(0.2);
+    doc
+      .font('Helvetica-Oblique')
+      .fontSize(7)
+      .fillColor('#7a5b00')
+      .text(
+        sanitize(
+          `${t(locale, 'pdf.amountsIn')} ${company.functional_currency}. ` +
+            `${t(locale, 'pdf.presentationNotApplied')} ${company.presentation_currency}.`,
+        ),
+      );
+    doc.fillColor(COLORS.text);
+  }
   doc.moveDown(0.5);
 
   const warnY = doc.y;

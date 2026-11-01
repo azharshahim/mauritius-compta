@@ -23,6 +23,10 @@ interface StatementsResponse {
   from: string;
   to: string;
   currency: string;
+  functionalCurrency: string;
+  presentationCurrency: string;
+  presentationCurrencyApplied: boolean;
+  currencyBasis: 'functional_currency';
   profitAndLoss: { revenue: Group; expenses: Group; profit: string };
   financialPosition: {
     assets: Group;
@@ -92,6 +96,16 @@ export default function StatementsPage({ view }: { view?: StatementsView } = {})
 
   if (!company) return <EmptyState title={t('dashboard.noCompanyHelp')} />;
   const exportPath = `/companies/${company.id}/reports/statements${qs({ from, to })}`;
+  // Never label the amounts with the configured presentation currency: until a
+  // validated historical-rate conversion exists, every amount is in the
+  // functional currency. Keep the configuration visible but say it is unused.
+  const displayedCurrency =
+    data?.presentationCurrencyApplied === true
+      ? data.currency
+      : data?.functionalCurrency ?? company.functional_currency;
+  const presentationCurrency = data?.presentationCurrency ?? company.presentation_currency;
+  const presentationNotApplied =
+    data?.presentationCurrencyApplied === false && presentationCurrency !== displayedCurrency;
 
   return (
     <>
@@ -100,7 +114,7 @@ export default function StatementsPage({ view }: { view?: StatementsView } = {})
           <h1>{view === 'balance-sheet' ? t('nav.reports.balanceSheet') : view === 'profit-loss' ? t('nav.reports.profitLoss') : t('st.title')}</h1>
           <div className="page-sub">
             {data?.from ?? company.financial_year_start} → {data?.to ?? company.financial_year_end} ·{' '}
-            {company.presentation_currency}
+            {displayedCurrency}
           </div>
         </div>
         <Button onClick={() => void downloadExport(exportPath, 'statements.csv', 'csv')}>
@@ -111,6 +125,11 @@ export default function StatementsPage({ view }: { view?: StatementsView } = {})
         </Button>
       </div>
       <DemoNotice />
+      {presentationNotApplied && (
+        <div className="alert alert-warn" role="status">
+          {`${t('st.amountsIn')} ${displayedCurrency}. ${t('st.presentationNotApplied')} ${presentationCurrency}.`}
+        </div>
+      )}
       <div className="alert alert-warn">{t('st.disclaimer')}</div>
 
       <Card>

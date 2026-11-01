@@ -2559,9 +2559,15 @@ function computeLedger(companyId: string, currency: string, from: string, to: st
   };
 }
 
-function computeStatements(companyId: string, currency: string, from: string, to: string) {
-  const balances = computeTrialBalance(companyId, currency, '1900-01-01', to);
-  const period = computeTrialBalance(companyId, currency, from, to);
+function computeStatements(
+  companyId: string,
+  functionalCurrency: string,
+  from: string,
+  to: string,
+  presentationCurrency: string = functionalCurrency,
+) {
+  const balances = computeTrialBalance(companyId, functionalCurrency, '1900-01-01', to);
+  const period = computeTrialBalance(companyId, functionalCurrency, from, to);
 
   const periodByAccount = new Map(period.rows.map((r) => [r.code, r]));
   const accounts = accountsOf(companyId);
@@ -2616,7 +2622,11 @@ function computeStatements(companyId: string, currency: string, from: string, to
   return {
     from,
     to,
-    currency,
+    currency: functionalCurrency,
+    functionalCurrency,
+    presentationCurrency,
+    presentationCurrencyApplied: presentationCurrency === functionalCurrency,
+    currencyBasis: 'functional_currency' as const,
     profitAndLoss: {
       revenue,
       expenses,
@@ -2644,9 +2654,10 @@ function dashboard(companyId: string) {
   const entries = s.entries.filter((e) => e.company_id === companyId);
   const statements = computeStatements(
     companyId,
-    company.presentation_currency,
+    company.functional_currency,
     company.financial_year_start,
     company.financial_year_end,
+    company.presentation_currency,
   );
   const recent = [...entries]
     .sort((a, b) => (a.entry_date === b.entry_date ? b.entry_no.localeCompare(a.entry_no) : b.entry_date.localeCompare(a.entry_date)))
@@ -2671,7 +2682,9 @@ function dashboard(companyId: string) {
       expenses: statements.profitAndLoss.expenses.total,
       profit: statements.profitAndLoss.profit,
       balancedSheet: statements.financialPosition.balanced,
-      currency: company.presentation_currency,
+      currency: company.functional_currency,
+      presentationCurrency: company.presentation_currency,
+      presentationCurrencyApplied: company.presentation_currency === company.functional_currency,
       totalAssets: statements.financialPosition.totalAssets,
     },
     recentEntries: recent,
@@ -2693,6 +2706,7 @@ const CSV_LABELS = {
     credit: 'Crédit',
     code: 'Code',
     balance: 'Solde',
+    currency: 'Devise',
     total: 'TOTAL',
     note: 'EXPORT DE DÉMONSTRATION — calculé dans le navigateur, non réglementaire',
   },
@@ -2707,6 +2721,7 @@ const CSV_LABELS = {
     credit: 'Credit',
     code: 'Code',
     balance: 'Balance',
+    currency: 'Currency',
     total: 'TOTAL',
     note: 'DEMONSTRATION EXPORT — computed in the browser, not a regulatory document',
   },
@@ -2772,7 +2787,13 @@ function exportCsv(path: string, query: URLSearchParams, locale: 'fr' | 'en'): s
     return csv(rows);
   }
 
-  const statements = computeStatements(companyId, company.presentation_currency, from, to);
+  const statements = computeStatements(
+    companyId,
+    company.functional_currency,
+    from,
+    to,
+    company.presentation_currency,
+  );
   const rows: (string | number | null)[][] = [[labels.account, labels.balance]];
   for (const line of statements.financialPosition.assets.lines) rows.push([line.name, line.amount]);
   rows.push([labels.total, statements.financialPosition.totalAssets]);
@@ -2783,6 +2804,7 @@ function exportCsv(path: string, query: URLSearchParams, locale: 'fr' | 'en'): s
   for (const line of statements.profitAndLoss.expenses.lines) rows.push([line.name, line.amount]);
   rows.push([labels.total, statements.profitAndLoss.profit]);
   rows.push([]);
+  rows.push([labels.currency, statements.currency]);
   rows.push([labels.note]);
   return csv(rows);
 }
@@ -8287,7 +8309,13 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
         return computeTrialBalance(companyId, company.functional_currency, from, to) as T;
       }
       if (rest === '/reports/statements') {
-        return computeStatements(companyId, company.presentation_currency, from, to) as T;
+        return computeStatements(
+          companyId,
+          company.functional_currency,
+          from,
+          to,
+          company.presentation_currency,
+        ) as T;
       }
     }
 
