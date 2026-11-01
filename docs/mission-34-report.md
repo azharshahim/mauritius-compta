@@ -166,7 +166,7 @@ vérification d’intégrité.
 | Typecheck API + web | **0 erreur** |
 | Build de production | **succès** |
 | Test UI mission 34 | **1 réussi** : boutons désactivés en démo, aucun appel réseau |
-| CI avec PostgreSQL réel | **à vérifier après le push** |
+| CI avec PostgreSQL réel | **4/4 verts** : typecheck/tests/build, tests API PostgreSQL, migrations PostgreSQL, build démo |
 
 Les 11 tests API ignorés localement le sont faute de `TEST_DATABASE_URL` ; le job CI les exécute.
 Le job CI prépare en plus une base `mauritius_compta_restore` vide pour que la **restauration soit
@@ -229,7 +229,7 @@ l’infrastructure cible, qui n’a pas été utilisée.
 | Documents hors base | **Inclus et vérifiés** |
 | Manifeste, empreintes, chiffrement | **Implémentés** |
 | Restauration sur base vide | **Implémentée et testée** |
-| Restauration sur PostgreSQL réel en CI | **Prévue dans le job dédié — à confirmer après push** |
+| Restauration sur PostgreSQL réel en CI | **Testée dans le job dédié, vert** |
 | Export complet par société | **Implémenté, testé, non restaurable** |
 | Isolation multi-société | **Testée** |
 | Traçabilité | **`backup_runs` + `audit_log`** |

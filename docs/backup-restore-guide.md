@@ -347,8 +347,8 @@ restauration, audit et sauvegarde incomplète.
 | Vérification d’intégrité | incluse dans le test ciblé ; quelques secondes |
 
 Ces valeurs mesurent un **très petit jeu de données dans le bac à sable**, pas une performance de
-production. Le job CI PostgreSQL exécute la même restauration sur un serveur PostgreSQL dédié ; sa
-durée n’est pas utilisée comme engagement de reprise (RTO).
+production. Le job CI PostgreSQL exécute la même restauration sur un serveur PostgreSQL dédié ; il est vert
+sur la PR nº15 (1er novembre 2026) et sa durée n’est pas utilisée comme engagement de reprise (RTO).
 
 ## 11. Limites assumées
 
