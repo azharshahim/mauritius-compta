@@ -17,6 +17,7 @@ on:
       - 'arena/**'
     paths:
       - 'apps/web/**'
+      - 'scripts/**'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/pages.yml'
@@ -25,6 +26,7 @@ on:
       - main
     paths:
       - 'apps/web/**'
+      - 'scripts/**'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/pages.yml'
@@ -63,66 +65,28 @@ jobs:
           VITE_DEMO_MODE: 'true'
           VITE_BUILD_COMMIT: ${{ github.sha }}
 
-      - name: Check bundle references the project base path
-        run: |
-          set -euo pipefail
-          grep -q 'src="/mauritius-compta/assets/' apps/web/dist/index.html
-          grep -q 'MODE DÉMONSTRATION' apps/web/dist/assets/*.js
-          grep -q 'Simulation IA' apps/web/dist/assets/*.js
-          # Mission 24 : version et commit visibles dans la démo
-          grep -q 'Version' apps/web/dist/assets/*.js
-          grep -q "${GITHUB_SHA:0:7}" apps/web/dist/assets/*.js
-          # Mission 7 : assistant universel, paramètres société et TVA de démo
-          grep -q 'Assistant IA' apps/web/dist/assets/*.js
-          grep -q 'Paramètres société' apps/web/dist/assets/*.js
-          grep -q 'Taux de démonstration 15' apps/web/dist/assets/*.js
-          # Mission 8 : assistant de migration et fichiers d'exemple fictifs
-          grep -q 'Assistant de migration comptable' apps/web/dist/assets/*.js
-          grep -q 'Importation & migration' apps/web/dist/assets/*.js
-          grep -q 'MIGRATION_BLOCKED' apps/web/dist/assets/*.js
-          test -f apps/web/dist/samples/plan-comptable-fictif.csv
-          test -f apps/web/dist/samples/export-sage-fictif.csv
-          test -f apps/web/dist/samples/export-sap-fictif.csv
-          test -f apps/web/dist/samples/fichier-incorrect.csv
-          # Mission 9 : banque, rapprochement et quatre relevés fictifs
-          test -f apps/web/dist/samples/releve-bancaire-fictif.csv
-          test -f apps/web/dist/samples/releve-bancaire-fictif.xlsx
-          test -f apps/web/dist/samples/releve-bancaire-doublons.csv
-          test -f apps/web/dist/samples/releve-bancaire-erreurs.csv
-          grep -q 'Banque & rapprochement' apps/web/dist/assets/*.js
-          grep -q 'Libellé de paie détecté' apps/web/dist/assets/*.js
-          grep -q 'Import bloqué' apps/web/dist/assets/*.js
-          # Correctif Samsung Android : MIME génériques présents dans le bundle
-          grep -q 'text/comma-separated-values' apps/web/dist/assets/*.js
-          grep -q 'application/octet-stream' apps/web/dist/assets/*.js
-          grep -q 'VAT_SOURCE_REQUIRED' apps/web/dist/assets/*.js
-          ls apps/web/dist/assets/AssistantPanel-*.js >/dev/null
-          # Mission 20 : registre des immobilisations et démonstration deux sociétés
-          grep -q 'Immobilisations et amortissements' apps/web/dist/assets/*.js
-          grep -q 'Pick-up utilitaire' apps/web/dist/assets/*.js
-          grep -q 'Local en construction' apps/web/dist/assets/*.js
-          # Mission 23 : OCR, plan bilingue et import MCB dans la démo préenregistrée
-          grep -q 'Documents — consultation et archives' apps/web/dist/assets/*.js
-          grep -q 'Importer un relevé MCB' apps/web/dist/assets/*.js
-          grep -q 'ACME OFFICE SUPPLIES LTD' apps/web/dist/assets/*.js
-          grep -q 'PLH-2210' apps/web/dist/assets/*.js
-          # Mission 24 : mappings comptables et passerelle stock depuis la facturation
-          grep -q 'Mappings comptables' apps/web/dist/assets/*.js
-          grep -q 'Proposer les mouvements de stock' apps/web/dist/assets/*.js
-          # Mission 25 : écran MRA e-Invoicing informatif, aucune connexion activée
-          grep -q 'MRA e-Invoicing — À venir' apps/web/dist/assets/*.js
-          grep -q 'MRA e-Invoicing — Coming Soon' apps/web/dist/assets/*.js
-          grep -q 'Intégration MRA non activée' apps/web/dist/assets/*.js
-          grep -q 'MRA integration is not enabled' apps/web/dist/assets/*.js
-          # Mission 26 : groupes de navigation, journaux et lecteur PDF bancaire
-          grep -q 'Journal des achats' apps/web/dist/assets/*.js
-          grep -q 'Importer une facture d’achat' apps/web/dist/assets/*.js
-          grep -q 'Importer un relevé bancaire PDF' apps/web/dist/assets/*.js
-          grep -q 'Banque et trésorerie' apps/web/dist/assets/*.js
-          # Mission 27 : import direct depuis le journal de banque et retour contextuel
-          grep -q 'Import bank statement' apps/web/dist/assets/*.js
-          grep -q 'Retour au Journal de banque' apps/web/dist/assets/*.js
-          test -f apps/web/dist/404.html
+      # Mission 31: the verifier follows every JS chunk reachable from
+      # index.html (Mission 30 moved the demo engine to runtime-*.js) and
+      # validates the base path, PWA assets and fictional samples. It prints an
+      # explicit `::error` with the control, resource and HTTP status on failure.
+      - name: Verify the demo bundle (dynamic chunks, PWA, samples, no MBS brand)
+        run: >-
+          node scripts/verify-demo.mjs
+          --dist apps/web/dist
+          --base /mauritius-compta/
+          --expect-commit "$GITHUB_SHA"
+
+      # The public site is a demo build, but the same source must stay able to
+      # produce a real bundle without demo fixtures, credentials or runtime chunk.
+      - name: Build real bundle for demo/real separation check
+        working-directory: apps/web
+        run: npx vite build --outDir dist-real
+        env:
+          VITE_DEMO_MODE: 'false'
+          VITE_BUILD_COMMIT: ${{ github.sha }}
+
+      - name: Verify the real bundle excludes demo data
+        run: node scripts/verify-demo.mjs --real-dist apps/web/dist-real
 
       - name: Scan the demo bundle for secrets
         run: |
@@ -151,9 +115,14 @@ jobs:
     # branch can never replace the public demo. Permissions below are what
     # deploy-pages needs.
     permissions:
+      contents: read
       pages: write
       id-token: write
     steps:
+      # The verifier lives in the repository, so this job needs its own checkout
+      # (the build artifact contains only the web dist directory).
+      - uses: actions/checkout@v4
+
       # `enablement: true` creates the Pages site on the first run when the
       # repository does not have it yet (source: GitHub Actions).
       - uses: actions/configure-pages@v5
@@ -164,97 +133,17 @@ jobs:
         uses: actions/deploy-pages@v4
 
       # End-to-end proof, executed from GitHub's network (the assistant sandbox
-      # cannot reach *.github.io): the published page, its JS bundle and the SPA
-      # fallback are fetched over HTTPS.
+      # cannot reach *.github.io): the verifier follows index.html, every
+      # JavaScript chunk (including runtime-*.js), the manifest, icons, sw.js,
+      # the 404 fallback and the fictional samples. It retries the initial page
+      # for GitHub Pages propagation, then fails with an explicit `::error`.
       - name: Verify the published HTTPS URL
+        env:
+          PAGES_BASE_URL: https://azharshahim.github.io/mauritius-compta/
         run: |
           set -euo pipefail
-          BASE="https://azharshahim.github.io/mauritius-compta"
-          code=""
-          for i in $(seq 1 20); do
-            code=$(curl -s -o /tmp/index.html -w '%{http_code}' "$BASE/" || true)
-            [ "$code" = "200" ] && break
-            sleep 6
-          done
-          echo "index: $code"
-          test "$code" = "200"
-          grep -q 'src="/mauritius-compta/assets/' /tmp/index.html
-          asset=$(grep -o '/mauritius-compta/assets/[^"]*\.js' /tmp/index.html | head -1)
-          curl -fsS -o /tmp/app.js "https://azharshahim.github.io$asset"
-          echo "asset: $asset ($(wc -c < /tmp/app.js) octets)"
-          grep -q 'MODE DÉMONSTRATION' /tmp/app.js
-          grep -q 'mc.demo.state.v1' /tmp/app.js
-          grep -q 'Mauritius Business Suite' /tmp/app.js
-          grep -q 'Dossiers clients' /tmp/app.js
-          grep -q 'Tâches & échéances' /tmp/app.js
-          grep -q 'Vieux Grand Port Logistics' /tmp/app.js
-          grep -q 'Simulation IA' /tmp/app.js
-          grep -q 'Assistant comptable' /tmp/app.js
-          grep -q 'Intelligence artificielle' /tmp/app.js
-          # Mission 6 : facturation réelle et assistant V2 présents dans le bundle publié
-          grep -q 'Balance âgée' /tmp/app.js
-          grep -q 'FAC-DEMO-0002' /tmp/app.js
-          grep -q 'Écritures proposées' /tmp/app.js
-          grep -q 'AI_PROPOSAL_NOT_VALIDATED' /tmp/app.js
-          # Mission 7 : pastille universelle, paramètres société, TVA configurable
-          grep -q 'Assistant IA' /tmp/app.js
-          grep -q 'Paramètres société' /tmp/app.js
-          grep -q 'Taux de démonstration 15' /tmp/app.js
-          grep -q 'VAT_SOURCE_REQUIRED' /tmp/app.js
-          grep -q 'SETTINGS_FINANCIAL_YEAR_LOCKED' /tmp/app.js
-          # Mission 8 : migration comptable réellement publiée, exemples servis
-          grep -q 'Assistant de migration comptable' /tmp/app.js
-          grep -q 'Importation & migration' /tmp/app.js
-          grep -q 'MIGRATION_BLOCKED' /tmp/app.js
-          grep -q 'fichier-incorrect.csv' /tmp/app.js
-          # Mission 9 : import bancaire, rapprochement humain et mode démo compact
-          grep -q 'Banque & rapprochement' /tmp/app.js
-          grep -q 'releve-bancaire-fictif.csv' /tmp/app.js
-          grep -q 'Confirmer le rapprochement' /tmp/app.js
-          grep -q 'Libellé de paie détecté' /tmp/app.js
-          # Correctif mission 9 : filtre MIME Android publié
-          grep -q 'text/comma-separated-values' /tmp/app.js
-          grep -q 'application/octet-stream' /tmp/app.js
-          # Mission 20 : immobilisations, calculs exacts et démonstration publiée
-          grep -q 'Immobilisations et amortissements' /tmp/app.js
-          grep -q 'capital allowances' /tmp/app.js
-          grep -q 'Pick-up utilitaire' /tmp/app.js
-          grep -q 'FA-2025-0001' /tmp/app.js
-          SAMPLE=$(curl -s -o /tmp/sample.csv -w '%{http_code}' "$BASE/samples/plan-comptable-fictif.csv")
-          echo "sample plan comptable fictif: $SAMPLE"
-          test "$SAMPLE" = "200"
-          grep -qi 'fictif' /tmp/sample.csv
-          BANKSAMPLE=$(curl -s -o /tmp/releve.csv -w '%{http_code}' "$BASE/samples/releve-bancaire-fictif.csv")
-          echo "sample relevé bancaire fictif: $BANKSAMPLE"
-          test "$BANKSAMPLE" = "200"
-          grep -qi 'fictif' /tmp/releve.csv
-          SAGESAMPLE=$(curl -s -o /tmp/sage.csv -w '%{http_code}' "$BASE/samples/export-sage-fictif.csv")
-          echo "sample Sage fictif: $SAGESAMPLE"
-          test "$SAGESAMPLE" = "200"
-          # Le panneau est chargé à la demande (chunk séparé vérifié au build) ;
-          # la pastille, elle, est dans le bundle principal.
-          grep -q 'assistant-panel' /tmp/app.js
-          # Mission 24 : version/commit visibles, fonctionnalités 23 et mappings 24 publiés
-          grep -q 'Version' /tmp/app.js
-          grep -q 'Documents — consultation et archives' /tmp/app.js
-          grep -q 'Importer un relevé MCB' /tmp/app.js
-          grep -q 'Mappings comptables' /tmp/app.js
-          grep -q 'Proposer les mouvements de stock' /tmp/app.js
-          # Mission 25 : écran MRA e-Invoicing publié, intégration toujours inactive
-          grep -q 'MRA e-Invoicing — À venir' /tmp/app.js
-          grep -q 'MRA e-Invoicing — Coming Soon' /tmp/app.js
-          grep -q 'Intégration MRA non activée' /tmp/app.js
-          grep -q 'MRA integration is not enabled' /tmp/app.js
-          grep -q 'Journal des achats' /tmp/app.js
-          grep -q 'Importer une facture d’achat' /tmp/app.js
-          grep -q 'Importer un relevé bancaire PDF' /tmp/app.js
-          grep -q 'Banque et trésorerie' /tmp/app.js
-          grep -q 'Import bank statement' /tmp/app.js
-          grep -q 'Retour au Journal de banque' /tmp/app.js
-          FOUR04=$(curl -s -o /tmp/404.html -w '%{http_code}' "$BASE/404.html")
-          echo "404.html: $FOUR04"
-          DEEP=$(curl -s -o /tmp/deep.html -w '%{http_code}' "$BASE/entries")
-          echo "lien profond /entries: $DEEP"
-          grep -q 'Redirection vers la demonstration\|Redirection vers la démonstration' /tmp/deep.html
-          echo "OK: page 200, bundle JS charge, mode demo embarque, fallback 404 actif"
-          echo "::notice::URL https://azharshahim.github.io/mauritius-compta/ -> index ${code}, asset ${asset} ($(wc -c < /tmp/app.js) octets), 404.html ${FOUR04}, lien profond ${DEEP}, 4 modules et cabinet présents"
+          node scripts/verify-demo.mjs \
+            --url "$PAGES_BASE_URL" \
+            --base /mauritius-compta/ \
+            --expect-commit "$GITHUB_SHA" \
+            --wait 180
