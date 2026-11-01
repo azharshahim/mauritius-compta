@@ -3,10 +3,12 @@
 **Mission 32 — audit fonctionnel**
 **Mise à jour mission 33 — statut de P0-01 : 1er novembre 2026**
 **Mise à jour mission 34 — statut de P0-02 : 1er novembre 2026**
-**Base auditée : `main` = `3a31f0639c16f631c3765057f15791a3629d6b70`, version 0.1.1**
-**Nature : constats d'audit, correction P0-01 et mécanisme de sauvegarde/restauration/export P0-02.
-La conversion multidevise complète n'est pas implémentée ; la preuve d'exploitation de la
-sauvegarde sur l'infrastructure cible reste à faire.**
+**Mise à jour mission 35 — statut de P0-03 : 1er novembre 2026**
+**Base auditée : `main` = `1590f99f806a0cc19406de39982aa879e0a11aca`, version 0.1.1**
+**Nature : constats d'audit, correction P0-01, mécanisme de sauvegarde/restauration/export P0-02
+et audit interne de sécurité/isolation P0-03. La conversion multidevise complète n'est pas
+implémentée ; la preuve d'exploitation de la sauvegarde sur l'infrastructure cible et l'audit
+de sécurité indépendant restent à faire.**
 
 > **Règle de lecture.** Un P0 n'est pas une opinion de priorité : c'est un point qui bloque une
 > mise en production, peut produire une erreur comptable ou fiscale, ou expose à un risque de
@@ -14,7 +16,7 @@ sauvegarde sur l'infrastructure cible reste à faire.**
 > améliorent l'exploitabilité ; les P3 sont du confort. Aucun P0 ne doit rester ouvert au moment
 > d'une décision de mise en service.
 
-**Documents liés :** [rapport d'audit](./mission-32-audit.md) · [couverture fonctionnelle](./comptai-functional-coverage.md) · [matrice QuickBooks](./comptai-quickbooks-test-matrix.md) · [rapport mission 33](./mission-33-report.md) · [rapport mission 34](./mission-34-report.md) · [guide sauvegarde/restauration](./backup-restore-guide.md)
+**Documents liés :** [rapport d'audit](./mission-32-audit.md) · [couverture fonctionnelle](./comptai-functional-coverage.md) · [matrice QuickBooks](./comptai-quickbooks-test-matrix.md) · [rapport mission 33](./mission-33-report.md) · [rapport mission 34](./mission-34-report.md) · [rapport mission 35](./mission-35-security-report.md) · [matrice d'autorisation](./comptai-security-authorization-matrix.md) · [registre de remédiation M35](./mission-35-remediation-register.md) · [guide sauvegarde/restauration](./backup-restore-guide.md)
 
 ## 1. Définitions
 
@@ -80,9 +82,28 @@ réel n'a été configuré dans la mission.
 
 | ID | Écart | Impact | Preuve | Recommandation | Porte de sortie |
 |---|---|---|---|---|---|
-| **P0-03** | **Pas de revue de sécurité indépendante ni de test d'intrusion ; isolation multi-société non exhaustivement testée route par route.** | Risque de fuite entre dossiers clients, d'élévation de privilèges ou de compromission de données comptables. | `preproduction-audit-checklist.md` ; `permissions-matrix.md` ; tests ciblés mais pas d'audit exhaustif | Faire réaliser une revue indépendante, un test d'autorisation par route, un test d'intrusion et une revue de la journalisation. | Rapport de pentest et plan de remédiation clos ou accepté formellement. |
+| **P0-03** | **Pas de revue de sécurité indépendante ni de test d'intrusion.** L'audit interne M35 a corrigé huit vulnérabilités et testé trois sociétés, mais ne remplace pas un regard externe. | Risque de fuite entre dossiers clients, d'élévation de privilèges ou de compromission de données comptables. | `mission-35-security-report.md` ; `comptai-security-authorization-matrix.md` ; `mission-35-remediation-register.md` ; `mission35-security.test.ts` | Faire réaliser une revue indépendante, un test d'autorisation par route, un test d'intrusion et une revue de la journalisation. | Rapport de pentest et plan de remédiation clos ou accepté formellement. |
 | **P0-04** | **MRA e-Invoicing non intégré** alors que des jalons réglementaires sont publiés comme lancés. | Une société assujettie ne peut pas émettre de facture fiscale conforme par COMPTAI ; l'écran informatif ne doit pas être confondu avec une intégration. | `MraEInvoicing.tsx` ; `mra-e-invoicing-roadmap.md` ; textes MRA cités dans le rapport d'audit, section 5 | Trancher le périmètre clients, obtenir l'enregistrement éditeur EBS, les spécifications à jour et un environnement de test ; ne pas commercialiser l'e-invoicing avant auto-certification. | Décision écrite : hors périmètre pour un client donné, ou intégration testée et auto-certifiée. |
 | **P0-05** | **Paie non finalisable et non payable** : net payable nul, bulletin final bloqué, aucun paiement, déclarations internes. | Si la paie est vendue comme opérationnelle, risque de paiement erroné, de retard déclaratif et de responsabilité employeur. | `payroll/service.ts` (`netPayable`, `finalisePayslip`) ; `payroll-declarations.test.ts` ; `mission-15-report.md` | Soit exclure formellement la paie du périmètre de production, soit faire valider les règles par un expert, activer le net payable et les contrôles de paiement/déclaration. | Revue experte signée ; tests de finalisation et de déclaration officielle ; autorisation de paiement. |
+
+### 3.3 P0-03 — audit interne réalisé, audit indépendant toujours requis
+
+La mission 35 a réalisé un audit interne en lecture seule, puis corrigé huit vulnérabilités
+réellement observées : élévation de privilège vers `owner` (critique), modification globale du
+statut d'un compte (élevée), gestionnaire de dossier arbitraire, ordre d'autorisation des
+sauvegardes, identifiants malformés en `500` (moyennes), codes de refus paie et politique de mot
+de passe invité (faibles), cookie `Secure` par défaut en production (moyenne).
+
+Les tests couvrent trois sociétés fictives A/B/C, les huit rôles, 23 modules, les identifiants
+d'objets, les pièces jointes, les exports, l'absence d'endpoint de restauration, les sessions
+révoquées/expirées, le CSRF, les UUID malformés et le bruteforce. Détail :
+[rapport M35](./mission-35-security-report.md) et
+[matrice d'autorisation](./comptai-security-authorization-matrix.md).
+
+**P0-03 reste ouvert.** Aucun test interne n'est un pentest indépendant. La porte de sortie
+demeure un rapport de revue indépendante et de test d'intrusion, avec remédiations vérifiées.
+Les risques résiduels (MFA, journal non chaîné, proxy, preuve de sauvegarde, infrastructure)
+sont listés dans le [registre de remédiation](./mission-35-remediation-register.md).
 
 ## 4. P1 — essentiels avant recette réelle
 
@@ -152,7 +173,7 @@ ci-dessous.
 
 ## 8. Décision recommandée
 
-1. **Ne pas mettre en production** tant que P0-03, P0-04 et P0-05 sont ouverts, et tant que P1-16 n'est pas clos. Le mécanisme P0-02 est livré, mais aucune sauvegarde exploitée sur l'infrastructure cible n'a encore été testée. P0-01 est neutralisé pour l'affichage, mais la conversion complète reste P2-13.
+1. **Ne pas mettre en production** tant que P0-03, P0-04 et P0-05 sont ouverts, et tant que P1-16 n'est pas clos. L'audit interne M35 a corrigé huit vulnérabilités et fourni une matrice de régression, mais **P0-03 reste ouvert faute d'audit indépendant et de test d'intrusion**. Le mécanisme P0-02 est livré, mais aucune sauvegarde exploitée sur l'infrastructure cible n'a encore été testée. P0-01 est neutralisé pour l'affichage, mais la conversion complète reste P2-13.
 2. **Ne pas vendre la paie comme opérationnelle** tant que P0-05 et P1-06 ne sont pas clos.
 3. **Ne pas vendre l'e-invoicing** tant que P0-04 n'est pas tranché ; l'écran actuel doit rester
    explicitement informatif.

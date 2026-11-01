@@ -80,6 +80,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (env.ALLOW_REGISTRATION === undefined && config.NODE_ENV === 'production') {
     config.ALLOW_REGISTRATION = false;
   }
+  // Session cookies must be Secure in production. The default was previously
+  // false, which silently allowed a session cookie to travel over plain HTTP
+  // when the operator forgot the variable.
+  if (env.COOKIE_SECURE === undefined && config.NODE_ENV === 'production') {
+    config.COOKIE_SECURE = true;
+  }
   // The fictional provider never talks to the internet, but it must not be
   // reachable in production unless the operator opts in explicitly.
   if (config.NODE_ENV === 'production' && env.AI_ALLOW_SIMULATED === undefined) {

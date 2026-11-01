@@ -149,6 +149,11 @@ export function backupReady(config: Config): { ready: boolean; reason: string | 
 }
 
 export function requireBackupAdmin(config: Config, email: string | undefined): void {
+  // Authorisation comes first: an ordinary authenticated user must never learn
+  // whether the backup subsystem is configured, and must always receive 403.
+  if (!isBackupAdmin(config, email)) {
+    throw forbidden('Only a designated backup administrator may perform this operation', 'BACKUP_FORBIDDEN');
+  }
   const state = backupReady(config);
   if (!state.ready) {
     throw new AppError(
@@ -156,9 +161,6 @@ export function requireBackupAdmin(config: Config, email: string | undefined): v
       503,
       'Backup is not enabled on this server: configure BACKUP_ENCRYPTION_KEY and BACKUP_ADMIN_EMAILS',
     );
-  }
-  if (!isBackupAdmin(config, email)) {
-    throw forbidden('Only a designated backup administrator may perform this operation', 'BACKUP_FORBIDDEN');
   }
 }
 

@@ -114,22 +114,22 @@ Aucune rubrique n’est déclarée entièrement conforme. Les deux rubriques **N
 ### 3.12 Sécurité des données
 
 - **Statut : Partiellement conforme**
-- **Preuves :** `apps/api/tests/auth.test.ts` (9), `apps/api/tests/cabinet.test.ts` (11), les contrôles d’isolation et le stockage privé des documents existent ; les secrets ne sont pas versionnés et la configuration en refuse certains.
-- **Écarts / actions :** **aucun test d’intrusion**, aucune revue de sécurité indépendante, pas de preuve de chiffrement au repos des documents, pas de test de rotation des secrets, pas de test de fuite dans les journaux ; les quotas et la limitation de débit doivent être revus pour la production.
+- **Preuves :** `apps/api/tests/auth.test.ts` (9), `apps/api/tests/cabinet.test.ts` (11), `apps/api/tests/mission35-security.test.ts` (14) ; les contrôles d’isolation, le stockage privé des documents, les sessions révoquées/expirées, le CSRF, les UUID malformés et le bruteforce sont exercés ; les secrets ne sont pas versionnés et la configuration en refuse certains.
+- **Écarts / actions :** **aucun test d’intrusion**, aucune revue de sécurité indépendante, pas de preuve de chiffrement au repos des documents, pas de test de rotation des secrets, pas de test de fuite dans les journaux ; les quotas et la limitation de débit doivent être revus pour la production. L’audit M35 est interne : voir `mission-35-security-report.md`.
 - **Preuve manquante bloquante :** revue de sécurité et test d’intrusion avant mise en ligne.
 
 ### 3.13 Isolation entre sociétés
 
 - **Statut : Partiellement conforme**
-- **Preuves :** plusieurs suites vérifient l’isolation par société, notamment `payroll-accounting.test.ts`, `bank.test.ts`, `mission29.test.ts` et `cabinet.test.ts` ; toutes passent.
-- **Écarts / actions :** l’isolation n’est pas testée sur la totalité des routes et des objets ; pas de test automatisé systématique « société A ne peut jamais lire la société B » sur chaque endpoint ; risque résiduel en cas de nouvelle route non couverte.
+- **Preuves :** plusieurs suites vérifient l’isolation par société, notamment `payroll-accounting.test.ts`, `bank.test.ts`, `mission29.test.ts`, `cabinet.test.ts` et `mission35-security.test.ts` (trois sociétés A/B/C, 23 modules, IDOR, pièces jointes, exports) ; toutes passent.
+- **Écarts / actions :** l’isolation n’est pas testée sur la totalité des 443 handlers ni sur toutes les branches de service ; la matrice `comptai-security-authorization-matrix.md` est représentative et non exhaustive ; risque résiduel en cas de nouvelle route non couverte.
 - **Preuve manquante bloquante :** test transversal d’autorisation par route et revue de code.
 
 ### 3.14 Droits utilisateurs
 
 - **Statut : Partiellement conforme**
-- **Preuves :** `apps/api/tests/auth.test.ts`, `apps/api/tests/cabinet.test.ts` et `docs/permissions-matrix.md` ; les rôles et plusieurs refus sont testés.
-- **Écarts / actions :** la matrice complète rôle × permission × route n’est pas couverte ; les tests ne prouvent pas l’absence d’élévation de privilèges ; pas de revue par un administrateur sécurité ; pas de test d’écran pour chaque rôle.
+- **Preuves :** `apps/api/tests/auth.test.ts`, `apps/api/tests/cabinet.test.ts`, `apps/api/tests/mission35-security.test.ts` et `docs/permissions-matrix.md` ; les rôles, les refus et l’élévation de privilège vers `owner` sont testés.
+- **Écarts / actions :** la matrice complète rôle × permission × route n’est pas couverte ; les tests M35 ne remplacent pas une revue par un administrateur sécurité ; pas de test d’écran pour chaque rôle.
 - **Preuve manquante bloquante :** recette des permissions avec comptes réels de chaque rôle.
 
 ### 3.15 Sauvegarde et restauration

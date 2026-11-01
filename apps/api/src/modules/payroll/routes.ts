@@ -4,7 +4,7 @@ import type { Db } from '../../db/index.js';
 import { parse } from '../../lib/http.js';
 import { requireModuleAccess } from '../../lib/permissions.js';
 import { cabinetForCompanyUser } from '../../lib/cabinets.js';
-import { badRequest, notFound } from '../../lib/errors.js';
+import { badRequest, forbidden, notFound } from '../../lib/errors.js';
 import { payrollPdf } from './pdf.js';
 import {
   accountingTransferCsv,
@@ -196,7 +196,7 @@ export function payrollRoutes(app: FastifyInstance, db: Db) {
     const ctx = await requireModuleAccess(db, req.user!.id, companyId, 'payroll', min);
     const { cabinetId } = await cabinetForCompanyUser(db, companyId, req.user!.id);
     if (min === 'write' && !writer.includes(ctx.role)) {
-      throw badRequest('MODULE_FORBIDDEN', 'A payroll manager role is required');
+      throw forbidden('A payroll manager role is required', 'MODULE_FORBIDDEN');
     }
     return { companyId, cabinetId, userId: req.user!.id, role: ctx.role, ip: req.ip };
   }

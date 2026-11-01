@@ -73,7 +73,9 @@ describe('mission 26 — journal imports and light home (demo)', () => {
     expect(screen.getByText(/aucun OCR, aucun doublon/i)).toBeTruthy();
     await waitFor(() => expect(screen.getByLabelText(/Choisir une facture client émise/i)).toBeTruthy());
     const select = screen.getByLabelText(/Choisir une facture client émise/i) as HTMLSelectElement;
-    expect(select.options.length).toBeGreaterThan(1);
+    // The demo invoices are seeded asynchronously after login: wait for the
+    // option list instead of racing the first render.
+    await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
     expect(screen.getByRole('button', { name: /Préparer le brouillon \(sans OCR\)/i })).toBeTruthy();
   });
 

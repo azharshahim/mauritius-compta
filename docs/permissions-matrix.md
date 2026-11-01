@@ -65,7 +65,7 @@ Toutes les routes comptables existantes passent désormais par `requireCompany()
 | `GET /api/cabinet/companies/:id` | cabinet | `read` |
 | `PATCH /api/cabinet/companies/:id` | cabinet | `admin` |
 | `POST /api/cabinet/companies/:id/archive` | cabinet | `admin` |
-| `PATCH /api/cabinet/companies/:id/members/:userId` | cabinet | `admin` (rôle + dérogations modules) |
+| `PATCH /api/cabinet/companies/:id/members/:userId` | cabinet | `admin` (rôle + dérogations modules) ; promotion `owner` refusée ; `isActive` réservé au `owner`, interdit sur soi-même, sur un `owner` et sur un compte partagé |
 | `GET /api/companies/:id/tasks` | cabinet | `read` |
 | `POST /api/companies/:id/tasks` | cabinet | `write` |
 | `PATCH /api/companies/:id/tasks/:taskId` | cabinet | `write` |
@@ -98,9 +98,16 @@ Toutes les routes comptables existantes passent désormais par `requireCompany()
 - Il n'existe pas encore d'interface de **révocation** d'une dérogation dans l'UI (l'API le
   permet avec `modules: { payroll: 'none' }`) ; l'écran Collaborateurs permet de changer le
   rôle, pas la dérogation.
-- Le rôle `owner` ne peut pas être attribué depuis l'API membres (transfert de propriété non
-  implémenté) : la valeur est conservée pour compatibilité V0.1.
+- Le rôle `owner` ne peut être attribué ni par `POST /members` ni par `PATCH /cabinet/.../members`
+  (transfert de propriété non implémenté) : la valeur est conservée pour compatibilité V0.1 et
+  suit P2-06.
+- `app_users.is_active` est un drapeau **global**, pas une appartenance : seul un `owner` peut le
+  changer, jamais sur son propre compte, sur un autre `owner` ou sur un compte membre d'un autre
+  dossier ; la désactivation révoque toutes les sessions.
 - Pas de MFA, pas de politique de mot de passe par cabinet, pas de SSO.
+- Audit M35 : [rapport](./mission-35-security-report.md) et
+  [matrice d'autorisation](./comptai-security-authorization-matrix.md). L'audit reste interne :
+  P0-03 n'est pas clos.
 
 
 ## Intelligence artificielle (mission 5)
