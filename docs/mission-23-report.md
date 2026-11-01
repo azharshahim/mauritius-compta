@@ -153,7 +153,7 @@ Tests mission 23 ajoutés :
 - écrans : statut provisoire, bascule FR/EN avec codes inchangés, historique/doublon visible,
   aperçu MCB avec continuité des soldes.
 
-**CI** : exécution `41256479305` sur la branche, **succès** des trois tâches :
+**CI** : dernière exécution complète `41256925341` sur la branche, **succès** des trois tâches :
 « Migrations against real PostgreSQL », « Typecheck, tests and build » et
 « API tests against real PostgreSQL ». Aucune branche n’a été ajoutée à
 `.github/workflows/pages.yml` et aucune publication n’a été déclenchée.
