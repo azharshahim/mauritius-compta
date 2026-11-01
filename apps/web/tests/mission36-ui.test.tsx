@@ -1,6 +1,7 @@
 /**
  * Mission 36 — accountant navigation in French and English, with direct links
  * to the existing Accounting periods / Audit Trail / Year-End tabs.
+ * Mission 38 removed the journals group and renamed the English cabinet labels.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -42,14 +43,15 @@ describe('mission 36 — accountant navigation and terminology', () => {
     vi.unstubAllGlobals();
   });
 
-  it('exposes the eleven professional groups and opens Journal Entries', async () => {
+  it('exposes the ten professional groups and opens Journal Entries', async () => {
     await login();
-    expect(document.querySelectorAll('.nav-group-toggle')).toHaveLength(11);
+    expect(document.querySelectorAll('.nav-group-toggle')).toHaveLength(10);
     expect(screen.getByRole('button', { name: /Comptabilité/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Ventes et facturation/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Achats et dépenses/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Stocks et immobilisations/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Rapports/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Journaux$/ })).toBeNull();
 
     fireEvent.click(navLink(/^Écritures comptables$/));
     await screen.findByRole('heading', { name: /Écritures comptables/i });
@@ -77,10 +79,12 @@ describe('mission 36 — accountant navigation and terminology', () => {
     expect(navLink(/Journal Entries/)).toBeTruthy();
     expect(navLink(/General Ledger/)).toBeTruthy();
     expect(navLink(/Trial Balance/)).toBeTruthy();
-    expect(navLink(/Bank reconciliation/)).toBeTruthy();
+    expect(navLink(/Bank Reconciliation/)).toBeTruthy();
     expect(navLink(/Profit & Loss/)).toBeTruthy();
     expect(navLink(/Balance Sheet/)).toBeTruthy();
     expect(navLink(/Year-End Closing/)).toBeTruthy();
+    expect(navLink(/Client Portfolios/)).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /Client dossiers/ })).toBeNull();
     expect(navLink(/Audit Trail/)).toBeTruthy();
     expect(screen.getByRole('button', { name: /Customers & Companies|Clients & Companies/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Sales & Invoicing/i })).toBeTruthy();

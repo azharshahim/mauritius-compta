@@ -3,9 +3,10 @@ import { NAV_GROUPS, groupIsActive, isNavItemActive } from '../src/navigation';
 import { dictionaries } from '../src/i18n';
 
 /**
- * Mission 26 — the eight collapsible groups replace the five long module tabs.
- * Labels must exist in both languages, destinations must stay on existing
- * screens, and no unimplemented statement (cash-flow table) may be invented.
+ * Mission 26 — the collapsible groups replace the five long module tabs.
+ * Mission 38 removed the single-item Journals group: journal types are now
+ * tabs of Journal Entries. Labels must exist in both languages, destinations
+ * must stay on existing screens, and no unimplemented statement may appear.
  */
 describe('cabinet navigation (mission 26)', () => {
   it('keeps the ordered groups introduced in mission 26, extended in mission 36', () => {
@@ -13,7 +14,6 @@ describe('cabinet navigation (mission 26)', () => {
       'home',
       'clients',
       'accounting',
-      'journals',
       'bank',
       'billing',
       'purchases',
@@ -22,7 +22,7 @@ describe('cabinet navigation (mission 26)', () => {
       'reports',
       'settings',
     ]);
-    expect(NAV_GROUPS).toHaveLength(11);
+    expect(NAV_GROUPS).toHaveLength(10);
   });
 
   it('has a French and English label for every group and item', () => {
@@ -36,15 +36,13 @@ describe('cabinet navigation (mission 26)', () => {
     }
   });
 
-  it('places journals and bank management after accounting, before billing (mission 36)', () => {
+  it('keeps accounting, then banking, then billing and reports ordered', () => {
     const keys = NAV_GROUPS.map((group) => group.key);
     const accounting = keys.indexOf('accounting');
-    const journals = keys.indexOf('journals');
     const bank = keys.indexOf('bank');
     const billing = keys.indexOf('billing');
     const reports = keys.indexOf('reports');
-    expect(journals).toBe(accounting + 1);
-    expect(bank).toBe(journals + 1);
+    expect(bank).toBe(accounting + 1);
     expect(billing).toBeGreaterThan(bank);
     expect(reports).toBeGreaterThan(billing);
   });
@@ -55,10 +53,9 @@ describe('cabinet navigation (mission 26)', () => {
       expect(destination.startsWith('/'), destination).toBe(true);
     }
     expect(destinations.some((to) => /cash-?flow|flux/i.test(to))).toBe(false);
-    expect(destinations).toContain('/accounting/journals/purchases');
     expect(destinations).toContain('/accounting/entries');
+    expect(destinations.filter((to) => to.startsWith('/accounting/journals'))).toEqual([]);
     expect(destinations).toContain('/accounting/financial-years');
-    expect(destinations).toContain('/accounting/journals/sales');
     expect(destinations).toContain('/accounting/banking/pdf');
     expect(destinations).toContain('/accounting/statements/balance-sheet');
     expect(destinations).toContain('/accounting/statements/profit-loss');

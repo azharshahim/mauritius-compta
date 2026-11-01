@@ -127,8 +127,13 @@ export const LEGACY_REDIRECTS: { from: string; to: string }[] = [
   { from: '/companies', to: '/cabinet/companies' },
   { from: '/accounts', to: '/accounting/accounts' },
   { from: '/entries', to: '/accounting/entries' },
+  { from: '/journals', to: '/accounting/entries' },
   { from: '/ledger', to: '/accounting/ledger' },
   { from: '/trial-balance', to: '/accounting/trial-balance' },
   { from: '/statements', to: '/accounting/statements' },
+  { from: '/financial-years', to: '/accounting/financial-years' },
+  { from: '/accounting/opening-balances', to: '/accounting/financial-years?tab=opening' },
+  { from: '/accounting/year-end-closing', to: '/accounting/financial-years?tab=checklist' },
+  { from: '/year-end-closing', to: '/accounting/financial-years?tab=checklist' },
   { from: '/settings', to: '/accounting/settings' },
 ];

@@ -87,7 +87,7 @@ describe('paramètres société (démo)', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Se connecter/i }));
     await screen.findByRole('heading', { name: /Tableau de bord Cabinet/i });
 
-    clickNavLink(/^Paramètres$/);
+    clickNavLink(/^Paramètres comptables$/);
     const link = await screen.findByRole('link', {
       name: /Ouvrir les paramètres de la société/i,
     });

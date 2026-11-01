@@ -256,6 +256,7 @@ export default function SettingsPage() {
 
       {tab === 'periods' && (
         <Card title={t('settings.periods')}>
+          <p className="page-sub">{t('settings.periodsHint')}</p>
           <div className="table-wrap">
             <table>
               <thead>

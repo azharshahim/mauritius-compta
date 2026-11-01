@@ -37,13 +37,13 @@ interface GuidedData {
 const D = {
   en: {
     eyebrow: 'Reviewer workspace · fictional company',
-    title: 'Guided demo',
+    title: 'Guided Demo',
     intro:
       'A five-minute route through the accounting records of a Mauritian trading company. Every screen below is a real screen of this build; every amount is fictitious and stored only in this browser.',
     fictional: 'Fictional data',
     reset: 'Reset demo data',
     resetConfirm:
-      'Reset every demonstration dossier in this browser? Other environments and the server are not touched.',
+      'Reset every demonstration company file in this browser? Other environments and the server are not touched.',
     resetDone: 'Demo data reset. Reloading…',
     company: 'Active company',
     financialYear: 'Financial year',
@@ -409,7 +409,7 @@ const QUICK_LINKS: { key: string; to: string }[] = [
   { key: 'Payroll', to: '/payroll' },
   { key: 'Profit & Loss', to: '/accounting/statements/profit-loss' },
   { key: 'Balance Sheet', to: '/accounting/statements/balance-sheet' },
-  { key: 'Year-End Closing', to: '/accounting/financial-years' },
+  { key: 'Year-End Closing', to: '/accounting/financial-years?tab=checklist' },
 ];
 
 export default function GuidedDemoPage() {

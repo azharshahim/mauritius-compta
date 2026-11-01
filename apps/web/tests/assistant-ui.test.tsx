@@ -59,7 +59,7 @@ describe('assistant IA universel (démo)', () => {
     expect(pill).toBeTruthy();
 
     for (const label of [
-      /^Tous les journaux$/,
+      /^Écritures comptables$/,
       /Tableau de bord Ventes/,
       /Tableau de bord Paie/,
       /^Tableau de bord Cabinet$/,
@@ -114,7 +114,7 @@ describe('assistant IA universel (démo)', () => {
 
   it('ne vole jamais le focus à une saisie en cours (règle Android/Samsung)', async () => {
     await login();
-    clickNavLink(/^Paramètres$/);
+    clickNavLink(/^Paramètres comptables$/);
 
     const titleInput = (await screen.findByLabelText(/Nom complet/i)) as HTMLInputElement;
     titleInput.focus();

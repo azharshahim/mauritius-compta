@@ -157,8 +157,8 @@ describe('Android keyboard: focus is never stolen while typing', () => {
 
   it('keeps focus in the accounting entry editor (reference, description, amount)', async () => {
     await login();
-    clickNavLink(/^Tous les journaux$/);
-    await waitFor(() => expect(window.location.hash).toContain('/accounting/journals'));
+    clickNavLink(/^Écritures comptables$/);
+    await waitFor(() => expect(window.location.hash).toContain('/accounting/entries'));
     const dialog = await openModal(/Ajouter une écriture/);
     const reference = within(dialog).getAllByRole('textbox')[0]! as HTMLInputElement;
     typeChars(reference, 'FA-2026-001');
@@ -177,7 +177,7 @@ describe('Android keyboard: focus is never stolen while typing', () => {
 
   it('keeps focus in the accounting settings form', async () => {
     await login();
-    clickNavLink(/^Paramètres$/);
+    clickNavLink(/^Paramètres comptables$/);
     await waitFor(() => expect(window.location.hash).toContain('/accounting/settings'));
     const inputs = Array.from(document.querySelectorAll('.page input')).filter(
       (i) => !(i as HTMLInputElement).disabled && (i as HTMLInputElement).type !== 'hidden',

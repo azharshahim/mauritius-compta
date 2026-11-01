@@ -309,12 +309,12 @@ export default function FinancialYearsPage() {
       <DemoNotice />
       <ErrorBanner message={error ?? actionError} />
 
-      <div className="tabs" role="tablist" aria-label={L('Exercices comptables', 'Financial years')}>
+      <div className="tabs" role="tablist" aria-label={L('Exercices comptables', 'Financial Years')}>
         {([
           ['timeline', L('Chronologie', 'Timeline')],
-          ['opening', L('Soldes d’ouverture', 'Opening balances')],
-          ['adjustments', L('Ajustements antérieurs', 'Prior-year adjustments')],
-          ['checklist', L('Contrôles de clôture', 'Closing checklist')],
+          ['opening', L('Soldes d’ouverture', 'Opening Balances')],
+          ['adjustments', L('Ajustements antérieurs', 'Prior-Year Adjustments')],
+          ['checklist', L('Contrôles de clôture', 'Year-End Closing')],
           ['archives', L('Archives', 'Archives')],
         ] as [Tab, string][]).map(([key, label]) => (
           <button key={key} type="button" role="tab" aria-selected={tab === key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}</button>

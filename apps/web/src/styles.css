@@ -292,11 +292,15 @@ tr.total-row td { font-weight: 700; background: #f2f6fb; border-top: 2px solid v
 .pagination { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 10px 4px 0; font-size: 0.85rem; color: var(--muted); }
 
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
-.tabs button {
+.tabs button,
+.tabs a {
   border: 1px solid var(--border); background: #fff; border-radius: 999px;
   padding: 6px 14px; font-size: 0.82rem; cursor: pointer; font-weight: 600; color: var(--muted);
+  text-decoration: none; line-height: 1.2;
 }
-.tabs button.active { background: var(--navy); border-color: var(--navy); color: #fff; }
+.tabs button.active,
+.tabs a.active { background: var(--navy); border-color: var(--navy); color: #fff; }
+.tabs a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* --------------------------------------------------------------- auth page */
 .auth-wrap { min-height: 100%; display: grid; grid-template-columns: 1.1fr 1fr; }
@@ -1665,6 +1669,7 @@ table { font-size: 0.865rem; }
 /* Dark-theme corrections for surfaces that historically used literal white. */
 [data-theme='dark'] .btn,
 [data-theme='dark'] .tabs button,
+[data-theme='dark'] .tabs a,
 [data-theme='dark'] .bank-tab,
 [data-theme='dark'] .purchase-tab,
 [data-theme='dark'] .bulk-filter { background: var(--surface-2); color: var(--text); }
