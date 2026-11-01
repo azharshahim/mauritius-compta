@@ -87,7 +87,22 @@ export interface StatementGroupDto {
 export interface StatementsDto {
   from: string;
   to: string;
+  /**
+   * Currency in which every amount below is actually expressed. It is always
+   * the functional currency until a validated historical-rate conversion
+   * engine exists.
+   */
   currency: string;
+  functionalCurrency: string;
+  /** Configured presentation currency, preserved even when it is not applied. */
+  presentationCurrency: string;
+  /**
+   * True only when the statement is really presented in the configured
+   * presentation currency. Equal currencies require no conversion; different
+   * currencies are currently not converted and therefore return false.
+   */
+  presentationCurrencyApplied: boolean;
+  currencyBasis: 'functional_currency';
   basis: 'posted_entries';
   profitAndLoss: {
     revenue: StatementGroupDto;
@@ -395,6 +410,7 @@ export async function computeStatements(
   companyId: string,
   functionalCurrency: string,
   range: ReportRange,
+  presentationCurrency: string = functionalCurrency,
 ): Promise<StatementsDto> {
   const movementRows = await db.query<{
     id: string;
@@ -544,6 +560,10 @@ export async function computeStatements(
     from: range.from,
     to: range.to,
     currency: functionalCurrency,
+    functionalCurrency,
+    presentationCurrency,
+    presentationCurrencyApplied: presentationCurrency === functionalCurrency,
+    currencyBasis: 'functional_currency',
     basis: 'posted_entries',
     profitAndLoss: { revenue: revenueGroup, expenses: expenseGroup, profit: formatAmount(profit) },
     financialPosition: {

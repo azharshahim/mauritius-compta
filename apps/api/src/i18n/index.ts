@@ -116,6 +116,8 @@ const fr: Dict = {
   'csv.demoNote':
     'EXPORT DE DÉMONSTRATION — document non réglementaire, non conforme aux exigences mauriciennes',
   'pdf.currency': 'Devise',
+  'pdf.amountsIn': 'Montants en',
+  'pdf.presentationNotApplied': 'Devise de présentation non appliquée à ce rapport :',
   'pdf.assets': 'Actif',
   'pdf.liabilities': 'Passif',
   'pdf.equity': 'Capitaux propres',
@@ -316,6 +318,8 @@ const en: Dict = {
   'csv.demoNote':
     'DEMONSTRATION EXPORT — not a regulatory document, not compliant with Mauritian requirements',
   'pdf.currency': 'Currency',
+  'pdf.amountsIn': 'Amounts in',
+  'pdf.presentationNotApplied': 'Presentation currency not applied to this report:',
   'pdf.assets': 'Assets',
   'pdf.liabilities': 'Liabilities',
   'pdf.equity': 'Equity',

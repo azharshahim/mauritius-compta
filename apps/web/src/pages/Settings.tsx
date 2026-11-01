@@ -230,6 +230,11 @@ export default function SettingsPage() {
               </tbody>
             </table>
           </div>
+          {company.presentation_currency !== company.functional_currency && (
+            <p className="page-sub" style={{ marginTop: 12 }}>
+              {t('settings.presentationCurrencyHint')}
+            </p>
+          )}
           <p className="page-sub" style={{ marginTop: 12 }}>
             {t('accounts.demoNotice')}
           </p>
