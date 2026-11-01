@@ -549,7 +549,11 @@ export type ErrorCode =
   | 'BACKUP_RESTORE_BLOCKED'
   | 'BACKUP_CONFIRMATION_REQUIRED'
   | 'BACKUP_NOT_RESTORABLE'
-  | 'BACKUP_FAILED';
+  | 'BACKUP_FAILED'
+  // Accountant Workspace and client onboarding (mission 44)
+  | 'ONBOARDING_INCOMPLETE'
+  | 'DRAFT_NOT_FOUND'
+  | 'KYC_ITEM_NOT_FOUND';
 export class AppError extends Error {
   readonly code: ErrorCode;
   readonly status: number;

@@ -2151,3 +2151,335 @@ table { font-size: 0.865rem; }
 /* Mission 39 stacking order: menu/backdrop above the phone quick bar,
    dialogs above every navigation surface, assistant between them. */
 .modal-backdrop { z-index: 90; }
+
+/* ==========================================================================
+   Mission 44 — Accountant Workspace (cabinet portfolio, guided onboarding,
+   client workspace). Additive only: the mission 40 palette is reused, so both
+   light and dark themes keep the same contrast.
+   ========================================================================== */
+
+.m44-kicker {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+.m44-workspace-head,
+.m44-client-head { align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.m44-head-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.m44-head-actions .btn { white-space: nowrap; }
+.m44-client-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.m44-danger-text { color: var(--danger); font-weight: 600; }
+.m44-warning-text { color: var(--warning); font-weight: 600; }
+.m44-kpi-detail { font-size: 0.7rem; color: var(--muted); margin-top: 4px; }
+.m44-kpis .kpi { min-height: 84px; }
+
+/* Progress bars ---------------------------------------------------------- */
+.m44-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+  margin: 6px 0 2px;
+  min-width: 80px;
+}
+.m44-progress > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--teal), var(--accent));
+  border-radius: 999px;
+  transition: width 160ms ease;
+}
+.m44-progress-large { height: 9px; }
+
+/* Step rail -------------------------------------------------------------- */
+.m44-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.m44-step { border-radius: var(--radius-sm); border: 1px solid transparent; }
+.m44-step-button {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: transparent;
+  border: 0;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.m44-step:not(.active) .m44-step-button { cursor: pointer; }
+.m44-step.active { border-color: var(--accent); background: var(--surface-2); }
+.m44-step-index {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.m44-step-completed .m44-step-index { background: var(--success-bg); color: var(--success); }
+.m44-step-blocked .m44-step-index { background: var(--danger-bg); color: var(--danger); }
+.m44-step-pending_review .m44-step-index { background: var(--info-bg); color: var(--info); }
+.m44-step-text { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.m44-step-title { font-size: 0.86rem; font-weight: 600; }
+.m44-steps-oneline { grid-auto-flow: column; grid-auto-columns: minmax(180px, 1fr); overflow-x: auto; }
+
+/* Guided assistant ------------------------------------------------------- */
+.m44-wizard { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; align-items: start; }
+.m44-wizard-rail {
+  position: sticky;
+  top: 72px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  box-shadow: var(--shadow);
+}
+.m44-rail-progress { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+.m44-saved { display: flex; gap: 6px; align-items: center; color: var(--success); }
+.m44-wizard-body { min-width: 0; }
+.m44-wizard-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 4px 0 16px;
+}
+.m44-wizard-actions-right { display: flex; gap: 8px; flex-wrap: wrap; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0 14px; }
+.m44-span-2 { grid-column: span 2; }
+.m44-check { display: flex; gap: 8px; align-items: center; margin: 8px 0; font-size: 0.88rem; }
+.m44-check input { width: 18px; height: 18px; }
+.m44-locale-hint { margin-top: 8px; }
+
+/* Clients table & mobile cards ------------------------------------------- */
+.m44-filters {
+  display: grid;
+  grid-template-columns: minmax(200px, 1.4fr) repeat(3, minmax(140px, 1fr)) auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 12px;
+}
+.m44-filters .field { margin-bottom: 0; }
+.m44-search input { min-width: 0; }
+.m44-table table { min-width: 1080px; }
+.m44-row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.m44-row-actions .btn { white-space: nowrap; padding: 4px 8px; font-size: 0.76rem; }
+.m44-client-cards { display: none; list-style: none; margin: 0; padding: 0; gap: 10px; }
+.m44-client-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  background: var(--surface-2);
+  display: grid;
+  gap: 8px;
+}
+.m44-client-card-head { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.m44-client-card dl { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
+.m44-client-card dt { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.m44-client-card dd { margin: 0; font-size: 0.85rem; }
+.m44-draft-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.m44-draft-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.m44-draft-list li:last-child { border-bottom: 0; }
+.m44-checks-note { margin-top: 10px; }
+.m44-refresh { margin-top: 4px; }
+
+/* Sector, module and domain cards --------------------------------------- */
+.m44-sector-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin: 10px 0; }
+.m44-sector-card {
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  background: var(--surface);
+  color: var(--text);
+  display: grid;
+  gap: 4px;
+  cursor: pointer;
+  font: inherit;
+  min-height: 92px;
+}
+.m44-sector-card:hover { border-color: var(--accent); }
+.m44-sector-card.selected { border-color: var(--accent); background: var(--selection-bg); box-shadow: inset 0 0 0 1px var(--accent); }
+.m44-attention {
+  background: var(--surface-2);
+  border: 1px dashed var(--border-control);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin: 12px 0;
+}
+.m44-attention h3 { font-size: 0.86rem; margin-bottom: 4px; }
+.m44-attention ul { margin: 0; padding-left: 18px; font-size: 0.84rem; color: var(--muted); }
+.m44-module-grid { list-style: none; margin: 10px 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px; }
+.m44-module-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--surface); }
+.m44-module-card.selected { border-color: var(--accent); background: var(--selection-bg); }
+.m44-module-head { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.m44-module-head input { width: 18px; height: 18px; margin-top: 3px; }
+.m44-module-head > span { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.m44-domain-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.m44-domain-card {
+  display: flex;
+  gap: 12px;
+  text-align: left;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  min-height: 100px;
+}
+.m44-domain-card:hover { border-color: var(--accent); }
+.m44-domain-icon {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-3);
+  color: var(--accent);
+}
+.m44-domain-text { display: grid; gap: 4px; }
+.m44-domain-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.m44-chip-list { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; padding: 0; }
+.m44-chip-list li { background: var(--surface-3); border-radius: 999px; padding: 3px 10px; font-size: 0.78rem; }
+
+/* KYC checklist --------------------------------------------------------- */
+.m44-kyc-note { margin-bottom: 10px; }
+.m44-kyc-group { margin: 14px 0; }
+.m44-kyc-group h3 { font-size: 0.9rem; margin-bottom: 6px; }
+.m44-kyc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.m44-kyc-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.9fr);
+  gap: 10px;
+  align-items: start;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  background: var(--surface-2);
+}
+.m44-kyc-label { display: grid; gap: 3px; }
+.m44-kyc-label strong { font-size: 0.87rem; }
+.m44-kyc-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.m44-kyc-controls .field { margin-bottom: 0; }
+
+/* Client workspace shell ------------------------------------------------ */
+.m44-ws-shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 16px; align-items: start; }
+.m44-ws-nav {
+  position: sticky;
+  top: 72px;
+  display: grid;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+  box-shadow: var(--shadow);
+}
+.m44-ws-nav-item {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 550;
+}
+.m44-ws-nav-item:hover { background: var(--surface-2); text-decoration: none; }
+.m44-ws-nav-item.active { background: var(--accent); color: var(--text-on-accent); }
+.m44-ws-body { min-width: 0; }
+.m44-overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.m44-check-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.m44-check-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.86rem;
+}
+.m44-check-list li:last-child { border-bottom: 0; }
+.m44-task-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.m44-task-list li { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.m44-task-list li:last-child { border-bottom: 0; }
+.m44-link-list { list-style: none; margin: 6px 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.m44-link-list li { display: flex; gap: 6px; align-items: center; }
+.m44-module-intro { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.m44-context-note { margin-top: 10px; }
+.m44-review { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 12px 0; }
+.m44-review section { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--surface-2); }
+.m44-review h3 { font-size: 0.88rem; margin-bottom: 6px; }
+.m44-review dl { margin: 0 0 6px; display: grid; gap: 4px; }
+.m44-review dt { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.m44-review dd { margin: 0; font-size: 0.86rem; overflow-wrap: anywhere; }
+
+/* Android / small screens ----------------------------------------------- */
+@media (max-width: 900px) {
+  .m44-wizard { grid-template-columns: minmax(0, 1fr); }
+  .m44-wizard-rail { position: static; }
+  .m44-steps { grid-auto-flow: row; }
+  .m44-ws-shell { grid-template-columns: minmax(0, 1fr); }
+  .m44-ws-nav {
+    position: static;
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .m44-ws-nav-item { white-space: nowrap; padding: 8px 12px; }
+  .m44-filters { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .m44-search { grid-column: span 2; }
+}
+
+@media (max-width: 640px) {
+  .m44-head-actions { width: 100%; }
+  .m44-head-actions .btn { flex: 1 1 auto; justify-content: center; }
+  .m44-table { display: none; }
+  .m44-client-cards { display: grid; }
+  .m44-filters { grid-template-columns: minmax(0, 1fr); }
+  .m44-search { grid-column: auto; }
+  .m44-kyc-list li { grid-template-columns: minmax(0, 1fr); }
+  .m44-kyc-controls { grid-template-columns: minmax(0, 1fr); }
+  .m44-span-2 { grid-column: auto; }
+  .m44-wizard-actions { flex-direction: column; }
+  .m44-wizard-actions .btn,
+  .m44-wizard-actions-right .btn { width: 100%; }
+  .m44-wizard-actions-right { width: 100%; }
+  .m44-kpis { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+  .m44-progress { min-width: 0; }
+  .m44-client-card dl { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Safe areas (Android notch / gesture bar) ------------------------------- */
+@supports (padding: env(safe-area-inset-left)) {
+  .m44-wizard,
+  .m44-ws-shell,
+  .m44-workspace-head { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+}
+
+@media print {
+  .m44-ws-nav,
+  .m44-head-actions,
+  .m44-wizard-rail { display: none; }
+}

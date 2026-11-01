@@ -74,6 +74,34 @@ interface ContextRule {
  */
 const RULES: ContextRule[] = [
   {
+    pattern: '/cabinet/clients/new',
+    groupKey: 'clients',
+    labelKey: 'm44.create.title',
+    parent: '/cabinet',
+    parentLabelKey: 'nav.cabinet.dashboard',
+  },
+  {
+    pattern: '/cabinet/clients/:companyId/workspace/:section',
+    groupKey: 'clients',
+    labelKey: 'nav.context.clientWorkspace',
+    parent: '/cabinet/clients/:companyId/workspace',
+    parentLabelKey: 'nav.context.clientWorkspace',
+  },
+  {
+    pattern: '/cabinet/clients/:companyId/workspace',
+    groupKey: 'clients',
+    labelKey: 'nav.context.clientWorkspace',
+    parent: '/cabinet',
+    parentLabelKey: 'nav.cabinet.dashboard',
+  },
+  {
+    pattern: '/cabinet/clients/:companyId/onboarding',
+    groupKey: 'clients',
+    labelKey: 'm44.onboarding.title',
+    parent: '/cabinet/clients/:companyId/workspace',
+    parentLabelKey: 'nav.context.clientWorkspace',
+  },
+  {
     pattern: '/cabinet/companies/:companyId/settings',
     groupKey: 'clients',
     labelKey: 'nav.context.companySettings',
