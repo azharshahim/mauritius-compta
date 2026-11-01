@@ -4,6 +4,9 @@ on:
     branches: [integration/m42-m43-m44]
   pull_request:
     branches: [main]
+concurrency:
+  group: integration-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -24,7 +27,7 @@ jobs:
       - name: Desktop and Pixel 7 journeys
         run: |
           npm run preview -w @mc/web -- --host 127.0.0.1 --port 4173 > /tmp/preview.log 2>&1 &
-          E2E_BASE_URL=http://127.0.0.1:4173/mauritius-compta/ npm run test:e2e -w @mc/web -- mission44-workspace.spec.ts
+          E2E_BASE_URL=http://127.0.0.1:4173/mauritius-compta/ npm run test:e2e -w @mc/web -- mission44-workspace.spec.ts --timeout=30000 --reporter=list,github
       - uses: actions/upload-artifact@v4
         if: always()
         with:
