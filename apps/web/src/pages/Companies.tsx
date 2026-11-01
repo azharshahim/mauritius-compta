@@ -187,7 +187,7 @@ export default function CompaniesPage() {
               </thead>
               <tbody>
                 {data?.companies.map((c) => (
-                  <tr key={c.id} style={company?.id === c.id ? { background: '#f2f8ff' } : undefined}>
+                  <tr key={c.id} className={company?.id === c.id ? 'company-row-current' : undefined}>
                     <td>
                       <Link to={`/cabinet/companies/${c.id}`}>
                         <strong>{c.name}</strong>
