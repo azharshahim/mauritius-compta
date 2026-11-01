@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../../api';
 import { demoEnabled } from '../../demo';
 import { useI18n } from '../../i18n';
@@ -10,7 +10,7 @@ import { Badge, Button, Card, DemoNotice, EmptyState, ErrorBanner, Field, Spinne
 interface BankAccount { id: string; name: string; bank_name: string; currency: string; account_code: string; account_name: string; is_active: boolean }
 interface Draft {
   rowNumber: number; txnDate: string | null; valueDate: string | null; label: string;
-  amount: string; balance: string | null; action: 'import' | 'skip'; duplicate: boolean;
+  amount: string; currency?: string; balance: string | null; action: 'import' | 'skip'; duplicate: boolean;
   suggestion?: { kind: string; messageFr: string; messageEn: string } | null;
 }
 interface PreviewResponse {
@@ -54,11 +54,18 @@ export default function BankMcbPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const isGenericPdf = location.pathname.endsWith('/pdf');
+  const returnParam = new URLSearchParams(location.search).get('returnTo');
+  const returnTo =
+    returnParam && returnParam.startsWith('/accounting/journals/')
+      ? returnParam
+      : '/accounting/journals/bank';
   const pageTitle = isGenericPdf ? t('bankPdf.title') : t('mcb.title');
   const pageSubtitle = isGenericPdf ? t('bankPdf.subtitle') : t('mcb.subtitle');
   const scopeNote = isGenericPdf ? t('bankPdf.scopeNote') : t('mcb.scopeNote');
   const demoNote = isGenericPdf ? t('bankPdf.demoNote') : t('mcb.demoNote');
-  const [accountId, setAccountId] = useState('');
+  const [accountId, setAccountId] = useState(
+    () => new URLSearchParams(location.search).get('bankAccountId') ?? '',
+  );
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [busy, setBusy] = useState(false);
@@ -152,11 +159,23 @@ export default function BankMcbPage() {
         <Card>
           <h2>{t('mcb.imported')}</h2>
           <p>{imported.reimport ? t('mcb.alreadyImported') : t('mcb.importedCount').replace('{n}', String(imported.imported)).replace('{d}', String(imported.duplicates))}</p>
-          <div className="page-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Button onClick={() => navigate(`/accounting/banking?tab=transactions${accountId ? `&bankAccountId=${accountId}` : ''}`)}>
-              {t('bankPdf.reconciliation')}
-            </Button>
-            <Button onClick={() => navigate(`/accounting/banking${accountId ? `?bankAccountId=${accountId}` : ''}`)}>{t('mcb.openBank')}</Button>
+          <p className="muted small">{t('bankImport.notPosted')}</p>
+          <div className="page-actions bank-import-actions">
+            <Link
+              className="btn"
+              to={`/accounting/banking?tab=transactions${accountId ? `&bankAccountId=${accountId}` : ''}`}
+            >
+              {t('bankImport.viewTransactions')}
+            </Link>
+            <Link
+              className="btn"
+              to={`/accounting/banking?tab=report${accountId ? `&bankAccountId=${accountId}` : ''}`}
+            >
+              {t('bankImport.prepareReconciliation')}
+            </Link>
+            <Link className="btn btn-secondary" to={returnTo}>
+              {t('bankImport.backToJournal')}
+            </Link>
           </div>
         </Card>
       )}
@@ -223,7 +242,7 @@ export default function BankMcbPage() {
             <p className="page-sub">{t('mcb.previewNote')}</p>
             <div className="table-wrap">
               <table>
-                <thead><tr><th>{t('common.date')}</th><th>{t('bankPdf.valueDate')}</th><th>{t('common.description')}</th><th>{t('common.debit')}</th><th>{t('common.credit')}</th><th>{t('common.balance')}</th><th>{t('common.status')}</th></tr></thead>
+                <thead><tr><th>{t('common.date')}</th><th>{t('bankPdf.valueDate')}</th><th>{t('common.description')}</th><th>{t('common.debit')}</th><th>{t('common.credit')}</th><th>{t('common.balance')}</th><th>{t('common.currency')}</th><th>{t('common.status')}</th></tr></thead>
                 <tbody>
                   {preview.preview.preview.transactions.map((d) => {
                     const amount = Number(d.amount);
@@ -242,6 +261,7 @@ export default function BankMcbPage() {
                         <td>{amount < 0 ? fmt(String(-amount)) : ''}</td>
                         <td>{amount > 0 ? fmt(d.amount) : ''}</td>
                         <td className="mono">{fmt(d.balance)}</td>
+                        <td>{d.currency ?? preview.mcb.currency ?? '—'}</td>
                         <td>{d.action === 'skip' ? <Badge kind="warning">{t('mcb.duplicateRow')}</Badge> : <Badge kind="success">{t('mcb.newRow')}</Badge>}</td>
                       </tr>
                     );

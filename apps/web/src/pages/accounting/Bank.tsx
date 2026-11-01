@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../../api';
 import { demoEnabled } from '../../demo';
 import { useI18n } from '../../i18n';
@@ -62,6 +62,12 @@ const L = {
     label: 'Libellé',
     ref: 'Référence',
     amount: 'Montant',
+    debit: 'Débit',
+    credit: 'Crédit',
+    balance: 'Solde',
+    currencyCol: 'Devise',
+    toImport: 'À importer',
+    duplicateRow: 'Doublon',
     status: 'Statut',
     open: 'Ouvrir',
     noTxns: 'Aucune transaction importée.',
@@ -201,6 +207,12 @@ const L = {
     label: 'Description',
     ref: 'Reference',
     amount: 'Amount',
+    debit: 'Debit',
+    credit: 'Credit',
+    balance: 'Balance',
+    currencyCol: 'Currency',
+    toImport: 'To import',
+    duplicateRow: 'Duplicate',
     status: 'Status',
     open: 'Open',
     noTxns: 'No imported transaction.',
@@ -567,19 +579,64 @@ function statusBadge(
   return <Badge kind={item.kind}>{item.label}</Badge>;
 }
 
+type BankTab = 'accounts' | 'import' | 'transactions' | 'rules' | 'report';
+
+const BANK_TABS: readonly BankTab[] = ['accounts', 'import', 'transactions', 'rules', 'report'];
+
+function parseBankTab(value: string | null): BankTab {
+  return BANK_TABS.includes(value as BankTab) ? (value as BankTab) : 'accounts';
+}
+
 export default function BankPage() {
-  const { locale } = useI18n();
+  const { t, locale } = useI18n();
   const tr = L[locale];
   const { company } = useSession();
   const companyId = company?.id ?? '';
-  const [tab, setTab] = useState<'accounts' | 'import' | 'transactions' | 'rules' | 'report'>('accounts');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = parseBankTab(searchParams.get('tab'));
+  const setTab = useCallback(
+    (next: BankTab) => {
+      setSearchParams(
+        (previous) => {
+          const params = new URLSearchParams(previous);
+          if (next === 'accounts') params.delete('tab');
+          else params.set('tab', next);
+          return params;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+  const requestedReturn = searchParams.get('returnTo');
+  const returnTo =
+    requestedReturn && requestedReturn.startsWith('/accounting/journals/')
+      ? requestedReturn
+      : '/accounting/journals/bank';
+  const [accountId, setAccountIdState] = useState(
+    () => searchParams.get('bankAccountId') ?? '',
+  );
+  const setAccountId = useCallback(
+    (next: string) => {
+      setAccountIdState(next);
+      setSearchParams(
+        (previous) => {
+          const params = new URLSearchParams(previous);
+          if (next) params.set('bankAccountId', next);
+          else params.delete('bankAccountId');
+          return params;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [chartAccounts, setChartAccounts] = useState<{ id: string; code: string; name: string; type: string }[]>([]);
   const [catalogue, setCatalogue] = useState<Catalogue | null>(null);
-  const [accountId, setAccountId] = useState('');
   const [txns, setTxns] = useState<BankTxn[]>([]);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [rules, setRules] = useState<Rule[]>([]);
@@ -617,7 +674,7 @@ export default function BankPage() {
       setAccounts(accountsRes.accounts);
       setChartAccounts(chartRes.accounts.filter((a) => a.type === 'asset'));
       setCatalogue(catalogueRes);
-      setAccountId((current) => current || accountsRes.accounts[0]?.id || '');
+      setAccountIdState((current) => current || accountsRes.accounts[0]?.id || '');
     } catch (err) {
       setError(errorMessage(err, tr.loadError).message);
     } finally {
@@ -670,6 +727,10 @@ export default function BankPage() {
   useEffect(() => {
     void load();
   }, [load]);
+  useEffect(() => {
+    const requested = searchParams.get('bankAccountId');
+    if (requested && requested !== accountId) setAccountIdState(requested);
+  }, [searchParams, accountId]);
   useEffect(() => {
     if (tab === 'transactions') void loadTxns();
   }, [tab, loadTxns]);
@@ -1073,6 +1134,19 @@ export default function BankPage() {
   const findings = preview?.preview.findings ?? [];
   const blocking = findings.filter((f: BankFinding) => f.severity === 'error');
   const warnings = findings.filter((f: BankFinding) => f.severity === 'warning');
+  const bankHref = (nextTab: BankTab) => {
+    const params = new URLSearchParams({ tab: nextTab });
+    if (accountId) params.set('bankAccountId', accountId);
+    if (requestedReturn) params.set('returnTo', returnTo);
+    return `/accounting/banking?${params.toString()}`;
+  };
+  const pdfHref = () => {
+    const params = new URLSearchParams();
+    if (accountId) params.set('bankAccountId', accountId);
+    if (requestedReturn) params.set('returnTo', returnTo);
+    const suffix = params.toString();
+    return `/accounting/banking/pdf${suffix ? `?${suffix}` : ''}`;
+  };
 
   return (
     <div className="bank-page">
@@ -1113,6 +1187,24 @@ export default function BankPage() {
           </button>
         ))}
       </div>
+
+      {importSummary && (
+        <Card title={tr.imported}>
+          <div className="alert alert-success" role="status">{importSummary}</div>
+          <p className="muted small">{t('bankImport.notPosted')}</p>
+          <div className="bank-import-actions">
+            <Link className="btn" to={bankHref('transactions')}>
+              {t('bankImport.viewTransactions')}
+            </Link>
+            <Link className="btn" to={bankHref('report')}>
+              {t('bankImport.prepareReconciliation')}
+            </Link>
+            <Link className="btn btn-secondary" to={returnTo}>
+              {t('bankImport.backToJournal')}
+            </Link>
+          </div>
+        </Card>
+      )}
 
       {tab === 'accounts' && (
         <div className="bank-grid">
@@ -1213,7 +1305,7 @@ export default function BankPage() {
             {catalogue?.limits.maxRows ?? 5000} {locale === 'fr' ? 'lignes' : 'rows'}
           </p>
           <p>
-            <Link className="btn" to="/accounting/banking/pdf">📄 {tr.pdfStatement}</Link>
+            <Link className="btn" to={pdfHref()}>📄 {tr.pdfStatement}</Link>
           </p>
           <p className="muted small">{tr.androidHint}</p>
           <div className="bank-import-history">
@@ -1293,30 +1385,46 @@ export default function BankPage() {
                       <th>{tr.txnDate}</th>
                       <th>{tr.label}</th>
                       <th>{tr.ref}</th>
-                      <th>{tr.amount}</th>
+                      <th>{tr.debit}</th>
+                      <th>{tr.credit}</th>
+                      <th>{tr.balance}</th>
+                      <th>{tr.currencyCol}</th>
+                      <th>{tr.status}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {preview.preview.transactions.map((txn) => (
-                      <tr key={`${txn.rowNumber}-${txn.fingerprint}`} className={txn.action === 'skip' ? 'muted-row' : ''}>
-                        <td>{txn.txnDate}</td>
-                        <td>
-                          {txn.label}
-                          {txn.suggestion && (
-                            <div className="page-sub">
-                              {locale === 'fr' ? txn.suggestion.messageFr : txn.suggestion.messageEn}
-                            </div>
-                          )}
-                        </td>
-                        <td>{txn.reference ?? '—'}</td>
-                        <td className={txn.amount.startsWith('-') ? 'amount-out' : 'amount-in'}>{txn.amount}</td>
-                      </tr>
-                    ))}
+                    {preview.preview.transactions.map((txn) => {
+                      const negative = txn.amount.trim().startsWith('-');
+                      const absolute = negative ? txn.amount.trim().slice(1) : txn.amount;
+                      return (
+                        <tr key={`${txn.rowNumber}-${txn.fingerprint}`} className={txn.action === 'skip' ? 'muted-row' : ''}>
+                          <td>{txn.txnDate ?? '—'}</td>
+                          <td>
+                            {txn.label}
+                            {txn.suggestion && (
+                              <div className="page-sub">
+                                {locale === 'fr' ? txn.suggestion.messageFr : txn.suggestion.messageEn}
+                              </div>
+                            )}
+                          </td>
+                          <td>{txn.reference ?? '—'}</td>
+                          <td className="amount-out">{negative ? absolute : '—'}</td>
+                          <td className="amount-in">{negative ? '—' : absolute}</td>
+                          <td className="mono">{txn.balance ?? '—'}</td>
+                          <td>{txn.currency}</td>
+                          <td>
+                            <Badge kind={txn.action === 'skip' ? 'warning' : 'info'}>
+                              {txn.action === 'skip' ? tr.duplicateRow : tr.toImport}
+                            </Badge>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
               {(blocking.length > 0 || warnings.length > 0) && (
-                <details className="bank-details">
+                <details className="bank-details" open>
                   <summary>{tr.details}</summary>
                   <ul>
                     {[...blocking, ...warnings].slice(0, 100).map((f, index) => (
@@ -1343,7 +1451,6 @@ export default function BankPage() {
               </div>
             </div>
           )}
-          {importSummary && <div className="alert alert-success">{importSummary}</div>}
         </Card>
       )}
 
