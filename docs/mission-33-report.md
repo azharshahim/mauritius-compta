@@ -4,6 +4,7 @@
 **Branche : `arena/e540350d-mauritius-compta`**
 **Base : `main` = `c9d20cf7a9e664b30b7e9bdd81fccdda0548acd0` (fusion de la PR nº13)**
 **Version : COMPTAI 0.1.1**
+**Livraison : PR nº14 en brouillon (commit initial `92c5a13`), CI verte le 1er novembre 2026 — run `41310452141`**
 **Nature : correction ciblée. Aucune règle fiscale, aucun calcul de paie, aucune écriture historique et aucune donnée réelle n'ont été modifiés.**
 
 **Documents liés :** [registre des écarts](./comptai-preproduction-gaps.md) · [audit mission 32](./mission-32-audit.md) · [couverture fonctionnelle](./comptai-functional-coverage.md) · [matrice QuickBooks](./comptai-quickbooks-test-matrix.md)
@@ -159,8 +160,19 @@ Résultat : **2 tests réussis sur 2** :
 | Tests UI existants | **43 réussis** (`demo-engine`, `demo-app`, `company-settings-ui`, mission 33, i18n) |
 
 Les 11 tests ignorés localement le sont faute de `TEST_DATABASE_URL` (concurrence et lettrage).
-Ils sont exécutés par le job CI PostgreSQL ; la CI de la branche doit être vérifiée avant toute
-recommandation de fusion.
+Le job CI **API tests against real PostgreSQL** les exécute : la suite complète y est passée.
+
+| Job CI (run `41310452141`) | Résultat |
+|---|---|
+| Typecheck, tests and build | **succès** (4 min 10 s) |
+| API tests against real PostgreSQL | **succès** (2 min 12 s) |
+| Migrations against real PostgreSQL | **succès** (29 s) |
+| Build demo bundle | **succès** (1 min 42 s) ; publication GitHub Pages ignorée, la branche n'étant pas `main` |
+
+La première exécution de la CI avait échoué sur `mission23-ui.test.tsx` (« Compte bancaire »
+introuvable), un test d'interface sans rapport avec les états financiers, déjà instable sous charge.
+La relance, sans aucun changement de code, a été entièrement verte. Ce point est signalé comme
+fragilité de test à traiter séparément ; il ne remet pas en cause la correction P0-01.
 
 ## 6. Limites assumées
 
