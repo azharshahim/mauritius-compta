@@ -1106,7 +1106,7 @@ export function handleDemoBank(
       limits: DEMO_BANK_LIMITS,
       notImplemented: [
         { fr: 'OFX/QFX : non implémenté dans la démo.', en: 'OFX/QFX: not implemented in the demo.' },
-        { fr: 'PDF bancaire : OCR non implémenté.', en: 'Bank PDF: OCR not implemented.' },
+        { fr: 'PDF bancaire générique : non implémenté ; utilisez l’importeur MCB dédié (périmètre initial).', en: 'Generic bank PDF: not implemented; use the dedicated MCB importer (initial scope).' },
         { fr: 'Aucune connexion bancaire réelle.', en: 'No real bank connection.' },
       ],
     };

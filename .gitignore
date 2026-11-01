@@ -20,3 +20,7 @@ apps/web/blob-report/
 .data/
 apps/api/.data/
 apps/api/.test-storage*/
+
+# Local OCR language cache and ad-hoc test storage
+.cache/
+.test-storage/
