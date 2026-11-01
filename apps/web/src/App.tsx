@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useI18n } from './i18n';
 import { APP_VERSION, SHORT_COMMIT } from './version';
@@ -58,6 +58,7 @@ import { AppIcon } from './components/AppIcon';
 import { BrandMark } from './components/BrandMark';
 import { demoEnabled } from './demo/mode';
 import { useViewportMode } from './responsive';
+import { applyTheme, readStoredTheme, storeTheme, type Theme } from './theme';
 
 const ACCESS_WEIGHT: Record<string, number> = { none: 0, read: 1, write: 2, admin: 3 };
 
@@ -77,9 +78,7 @@ export default function App() {
     () => localStorage.getItem('mc.nav.collapsed') === '1',
   );
   const viewport = useViewportMode();
-  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
-    localStorage.getItem('mc.theme') === 'dark' ? 'dark' : 'light',
-  );
+  const [theme, setTheme] = useState<Theme>(readStoredTheme);
   const location = useLocation();
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
     const active = NAV_GROUPS.find((group) => groupIsActive(group, location.pathname, location.search));
@@ -118,9 +117,10 @@ export default function App() {
     setCompactOpen(false);
   }, [viewport]);
 
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem('mc.theme', theme);
+  // Apply before paint so a theme change never flashes the opposite palette.
+  useLayoutEffect(() => {
+    applyTheme(theme);
+    storeTheme(theme);
   }, [theme]);
 
   useEffect(() => {

@@ -6,13 +6,13 @@ import { I18nProvider } from './i18n';
 import { SessionProvider } from './store';
 import { demoEnabled } from './demo/mode';
 import { ensureDemoLocale } from './demo/preferences';
+import { applyTheme, readStoredTheme } from './theme';
 import './styles.css';
 
 // The GitHub Pages build is served without server-side rewrites: hash routing
 // keeps every deep link working. The real application keeps clean URLs.
 // Apply the saved theme before React renders to avoid a light flash in dark mode.
-document.documentElement.dataset.theme =
-  localStorage.getItem('mc.theme') === 'dark' ? 'dark' : 'light';
+applyTheme(readStoredTheme());
 
 // Mission 37: the demonstration starts in English unless a reviewer already
 // chose French. Production is untouched.

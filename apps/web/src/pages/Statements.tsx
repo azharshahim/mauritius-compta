@@ -51,7 +51,7 @@ function Section({
   return (
     <>
       <tr>
-        <th colSpan={2} style={{ background: '#eef4fb' }}>
+        <th colSpan={2} className="statement-section">
           {title}
         </th>
       </tr>
