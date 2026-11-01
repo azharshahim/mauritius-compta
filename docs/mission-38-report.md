@@ -219,14 +219,14 @@ Les tests n’ont pas été affaiblis : les assertions M26/M36/M37 ont été ada
 | Base | `main` `83cfc9a` |
 | Commit d’implémentation | `6f05e91` — le HEAD final est le dernier commit de la branche |
 | PR | **nº19** (brouillon) — https://github.com/azharshahim/mauritius-compta/pull/19 |
-| CI | **réussie** sur le commit `b02fc3f` : 3/3 jobs CI + build démo |
+| CI | **réussie** au dernier commit de code `154f71d` : 3/3 jobs CI + build démo |
 | Fusion | **interdite sans autorisation explicite** |
 
 ### 10.1 Résultats GitHub Actions
 
 | Workflow | Run | Jobs | Résultat |
 |---|---|---|---|
-| CI | [41331847741](https://github.com/azharshahim/mauritius-compta/actions/runs/41331847741) | API tests against real PostgreSQL ; Migrations against real PostgreSQL ; Typecheck, tests and build | **3/3 réussis** |
-| Demo (GitHub Pages) | [41331847689](https://github.com/azharshahim/mauritius-compta/actions/runs/41331847689) | Build demo bundle ; Deploy to GitHub Pages | **build réussi ; déploiement ignoré** (PR en brouillon) |
+| CI | [41333094997](https://github.com/azharshahim/mauritius-compta/actions/runs/41333094997) | API tests against real PostgreSQL ; Migrations against real PostgreSQL ; Typecheck, tests and build | **3/3 réussis** |
+| Demo (GitHub Pages) | [41333095049](https://github.com/azharshahim/mauritius-compta/actions/runs/41333095049) | Build demo bundle ; Deploy to GitHub Pages | **build réussi ; déploiement ignoré** (PR en brouillon) |
 
-Les deux workflows portent sur le commit `b02fc3f`. Aucun déploiement, aucune publication et aucune fusion n’ont été effectués.
+Les deux workflows portent sur le dernier commit de code `154f71d` ; les commits de documentation suivants ne modifient que ce rapport. Aucun déploiement, aucune publication et aucune fusion n’ont été effectués.
