@@ -28,7 +28,7 @@
 - Démonstration navigateur schéma 17 : deux profils de plan, six documents fictifs (deux achats,
   deux ventes, une photo, un doublon), une proposition corrigée/approuvée, un relevé MCB fictif
   équilibré. Les résultats d’OCR affichés sont **préenregistrés** et signalés comme tels.
-- Tests : 12 tests API mission 23 (dont OCR réel image et PDF scanné) et 10 tests web
+- Tests : 13 tests API mission 23 (dont OCR réel image et PDF scanné) et 10 tests web
   (backend démo et écrans). Documentation [`docs/mission-23-report.md`](docs/mission-23-report.md).
 
 ### Dépendances ajoutées

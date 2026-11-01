@@ -418,8 +418,8 @@ export interface ApprovalLineInput {
 }
 export async function approveProposal(
   db: Db, actor: { userId: string; companyId: string },
-  proposalId: string, body: { confirm: true; lines: ApprovalLineInput[]; journalId?: string;
-    entryDate?: string; reference?: string | null; exchangeRate?: string | number | null },
+  proposalId: string, body: { confirm: true; lines: ApprovalLineInput[]; partyId?: string | null;
+    journalId?: string; entryDate?: string; reference?: string | null; exchangeRate?: string | number | null },
 ) {
   const res = await db.query<any>(
     `SELECT p.*, d.id AS doc_id, d.status AS doc_status, d.original_name, d.invoice_number
@@ -438,6 +438,17 @@ export async function approveProposal(
   const byId = new Map(accounts.rows.map((a) => [a.id, a]));
   for (const lineInput of body.lines) {
     if (!byId.has(lineInput.accountId)) throw badRequest('PROPOSAL_ACCOUNT_INVALID', 'Every line must use an active account of this company');
+  }
+  let partyId = proposal.party_id as string | null;
+  let partyName = proposal.party_name as string | null;
+  if (body.partyId !== undefined && body.partyId !== null) {
+    const table = proposal.kind === 'purchase' ? 'purchase_suppliers' : 'billing_customers';
+    const party = await db.query<{ id: string; name: string }>(
+      `SELECT id, name FROM ${table} WHERE id=$1 AND company_id=$2 AND is_active=true`,
+      [body.partyId, actor.companyId]);
+    if (!party.rows[0]) throw badRequest('PROPOSAL_PARTY_INVALID', 'Choose an active party of this company');
+    partyId = party.rows[0].id;
+    partyName = party.rows[0].name;
   }
   const journalId = body.journalId ?? proposal.journal_id;
   if (!journalId) throw badRequest('PROPOSAL_JOURNAL_REQUIRED', 'Choose a journal');
@@ -474,17 +485,17 @@ export async function approveProposal(
     await tx.query(
       `UPDATE document_proposals SET status='APPROVED', lines=$2::jsonb, journal_id=$3,
          entry_date=$4, balanced=true, draft_entry_id=$5, approved_at=now(), approved_by=$6,
-         updated_at=now() WHERE id=$1`,
+         party_id=$7, party_name=$8, updated_at=now() WHERE id=$1`,
       [proposalId, JSON.stringify(body.lines.map((l, i) => ({
         ...l, accountCode: null, needsAccount: false, lineNo: i + 1,
-      }))), journalId, entryDate, entry.rows[0].id, actor.userId]);
+      }))), journalId, entryDate, entry.rows[0].id, actor.userId, partyId, partyName]);
     await tx.query(
       `UPDATE document_imports SET status='APPROVED', approved_at=now(), approved_by=$2, updated_at=now()
         WHERE id=$1`, [proposal.doc_id, actor.userId]);
 
     // Learning happens only here, after an explicit human approval. A rejected
     // or merely suggested proposal never writes a mapping.
-    const partyKey = normalise(proposal.party_name ?? '');
+    const partyKey = normalise(partyName ?? '');
     if (partyKey) {
       for (let i = 0; i < body.lines.length; i += 1) {
         const inputLine = body.lines[i]!;

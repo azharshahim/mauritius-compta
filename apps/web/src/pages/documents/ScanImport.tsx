@@ -75,6 +75,7 @@ export default function ScanImportPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState(false);
+  const [partyId, setPartyId] = useState('');
   const [rejectReason, setRejectReason] = useState('');
 
   const { data: list, loading: listLoading, reload: reloadList } = useAsync<{ documents: DocumentListRow[] } | null>(
@@ -129,6 +130,7 @@ export default function ScanImportPage() {
         setJournalId(proposal.journal_id ?? '');
         setEntryDate(proposal.entry_date?.slice(0, 10) ?? '');
         setExchangeRate('');
+        setPartyId(proposal.party_id ?? '');
       }
     } catch (err) { setError(errorMessage(err, t('common.error')).message); }
   };
@@ -202,8 +204,8 @@ export default function ScanImportPage() {
       }));
       const result = await api.post<{ draftEntry: { entry_no: string } }>(
         `/companies/${company.id}/documents/proposals/${proposal.id}/approve`,
-        { confirm: true, lines, journalId: journalId || undefined, entryDate: entryDate || undefined,
-          exchangeRate: exchangeRate || null },
+        { confirm: true, lines, partyId: partyId || null, journalId: journalId || undefined,
+          entryDate: entryDate || undefined, exchangeRate: exchangeRate || null },
       );
       setMessage(t('docs.draftCreated').replace('{no}', result.draftEntry.entry_no));
       await loadDetail(detail.document.id);
@@ -391,9 +393,17 @@ export default function ScanImportPage() {
                     </Badge>
                   </div>
                   {proposal.rationale.candidates && proposal.rationale.candidates.length > 0 && (
-                    <p className="page-sub">
-                      {t('docs.partyCandidates')} : {proposal.rationale.candidates.map((c) => `${c.name} (${Math.round(c.score * 100)}%)`).join(', ')}
-                    </p>
+                    <div className="form-grid" style={{ marginBottom: 10 }}>
+                      <Field label={t('docs.partyCandidates')}>
+                        <select value={partyId} disabled={proposal.status !== 'PROPOSED'}
+                          onChange={(e) => setPartyId(e.target.value)}>
+                          <option value="">{proposal.party_name ?? '—'}</option>
+                          {proposal.rationale.candidates.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name} ({Math.round(c.score * 100)}%)</option>
+                          ))}
+                        </select>
+                      </Field>
+                    </div>
                   )}
                   {proposal.uncertain_fields.length > 0 && (
                     <p className="warning-text">{t('docs.uncertain')} : {proposal.uncertain_fields.join(', ')}</p>

@@ -31,6 +31,7 @@ const UpdateSchema = z.object({
 }).strict();
 const ApprovalSchema = z.object({
   confirm: z.literal(true),
+  partyId: z.string().uuid().nullish(),
   journalId: z.string().uuid().optional(),
   entryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   reference: z.string().max(100).nullish(),

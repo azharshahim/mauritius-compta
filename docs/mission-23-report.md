@@ -125,8 +125,8 @@ Exécutions locales du 1er novembre 2026 :
 
 | Commande | Résultat |
 |---|---|
-| `npx vitest run apps/api/tests/mission23.test.ts` | **12/12** |
-| `npx vitest run apps/api/tests` | **470 réussis, 11 ignorés** (32 fichiers, 1 ignoré) |
+| `npx vitest run apps/api/tests/mission23.test.ts` | **13/13** |
+| `npx vitest run apps/api/tests` | **471 réussis, 11 ignorés** (32 fichiers, 1 ignoré) |
 | `npm run test -w @mc/web` | **235/235** après ajout des tests mission 23 |
 | `npm run typecheck` | **0 erreur** (API + web, y compris tests) |
 | `npm run build` | API et web **OK** |
@@ -145,6 +145,7 @@ Tests mission 23 ajoutés :
 - aperçu/confirmation d’un import cabinet CSV avec doublon détecté ;
 - import de facture, proposition équilibrée, approbation créant un brouillon ;
 - doublon exact refusé en proposition ;
+- apprentissage d’une affectation approuvée et **aucune** affectation après refus ;
 - isolation entre sociétés ;
 - prévisualisation/import MCB PDF puis réimport sans doublon (7 opérations) ;
 - backend démo : deux profils de plan, six documents, doublon, refus sans apprentissage,

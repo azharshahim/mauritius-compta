@@ -262,6 +262,31 @@ describe('documents, chart and MCB API', () => {
     expect(refused.statusCode).toBe(409);
   });
 
+  it('learns an approved mapping and never learns from a rejected proposal', async () => {
+    const before = await ctx.db.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM document_mappings WHERE company_id=$1', [company]);
+    expect(Number(before.rows[0]!.count)).toBe(2);
+
+    const rejectedLines = INVOICE_LINES.map((line) => line
+      .replace('INV-2026-101', 'INV-2026-102').replace('12 Feb 2026', '13 Feb 2026'));
+    const pdf = await makePdf(rejectedLines);
+    const uploaded = await api(ctx, cookie, 'POST', `${base()}/documents`, {
+      fileName: 'fictitious-rejected.pdf', contentBase64: pdf.toString('base64'),
+      declaredMime: 'application/pdf', kind: 'purchase',
+    });
+    expect(uploaded.statusCode).toBe(201);
+    const id = uploaded.json().document.id;
+    const proposed = await api(ctx, cookie, 'POST', `${base()}/documents/${id}/proposal`);
+    expect(proposed.statusCode).toBe(201);
+    const refused = await api(ctx, cookie, 'POST',
+      `${base()}/documents/proposals/${proposed.json().proposal.id}/reject`,
+      { reason: 'Fictitious rejection: wrong supplier document.' });
+    expect(refused.statusCode).toBe(200);
+    const after = await ctx.db.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM document_mappings WHERE company_id=$1', [company]);
+    expect(Number(after.rows[0]!.count)).toBe(2);
+  });
+
   it('isolates documents between companies', async () => {
     const other = await api(ctx, otherCookie, 'GET', `${base(otherCompany)}/documents`);
     expect(other.statusCode).toBe(200);
