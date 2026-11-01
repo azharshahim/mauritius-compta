@@ -55,12 +55,12 @@ describe('mission 26 — journal imports and light home (demo)', () => {
   it('keeps purchase and sales imports reachable from their screens', async () => {
     await login();
     window.location.hash = '#/accounting/purchases?tab=invoices';
-    await screen.findByRole('heading', { name: /Factures d’achat/i });
+    await screen.findByRole('heading', { name: /Factures fournisseurs/i });
     const purchaseLink = screen.getByRole('link', { name: /Importer une facture d’achat/i });
     expect(purchaseLink.getAttribute('href')).toContain('/accounting/journals/purchases/import');
 
     window.location.hash = '#/billing/invoices';
-    await screen.findByRole('heading', { name: /^Factures$/i });
+    await screen.findByRole('heading', { name: /^Factures clients$/i });
     const salesLink = screen.getByRole('link', { name: /Importer une facture de vente/i });
     expect(salesLink.getAttribute('href')).toContain('/accounting/journals/sales/import');
   });
@@ -105,7 +105,7 @@ describe('mission 26 — journal imports and light home (demo)', () => {
     await login();
     fireEvent.click(screen.getByRole('button', { name: /Menu/i }));
     expect(document.querySelector('.sidebar')?.className).toContain('open');
-    fireEvent.click(navLink(/Import des relevés/));
+    fireEvent.click(navLink(/^Importer un relevé$/));
     await waitFor(() => expect(window.location.hash).toContain('tab=import'));
     await waitFor(() => expect(document.querySelector('.sidebar')?.className).not.toContain('open'));
   });

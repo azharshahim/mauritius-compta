@@ -155,13 +155,14 @@ export default function CabinetDashboardPage() {
       <Card title={t('home.quickAccess')}>
         <div className="quick-links">
           {([
-            ['dashboard', t('nav.accounting.dashboard'), '/accounting'],
-            ['purchases', t('nav.journals.purchases'), '/accounting/journals/purchases'],
-            ['sales', t('nav.journals.sales'), '/accounting/journals/sales'],
-            ['bank', t('nav.journals.bank'), '/accounting/journals/bank'],
-            ['invoices', t('nav.billing.invoices'), '/billing/invoices'],
+            ['accounts', t('nav.accounts'), '/accounting/accounts'],
+            ['journals', t('nav.entries'), '/accounting/entries'],
+            ['ledger', t('nav.ledger'), '/accounting/ledger'],
             ['trial', t('nav.trialBalance'), '/accounting/trial-balance'],
             ['reconciliation', t('nav.bank.reconciliation'), '/accounting/banking?tab=transactions'],
+            ['profitLoss', t('nav.reports.profitLoss'), '/accounting/statements/profit-loss'],
+            ['balanceSheet', t('nav.reports.balanceSheet'), '/accounting/statements/balance-sheet'],
+            ['check', t('nav.accounting.yearEndClosing'), '/accounting/financial-years?tab=checklist'],
           ] as [IconName, string, string][]).map(([icon, label, to]) => (
             <Link to={to} key={to}>
               <AppIcon name={icon} size={16} /> {label}

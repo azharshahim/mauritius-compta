@@ -68,13 +68,17 @@ describe('demo build (jsdom)', () => {
 
   it('exposes the suite modules and keeps the accounting screens', async () => {
     await login();
-    expect(navGroup(/^Accueil$/)).toBeTruthy();
+    expect(navGroup(/^Tableau de bord$/)).toBeTruthy();
+    expect(navGroup(/^Clients et sociétés$/)).toBeTruthy();
     expect(navGroup(/^Comptabilité$/)).toBeTruthy();
-    expect(navGroup(/^Facturation$/)).toBeTruthy();
-    expect(navGroup(/^Paie et RH$/)).toBeTruthy();
-    expect(navGroup(/^Banque et trésorerie$/)).toBeTruthy();
-    expect(navGroup(/^États financiers$/)).toBeTruthy();
-    expect(navGroup(/^Cabinet et administration$/)).toBeTruthy();
+    expect(navGroup(/^Journaux$/)).toBeTruthy();
+    expect(navGroup(/^Banque$/)).toBeTruthy();
+    expect(navGroup(/^Ventes et facturation$/)).toBeTruthy();
+    expect(navGroup(/^Achats et dépenses$/)).toBeTruthy();
+    expect(navGroup(/^Stocks et immobilisations$/)).toBeTruthy();
+    expect(navGroup(/^Paie$/)).toBeTruthy();
+    expect(navGroup(/^Rapports$/)).toBeTruthy();
+    expect(navGroup(/^Paramètres$/)).toBeTruthy();
 
     fireEvent.click(navLink(/Dossiers clients/));
     await screen.findByRole('heading', { name: /Dossiers clients/i });
@@ -84,8 +88,8 @@ describe('demo build (jsdom)', () => {
 
     // Accounting space: the V0.1 screens are still there, reachable through
     // the collapsible journals group.
-    fireEvent.click(navLink(/Journaux comptables/));
-    await screen.findByRole('heading', { name: /Journaux comptables/ });
+    fireEvent.click(navLink(/^Tous les journaux$/));
+    await screen.findByRole('heading', { name: /^Tous les journaux$/ });
     // Mission 19 adds entries to the shared demo ledger: the invoice asserted
     // here now lives on the second page of the paginated journal.
     fireEvent.click(screen.getByRole('button', { name: '›' }));
@@ -159,16 +163,16 @@ describe('demo build (jsdom)', () => {
 
   it('opens billing and the payroll preparation screens', async () => {
     await login();
-    fireEvent.click(navLink(/Tableau de bord Facturation/));
+    fireEvent.click(navLink(/Tableau de bord Ventes/));
     await screen.findByRole('heading', { name: /^Facturation$/i });
     expect(await screen.findByText(/Créances ouvertes/i)).toBeTruthy();
     expect(screen.queryByText(/préparée mais pas encore opérationnelle/i)).toBeNull();
 
-    fireEvent.click(navLink(/Factures/i));
-    await screen.findByRole('heading', { name: /^Factures$/i });
+    fireEvent.click(navLink(/^Factures clients$/));
+    await screen.findByRole('heading', { name: /^Factures clients$/i });
     expect(await screen.findByText('FAC-DEMO-0002')).toBeTruthy();
 
-    fireEvent.click(navLink(/Balance âgée/i));
+    fireEvent.click(navLink(/Comptes clients — balance âgée/i));
     await screen.findByRole('heading', { name: /^Balance âgée$/i });
 
     fireEvent.click(navLink(/Tableau de bord Paie/));
@@ -191,7 +195,8 @@ describe('demo build (jsdom)', () => {
     await login();
     const language = screen.getByLabelText(/Langue/i);
     fireEvent.change(language, { target: { value: 'en' } });
-    expect(await screen.findByText(/Client dossiers/i)).toBeTruthy();
+    expect(navGroup(/^Clients & Companies$/)).toBeTruthy();
+    expect(navLink(/Client dossiers/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText(/Language/i), { target: { value: 'fr' } });
     expect(await screen.findByText(/Dossiers clients/i)).toBeTruthy();
 

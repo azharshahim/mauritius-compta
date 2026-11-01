@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useI18n } from '../i18n';
 import { errorMessage, useSession } from '../store';
 import { useAsync } from '../hooks';
@@ -42,13 +42,24 @@ interface AuditEvent {
 }
 
 const CURRENCIES = ['MUR', 'EUR', 'USD', 'GBP'];
+const SETTINGS_TABS = ['profile', 'company', 'periods', 'rates', 'members', 'audit'] as const;
+type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 export default function SettingsPage() {
   const { t, locale } = useI18n();
   const { company, user, updateUser } = useSession();
-  const [tab, setTab] = useState<'profile' | 'company' | 'periods' | 'rates' | 'members' | 'audit'>(
-    'profile',
-  );
+  // Mission 36: the active tab is part of the URL, so the sidebar can link
+  // directly to Accounting periods or the Audit Trail.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const tab: SettingsTab = (SETTINGS_TABS as readonly string[]).includes(requestedTab ?? '')
+    ? (requestedTab as SettingsTab)
+    : 'profile';
+  const setTab = (next: SettingsTab) => {
+    const copy = new URLSearchParams(searchParams);
+    copy.set('tab', next);
+    setSearchParams(copy, { replace: true });
+  };
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

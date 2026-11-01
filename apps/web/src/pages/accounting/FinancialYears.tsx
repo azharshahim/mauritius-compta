@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api, qs } from '../../api';
 import { useI18n } from '../../i18n';
 import { useSession } from '../../store';
@@ -46,6 +47,7 @@ interface Archive {
 }
 
 type Tab = 'timeline' | 'opening' | 'adjustments' | 'checklist' | 'archives';
+const FINANCIAL_YEAR_TABS: readonly Tab[] = ['timeline', 'opening', 'adjustments', 'checklist', 'archives'];
 const emptyLine = (): AdjustmentLine => ({ accountId: '', description: '', debit: '', credit: '' });
 const badge = (state: string): 'success' | 'warning' | 'danger' | 'info' | 'neutral' =>
   state === 'ok' || state === 'POSTED' || state === 'SEALED' ? 'success'
@@ -57,7 +59,15 @@ export default function FinancialYearsPage() {
   const { locale } = useI18n();
   const { company } = useSession();
   const L = (fr: string, en: string) => (locale === 'en' ? en : fr);
-  const [tab, setTab] = useState<Tab>('timeline');
+  // Mission 36: direct links to Opening balances and Year-End Closing.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const tab: Tab = FINANCIAL_YEAR_TABS.includes(requestedTab as Tab) ? (requestedTab as Tab) : 'timeline';
+  const setTab = (next: Tab) => {
+    const copy = new URLSearchParams(searchParams);
+    copy.set('tab', next);
+    setSearchParams(copy, { replace: true });
+  };
   const [selectedPeriod, setSelectedPeriod] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

@@ -157,7 +157,7 @@ describe('Android keyboard: focus is never stolen while typing', () => {
 
   it('keeps focus in the accounting entry editor (reference, description, amount)', async () => {
     await login();
-    clickNavLink(/Journaux comptables/);
+    clickNavLink(/^Tous les journaux$/);
     await waitFor(() => expect(window.location.hash).toContain('/accounting/journals'));
     const dialog = await openModal(/Ajouter une écriture/);
     const reference = within(dialog).getAllByRole('textbox')[0]! as HTMLInputElement;

@@ -59,8 +59,8 @@ describe('assistant IA universel (démo)', () => {
     expect(pill).toBeTruthy();
 
     for (const label of [
-      /Journaux comptables/,
-      /Tableau de bord Facturation/,
+      /^Tous les journaux$/,
+      /Tableau de bord Ventes/,
       /Tableau de bord Paie/,
       /^Tableau de bord Cabinet$/,
     ]) {

@@ -83,7 +83,7 @@ describe('mission 24 — démonstration finale', () => {
   it('propose des mouvements de stock depuis une facture émise puis ouvre les mouvements', async () => {
     await loginAndSelect();
     window.location.hash = '#/billing/invoices';
-    expect(await screen.findByRole('heading', { name: /^Factures$/ })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: /^Factures clients$/ })).toBeTruthy();
 
     const number = await screen.findByText('FAC-DEMO-0002');
     const row = number.closest('tr')!;

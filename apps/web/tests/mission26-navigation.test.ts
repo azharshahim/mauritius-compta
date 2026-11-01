@@ -8,18 +8,21 @@ import { dictionaries } from '../src/i18n';
  * screens, and no unimplemented statement (cash-flow table) may be invented.
  */
 describe('cabinet navigation (mission 26)', () => {
-  it('exposes exactly the eight ordered groups', () => {
+  it('keeps the ordered groups introduced in mission 26, extended in mission 36', () => {
     expect(NAV_GROUPS.map((group) => group.key)).toEqual([
       'home',
+      'clients',
       'accounting',
+      'journals',
       'bank',
       'billing',
+      'purchases',
+      'assets',
       'payroll',
-      'advanced',
       'reports',
-      'administration',
+      'settings',
     ]);
-    expect(NAV_GROUPS).toHaveLength(8);
+    expect(NAV_GROUPS).toHaveLength(11);
   });
 
   it('has a French and English label for every group and item', () => {
@@ -33,13 +36,17 @@ describe('cabinet navigation (mission 26)', () => {
     }
   });
 
-  it('places bank and cash management immediately after accounting (mission 30)', () => {
+  it('places journals and bank management after accounting, before billing (mission 36)', () => {
     const keys = NAV_GROUPS.map((group) => group.key);
     const accounting = keys.indexOf('accounting');
+    const journals = keys.indexOf('journals');
     const bank = keys.indexOf('bank');
+    const billing = keys.indexOf('billing');
     const reports = keys.indexOf('reports');
-    expect(bank).toBe(accounting + 1);
-    expect(reports).toBeGreaterThan(bank);
+    expect(journals).toBe(accounting + 1);
+    expect(bank).toBe(journals + 1);
+    expect(billing).toBeGreaterThan(bank);
+    expect(reports).toBeGreaterThan(billing);
   });
 
   it('only points at implemented screens (no cash-flow statement)', () => {
@@ -49,6 +56,8 @@ describe('cabinet navigation (mission 26)', () => {
     }
     expect(destinations.some((to) => /cash-?flow|flux/i.test(to))).toBe(false);
     expect(destinations).toContain('/accounting/journals/purchases');
+    expect(destinations).toContain('/accounting/entries');
+    expect(destinations).toContain('/accounting/financial-years');
     expect(destinations).toContain('/accounting/journals/sales');
     expect(destinations).toContain('/accounting/banking/pdf');
     expect(destinations).toContain('/accounting/statements/balance-sheet');
