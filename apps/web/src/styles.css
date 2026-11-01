@@ -121,6 +121,9 @@ a:hover { text-decoration: underline; }
 .page { padding: 20px; max-width: 1400px; width: 100%; margin: 0 auto; }
 .page-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; }
 .page-head .grow { flex: 1; }
+.page-head-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; }
+.bank-import-actions, .bank-empty-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.bank-import-actions .btn, .bank-empty-actions .btn { white-space: normal; }
 .page-sub { color: var(--muted); font-size: 0.85rem; }
 .mobile-only { display: none; }
 
@@ -1034,6 +1037,9 @@ tr.total-row td { font-weight: 700; background: #f2f6fb; border-top: 2px solid v
   .bank-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 640px) {
+  .page-head-actions { width: 100%; }
+  .page-head-actions .btn { flex: 1 1 100%; text-align: center; white-space: normal; }
+  .bank-import-actions .btn, .bank-empty-actions .btn { flex: 1 1 100%; text-align: center; }
   .bank-page .page-head h1 { font-size: 1.2rem; }
   .bank-tab { min-height: 40px; }
   .bank-actions .btn { flex: 1 1 auto; }

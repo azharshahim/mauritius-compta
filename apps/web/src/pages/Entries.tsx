@@ -181,10 +181,17 @@ export default function EntriesPage({
     ? 'journal.importPurchase'
     : journalType === 'sales'
       ? 'journal.importSale'
-      : null;
+      : journalType === 'bank'
+        ? 'journal.importBank'
+        : null;
+  const journalPath = journalType ? `/accounting/journals/${journalType}` : '/accounting/journals';
   const importPath = journalType === 'purchases'
     ? '/accounting/journals/purchases/import'
-    : '/accounting/journals/sales/import';
+    : journalType === 'sales'
+      ? '/accounting/journals/sales/import'
+      : journalType === 'bank'
+        ? `/accounting/banking?tab=import&returnTo=${encodeURIComponent(journalPath)}`
+        : '';
   const isForeign = currency !== functional;
 
   // Exact decimal arithmetic: the balance indicator never relies on floats.
@@ -338,14 +345,27 @@ export default function EntriesPage({
             {journalType ? ` · ${t('journal.filtered')}` : ''}
           </div>
         </div>
-        {importKey && (
-          <Link className="btn" to={importPath}>
-            ⇪ {t(importKey)}
-          </Link>
+        {journalType === 'bank' ? (
+          <div className="page-head-actions">
+            <Link className="btn" to={importPath}>
+              ⇪ {t(importKey!)}
+            </Link>
+            <Button variant="primary" onClick={() => openEditor()} disabled={journals.length === 0}>
+              + {t('journal.addEntry')}
+            </Button>
+          </div>
+        ) : (
+          <>
+            {importKey && (
+              <Link className="btn" to={importPath}>
+                ⇪ {t(importKey)}
+              </Link>
+            )}
+            <Button variant="primary" onClick={() => openEditor()} disabled={journals.length === 0}>
+              + {t('journal.addEntry')}
+            </Button>
+          </>
         )}
-        <Button variant="primary" onClick={() => openEditor()} disabled={journals.length === 0}>
-          + {t('journal.addEntry')}
-        </Button>
       </div>
 
       <Card>
@@ -371,7 +391,24 @@ export default function EntriesPage({
         {loading ? (
           <Spinner />
         ) : (data?.entries.length ?? 0) === 0 ? (
-          <EmptyState title={t('tb.empty')} />
+          journalType === 'bank' ? (
+            <EmptyState title={t('journal.bank.emptyTitle')}>
+              <p>{t('journal.bank.emptyHelp')}</p>
+              <div className="bank-empty-actions">
+                <Link className="btn" to="/accounting/banking?tab=transactions">
+                  {t('bankImport.viewTransactions')}
+                </Link>
+                <Link
+                  className="btn"
+                  to={`/accounting/banking?tab=import&returnTo=${encodeURIComponent(journalPath)}`}
+                >
+                  {t('journal.importBank')}
+                </Link>
+              </div>
+            </EmptyState>
+          ) : (
+            <EmptyState title={t('tb.empty')} />
+          )
         ) : (
           <>
             <div className="table-wrap">

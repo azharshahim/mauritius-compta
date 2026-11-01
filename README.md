@@ -496,7 +496,7 @@ des permissions et des tables séparées par module :
 |---|---|---|
 | Cabinet | `/cabinet` | **opérationnel** : tableau de bord, dossiers clients, fiche dossier, tâches & échéances, collaborateurs |
 | Documents | `/documents` | **consultation et archivage** : les imports démarrent désormais depuis le journal concerné ; l’écran garde la recherche, l’historique, les corrections, les propositions équilibrées et la validation humaine. Aucune comptabilisation automatique |
-| Comptabilité | `/accounting` | **opérationnel** : journaux dédiés (achats, ventes, banque, opérations diverses), plan comptable bilingue, écritures, grand livre, balance, états financiers, périodes, devises, audit + **Banque & rapprochement** (CSV/TSV/XLSX et **relevés PDF texte/scannés**, MCB prioritaire, autres banques en lecture prudente, rapprochement humain) + **Achats & Fournisseurs** |
+| Comptabilité | `/accounting` | **opérationnel** : journaux dédiés (achats, ventes, banque avec import direct de relevés, opérations diverses), plan comptable bilingue, écritures, grand livre, balance, états financiers, périodes, devises, audit + **Banque & rapprochement** (CSV/TSV/XLSX et **relevés PDF texte/scannés**, MCB prioritaire, autres banques en lecture prudente, rapprochement humain) + **Achats & Fournisseurs** |
 | Facturation | `/billing` | **opérationnel** : clients, devis, factures, avoirs, encaissements, balance âgée, PDF serveur ; **MRA e-Invoicing — À venir** : écran informatif, intégration non activée, aucune connexion MRA |
 | Paie & RH | `/payroll` | **préparation et simulation** : salariés, contrats, temps, congés, variables, périodes, PAYE/CSG/NSF/levy sourcés, EDF, AR 2026, bulletins de simulation imprimables un par un, déclarations MRA en préparation interne ; revue experte en attente, aucun bulletin final, aucune soumission MRA |
 
@@ -504,6 +504,7 @@ des permissions et des tables séparées par module :
   `viewer` (+ `owner`/`admin` historiques) — voir
   [`docs/permissions-matrix.md`](docs/permissions-matrix.md).
 - Les anciennes URL (`/entries`, `/companies`, …) redirigent : aucun signet n'est cassé.
+- **Mission 27** : import direct d’un **relevé bancaire depuis le Journal de banque** (PDF, CSV, TSV, XLSX via les lecteurs existants), compte bancaire conservé, prévisualisation enrichie, retour contextualisé au journal et explication des opérations non comptabilisées. Voir [`docs/mission-27-report.md`](docs/mission-27-report.md).
 - **Mission 26** : navigation par **huit groupes repliables** (Accueil, Comptabilité, Facturation, Paie et RH, Gestion avancée, Banque et trésorerie, États financiers, Cabinet et administration), imports de factures d’achat et de vente depuis les journaux, lecteur de relevés bancaires PDF, accueil allégé et Documents en consultation. Voir [`docs/mission-26-report.md`](docs/mission-26-report.md).
 - **Mission 25** : écran bilingue **MRA e-Invoicing — À venir** (route stable
   `/billing/e-invoicing`, six fonctions annoncées non disponibles, paramètres futurs inactifs,

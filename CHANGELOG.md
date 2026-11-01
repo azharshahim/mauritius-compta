@@ -1,5 +1,48 @@
 # Journal des versions
 
+## Mission 27 — import direct depuis le Journal de banque (1er novembre 2026)
+
+> PR en brouillon, aucune fusion, aucun déploiement d’une branche Arena, aucune donnée
+> réelle, aucun envoi MRA. Les missions 1 à 26 restent en place.
+
+### Ajouté
+
+- Bouton **« Importer un relevé bancaire »** dans le Journal de banque, à côté de
+  « Ajouter une écriture », sur ordinateur comme sur mobile.
+- Ouverture du module bancaire existant avec le compte de la société, les formats **PDF,
+  CSV, TSV et XLSX**, la prévisualisation, la revue humaine et la confirmation déjà en place.
+- Prévisualisation enrichie : date, libellé, référence, **débit, crédit, solde, devise**,
+  statut et avertissements visibles.
+- Après import : **Voir les opérations importées**, **Préparer le rapprochement bancaire**
+  et **Retour au Journal de banque**, avec le compte bancaire conservé dans les liens.
+- Explication dédiée lorsqu’un journal de banque ne contient aucune écriture : les
+  opérations importées ne sont pas des écritures comptables et aucune n’est créée
+  automatiquement.
+
+### Corrigé
+
+- Les liens de la mission 26 `?tab=import`, `?tab=transactions`, etc. sont maintenant
+  réellement appliqués par la page Banque ; auparavant elle s’ouvrait toujours sur l’onglet
+  Comptes. Le compte bancaire peut aussi être transmis par `bankAccountId`.
+- Le retour depuis les lecteurs PDF conserve le compte et le chemin de retour.
+
+### Tests
+
+- Typecheck API + web, build production et build démonstration.
+- Suite web : **267/267**, dont **6 tests ciblés mission 27** sur la démonstration :
+  présence du bouton, absence dans les autres journaux, formats réels, société conservée,
+  import sans écriture comptable, liens de retour, journal vide expliqué et libellés FR/EN.
+- Aucun test sur appareil physique, aucun E2E navigateur, aucune donnée bancaire réelle.
+
+### Non livré / limites
+
+- Le fichier PDF reste importé par le lecteur PDF existant, pas par le sélecteur CSV : le
+  bouton du journal ouvre l’onglet d’import, qui propose les deux chemins sans dupliquer le
+  moteur.
+- Aucune comptabilisation automatique, aucune nouvelle migration, aucune nouvelle
+  dépendance.
+- Aucun tableau des flux de trésorerie, aucun connecteur bancaire.
+
 ## Mission 26 — ergonomie cabinet, journaux et imports PDF (1er novembre 2026)
 
 > PR en brouillon, aucune fusion, aucun déploiement d’une branche Arena, aucune donnée

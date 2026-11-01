@@ -119,6 +119,9 @@ jobs:
           grep -q 'Importer une facture d’achat' apps/web/dist/assets/*.js
           grep -q 'Importer un relevé bancaire PDF' apps/web/dist/assets/*.js
           grep -q 'Banque et trésorerie' apps/web/dist/assets/*.js
+          # Mission 27 : import direct depuis le journal de banque et retour contextuel
+          grep -q 'Import bank statement' apps/web/dist/assets/*.js
+          grep -q 'Retour au Journal de banque' apps/web/dist/assets/*.js
           test -f apps/web/dist/404.html
 
       - name: Scan the demo bundle for secrets
@@ -246,6 +249,8 @@ jobs:
           grep -q 'Importer une facture d’achat' /tmp/app.js
           grep -q 'Importer un relevé bancaire PDF' /tmp/app.js
           grep -q 'Banque et trésorerie' /tmp/app.js
+          grep -q 'Import bank statement' /tmp/app.js
+          grep -q 'Retour au Journal de banque' /tmp/app.js
           FOUR04=$(curl -s -o /tmp/404.html -w '%{http_code}' "$BASE/404.html")
           echo "404.html: $FOUR04"
           DEEP=$(curl -s -o /tmp/deep.html -w '%{http_code}' "$BASE/entries")
