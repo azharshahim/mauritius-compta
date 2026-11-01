@@ -360,6 +360,11 @@ function paymentView(row: any, allocations: any[] = []) {
       amount: a.amount,
       invoiceNumber: a.doc_no ?? null,
       customerName: a.customer_name ?? null,
+      allocatedDate: a.allocated_date ?? null,
+      cancelledAt: a.cancelled_at ?? null,
+      cancellationReason: a.cancellation_reason ?? null,
+      reclassEntryId: a.reclass_entry_id ?? null,
+      reclassAmount: a.reclass_amount ?? '0.0000',
     })),
     createdAt: row.created_at,
   };
@@ -2022,8 +2027,25 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
         ORDER BY p.payment_date DESC, p.created_at DESC LIMIT 300`,
       params,
     );
+    const ids = res.rows.map((row: any) => row.id);
+    const allocationRows = ids.length === 0
+      ? []
+      : (await db.query(
+          `SELECT a.*, d.doc_no, d.customer_name
+             FROM billing_payment_allocations a
+             JOIN billing_documents d ON d.id = a.invoice_id
+            WHERE a.payment_id = ANY($1::uuid[])
+            ORDER BY a.created_at, a.id`,
+          [ids],
+        )).rows;
+    const allocationsByPayment = new Map<string, any[]>();
+    for (const allocation of allocationRows) {
+      const list = allocationsByPayment.get(allocation.payment_id) ?? [];
+      list.push(allocation);
+      allocationsByPayment.set(allocation.payment_id, list);
+    }
     return {
-      payments: res.rows.map((row: any) => paymentView(row)),
+      payments: res.rows.map((row: any) => paymentView(row, allocationsByPayment.get(row.id) ?? [])),
       methods: ['bank_transfer', 'cheque', 'cash', 'card', 'other'],
     };
   });

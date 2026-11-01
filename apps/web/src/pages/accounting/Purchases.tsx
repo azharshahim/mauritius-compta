@@ -4,7 +4,7 @@ import { api } from '../../api';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
 import { Badge, Button, Card, EmptyState, ErrorBanner, Field, Modal, Spinner } from '../../components/ui';
-import { money, toScaled4 } from '../../format';
+import { money, scaled4ToString, toScaled4 } from '../../format';
 import { AppIcon } from '../../components/AppIcon';
 
 /**
@@ -57,11 +57,46 @@ interface PurchaseDoc {
 
 interface PaymentAllocation {
   id: string;
+  invoiceId: string;
+  invoiceNumber: string | null;
+  supplierReference: string;
+  amount: string;
+  invoiceOutstanding: string;
+  currency: string;
+  allocatedDate: string | null;
   cancelledAt: string | null;
+  reclassEntryId: string | null;
+}
+
+interface FixedAssetCategory {
+  id: string;
+  code: string;
+  nameEn: string;
+  nameFr: string;
+  isDepreciable: boolean;
+  isActive: boolean;
+}
+
+interface PurchaseDocumentLine {
+  id: string;
+  lineNo: number;
+  description: string;
+  quantity: string;
+  unitPrice: string;
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  accountType: string;
+  netAmount: string;
+  taxAmount: string;
+  lineTotal: string;
+  fixedAssetId: string | null;
+  fixedAssetCode: string | null;
 }
 
 interface PurchasePayment {
   id: string;
+  supplier_id: string;
   supplier_name: string;
   payment_no: string | null;
   kind: 'payment' | 'advance';
@@ -219,6 +254,22 @@ export default function PurchasesPage() {
   });
   const [payAllocations, setPayAllocations] = useState<Record<string, string>>({});
   const [payOpen, setPayOpen] = useState(false);
+  const [allocatePayment, setAllocatePayment] = useState<PurchasePayment | null>(null);
+  const [allocateForm, setAllocateForm] = useState({ invoiceId: '', amount: '', allocationDate: new Date().toISOString().slice(0, 10) });
+  const [reclassInfo, setReclassInfo] = useState<{ allocationId: string; proposalId: string } | null>(null);
+  const [assetDoc, setAssetDoc] = useState<PurchaseDoc | null>(null);
+  const [assetLines, setAssetLines] = useState<PurchaseDocumentLine[]>([]);
+  const [assetCategories, setAssetCategories] = useState<FixedAssetCategory[]>([]);
+  const [assetTarget, setAssetTarget] = useState<PurchaseDocumentLine | null>(null);
+  const [assetForm, setAssetForm] = useState({
+    categoryId: '',
+    description: '',
+    serialNumber: '',
+    location: '',
+    inServiceDate: '',
+    usefulLifeMonths: '',
+    residualValue: '',
+  });
 
   const [creditForm, setCreditForm] = useState({ creditNoteId: '', invoiceId: '', amount: '', reason: '' });
   const [creditOpen, setCreditOpen] = useState(false);
@@ -466,6 +517,128 @@ export default function PurchasesPage() {
       setProposal(res.proposal);
       setNotice(L('Proposition de règlement préparée. Validation humaine requise.', 'Payment proposal prepared. Human validation required.'));
     }, L('Proposition préparée.', 'Proposal prepared.'));
+  };
+
+  const paymentUnallocated = (payment: PurchasePayment) => {
+    const total = toScaled4(payment.amount) ?? 0n;
+    const allocated = payment.allocations
+      .filter((a) => !a.cancelledAt)
+      .reduce((sum, a) => sum + (toScaled4(a.amount) ?? 0n), 0n);
+    return total - allocated;
+  };
+
+  const startPurchaseAllocation = (payment: PurchasePayment) => {
+    setAllocatePayment(payment);
+    setAllocateForm({
+      invoiceId: '',
+      amount: '',
+      allocationDate: new Date().toISOString().slice(0, 10),
+    });
+    setError(null);
+  };
+
+  const confirmPurchaseAllocation = async () => {
+    if (!allocatePayment) return;
+    const value = toScaled4(allocateForm.amount) ?? 0n;
+    if (!allocateForm.invoiceId || value <= 0n || value > paymentUnallocated(allocatePayment)) {
+      setError(L(
+        'Choisissez une facture et un montant positif inférieur ou égal au restant à affecter.',
+        'Choose an invoice and a positive amount not exceeding the unallocated balance.',
+      ));
+      return;
+    }
+    if (!window.confirm(L(
+      'Confirmer l’affectation de ce montant ? Aucune écriture comptable ne sera créée automatiquement.',
+      'Confirm this allocation? No accounting entry will be created automatically.',
+    ))) return;
+    await call(async () => {
+      const res = await api.post<{ reclassRequired: boolean }>(
+        `/companies/${company.id}/purchases/payments/${allocatePayment.id}/allocations`,
+        {
+          invoiceId: allocateForm.invoiceId,
+          amount: allocateForm.amount,
+          allocationDate: allocateForm.allocationDate,
+          confirm: true,
+        },
+      );
+      setAllocatePayment(null);
+      setNotice(res.reclassRequired
+        ? L(
+            'Affectation enregistrée. Le règlement est déjà comptabilisé : une proposition de reclassement distincte doit être validée par un humain.',
+            'Allocation recorded. The payment is already posted: a separate reclassification proposal must be validated by a human.',
+          )
+        : L('Affectation enregistrée sans écriture comptable.', 'Allocation recorded without an accounting entry.'));
+      await load();
+    }, L('Affectation enregistrée.', 'Allocation recorded.'));
+  };
+
+  const requestPurchaseReclass = async (payment: PurchasePayment, allocation: PaymentAllocation) => {
+    await call(async () => {
+      const res = await api.post<{ proposal?: { id: string }; proposalId?: string; entryCreated: boolean }>(
+        `/companies/${company.id}/purchases/payments/${payment.id}/allocations/${allocation.id}/reclass-proposal`,
+      );
+      const proposalId = res.proposal?.id ?? res.proposalId ?? '';
+      setReclassInfo({ allocationId: allocation.id, proposalId });
+      setNotice(L(
+        'Proposition de reclassement préparée. Elle ne crée aucune écriture et attend une validation humaine.',
+        'Reclassification proposal prepared. It creates no entry and awaits human validation.',
+      ));
+    }, L('Proposition préparée.', 'Proposal prepared.'));
+  };
+
+  const openFixedAsset = async (doc: PurchaseDoc) => {
+    await call(async () => {
+      const [detail, categories] = await Promise.all([
+        api.get<{ document: PurchaseDoc & { lines: PurchaseDocumentLine[] } }>(
+          `/companies/${company.id}/purchases/documents/${doc.id}`,
+        ),
+        api.get<{ categories: FixedAssetCategory[] }>(`/companies/${company.id}/fixed-assets/categories`),
+      ]);
+      setAssetDoc(doc);
+      setAssetLines(detail.document.lines ?? []);
+      setAssetCategories(categories.categories.filter((c) => c.isActive));
+    }, L('Facture chargée.', 'Invoice loaded.'));
+  };
+
+  const startFixedAsset = (line: PurchaseDocumentLine) => {
+    setAssetTarget(line);
+    setAssetForm({
+      categoryId: assetCategories[0]?.id ?? '',
+      description: line.description,
+      serialNumber: '',
+      location: '',
+      inServiceDate: assetDoc?.issue_date ?? '',
+      usefulLifeMonths: '',
+      residualValue: '',
+    });
+  };
+
+  const createFixedAsset = async () => {
+    if (!assetDoc || !assetTarget || !assetForm.categoryId) return;
+    await call(async () => {
+      const res = await api.post<{ asset: { assetCode?: string; asset_code?: string } }>(
+        `/companies/${company.id}/purchases/documents/${assetDoc.id}/lines/${assetTarget.id}/fixed-asset`,
+        {
+          categoryId: assetForm.categoryId,
+          description: assetForm.description || null,
+          serialNumber: assetForm.serialNumber || null,
+          location: assetForm.location || null,
+          inServiceDate: assetForm.inServiceDate || null,
+          usefulLifeMonths: assetForm.usefulLifeMonths ? Number(assetForm.usefulLifeMonths) : null,
+          residualValue: assetForm.residualValue || null,
+        },
+      );
+      setNotice(L(
+        `Immobilisation ${res.asset.assetCode ?? res.asset.asset_code ?? ''} créée depuis la ligne d’achat, sans écriture automatique.`,
+        `Fixed asset ${res.asset.assetCode ?? res.asset.asset_code ?? ''} created from the purchase line, without an automatic entry.`,
+      ));
+      setAssetTarget(null);
+      const detail = await api.get<{ document: PurchaseDoc & { lines: PurchaseDocumentLine[] } }>(
+        `/companies/${company.id}/purchases/documents/${assetDoc.id}`,
+      );
+      setAssetLines(detail.document.lines ?? []);
+      await load();
+    }, L('Immobilisation créée.', 'Fixed asset created.'));
   };
 
   const allocateCredit = async () => {
@@ -752,6 +925,7 @@ export default function PurchasesPage() {
                                 L={L}
                                 onValidate={() => void validateDoc(doc)}
                                 onProposal={() => void prepareProposal(doc)}
+                                onFixedAsset={() => void openFixedAsset(doc)}
                                 onCancel={() => setCancelDialog({ type: 'document', id: doc.id, label: doc.doc_no ?? doc.supplier_reference })}
                               />
                             </td>
@@ -779,6 +953,7 @@ export default function PurchasesPage() {
                             L={L}
                             onValidate={() => void validateDoc(doc)}
                             onProposal={() => void prepareProposal(doc)}
+                            onFixedAsset={() => void openFixedAsset(doc)}
                             onCancel={() => setCancelDialog({ type: 'document', id: doc.id, label: doc.doc_no ?? doc.supplier_reference })}
                           />
                         </div>
@@ -848,7 +1023,33 @@ export default function PurchasesPage() {
                             <td>{payment.payment_date}</td>
                             <td>{money(payment.amount, locale, payment.currency)}</td>
                             <td>{payment.kind === 'advance' ? L('Acompte', 'Advance') : L('Règlement', 'Payment')}</td>
-                            <td>{payment.allocations.filter((a) => !a.cancelledAt).length}</td>
+                            <td>
+                              {payment.allocations.length === 0 ? (
+                                <span className="muted">{L('Aucune', 'None')}</span>
+                              ) : (
+                                <div className="allocation-list">
+                                  {payment.allocations.map((allocation) => (
+                                    <div className="allocation-item" key={allocation.id}>
+                                      <span>
+                                        {allocation.invoiceNumber ?? '—'}
+                                        {' · '}
+                                        {money(allocation.amount, locale, payment.currency)}
+                                        {allocation.allocatedDate ? ` · ${allocation.allocatedDate}` : ''}
+                                      </span>
+                                      {allocation.cancelledAt ? (
+                                        <Badge kind="neutral">{L('Annulée', 'Cancelled')}</Badge>
+                                      ) : payment.accounting_entry_id && !allocation.reclassEntryId ? (
+                                        <Button variant="ghost" onClick={() => void requestPurchaseReclass(payment, allocation)} disabled={busy}>
+                                          {L('Reclassement', 'Reclassify')}
+                                        </Button>
+                                      ) : allocation.reclassEntryId ? (
+                                        <Badge kind="success">{L('Reclassée', 'Reclassified')}</Badge>
+                                      ) : null}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
                             <td>
                               {payment.status === 'cancelled'
                                 ? <Badge>{L('Annulé', 'Cancelled')}</Badge>
@@ -861,6 +1062,7 @@ export default function PurchasesPage() {
                                 payment={payment}
                                 L={L}
                                 onProposal={() => void preparePaymentProposal(payment)}
+                                onAllocate={() => startPurchaseAllocation(payment)}
                                 onCancel={() => setCancelDialog({ type: 'payment', id: payment.id, label: payment.payment_no ?? payment.reference ?? '' })}
                               />
                             </td>
@@ -884,11 +1086,13 @@ export default function PurchasesPage() {
                         <div className="purchase-card-row"><span>{L('Date', 'Date')}</span><span>{payment.payment_date}</span></div>
                         <div className="purchase-card-row"><span>{L('Montant', 'Amount')}</span><span>{money(payment.amount, locale, payment.currency)}</span></div>
                         <div className="purchase-card-row"><span>{L('Affectations', 'Allocations')}</span><span>{payment.allocations.filter((a) => !a.cancelledAt).length}</span></div>
+                        <div className="purchase-card-row"><span>{L('Restant à affecter', 'Unallocated')}</span><span>{money(scaled4ToString(paymentUnallocated(payment)), locale, payment.currency)}</span></div>
                         <div className="purchase-card-actions">
                           <PaymentActions
                             payment={payment}
                             L={L}
                             onProposal={() => void preparePaymentProposal(payment)}
+                            onAllocate={() => startPurchaseAllocation(payment)}
                             onCancel={() => setCancelDialog({ type: 'payment', id: payment.id, label: payment.payment_no ?? '' })}
                           />
                         </div>
@@ -1333,6 +1537,194 @@ export default function PurchasesPage() {
         </div>
       </Modal>
 
+      {/* -------------------------------------- late supplier advance allocation modal */}
+      <Modal
+        open={allocatePayment !== null}
+        title={L('Affecter tardivement un acompte ou un règlement', 'Late allocation of an advance or payment')}
+        onClose={() => setAllocatePayment(null)}
+        wide
+      >
+        {allocatePayment && (
+          <>
+            <div className="detail-grid">
+              <div><span className="muted">{L('Règlement', 'Payment')}</span><strong>{allocatePayment.payment_no ?? '—'}</strong></div>
+              <div><span className="muted">{L('Fournisseur', 'Supplier')}</span><strong>{allocatePayment.supplier_name}</strong></div>
+              <div><span className="muted">{L('Devise', 'Currency')}</span><strong>{allocatePayment.currency}</strong></div>
+              <div>
+                <span className="muted">{L('Restant à affecter', 'Unallocated')}</span>
+                <strong>{money(scaled4ToString(paymentUnallocated(allocatePayment)), locale, allocatePayment.currency)}</strong>
+              </div>
+            </div>
+            <div className="form-grid">
+              <Field label={L('Facture à affecter', 'Invoice to allocate')}>
+                <select
+                  value={allocateForm.invoiceId}
+                  onChange={(e) => {
+                    const invoice = documents.find((d) => d.id === e.target.value);
+                    setAllocateForm({ ...allocateForm, invoiceId: e.target.value, amount: invoice?.outstanding_amount ?? allocateForm.amount });
+                  }}
+                >
+                  <option value="">{L('Choisir une facture validée ouverte…', 'Choose an open validated invoice…')}</option>
+                  {documents
+                    .filter(
+                      (doc) =>
+                        doc.kind === 'invoice' &&
+                        doc.status === 'validated' &&
+                        doc.supplier_id === allocatePayment.supplier_id &&
+                        doc.currency === allocatePayment.currency &&
+                        (toScaled4(doc.outstanding_amount) ?? 0n) > 0n,
+                    )
+                    .map((doc) => (
+                      <option key={doc.id} value={doc.id}>
+                        {doc.doc_no ?? '—'} · {doc.supplier_reference} · {L('restant', 'outstanding')} {money(doc.outstanding_amount, locale, doc.currency)}
+                      </option>
+                    ))}
+                </select>
+              </Field>
+              <Field label={L('Montant à affecter', 'Amount to allocate')}>
+                <input inputMode="decimal" value={allocateForm.amount}
+                  onChange={(e) => setAllocateForm({ ...allocateForm, amount: e.target.value })} />
+              </Field>
+              <Field label={L('Date d’affectation', 'Allocation date')}>
+                <input type="date" value={allocateForm.allocationDate}
+                  onChange={(e) => setAllocateForm({ ...allocateForm, allocationDate: e.target.value })} />
+              </Field>
+            </div>
+            <p className="alert alert-warn">
+              {L(
+                'La date d’affectation ne peut pas précéder celle du règlement et la devise doit être identique. L’affectation ne crée aucune écriture : si le règlement est déjà comptabilisé, un reclassement séparé est proposé puis validé par un humain.',
+                'The allocation date cannot precede the payment date and the currency must match. The allocation creates no entry: if the payment is already posted, a separate reclassification is proposed and then validated by a human.',
+              )}
+            </p>
+            <div className="modal-actions">
+              <Button variant="ghost" onClick={() => setAllocatePayment(null)}>{t('common.cancel')}</Button>
+              <Button onClick={() => void confirmPurchaseAllocation()}
+                disabled={busy || !allocateForm.invoiceId || !allocateForm.amount}>
+                {L('Confirmer l’affectation', 'Confirm allocation')}
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
+
+      {/* ------------------------------------------ fixed asset from purchase line modal */}
+      <Modal
+        open={assetDoc !== null}
+        title={L('Lignes d’achat et immobilisations', 'Purchase lines and fixed assets')}
+        onClose={() => { setAssetDoc(null); setAssetTarget(null); }}
+        wide
+      >
+        {assetDoc && (
+          <>
+            <p className="muted">
+              {assetDoc.doc_no ?? '—'} — {assetDoc.supplier_name}.{' '}
+              {L(
+                'Seules les lignes imputées à un compte d’immobilisation sont admissibles. La création ne passe aucune écriture.',
+                'Only lines posted to a fixed-asset account are eligible. Creation posts no entry.',
+              )}
+            </p>
+            <div className="table-scroll">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>{L('Description', 'Description')}</th>
+                    <th>{L('Compte', 'Account')}</th>
+                    <th>{L('Montant', 'Amount')}</th>
+                    <th>{L('Immobilisation', 'Fixed asset')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {assetLines.map((line) => (
+                    <tr key={line.id}>
+                      <td>{line.lineNo}</td>
+                      <td>{line.description}</td>
+                      <td>{line.accountCode} — {line.accountName}</td>
+                      <td>{money(line.lineTotal, locale, assetDoc.currency)}</td>
+                      <td>
+                        {line.fixedAssetCode ? (
+                          <Badge kind="success">{line.fixedAssetCode}</Badge>
+                        ) : line.accountType === 'asset' ? (
+                          <Button variant="ghost" onClick={() => startFixedAsset(line)} disabled={busy}>
+                            {L('Créer l’immobilisation', 'Create fixed asset')}
+                          </Button>
+                        ) : (
+                          <span className="muted">{L('Non admissible', 'Not eligible')}</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {assetTarget && (
+              <div className="card" style={{ marginTop: 16 }}>
+                <h3>{L('Nouvelle immobilisation depuis la ligne', 'New fixed asset from line')} {assetTarget.lineNo}</h3>
+                <div className="form-grid">
+                  <Field label={L('Catégorie', 'Category')}>
+                    <select value={assetForm.categoryId}
+                      onChange={(e) => setAssetForm({ ...assetForm, categoryId: e.target.value })}>
+                      <option value="">{L('Sélectionner…', 'Select…')}</option>
+                      {assetCategories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.code} — {locale === 'fr' ? category.nameFr : category.nameEn}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label={L('Description', 'Description')}>
+                    <input value={assetForm.description}
+                      onChange={(e) => setAssetForm({ ...assetForm, description: e.target.value })} />
+                  </Field>
+                  <Field label={L('Numéro de série', 'Serial number')}>
+                    <input value={assetForm.serialNumber}
+                      onChange={(e) => setAssetForm({ ...assetForm, serialNumber: e.target.value })} />
+                  </Field>
+                  <Field label={L('Emplacement', 'Location')}>
+                    <input value={assetForm.location}
+                      onChange={(e) => setAssetForm({ ...assetForm, location: e.target.value })} />
+                  </Field>
+                  <Field label={L('Mise en service', 'In service')}>
+                    <input type="date" value={assetForm.inServiceDate}
+                      onChange={(e) => setAssetForm({ ...assetForm, inServiceDate: e.target.value })} />
+                  </Field>
+                  <Field label={L('Durée (mois)', 'Useful life (months)')}>
+                    <input inputMode="numeric" value={assetForm.usefulLifeMonths}
+                      onChange={(e) => setAssetForm({ ...assetForm, usefulLifeMonths: e.target.value })} />
+                  </Field>
+                  <Field label={L('Valeur résiduelle', 'Residual value')}>
+                    <input inputMode="decimal" value={assetForm.residualValue}
+                      onChange={(e) => setAssetForm({ ...assetForm, residualValue: e.target.value })} />
+                  </Field>
+                </div>
+                <div className="modal-actions">
+                  <Button variant="ghost" onClick={() => setAssetTarget(null)}>{t('common.cancel')}</Button>
+                  <Button onClick={() => void createFixedAsset()} disabled={busy || !assetForm.categoryId}>
+                    {L('Créer l’immobilisation', 'Create fixed asset')}
+                  </Button>
+                </div>
+              </div>
+            )}
+            {assetCategories.length === 0 && (
+              <p className="alert alert-warn">{L('Aucune catégorie active : créez-en une dans Stocks et immobilisations.', 'No active category: create one in Fixed Assets.')}</p>
+            )}
+          </>
+        )}
+      </Modal>
+
+      {reclassInfo && (
+        <div className="alert alert-warn">
+          {L('Proposition de reclassement', 'Reclassification proposal')}{' '}
+          <code>{reclassInfo.proposalId.slice(0, 8) || '—'}</code>.{' '}
+          {L('Aucune écriture n’a été créée ; validation humaine requise.', 'No entry was created; human validation required.')}{' '}
+          {reclassInfo.proposalId && (
+            <a href={`/cabinet/ai-proposals?proposal=${reclassInfo.proposalId}`}>
+              {L('Ouvrir dans les propositions', 'Open in proposals')}
+            </a>
+          )}
+        </div>
+      )}
+
       {/* ---------------------------------------------------------- cancellation modal */}
       <Modal open={cancelDialog !== null} title={L('Confirmer l’annulation', 'Confirm cancellation')} onClose={() => setCancelDialog(null)}>
         <p>
@@ -1356,17 +1748,22 @@ function DocumentActions({
   L,
   onValidate,
   onProposal,
+  onFixedAsset,
   onCancel,
 }: {
   doc: PurchaseDoc;
   L: (fr: string, en: string) => string;
   onValidate: () => void;
   onProposal: () => void;
+  onFixedAsset?: () => void;
   onCancel: () => void;
 }) {
   return (
     <div className="page-actions">
       {doc.status === 'draft' && <Button variant="ghost" onClick={onValidate}>{L('Valider', 'Validate')}</Button>}
+      {doc.kind === 'invoice' && doc.status === 'validated' && onFixedAsset && (
+        <Button variant="ghost" onClick={onFixedAsset}>{L('Immobilisation', 'Fixed asset')}</Button>
+      )}
       {doc.status === 'validated' && !doc.accounting_entry_id && (
         <Button variant="ghost" onClick={onProposal}>{L('Proposition', 'Proposal')}</Button>
       )}
@@ -1382,15 +1779,22 @@ function PaymentActions({
   payment,
   L,
   onProposal,
+  onAllocate,
   onCancel,
 }: {
   payment: PurchasePayment;
   L: (fr: string, en: string) => string;
   onProposal: () => void;
+  onAllocate: () => void;
   onCancel: () => void;
 }) {
+  const unallocated = (toScaled4(payment.amount) ?? 0n)
+    - payment.allocations.filter((a) => !a.cancelledAt).reduce((sum, a) => sum + (toScaled4(a.amount) ?? 0n), 0n);
   return (
     <div className="page-actions">
+      {payment.status === 'recorded' && unallocated > 0n && (
+        <Button variant="ghost" onClick={onAllocate}>{L('Affecter', 'Allocate')}</Button>
+      )}
       {payment.status === 'recorded' && !payment.accounting_entry_id && (
         <Button variant="ghost" onClick={onProposal}>{L('Proposition', 'Proposal')}</Button>
       )}

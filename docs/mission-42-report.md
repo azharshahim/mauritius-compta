@@ -3,11 +3,12 @@
 **Finalisation du cycle Achats, Ventes, OCR et intégrité comptable**
 
 - **Date de clôture technique** : 1er novembre 2026
+- **Dernière mise à jour** : mission **42.1** — finalisation des interfaces et de l’ergonomie OCR
 - **Dépôt** : `azharshahim/mauritius-compta`
 - **Branche** : `arena/e8400c4a-mauritius-compta`
 - **Base** : `main` au commit `cc5698457061dc2618a3b9b83967098840bb87ec` (M41 fusionnée, PR nº22)
 - **Nature** : mission de correction ciblée des écarts démontrés par M41, sans reprise des modules déjà fonctionnels
-- **Statut** : travail implémenté, vérifié localement, **non fusionné et non déployé**
+- **Statut** : travail M42 et M42.1 implémenté, vérifié localement, **non fusionné et non déployé**
 
 > Ce rapport distingue explicitement ce qui est **implémenté**, **partiel**, **non corrigé** et **non vérifié**.
 > Aucune validation de comptable ne constitue une certification réglementaire. Aucune déclaration officielle MRA n’est produite.
@@ -147,6 +148,31 @@ Principes conservés :
 
 ---
 
+### 2.8 Mission 42.1 — finalisation des interfaces
+
+La mission 42.1 ne réécrit aucun moteur : elle branche les écrans sur les services M42 déjà testés et corrige les contrats de lecture nécessaires à l’affichage.
+
+| Écran / parcours | État | Détail |
+|---|---|---|
+| Achats — affectation tardive d’un acompte ou règlement | **Implémenté** | Bouton `Affecter` sur un règlement non soldé, choix d’une facture validée ouverte du même fournisseur **et de la même devise**, montant plafonné par le restant à affecter et par le restant dû, date d’affectation contrôlée (`>=` date du règlement), confirmation humaine explicite. |
+| Achats — reclassement nécessitant une validation humaine | **Implémenté** | Les affectations d’un règlement déjà comptabilisé affichent `Reclassement` ; la proposition séparée est créée avec `entryCreated: false`, un bandeau renvoie vers l’écran des propositions. Aucune écriture n’est créée par l’affectation. |
+| Achats — immobilisation depuis une ligne | **Implémenté** | Bouton `Immobilisation` sur une facture validée ; la fenêtre liste les lignes, marque les lignes déjà liées et ne permet la création que sur un compte de type `asset`. Catégorie, description, série, emplacement, mise en service, durée et valeur résiduelle sont saisies. |
+| Facturation — affectation des trop-perçus | **Implémenté** | Bouton `Affecter` sur un encaissement avec restant non affecté ; factures filtrées par client et devise ; montant plafonné ; date d’affectation contrôlée. |
+| Facturation — annulation / réactivation | **Implémenté** | Annulation logique avec motif obligatoire, ligne conservée et badgée, réactivation par nouvelle affectation du même montant sur la même facture. La liste des encaissements renvoie désormais les affectations, y compris annulées, avec `allocatedDate`, `cancelledAt`, `reclassEntryId`. |
+| Rapprochement comptable | **Implémenté** | Nouvel écran `/#/accounting/controls?tab=subledger`, accessible depuis le menu Comptabilité (`Contrôles comptables`). Il affiche, par compte collectif et par devise : solde comptabilisé, sous-ledger comptabilisé, éléments non comptabilisés, total sous-ledger, écart, part expliquée et part inexpliquée. Les documents et règlements non comptabilisés sont listés. Aucun écart n’est arrondi, masqué ou ramené à zéro. |
+| Contrôle TVA | **Implémenté** | Onglet `Contrôle TVA` du même écran, avec période sélectionnable, totaux **par devise**, détail par compte et par devise, TVA signée. Le bandeau indique explicitement qu’il ne s’agit **pas d’une déclaration officielle MRA** et qu’aucun taux, seuil ou case fiscale n’est inventé. |
+| OCR — statuts et factures liées | **Implémenté** | La liste des documents affiche le statut OCR de comptabilisation (`OCR à compléter`, `Prêt à comptabiliser`, `Facture fournisseur liée`, `Comptabilisé`) et le numéro de la facture fournisseur liée. La fiche document affiche le lien vers la facture et vers l’écran Achats. Le backend de démonstration expose les mêmes champs et la conversion OCR → facture fournisseur. |
+| Confirmations humaines | **Implémenté** | Messages explicites avant affectation, annulation et création d’immobilisation ; aucun de ces parcours ne comptabilise automatiquement. |
+
+**Corrections de contrat nécessaires aux écrans :**
+
+- `GET /billing/payments` renvoie désormais les affectations (auparavant toujours vide dans la liste) avec leurs dates et statuts d’annulation ;
+- `GET /purchases/documents/:id` renvoie `accountType` et le lien `fixedAssetId` / `fixedAssetCode` par ligne ;
+- le backend de démonstration applique les mêmes contrôles de devise, date, plafond, doublon et confirmation ;
+- correction d’un défaut de démonstration : la fiche d’un document d’achat retombait sur « route inconnue » à cause d’un groupe de capture optionnel non normalisé (`undefined` au lieu de `''`).
+
+---
+
 ## 3. Fichiers principaux modifiés ou créés
 
 ### API
@@ -166,14 +192,20 @@ Principes conservés :
 | `apps/api/src/modules/reports/routes.ts` | Routes des deux contrôles |
 | `apps/api/src/modules/accounts/chart.ts` | Compte `1150` — avances aux fournisseurs |
 | `apps/api/src/lib/errors.ts` | Codes d’erreur M42 |
-| `apps/api/tests/mission42.test.ts` | 8 scénarios d’intégration M42 |
+| `apps/api/tests/mission42.test.ts` | 10 scénarios d’intégration M42 / M42.1 |
 
 ### Web
 
 | Fichier | Rôle |
 |---|---|
-| `apps/web/src/pages/documents/ScanImport.tsx` | Bouton de création de la facture fournisseur depuis l’OCR approuvé |
-| `apps/web/src/pages/accounting/Purchases.tsx` | Validation et comptabilisation depuis Achats |
+| `apps/web/src/pages/accounting/Controls.tsx` | **Nouveau** — rapprochement comptes collectifs ↔ grand livre et contrôle TVA |
+| `apps/web/src/demo/controls.ts` | **Nouveau** — calcul de démonstration des deux contrôles, par devise et sans écart forcé |
+| `apps/web/src/pages/documents/ScanImport.tsx` | Bouton de création de la facture fournisseur, statuts OCR et facture liée |
+| `apps/web/src/pages/accounting/Purchases.tsx` | Affectation tardive, reclassement proposé, immobilisation depuis une ligne |
+| `apps/web/src/pages/billing/Payments.tsx` | Affectation tardive, annulation motivée et réactivation d’une affectation |
+| `apps/web/src/demo/purchases.ts` | Mêmes contrôles d’affectation et de création d’immobilisation en démonstration |
+| `apps/web/src/demo/mission23.ts` | Conversion OCR → facture fournisseur et statuts de comptabilisation en démonstration |
+| `apps/web/tests/mission42-ui.test.tsx` | **Nouveau** — 3 tests de rendu des nouveaux écrans et parcours |
 | `apps/web/src/pages/billing/Documents.tsx` | Préparation, validation et comptabilisation depuis Facturation |
 | `apps/web/src/pages/billing/Aging.tsx` | Balance âgée par devise |
 | `apps/web/src/pages/billing/Customers.tsx` | Solde client par devise |
@@ -191,9 +223,10 @@ Tous les tests ci-dessous ont été exécutés le 1er novembre 2026, dans cet or
 |---|---|
 | `npm ci` | **exit 0** |
 | `npm run typecheck` | **exit 0** — API et Web, aucune erreur TypeScript |
-| `npm run test -w @mc/api` | **529 tests réussis, 11 ignorés**, 36 fichiers réussis, 1 fichier ignoré (concurrence) |
-| `npm run test -w @mc/web` | **382 tests réussis sur 382**, 57 fichiers |
-| `npm run test -w @mc/api -- tests/mission42.test.ts` | **8 tests réussis sur 8** |
+| `npm run test -w @mc/api` | **531 tests réussis, 11 ignorés**, 36 fichiers réussis, 1 fichier ignoré (concurrence) |
+| `npm run test -w @mc/web` | **385 tests réussis sur 385**, 58 fichiers |
+| `npm run test -w @mc/api -- tests/mission42.test.ts` | **10 tests réussis sur 10** |
+| `npm run test -w @mc/web -- tests/mission42-ui.test.tsx` | **3 tests réussis sur 3** |
 | `npm run build` | **exit 0** — build Web et API |
 | `npm run build:demo` | **exit 0** |
 | `node scripts/verify-demo.mjs --dist apps/web/dist --base /mauritius-compta/` | **50 contrôles réussis, 0 échec** |
@@ -207,6 +240,8 @@ Exécutions CI du commit `b4f505f` :
 - CI : https://github.com/azharshahim/mauritius-compta/actions/runs/41354118075
 - Démo : https://github.com/azharshahim/mauritius-compta/actions/runs/41354117900
 
+La CI du commit M42.1 est relancée après le push et ses résultats sont reportés dans le corps de la PR nº23.
+
 ### Scénarios du fichier `apps/api/tests/mission42.test.ts`
 
 1. **Ventes MUR + EUR, aging et solde à date** : deux factures, deux encaissements datés, affectations au 01/12 ; au 31/10 les deux devises restent à 1 000 chacune, au 31/12 elles valent 800 MUR et 900 EUR ; `totals` et `openReceivables` sont `null`, les tableaux par devise contiennent deux lignes.
@@ -217,11 +252,17 @@ Exécutions CI du commit `b4f505f` :
 6. **TVA** : trois écritures postées dont une hors période ; état limité à septembre, TVA collectée 150, déductible 75, nette 75, `officialReturn: false`.
 7. **Rapprochement AR** : facture non comptabilisée classée `explained`, puis écriture manuelle sans pièce classée `unexplained` à −400 ; `hasUnexplainedDifference = true`.
 8. **Avoirs fournisseurs en liste** : avoir de 200, `credit_available = 200.0000` dans la liste.
+9. **Contrôles inaccessibles à un non-membre** : les routes `reports/subledger-reconciliation` et `reports/vat-control` renvoient 403/404 à un utilisateur qui n’appartient pas à la société, ce qui vérifie l’autorisation côté serveur.
+10. **Contrat de liste des encaissements** : après annulation puis réactivation, la liste renvoie l’affectation avec `allocatedDate`, `cancelledAt` nul et le numéro de facture ; après affectation d’un acompte fournisseur comptabilisé, `reclassEntryId` est renseigné.
+11. **Ligne d’achat immobilisée** : la fiche du document renvoie `fixedAssetId`, `fixedAssetCode` et `accountType = asset` pour la ligne concernée.
+12. **Double soumission** : une seconde affectation identique sur la même facture renvoie 409, sans doublon.
+13. **Changement de devise** : un encaissement EUR ne peut pas être affecté à une facture MUR ; l’API répond `CURRENCY_MISMATCH` (400).
 
 ### Tests non exécutés ou non disponibles
 
 - **Navigateur réel / Playwright** : aucun navigateur n’est disponible dans l’environnement ; les écrans sont couverts par les tests de rendu Web et le build, pas par un parcours E2E visuel.
-- **Tests UI dédiés M42** : aucun test d’interface spécifique n’a été ajouté pour les nouveaux boutons Achats/Facturation/OCR ; ils sont couverts par le typecheck, le build et la suite Web existante.
+- **Tests UI dédiés M42.1** : 3 tests de rendu couvrent les contrôles comptables, l’affectation/annulation d’un encaissement et l’ouverture de la fenêtre d’immobilisation. Les créations effectives d’immobilisation et de reclassement depuis l’interface restent couvertes par les tests API, pas par un test de bout en bout.
+- **Tests navigateur réels** : absence signalée explicitement ; les tests utilisent jsdom, pas un navigateur.
 - **Performance de charge** : non mesurée.
 
 ---
@@ -250,17 +291,17 @@ Légende : **Corrigé** = comportement démontré par un test ou vérifié direc
 |---|---|---|---|
 | A-01 | OCR achat sans facture fournisseur | **Corrigé** | Conversion API + bouton OCR + test de non-double création |
 | A-02 | `credit_available` nul en liste | **Corrigé** | Calcul en liste + test |
-| A-03 | Acompte fournisseur non affectable après coup | **Partiel** | API, contrôles et test présents ; pas de bouton d’affectation tardive dans l’écran Achats |
-| A-04 | Pas de rapprochement fournisseurs ↔ GL | **Partiel** | Endpoint complet ; pas d’écran |
+| A-03 | Acompte fournisseur non affectable après coup | **Corrigé** | Bouton d’affectation tardive, restant à affecter, devise et date contrôlées |
+| A-04 | Pas de rapprochement fournisseurs ↔ GL | **Corrigé** | Écran de rapprochement fournisseurs, écarts expliqués et inexpliqués visibles |
 | A-05 | Aging fournisseur non reconstruit à date | **Corrigé** | `allocated_date` + aging à date |
-| A-06 | Ligne d’immobilisation non reliée au registre | **Partiel** | API idempotente testée ; pas d’action dans l’écran Achats |
+| A-06 | Ligne d’immobilisation non reliée au registre | **Corrigé** | Action depuis la ligne admissible, lien renvoyé par la fiche document |
 | A-07 | Position fournisseur nette incomplète | **Corrigé** | Solde par devise, avoirs et acomptes exposés |
 | A-08 | Comptabilisation achats seulement via les propositions | **Corrigé** | Actions valider/comptabiliser dans Achats |
 | B-01 | Aging et solde client mélangent les devises | **Corrigé** | Séparation API, écrans et démo ; test MUR/EUR |
-| B-02 | Trop-perçu client non affectable après coup | **Partiel** | API affectation/annulation/réactivation testée ; pas de bouton dédié dans l’écran Paiements |
+| B-02 | Trop-perçu client non affectable après coup | **Corrigé** | Affectation, annulation motivée et réactivation dans l’écran Encaissements |
 | B-03 | Aucune comptabilisation depuis Facturation | **Corrigé** | Préparer/valider/comptabiliser dans l’écran Documents |
 | B-04 | Aging client non reconstruit à date | **Corrigé** | Dates réelles d’affectation, test au 31/10 et 31/12 |
-| B-05 | Pas de rapprochement clients ↔ GL | **Partiel** | Endpoint complet ; pas d’écran |
+| B-05 | Pas de rapprochement clients ↔ GL | **Corrigé** | Écran de rapprochement clients, aucun écart masqué |
 | B-06 | Tableau de bord ventes sans compteur en attente | **Partiel** | Compteur exposé par l’API ; pas de carte dédiée dans l’interface |
 | C-01 | Rapport bancaire sur période | **Non corrigé** | Renvoyé à M43 |
 | C-02 | Compteurs de transactions partiellement rapprochées | **Non corrigé** | Renvoyé à M43 |
@@ -269,13 +310,13 @@ Légende : **Corrigé** = comportement démontré par un test ou vérifié direc
 | D-01 | Parcours OCR non opérationnel | **Corrigé** | Conversion, validation, lien et test |
 | D-02 | Rescannage légèrement différent | **Partiel** | Détection existante conservée ; pas de parcours de résolution dédié |
 | D-03 | Multi-factures détecté mais non séparé | **Partiel** | Garde et confirmation humaine ; séparation automatique non faite |
-| D-04 | `APPROVED` confondu avec comptabilisé | **Partiel** | `posting_status` exposé ; affichage d’ensemble à finaliser |
-| E-01 | Aucun état de contrôle TVA | **Partiel** | API TVA sur écritures postées ; pas d’écran |
-| E-02 | Contrôle transverse AR/AP ↔ GL | **Partiel** | Même endpoint que A-04/B-05 ; pas d’écran |
+| D-04 | `APPROVED` confondu avec comptabilisé | **Corrigé** | Statuts OCR affichés (à compléter / prêt / facture liée / comptabilisé) et numéro de facture liée |
+| E-01 | Aucun état de contrôle TVA | **Corrigé** | Écran TVA, périodes, comptes et devises, mention explicite de non-déclaration MRA |
+| E-02 | Contrôle transverse AR/AP ↔ GL | **Corrigé** | Écran accessible depuis Comptabilité, écarts expliqués et inexpliqués toujours visibles |
 | E-03 | Documents validés non comptabilisés non exposés côté ventes | **Partiel** | `awaitingAccounting` exposé ; pas de carte dédiée |
 | E-04 | Documentation historique contradictoire | **Non corrigé** | Le présent rapport est à jour ; les anciens documents n’ont pas été réécrits |
 
-**Bilan** : 10 constats corrigés, 11 partiels, 5 non corrigés (tous C-* renvoyés à M43, plus E-04).
+**Bilan** : 17 constats corrigés, 4 partiels (B-06, D-02, D-03, E-03), 5 non corrigés (C-01 à C-04 renvoyés à M43, plus E-04).
 
 ---
 
@@ -283,7 +324,7 @@ Légende : **Corrigé** = comportement démontré par un test ou vérifié direc
 
 ### Risques
 
-1. **Parcours visuels incomplets** : les lots 2, 4 et 6 sont utilisables par API mais pas entièrement par l’interface. Une démonstration guidée ne doit pas prétendre le contraire.
+1. **Parcours visuels** : les lots 2, 4 et 6 disposent désormais d’écrans dédiés, mais la création effective d’une immobilisation ou d’un reclassement depuis l’interface n’est pas couverte par un test E2E navigateur.
 2. **Migration `0025`** : additive, mais elle insère le compte `1150` dans les sociétés existantes ayant un compte `1100`. Une sauvegarde et un test sur copie restent obligatoires avant toute exploitation.
 3. **Plan comptable** : `1150` fait partie du plan provisoire de démonstration ; il doit être validé par un comptable avant usage réel.
 4. **Résumé ventes** : le contrat `billing/summary` a changé (`openReceivables` et `payments.unallocated` peuvent être `null`). Les écrans internes ont été adaptés ; tout consommateur externe doit être vérifié.
@@ -294,9 +335,9 @@ Légende : **Corrigé** = comportement démontré par un test ou vérifié direc
 ### Dépendances pour M43
 
 - C-01 à C-04 : rapports bancaires sur période, compteurs partiels, validation de période, transformation d’un encaissement bancaire en règlement.
-- Finalisation des écrans d’affectation tardive (acomptes/trop-perçus).
-- Écran unique de contrôle AR/AP ↔ GL et écran TVA.
-- Affichage consolidé des statuts OCR et de la résolution des rescannages/multi-factures.
+- Résolution guidée des rescannages et séparation multi-factures (D-02, D-03 restent partiels).
+- Carte dédiée des documents validés non comptabilisés côté ventes (E-03).
+- Tests E2E navigateur des parcours d’affectation, d’immobilisation et de contrôle comptable.
 - Mise à jour des documents d’audit historiques (E-04).
 
 ---
@@ -307,7 +348,7 @@ Légende : **Corrigé** = comportement démontré par un test ou vérifié direc
 - **Aucun déploiement** effectué.
 - **Aucune modification du VPS OVH.**
 - **Aucune publication GitHub Pages.**
-- Branche poussée : `arena/e8400c4a-mauritius-compta`, commit `b4f505f`.
+- Branche poussée : `arena/e8400c4a-mauritius-compta` ; commit M42.1 à confirmer après push (le commit M42 précédent est `c0491b0`).
 - **PR nº23 en brouillon** : https://github.com/azharshahim/mauritius-compta/pull/23
 - La fusion reste à la décision de l’utilisateur, après audit.
 
@@ -315,10 +356,10 @@ Légende : **Corrigé** = comportement démontré par un test ou vérifié direc
 
 ## 9. Recommandation finale
 
-**Statut : prêt pour audit technique ; corrections d’interface nécessaires avant fusion.**
+**Statut : prêt pour l’audit final avant fusion ; aucune fusion ni publication effectuée.**
 
-Le cœur des corrections M42 est implémenté et vérifié : suites API et Web complètes, typecheck, builds, démonstration, CI et jobs PostgreSQL réussis. Les points P1 majeurs A-01, A-02, A-05, B-01, B-03, B-04 et D-01 sont corrigés et testés.
+M42 et M42.1 sont implémentés et vérifiés localement : typecheck, 531 tests API, 385 tests Web, 10 scénarios d’intégration M42, 3 tests d’interface M42.1, builds Web/API/démo et 50 contrôles de démonstration. Les points P1 majeurs A-01, A-02, A-05, B-01, B-03, B-04 et D-01 sont corrigés, et les écrans des lots 2, 4 et 6 sont désormais présents.
 
-La mission **n’est pas complète au sens des livrables d’interface** : les écrans des lots 2, 4 et 6 restent partiels. Une revue humaine doit porter en priorité sur la migration `0025`, les signes du rapprochement, le compte `1150` et le nouveau contrat du résumé ventes.
+Limites restantes : D-02 (rescannage), D-03 (séparation multi-factures), E-03 (carte ventes des documents non comptabilisés) et C-01 à C-04 (banque, M43). Aucun test navigateur réel (Playwright) n’a été exécuté. **P0-03 reste ouvert** : aucune mise en production n’est autorisée.
 
-**Recommandation** : soumettre la PR nº23 à l’audit technique, compléter les écrans d’affectation et de contrôle, puis seulement envisager la fusion. **Ne pas fusionner et ne pas déployer en l’état.**
+**Recommandation explicite** : effectuer l’**audit final avant fusion** sur les points sensibles — migration `0025`, compte provisoire `1150`, signes et libellés des écarts de rapprochement, contrat `billing/summary`, autorisations serveur et absence de comptabilisation automatique. Après validation de l’audit, la PR nº23 pourra être fusionnée sur autorisation explicite. **Ne pas fusionner et ne pas déployer en l’état sans cette autorisation.**

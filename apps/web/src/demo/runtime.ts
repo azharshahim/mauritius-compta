@@ -52,6 +52,7 @@ import {
   type DemoFiscalClosing,
 } from './equity';
 import { fixedAssetCsv, handleDemoFixedAssets, seedDemoFixedAssets } from './fixed-assets';
+import { computeSubledgerControl, computeVatControl } from './controls';
 import { demoMission22Csv, handleDemoMission22, seedDemoMission22 } from './inventory';
 import {
   handleDemoFinancialYears,
@@ -483,6 +484,11 @@ export interface DemoBillingAllocation {
   invoice_id: string;
   company_id: string;
   amount: string;
+  allocated_date?: string;
+  cancelled_at?: string | null;
+  cancellation_reason?: string | null;
+  reclass_entry_id?: string | null;
+  reclass_amount?: string;
 }
 
 export interface DemoEntryProposal {
@@ -759,7 +765,9 @@ export interface DemoPurchaseAllocation {
   payment_id: string;
   invoice_id: string;
   amount: string;
+  allocated_date?: string;
   cancelled_at: string | null;
+  reclass_entry_id?: string | null;
 }
 
 export interface DemoPurchaseCreditAllocation {
@@ -3392,6 +3400,11 @@ function billingPaymentView(p: DemoBillingPayment) {
         amount: a.amount,
         invoiceNumber: invoice?.doc_no ?? null,
         customerName: invoice?.customer_name ?? null,
+        allocatedDate: a.allocated_date ?? null,
+        cancelledAt: a.cancelled_at ?? null,
+        cancellationReason: a.cancellation_reason ?? null,
+        reclassEntryId: a.reclass_entry_id ?? null,
+        reclassAmount: a.reclass_amount ?? '0.0000',
       };
     });
   return {
@@ -3574,7 +3587,7 @@ function refreshInvoiceBalance(companyId: string, invoiceId: string): void {
   const invoice = s.billingDocuments.find((d) => d.id === invoiceId && d.company_id === companyId);
   if (!invoice) return;
   const paid = s.billingAllocations
-    .filter((a) => a.invoice_id === invoiceId)
+    .filter((a) => a.invoice_id === invoiceId && !a.cancelled_at)
     .filter((a) => s.billingPayments.find((p) => p.id === a.payment_id && p.status === 'recorded'))
     .reduce((acc, a) => acc + amount(a.amount), 0n);
   const credited = s.billingDocuments
@@ -7726,6 +7739,97 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
       } as T;
     }
 
+    const billingAllocationDelete = /^\/billing\/payments\/([0-9a-f-]{36})\/allocations\/([0-9a-f-]{36})$/.exec(rest);
+    if (billingAllocationDelete) {
+      requireModule(companyId, 'billing', 'write');
+      const payment = s.billingPayments.find((p) => p.id === billingAllocationDelete[1] && p.company_id === companyId);
+      if (!payment) throw new ApiError(404, 'PAYMENT_NOT_FOUND', 'Encaissement introuvable');
+      const allocation = s.billingAllocations.find(
+        (a) => a.id === billingAllocationDelete[2] && a.payment_id === payment.id,
+      );
+      if (!allocation) throw new ApiError(404, 'ALLOCATION_NOT_FOUND', 'Affectation introuvable');
+      if (method !== 'DELETE') throw new ApiError(404, 'NOT_FOUND', 'Route inconnue');
+      if (allocation.cancelled_at) throw new ApiError(409, 'ALLOCATION_CANCELLED', 'Cette affectation est déjà annulée');
+      const reason = String(payload.reason ?? '').trim();
+      if (reason.length < 1) throw new ApiError(400, 'VALIDATION_ERROR', 'Motif requis');
+      allocation.cancelled_at = now();
+      allocation.cancellation_reason = reason;
+      payment.unallocated_amount = fmt(amount(payment.unallocated_amount) + amount(allocation.amount));
+      refreshInvoiceBalance(companyId, allocation.invoice_id);
+      audit(companyId, 'billing.payment.allocation.cancel', 'billing_payment', payment.id, {
+        allocationId: allocation.id,
+        reason,
+      });
+      persist();
+      return { cancelled: true, payment: billingPaymentView(payment) } as T;
+    }
+
+    const billingAllocationCreate = /^\/billing\/payments\/([0-9a-f-]{36})\/allocations$/.exec(rest);
+    if (billingAllocationCreate && method === 'POST') {
+      requireModule(companyId, 'billing', 'write');
+      const payment = s.billingPayments.find((p) => p.id === billingAllocationCreate[1] && p.company_id === companyId);
+      if (!payment) throw new ApiError(404, 'PAYMENT_NOT_FOUND', 'Encaissement introuvable');
+      if (payment.status !== 'recorded') throw new ApiError(409, 'PAYMENT_STATUS_INVALID', 'Encaissement annulé');
+      if (payload.confirm !== true) throw new ApiError(400, 'CONFIRMATION_REQUIRED', 'Confirmation humaine requise');
+      const invoice = s.billingDocuments.find(
+        (d) => d.id === payload.invoiceId && d.company_id === companyId && d.kind === 'invoice',
+      );
+      if (!invoice) throw new ApiError(404, 'DOCUMENT_NOT_FOUND', 'Facture introuvable');
+      if (invoice.customer_id !== payment.customer_id) {
+        throw new ApiError(400, 'ALLOCATION_INVALID', 'La facture appartient à un autre client');
+      }
+      if (invoice.currency !== payment.currency) {
+        throw new ApiError(400, 'CURRENCY_MISMATCH', 'La devise de l’encaissement doit être celle de la facture');
+      }
+      if (!['issued', 'partially_paid'].includes(invoice.status)) {
+        throw new ApiError(409, 'ALLOCATION_INVALID', `La facture ${invoice.doc_no ?? ''} n’est pas ouverte au règlement`);
+      }
+      const value = amount(payload.amount);
+      if (value <= 0n) throw new ApiError(400, 'ALLOCATION_INVALID', 'Affectation strictement positive');
+      if (value > amount(payment.unallocated_amount)) {
+        throw new ApiError(409, 'ALLOCATION_EXCEEDS_PAYMENT', 'L’affectation dépasse le restant non affecté');
+      }
+      if (value > billingOutstanding(invoice)) {
+        throw new ApiError(409, 'ALLOCATION_EXCEEDS_INVOICE', 'L’affectation dépasse le solde dû');
+      }
+      const allocationDate = String(payload.allocationDate ?? todayIso());
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(allocationDate)) {
+        throw new ApiError(400, 'VALIDATION_ERROR', 'Date d’affectation invalide');
+      }
+      if (allocationDate < payment.payment_date) {
+        throw new ApiError(400, 'ALLOCATION_DATE_BEFORE_PAYMENT', 'La date d’affectation précède le règlement');
+      }
+      const duplicate = s.billingAllocations.find(
+        (a) => a.payment_id === payment.id && a.invoice_id === invoice.id && !a.cancelled_at,
+      );
+      if (duplicate) throw new ApiError(409, 'ALLOCATION_EXISTS', 'Cette facture est déjà affectée à ce règlement');
+      const allocation: DemoBillingAllocation = {
+        id: uid(),
+        payment_id: payment.id,
+        invoice_id: invoice.id,
+        company_id: companyId,
+        amount: fmt(value),
+        allocated_date: allocationDate,
+        cancelled_at: null,
+      };
+      s.billingAllocations.push(allocation);
+      payment.unallocated_amount = fmt(amount(payment.unallocated_amount) - value);
+      refreshInvoiceBalance(companyId, invoice.id);
+      audit(companyId, 'billing.payment.allocation.create', 'billing_payment', payment.id, {
+        allocationId: allocation.id,
+        invoiceId: invoice.id,
+        amount: fmt(value),
+        allocationDate,
+      });
+      persist();
+      return {
+        allocationId: allocation.id,
+        reclassRequired: payment.accounting_entry_id !== null,
+        payment: billingPaymentView(payment),
+        entryCreated: false,
+      } as T;
+    }
+
     const billingPaymentMatch = /^\/billing\/payments\/([0-9a-f-]{36})(\/[a-z.]+)?$/.exec(rest);
     if (billingPaymentMatch) {
       const payment = s.billingPayments.find((p) => p.id === billingPaymentMatch[1] && p.company_id === companyId);
@@ -8356,6 +8460,19 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
       }
       if (rest === '/reports/trial-balance') {
         return computeTrialBalance(companyId, company.functional_currency, from, to) as T;
+      }
+      if (rest === '/reports/subledger-reconciliation') {
+        requireModule(companyId, 'accounting', 'read');
+        const asOf = query.get('asOf') || new Date().toISOString().slice(0, 10);
+        return {
+          asOf,
+          receivable: computeSubledgerControl(s, companyId, asOf, 'receivable'),
+          payable: computeSubledgerControl(s, companyId, asOf, 'payable'),
+        } as T;
+      }
+      if (rest === '/reports/vat-control') {
+        requireModule(companyId, 'accounting', 'read');
+        return computeVatControl(s, companyId, from, to) as T;
       }
       if (rest === '/reports/statements') {
         return computeStatements(

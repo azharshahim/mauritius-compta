@@ -425,6 +425,24 @@ export default function ScanImportPage({ mode }: { mode?: 'purchase' | 'sale' } 
                       <Badge kind={d.status === 'APPROVED' ? 'success' : d.status === 'DUPLICATE' || d.status === 'REJECTED' ? 'danger' : 'info'}>
                         {t(`docs.status.${d.status}`)}
                       </Badge>
+                      {d.posting_status && (
+                        <Badge
+                          kind={
+                            d.posting_status === 'posted'
+                              ? 'success'
+                              : d.posting_status === 'linked' || d.posting_status === 'ready'
+                                ? 'info'
+                                : 'neutral'
+                          }
+                        >
+                          {t(`docs.posting.${d.posting_status}`)}
+                        </Badge>
+                      )}
+                      {d.purchase_document_no && (
+                        <span className="page-sub">
+                          {t('docs.linkedPurchaseInvoice')} {d.purchase_document_no}
+                        </span>
+                      )}
                       <span>{fmt(d.total_amount)} {d.currency ?? ''}</span>
                     </span>
                   </button>
@@ -485,6 +503,15 @@ export default function ScanImportPage({ mode }: { mode?: 'purchase' | 'sale' } 
                   </div>
                   {detail.document.status === 'DUPLICATE' && (
                     <p className="warning-text">{t('docs.duplicate')}</p>
+                  )}
+                  {detail.document.purchase_document_id && (
+                    <p className="alert alert-success" role="status">
+                      {t('docs.createPurchaseInvoiceLinked').replace(
+                        '{no}',
+                        detail.document.purchase_document_no ?? detail.document.purchase_document_id.slice(0, 8),
+                      )}{' '}
+                      <Link to="/accounting/purchases?tab=invoices">{t('docs.openPurchaseInvoices')}</Link>
+                    </p>
                   )}
                   <div className="doc-view">
                     {previewUrl ? (

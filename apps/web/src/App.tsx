@@ -10,6 +10,7 @@ import AccountsPage from './pages/Accounts';
 import EntriesPage from './pages/Entries';
 import LedgerPage from './pages/Ledger';
 import TrialBalancePage from './pages/TrialBalance';
+import AccountingControlsPage from './pages/accounting/Controls';
 import StatementsPage from './pages/Statements';
 import EquityPage from './pages/accounting/Equity';
 import FixedAssetsPage from './pages/accounting/FixedAssets';
@@ -389,6 +390,7 @@ export default function App() {
             <Route path="/accounting/journals/general" element={<EntriesPage journalType="general" titleKey="nav.journals.general" />} />
             <Route path="/accounting/ledger" element={<LedgerPage />} />
             <Route path="/accounting/trial-balance" element={<TrialBalancePage />} />
+            <Route path="/accounting/controls" element={<AccountingControlsPage />} />
             <Route path="/accounting/statements" element={<StatementsPage />} />
             <Route path="/accounting/statements/balance-sheet" element={<StatementsPage view="balance-sheet" />} />
             <Route path="/accounting/statements/profit-loss" element={<StatementsPage view="profit-loss" />} />

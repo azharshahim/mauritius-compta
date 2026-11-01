@@ -273,6 +273,16 @@ describe('mission 42 — cycle achats/ventes, OCR et intégrité comptable', () 
     expect(allocated.statusCode).toBe(201);
     const allocationId = allocated.json().allocationId;
 
+    // A double submission must not duplicate the allocation.
+    const duplicate = await api(
+      ctx,
+      owner.cookie,
+      'POST',
+      `/api/companies/${company.id}/billing/payments/${receipt.json().payment.id}/allocations`,
+      { invoiceId: invoice.id, amount: '300.00', allocationDate: '2025-09-21', confirm: true },
+    );
+    expect(duplicate.statusCode).toBe(409);
+
     const afterAllocation = await api(
       ctx,
       owner.cookie,
@@ -314,6 +324,16 @@ describe('mission 42 — cycle achats/ventes, OCR et intégrité comptable', () 
       `/api/companies/${company.id}/billing/documents/${invoice.id}`,
     );
     expect(afterReactivation.json().document.amountPaid).toBe('300.0000');
+
+    // The activity screen lists allocations, including cancelled rows and dates,
+    // so the UI never has to guess the unallocated balance.
+    const list = await api(ctx, owner.cookie, 'GET', `/api/companies/${company.id}/billing/payments`);
+    expect(list.statusCode).toBe(200);
+    const listed = list.json().payments.find((payment: any) => payment.id === receipt.json().payment.id);
+    expect(listed.allocations).toHaveLength(1);
+    expect(listed.allocations[0].allocatedDate).toBe('2025-09-22');
+    expect(listed.allocations[0].cancelledAt).toBeNull();
+    expect(listed.allocations[0].invoiceNumber).toBe(invoice.number);
   });
 
   it('allocates a posted supplier advance and prepares a separate reclassification entry', async () => {
@@ -400,6 +420,12 @@ describe('mission 42 — cycle achats/ventes, OCR et intégrité comptable', () 
     );
     expect(secondAttempt.statusCode).toBe(200);
     expect(secondAttempt.json().reused).toBe(true);
+
+    const paymentList = await api(ctx, owner.cookie, 'GET', `/api/companies/${company.id}/purchases/payments`);
+    const listedPayment = paymentList.json().payments.find((payment: any) => payment.id === paymentId);
+    expect(listedPayment.allocations[0].allocatedDate).toBe('2025-09-06');
+    expect(listedPayment.allocations[0].reclassEntryId).toBeTruthy();
+    expect(listedPayment.allocations[0].cancelledAt).toBeNull();
   });
 
   it('creates at most one fixed asset from a capitalised purchase line', async () => {
@@ -468,6 +494,64 @@ describe('mission 42 — cycle achats/ventes, OCR et intégrité comptable', () 
       [lineId],
     );
     expect(count.rows[0]!.count).toBe('1');
+
+    const detail = await api(ctx, owner.cookie, 'GET', `/api/companies/${company.id}/purchases/documents/${documentId}`);
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json().document.lines[0].fixedAssetId).toBe(assetId);
+    expect(detail.json().document.lines[0].fixedAssetCode).toBe(first.json().asset.assetCode);
+    expect(detail.json().document.lines[0].accountType).toBe('asset');
+  });
+
+  it('refuses accounting-control reports to a user who is not a company member', async () => {
+    const outsider = await registerUser(ctx);
+    const subledger = await api(
+      ctx,
+      outsider.cookie,
+      'GET',
+      `/api/companies/${company.id}/reports/subledger-reconciliation`,
+    );
+    expect([403, 404]).toContain(subledger.statusCode);
+    const vat = await api(
+      ctx,
+      outsider.cookie,
+      'GET',
+      `/api/companies/${company.id}/reports/vat-control`,
+    );
+    expect([403, 404]).toContain(vat.statusCode);
+  });
+
+  it('refuses to allocate a receipt in a currency different from the invoice', async () => {
+    const customer = await createCustomer(ctx, owner.cookie, company.id, 'Client Devise Fictif');
+    const invoice = await billingInvoice(ctx, owner.cookie, company.id, customer.id, {
+      issueDate: '2025-09-10',
+      dueDate: '2025-10-10',
+      lines: [
+        {
+          description: 'Prestation MUR fictive',
+          quantity: '1',
+          unitPrice: '500.00',
+          vatTreatment: 'zero_rated',
+        },
+      ],
+    });
+    expect(invoice.currency).toBe('MUR');
+    const receipt = await api(ctx, owner.cookie, 'POST', `/api/companies/${company.id}/billing/payments`, {
+      customerId: customer.id,
+      paymentDate: '2025-09-20',
+      amount: '500.00',
+      currency: 'EUR',
+      exchangeRate: '48.00',
+    });
+    expect(receipt.statusCode).toBe(201);
+    const mismatch = await api(
+      ctx,
+      owner.cookie,
+      'POST',
+      `/api/companies/${company.id}/billing/payments/${receipt.json().payment.id}/allocations`,
+      { invoiceId: invoice.id, amount: '500.00', allocationDate: '2025-09-21', confirm: true },
+    );
+    expect(mismatch.statusCode).toBe(400);
+    expect(mismatch.json().error.code).toBe('CURRENCY_MISMATCH');
   });
 
   it('converts an approved OCR purchase proposal into a supplier invoice exactly once', async () => {

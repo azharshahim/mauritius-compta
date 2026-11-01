@@ -938,9 +938,12 @@ export async function getPurchaseDocument(
   const row = res.rows[0];
   if (!row) throw notFound('PURCHASE_DOCUMENT_NOT_FOUND', 'Purchase document not found');
   const lines = await db.query<any>(
-    `SELECT l.*, a.code AS account_code, a.name AS account_name
+    `SELECT l.*, a.code AS account_code, a.name AS account_name, a.type AS account_type,
+            fa.id AS fixed_asset_id, fa.asset_code AS fixed_asset_code
        FROM purchase_document_lines l
        JOIN accounts a ON a.id = l.account_id AND a.company_id = $2
+       LEFT JOIN fixed_assets fa
+         ON fa.purchase_document_line_id = l.id AND fa.company_id = $2
       WHERE l.document_id = $1
       ORDER BY l.line_no`,
     [documentId, companyId],
@@ -972,6 +975,7 @@ export async function getPurchaseDocument(
       accountId: line.account_id,
       accountCode: line.account_code,
       accountName: line.account_name,
+      accountType: line.account_type,
       vatTreatment: line.vat_treatment,
       vatRate: line.vat_rate,
       vatRateId: line.vat_rate_id,
