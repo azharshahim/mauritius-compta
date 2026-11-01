@@ -4,6 +4,7 @@ import { useI18n } from '../../i18n';
 import { useSession } from '../../store';
 import { useAsync } from '../../hooks';
 import { Badge, Card, EmptyState, Spinner } from '../../components/ui';
+import { AppIcon, type IconName } from '../../components/AppIcon';
 import { date } from '../../format';
 
 interface CabinetDashboard {
@@ -153,12 +154,19 @@ export default function CabinetDashboardPage() {
 
       <Card title={t('home.quickAccess')}>
         <div className="quick-links">
-          <Link to="/accounting/journals/purchases">{t('nav.journals.purchases')}</Link>
-          <Link to="/accounting/journals/sales">{t('nav.journals.sales')}</Link>
-          <Link to="/accounting/journals/bank">{t('nav.journals.bank')}</Link>
-          <Link to="/billing/invoices">{t('nav.billing.invoices')}</Link>
-          <Link to="/accounting/trial-balance">{t('nav.trialBalance')}</Link>
-          <Link to="/accounting/banking?tab=transactions">{t('nav.bank.reconciliation')}</Link>
+          {([
+            ['dashboard', t('nav.accounting.dashboard'), '/accounting'],
+            ['purchases', t('nav.journals.purchases'), '/accounting/journals/purchases'],
+            ['sales', t('nav.journals.sales'), '/accounting/journals/sales'],
+            ['bank', t('nav.journals.bank'), '/accounting/journals/bank'],
+            ['invoices', t('nav.billing.invoices'), '/billing/invoices'],
+            ['trial', t('nav.trialBalance'), '/accounting/trial-balance'],
+            ['reconciliation', t('nav.bank.reconciliation'), '/accounting/banking?tab=transactions'],
+          ] as [IconName, string, string][]).map(([icon, label, to]) => (
+            <Link to={to} key={to}>
+              <AppIcon name={icon} size={16} /> {label}
+            </Link>
+          ))}
         </div>
         <details style={{ marginTop: 12 }}>
           <summary className="page-sub">{t('home.moreIndicators')}</summary>

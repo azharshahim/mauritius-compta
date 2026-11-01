@@ -330,6 +330,9 @@ export async function generateProposal(
   const journalId = journalRes.rows[0]?.id ?? null;
   const candidates = await partyCandidates(db, actor.companyId, kind, document.party_name);
   const party = candidates[0] ?? null;
+  // A habitual supplier may not exist yet in the supplier master. The party
+  // key learned from a human approval still applies to the extracted name.
+  const learnedPartyName = party?.name ?? document.party_name;
 
   const net = document.subtotal ? formatAmount(parseAmount(document.subtotal)) : null;
   const vat = document.vat_total ? formatAmount(parseAmount(document.vat_total)) : '0.0000';
@@ -340,9 +343,11 @@ export async function generateProposal(
   if (!document.currency) uncertain.push('currency');
 
   const lines: ProposalLine[] = [];
-  const mappings = party ? await db.query<{ keyword_key: string; account_id: string }>(
+  const mappings = learnedPartyName ? await db.query<{ keyword_key: string; account_id: string }>(
     `SELECT keyword_key, account_id FROM document_mappings
-      WHERE company_id=$1 AND kind=$2 AND party_key=$3`, [actor.companyId, kind, normalise(party.name)]) : null;
+      WHERE company_id=$1 AND kind=$2 AND party_key=$3
+        AND is_active = true AND usage_count >= 2`,
+    [actor.companyId, kind, normalise(learnedPartyName)]) : null;
 
   const expenseLines = detail.lines.length
     ? detail.lines
@@ -534,4 +539,78 @@ export async function rejectProposal(
     `UPDATE document_imports SET status='REJECTED', rejected_reason=$2, updated_at=now() WHERE id=$1`,
     [res.rows[0].document_id, reason]);
   return { proposalId, status: 'REJECTED' };
+}
+
+
+/**
+ * Mission 28 — supervised classification rules.
+ *
+ * A mapping is created by each human approval, but it is only *applied* once
+ * two identical approvals have been recorded (`usage_count >= 2`). The list
+ * below exposes the rule, its evidence count and an explicit enable switch so
+ * that no single correction silently becomes policy.
+ */
+export interface DocumentRule {
+  id: string;
+  kind: 'purchase' | 'sale';
+  party_key: string;
+  keyword_key: string;
+  account_id: string;
+  account_code: string | null;
+  account_name: string | null;
+  usage_count: number;
+  last_used_at: string;
+  is_active: boolean;
+}
+
+export async function listDocumentRules(db: Db, companyId: string): Promise<DocumentRule[]> {
+  const res = await db.query<DocumentRule>(
+    `SELECT m.id, m.kind, m.party_key, m.keyword_key, m.account_id,
+            a.code AS account_code, a.name AS account_name,
+            m.usage_count, m.last_used_at::text, m.is_active
+       FROM document_mappings m
+       LEFT JOIN accounts a ON a.id = m.account_id
+      WHERE m.company_id = $1
+      ORDER BY m.is_active DESC, m.last_used_at DESC, m.party_key
+      LIMIT 500`,
+    [companyId],
+  );
+  return res.rows;
+}
+
+export async function updateDocumentRule(
+  db: Db,
+  companyId: string,
+  ruleId: string,
+  input: { accountId?: string; isActive?: boolean },
+): Promise<DocumentRule> {
+  const existing = await db.query<{ kind: 'purchase' | 'sale' }>(
+    'SELECT kind FROM document_mappings WHERE id = $1 AND company_id = $2',
+    [ruleId, companyId],
+  );
+  const rule = existing.rows[0];
+  if (!rule) throw notFound('DOCUMENT_RULE_NOT_FOUND', 'Classification rule not found');
+
+  if (input.accountId !== undefined) {
+    const account = await db.query<{ type: string }>(
+      'SELECT type FROM accounts WHERE id = $1 AND company_id = $2 AND is_active = true',
+      [input.accountId, companyId],
+    );
+    const expected = rule.kind === 'purchase' ? 'expense' : 'revenue';
+    if (account.rows[0]?.type !== expected) {
+      throw badRequest('DOCUMENT_RULE_ACCOUNT_INVALID', `A ${rule.kind} rule requires an active ${expected} account`);
+    }
+    await db.query(
+      'UPDATE document_mappings SET account_id = $3, updated_at = now() WHERE id = $1 AND company_id = $2',
+      [ruleId, companyId, input.accountId],
+    );
+  }
+  if (input.isActive !== undefined) {
+    await db.query(
+      'UPDATE document_mappings SET is_active = $3, updated_at = now() WHERE id = $1 AND company_id = $2',
+      [ruleId, companyId, input.isActive],
+    );
+  }
+  const all = await listDocumentRules(db, companyId);
+  return all.find((row) => row.id === ruleId)!;
 }

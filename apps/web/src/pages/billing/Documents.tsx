@@ -4,6 +4,7 @@ import { api } from '../../api';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
 import { Badge, Button, Card, EmptyState, ErrorBanner, Field, Modal, Spinner } from '../../components/ui';
+import { AppIcon } from '../../components/AppIcon';
 import { money, scaled4ToString, toScaled4 } from '../../format';
 import type { BillingDocument, BillingKind, Customer, DocumentLine, Item } from './types';
 import { emptyLine } from './types';
@@ -376,7 +377,7 @@ export default function BillingDocumentsPage({ kind }: { kind: BillingKind }) {
         </div>
         {kind === 'invoice' && (
           <Link className="btn" to="/accounting/journals/sales/import">
-            ⇪ {t('journal.importSale')}
+            <AppIcon name="import" /> {t('journal.importSale')}
           </Link>
         )}
         <Button variant="primary" onClick={startCreate}>

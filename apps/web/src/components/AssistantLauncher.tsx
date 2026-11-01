@@ -2,6 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useI18n } from '../i18n';
+import { AppIcon } from './AppIcon';
 import { errorMessage, useSession } from '../store';
 import type { AssistantActionView, AssistantChatMessage } from './AssistantPanel';
 
@@ -145,7 +146,7 @@ export function AssistantLauncher() {
         aria-controls="assistant-panel"
         title={t('assistant.open')}
       >
-        <span aria-hidden="true">✨</span>
+        <AppIcon name="assistant" size={20} />
         <span className="assistant-fab-label">{t('assistant.pill')}</span>
       </button>
 

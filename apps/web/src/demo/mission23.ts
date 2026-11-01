@@ -43,7 +43,16 @@ export interface DemoMission23State {
   documents: DemoDocument[];
   documentLines: DemoDocumentLine[];
   proposals: DemoDocProposal[];
-  mappings: { kind: string; party_key: string; keyword_key: string; account_id: string }[];
+  mappings: {
+    id: string;
+    kind: string;
+    party_key: string;
+    keyword_key: string;
+    account_id: string;
+    usage_count: number;
+    last_used_at: string;
+    is_active: boolean;
+  }[];
   mcbImports: string[];
 }
 
@@ -185,6 +194,13 @@ export function seedDemoMission23(state: DemoState): void {
   }
   if (state.mission23) {
     // Upgrade an existing mission 23 state without duplicating documents.
+    state.mission23.mappings = (state.mission23.mappings ?? []).map((mapping, index) => ({
+      ...mapping,
+      id: mapping.id ?? `demo-rule-upgrade-${index + 1}`,
+      usage_count: mapping.usage_count ?? 2,
+      last_used_at: mapping.last_used_at ?? NOW,
+      is_active: mapping.is_active ?? true,
+    }));
     return;
   }
   const company = state.companies[0];
@@ -243,6 +259,19 @@ export function seedDemoMission23(state: DemoState): void {
       total_amount: l.totalAmount, quantity: null, unit_price: null,
     }));
   }
+  const expenseAccount = account('5000');
+  const mappings: DemoMission23State['mappings'] = expenseAccount ? [
+    {
+      id: 'demo-rule-1', kind: 'purchase', party_key: 'acme office supplies',
+      keyword_key: 'paper box', account_id: expenseAccount.id, usage_count: 2,
+      last_used_at: NOW, is_active: true,
+    },
+    {
+      id: 'demo-rule-2', kind: 'purchase', party_key: 'acme office supplies',
+      keyword_key: 'printer toner', account_id: expenseAccount.id, usage_count: 1,
+      last_used_at: NOW, is_active: true,
+    },
+  ] : [];
   state.mission23 = {
     schema: 1, seq: documents.length,
     profile: {
@@ -251,7 +280,7 @@ export function seedDemoMission23(state: DemoState): void {
       ...(other ? { [other.id]: { template_type: 'firm_chart', status: 'AWAITING FIRM CONFIRMATION',
         source_name: 'plan-cabinet-demo.xlsx (fictif)', imported_at: NOW, notes: 'Plan importé du cabinet fictif.' } } : {}),
     },
-    documents, documentLines: lines, proposals, mappings: [], mcbImports: [],
+    documents, documentLines: lines, proposals, mappings, mcbImports: [],
   } as DemoMission23State;
 }
 
@@ -275,6 +304,15 @@ function docView(state: DemoMission23State, s: DemoState, doc: DemoDocument) {
       .sort((a, b) => b.created_at.localeCompare(a.created_at)),
   };
 }
+function demoNormalise(value: string): string {
+  return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\b(ltd|limited|ltée|sarl|sas|sa|inc|co|company)\b/g, '')
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+}
+function demoKeyword(value: string): string {
+  return demoNormalise(value).split(' ').filter((word) => word.length > 2).slice(0, 3).join(' ');
+}
+
 function proposalFor(s: DemoState, state: DemoMission23State, doc: DemoDocument): DemoDocProposal {
   const account = (code: string) => accountOf(s, doc.company_id, code);
   const make = (code: string, description: string, debit: string, credit: string): DemoProposalLine => {
@@ -431,6 +469,30 @@ export function handleDemoMission23(
     return { profile: state.profile[companyId] };
   }
 
+  if (rest === '/documents/rules' && method === 'GET') {
+    return {
+      rules: state.mappings.map((mapping) => {
+        const chart = s.accounts.find((a) => a.id === mapping.account_id && a.company_id === companyId);
+        return { ...mapping, account_code: chart?.code ?? null, account_name: chart?.name ?? null };
+      }),
+    };
+  }
+  const ruleMatch = /^\/documents\/rules\/([^/]+)$/.exec(rest);
+  if (ruleMatch && method === 'PATCH') {
+    const mapping = state.mappings.find((row) => row.id === ruleMatch[1]);
+    if (!mapping) throw new ApiError(404, 'DOCUMENT_RULE_NOT_FOUND', 'Règle de classement introuvable');
+    if (payload.accountId !== undefined) {
+      const account = s.accounts.find((a) => a.id === payload.accountId && a.company_id === companyId && a.is_active);
+      const expected = mapping.kind === 'purchase' ? 'expense' : 'revenue';
+      if (!account || account.type !== expected) {
+        throw new ApiError(400, 'DOCUMENT_RULE_ACCOUNT_INVALID', 'Compte incompatible avec la règle');
+      }
+      mapping.account_id = String(payload.accountId);
+    }
+    if (payload.isActive !== undefined) mapping.is_active = Boolean(payload.isActive);
+    const chart = s.accounts.find((a) => a.id === mapping.account_id && a.company_id === companyId);
+    return { rule: { ...mapping, account_code: chart?.code ?? null, account_name: chart?.name ?? null } };
+  }
   if (rest === '/documents' && method === 'GET') {
     return { documents: state.documents.filter((d) => d.company_id === companyId)
       .sort((a, b) => b.created_at.localeCompare(a.created_at)) };
@@ -522,6 +584,31 @@ export function handleDemoMission23(
           debit: String(l.debit ?? '0'), credit: String(l.credit ?? '0'),
           txn_currency: proposal.currency, txn_amount: String(l.debit || l.credit), fx_rate: '1' } as any);
       });
+      // Learning is recorded but only applied by the engine from the second
+      // identical approval onward. Disabling a rule is always possible.
+      const partyKey = demoNormalise(doc.party_name ?? '');
+      if (partyKey) {
+        for (const l of lines) {
+          const account = accounts.get(l.accountId);
+          if (!account || !['expense', 'revenue'].includes(account.type)) continue;
+          const keyword = demoKeyword(String(l.description ?? ''));
+          if (!keyword) continue;
+          const existing = state.mappings.find((mapping) =>
+            mapping.kind === doc.kind && mapping.party_key === partyKey && mapping.keyword_key === keyword);
+          if (existing) {
+            existing.account_id = account.id;
+            existing.usage_count += 1;
+            existing.last_used_at = NOW;
+            existing.is_active = true;
+          } else {
+            state.mappings.push({
+              id: `demo-rule-${state.seq}-${state.mappings.length + 1}`,
+              kind: doc.kind, party_key: partyKey, keyword_key: keyword,
+              account_id: account.id, usage_count: 1, last_used_at: NOW, is_active: true,
+            });
+          }
+        }
+      }
       proposal.status = 'APPROVED'; proposal.draft_entry_id = entryId;
       doc.status = 'APPROVED'; doc.approved_at = NOW;
       return { proposalId: proposal.id, status: 'APPROVED',

@@ -4,6 +4,7 @@ import { useI18n } from '../i18n';
 import { useSession } from '../store';
 import { useAsync } from '../hooks';
 import { Badge, Card, DemoNotice, EmptyState, ErrorBanner, Spinner } from '../components/ui';
+import { AppIcon, type IconName } from '../components/AppIcon';
 import { date, money } from '../format';
 
 interface DashboardData {
@@ -31,20 +32,177 @@ interface DashboardData {
   range: { from: string; to: string };
 }
 
+interface DocumentRow {
+  id: string;
+  kind: 'purchase' | 'sale' | 'unknown';
+  status: string;
+  original_name: string;
+  party_name: string | null;
+  invoice_number: string | null;
+  total_amount: string | null;
+  currency: string | null;
+  duplicate_of: string | null;
+  created_at: string;
+}
+
+interface BankAccount {
+  id: string;
+  name: string;
+  bank_name: string;
+  currency: string;
+  unmatched_count?: number;
+  is_active: boolean;
+}
+
+interface BankImport {
+  id: string;
+  file_name: string;
+  status: string;
+  row_count: number;
+  imported_count: number;
+  duplicate_count: number;
+  created_at: string;
+}
+
+interface DashboardBundle {
+  dashboard: DashboardData;
+  documents: DocumentRow[];
+  accounts: BankAccount[];
+  imports: BankImport[];
+}
+
+const D = {
+  fr: {
+    title: 'Tableau de bord',
+    greeting: 'Vue d’ensemble de la comptabilité',
+    range: 'Exercice',
+    importBulk: 'Import groupé',
+    reconcile: 'Rapprochement groupé',
+    revenue: 'Produits',
+    expenses: 'Charges',
+    profit: 'Résultat',
+    assets: 'Total actif',
+    drafts: 'Écritures à vérifier',
+    pendingDocs: 'Documents à traiter',
+    balanceOk: 'Bilan équilibré',
+    balanceKo: 'Bilan déséquilibré : vérifiez les écritures.',
+    toProcess: 'À traiter maintenant',
+    documents: 'Documents à traiter',
+    documentsEmpty: 'Aucun document en attente. Les imports récents apparaîtront ici.',
+    duplicate: 'Doublon détecté',
+    extracted: 'Extrait',
+    proposed: 'Proposition prête',
+    imports: 'Importations bancaires récentes',
+    importsEmpty: 'Aucun relevé importé pour cette société.',
+    importMeta: 'lignes · importées',
+    duplicates: 'doublons',
+    reconciliation: 'Rapprochements en attente',
+    reconciliationHelp: 'Transactions non rapprochées sur les comptes bancaires.',
+    openReconciliation: 'Ouvrir le rapprochement',
+    noAccounts: 'Aucun compte bancaire actif.',
+    recent: 'Activité récente',
+    recentHelp: 'Dernières écritures enregistrées, brouillons compris.',
+    recentEmpty: 'Aucune écriture récente.',
+    quick: 'Accès rapides',
+    quickPurchases: 'Achats',
+    quickSales: 'Ventes',
+    quickBank: 'Banque',
+    quickDocuments: 'Documents',
+    quickReports: 'États financiers',
+    quickAccounts: 'Plan comptable',
+    quickEntries: 'Écritures',
+    quickSettings: 'Paramètres',
+    documentsCount: 'document(s) en attente',
+    pendingRecon: 'transaction(s) à rapprocher',
+    verifyDrafts: 'écriture(s) à vérifier',
+    seeAll: 'Tout voir',
+    view: 'Ouvrir',
+    statusDraft: 'Brouillon',
+    statusPosted: 'Validée',
+    noCompany: 'Aucune société active',
+    noCompanyHelp: 'Sélectionnez ou créez une société pour voir le tableau de bord.',
+    createCompany: 'Gérer les sociétés',
+    importDate: 'Importé le',
+    pagesTitle: 'Périmètre',
+    realData: 'Toutes les valeurs proviennent des APIs de la société active ; aucun indicateur n’est simulé.',
+  },
+  en: {
+    title: 'Dashboard',
+    greeting: 'Accounting overview',
+    range: 'Financial year',
+    importBulk: 'Bulk import',
+    reconcile: 'Bulk reconciliation',
+    revenue: 'Revenue',
+    expenses: 'Expenses',
+    profit: 'Profit',
+    assets: 'Total assets',
+    drafts: 'Entries to review',
+    pendingDocs: 'Documents to process',
+    balanceOk: 'Balance sheet is balanced',
+    balanceKo: 'Balance sheet is unbalanced: review the entries.',
+    toProcess: 'To process now',
+    documents: 'Documents to process',
+    documentsEmpty: 'No pending document. Recent imports will appear here.',
+    duplicate: 'Duplicate detected',
+    extracted: 'Extracted',
+    proposed: 'Proposal ready',
+    imports: 'Recent bank imports',
+    importsEmpty: 'No statement imported for this company.',
+    importMeta: 'rows · imported',
+    duplicates: 'duplicates',
+    reconciliation: 'Pending reconciliations',
+    reconciliationHelp: 'Unmatched transactions across bank accounts.',
+    openReconciliation: 'Open reconciliation',
+    noAccounts: 'No active bank account.',
+    recent: 'Recent activity',
+    recentHelp: 'Latest recorded entries, drafts included.',
+    recentEmpty: 'No recent entry.',
+    quick: 'Quick access',
+    quickPurchases: 'Purchases',
+    quickSales: 'Sales',
+    quickBank: 'Banking',
+    quickDocuments: 'Documents',
+    quickReports: 'Financial statements',
+    quickAccounts: 'Chart of accounts',
+    quickEntries: 'Entries',
+    quickSettings: 'Settings',
+    documentsCount: 'pending document(s)',
+    pendingRecon: 'transaction(s) to reconcile',
+    verifyDrafts: 'entr(ies) to review',
+    seeAll: 'See all',
+    view: 'Open',
+    statusDraft: 'Draft',
+    statusPosted: 'Posted',
+    noCompany: 'No active company',
+    noCompanyHelp: 'Select or create a company to see the dashboard.',
+    createCompany: 'Manage companies',
+    importDate: 'Imported on',
+    pagesTitle: 'Scope',
+    realData: 'Every value comes from the active company’s APIs; no indicator is simulated.',
+  },
+} as const;
+
 export default function DashboardPage() {
   const { t, locale } = useI18n();
+  const tr = D[locale];
   const { company } = useSession();
-  const { data, loading, error } = useAsync<DashboardData | null>(
-    () => (company ? api.get<DashboardData>(`/companies/${company.id}/dashboard`) : Promise.resolve(null)),
-    [company?.id],
-  );
+  const { data, loading, error } = useAsync<DashboardBundle | null>(async () => {
+    if (!company) return null;
+    const [dashboard, documents, accounts, imports] = await Promise.all([
+      api.get<DashboardData>(`/companies/${company.id}/dashboard`),
+      api.get<{ documents: DocumentRow[] }>(`/companies/${company.id}/documents`),
+      api.get<{ accounts: BankAccount[] }>(`/companies/${company.id}/bank/accounts`),
+      api.get<{ imports: BankImport[] }>(`/companies/${company.id}/bank/imports`),
+    ]);
+    return { dashboard, documents: documents.documents, accounts: accounts.accounts, imports: imports.imports };
+  }, [company?.id]);
 
   if (!company) {
     return (
-      <Card title={t('dashboard.noCompany')}>
-        <EmptyState title={t('dashboard.noCompanyHelp')}>
+      <Card title={tr.noCompany}>
+        <EmptyState title={tr.noCompanyHelp}>
           <Link className="btn btn-primary" to="/companies" style={{ display: 'inline-block', marginTop: 12 }}>
-            {t('dashboard.createCompany')}
+            {tr.createCompany}
           </Link>
         </EmptyState>
       </Card>
@@ -53,105 +211,230 @@ export default function DashboardPage() {
 
   if (loading) return <Spinner label={t('common.loading')} />;
 
+  const dashboard = data?.dashboard;
+  const documents = (data?.documents ?? []).filter((doc) => ['EXTRACTED', 'PROPOSED', 'DUPLICATE'].includes(doc.status));
+  const pendingDocuments = documents.filter((doc) => doc.status !== 'DUPLICATE').length;
+  const accounts = (data?.accounts ?? []).filter((account) => account.is_active);
+  const unmatched = accounts.reduce((sum, account) => sum + (account.unmatched_count ?? 0), 0);
+  const imports = (data?.imports ?? []).slice(0, 5);
+  const draftEntries = dashboard?.kpis.draftEntries ?? 0;
+
+  const kpis = dashboard
+    ? [
+        { key: 'revenue', label: tr.revenue, value: money(dashboard.kpis.revenue, locale, dashboard.kpis.currency), icon: 'sales' as const, tone: '' },
+        { key: 'expenses', label: tr.expenses, value: money(dashboard.kpis.expenses, locale, dashboard.kpis.currency), icon: 'purchases' as const, tone: '' },
+        { key: 'profit', label: tr.profit, value: money(dashboard.kpis.profit, locale, dashboard.kpis.currency), icon: 'profitLoss' as const, tone: '' },
+        { key: 'assets', label: tr.assets, value: money(dashboard.kpis.totalAssets, locale, dashboard.kpis.currency), icon: 'balanceSheet' as const, tone: '' },
+        { key: 'drafts', label: tr.drafts, value: String(draftEntries), icon: 'tasks' as const, tone: draftEntries > 0 ? 'kpi-warning' : '' },
+        { key: 'documents', label: tr.pendingDocs, value: String(pendingDocuments), icon: 'ocr' as const, tone: pendingDocuments > 0 ? 'kpi-warning' : '' },
+      ]
+    : [];
+
+  const quickLinks: { icon: IconName; label: string; to: string }[] = [
+    { icon: 'purchases', label: tr.quickPurchases, to: '/accounting/journals/purchases' },
+    { icon: 'sales', label: tr.quickSales, to: '/accounting/journals/sales' },
+    { icon: 'bank', label: tr.quickBank, to: '/accounting/banking' },
+    { icon: 'documents', label: tr.quickDocuments, to: '/documents' },
+    { icon: 'statements', label: tr.quickReports, to: '/reports' },
+    { icon: 'accounts', label: tr.quickAccounts, to: '/accounting/accounts' },
+    { icon: 'ledger', label: tr.quickEntries, to: '/entries' },
+    { icon: 'settings', label: tr.quickSettings, to: '/accounting/settings' },
+  ];
+
+  const docStatus = (doc: DocumentRow) => {
+    if (doc.status === 'DUPLICATE') return <Badge kind="warning">{tr.duplicate}</Badge>;
+    if (doc.status === 'PROPOSED') return <Badge kind="info">{tr.proposed}</Badge>;
+    return <Badge kind="neutral">{tr.extracted}</Badge>;
+  };
+
   return (
     <>
-      <div className="page-head">
-        <div className="grow">
-          <h1>{t('dashboard.title')}</h1>
-          <div className="page-sub">
-            {company.name} · {data?.range.from} → {data?.range.to} · {company.functional_currency}
-          </div>
-        </div>
-      </div>
       <DemoNotice />
       <ErrorBanner message={error} />
-      {data && (
+      {!dashboard ? (
+        <EmptyState title={t('common.error')} />
+      ) : (
         <>
-          <div className={`alert ${data.kpis.balancedSheet ? 'alert-success' : 'alert-error'}`}>
-            {data.kpis.balancedSheet ? t('dashboard.balanceOk') : t('dashboard.balanceKo')}
-          </div>
-          <div className="grid grid-4" style={{ marginBottom: 16 }}>
-            <div className="kpi">
-              <div className="kpi-label">{t('dashboard.revenue')}</div>
-              <div className="kpi-value positive">
-                {money(data.kpis.revenue, locale, data.kpis.currency)}
+          <section className="dashboard-hero">
+            <div>
+              <div className="page-sub">{company.name} · {tr.range} {dashboard.range.from} → {dashboard.range.to}</div>
+              <h1>{tr.title}</h1>
+              <div className="page-sub">{tr.greeting} · {company.functional_currency}</div>
+              <div style={{ marginTop: 10 }}>
+                <Badge kind={dashboard.kpis.balancedSheet ? 'success' : 'danger'}>
+                  <AppIcon name={dashboard.kpis.balancedSheet ? 'validate' : 'alert'} size={13} />{' '}
+                  {dashboard.kpis.balancedSheet ? tr.balanceOk : tr.balanceKo}
+                </Badge>
               </div>
             </div>
-            <div className="kpi">
-              <div className="kpi-label">{t('dashboard.expenses')}</div>
-              <div className="kpi-value negative">
-                {money(data.kpis.expenses, locale, data.kpis.currency)}
+            <div className="dashboard-hero-actions">
+              <Link className="btn btn-primary" to="/accounting/journals/purchases/import/bulk">
+                <AppIcon name="importCloud" /> {tr.importBulk}
+              </Link>
+              <Link className="btn" to="/accounting/banking/bulk-reconciliation">
+                <AppIcon name="reconciliation" /> {tr.reconcile}
+              </Link>
+            </div>
+          </section>
+
+          <div className="dashboard-kpis">
+            {kpis.map((kpi) => (
+              <div className={`kpi ${kpi.tone}`} key={kpi.key}>
+                <div className="kpi-head">
+                  <div className="kpi-label">{kpi.label}</div>
+                  <span className="kpi-icon"><AppIcon name={kpi.icon} size={17} /></span>
+                </div>
+                <div className="kpi-value">{kpi.value}</div>
               </div>
-            </div>
-            <div className="kpi">
-              <div className="kpi-label">{t('dashboard.profit')}</div>
-              <div className="kpi-value">{money(data.kpis.profit, locale, data.kpis.currency)}</div>
-            </div>
-            <div className="kpi">
-              <div className="kpi-label">{t('st.totalAssets')}</div>
-              <div className="kpi-value">{money(data.kpis.totalAssets, locale, data.kpis.currency)}</div>
-            </div>
-            <div className="kpi">
-              <div className="kpi-label">{t('dashboard.posted')}</div>
-              <div className="kpi-value">{data.kpis.postedEntries}</div>
-            </div>
-            <div className="kpi">
-              <div className="kpi-label">{t('dashboard.drafts')}</div>
-              <div className="kpi-value">{data.kpis.draftEntries}</div>
-            </div>
-            <div className="kpi">
-              <div className="kpi-label">{t('dashboard.accounts')}</div>
-              <div className="kpi-value">{data.kpis.accounts}</div>
-            </div>
-            <div className="kpi">
-              <div className="kpi-label">{t('entries.journal')}</div>
-              <div className="kpi-value">{data.kpis.journals}</div>
-            </div>
+            ))}
           </div>
 
-          <Card
-            title={t('dashboard.recent')}
-            actions={
-              <Link className="btn" to="/entries">
-                {t('entries.title')}
-              </Link>
-            }
-          >
-            {data.recentEntries.length === 0 ? (
-              <EmptyState title={t('tb.empty')} />
-            ) : (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>{t('entries.entryNo')}</th>
-                      <th>{t('common.date')}</th>
-                      <th>{t('common.description')}</th>
-                      <th>{t('entries.journal')}</th>
-                      <th className="num">{t('common.amount')}</th>
-                      <th>{t('entries.status')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.recentEntries.map((e) => (
-                      <tr key={e.id}>
-                        <td className="mono">{e.entry_no}</td>
-                        <td>{date(e.entry_date, locale)}</td>
-                        <td>{e.description}</td>
-                        <td>{e.journal_code}</td>
-                        <td className="num">{money(e.total_debit, locale, company.functional_currency)}</td>
-                        <td>
-                          <Badge kind={e.status === 'posted' ? 'success' : 'warning'}>
-                            {e.status === 'posted' ? t('entries.posted') : t('entries.draft')}
-                          </Badge>
-                        </td>
-                      </tr>
+          <section className="dashboard-columns">
+            <div className="dashboard-stack">
+              <Card
+                title={tr.documents}
+                actions={<Link className="btn btn-sm" to="/accounting/journals/purchases/import/bulk">{tr.seeAll}</Link>}
+              >
+                {documents.length === 0 ? (
+                  <EmptyState title={tr.documentsEmpty} />
+                ) : (
+                  <ul className="dashboard-list">
+                    {documents.slice(0, 6).map((doc) => (
+                      <li key={doc.id}>
+                        <span className="kpi-icon"><AppIcon name="documents" size={16} /></span>
+                        <div className="dashboard-list-main">
+                          <strong>{doc.party_name || doc.original_name}</strong>
+                          <span className="dashboard-list-meta">
+                            {doc.invoice_number ?? '—'} · {money(doc.total_amount, locale, doc.currency ?? company.functional_currency)}
+                          </span>
+                        </div>
+                        {docStatus(doc)}
+                        <Link className="btn btn-sm" to={`/documents?doc=${encodeURIComponent(doc.id)}`}>
+                          <AppIcon name="view" size={15} /> {tr.view}
+                        </Link>
+                      </li>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
+                  </ul>
+                )}
+              </Card>
+
+              <Card title={tr.recent} actions={<Link className="btn btn-sm" to="/entries">{tr.seeAll}</Link>}>
+                <p className="page-sub">{tr.recentHelp}</p>
+                {dashboard.recentEntries.length === 0 ? (
+                  <EmptyState title={tr.recentEmpty} />
+                ) : (
+                  <ul className="dashboard-list">
+                    {dashboard.recentEntries.slice(0, 6).map((entry) => (
+                      <li key={entry.id}>
+                        <span className="kpi-icon"><AppIcon name="ledger" size={16} /></span>
+                        <div className="dashboard-list-main">
+                          <strong>{entry.description}</strong>
+                          <span className="dashboard-list-meta">{entry.entry_no} · {date(entry.entry_date, locale)} · {entry.journal_code}</span>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div className="mono">{money(entry.total_debit, locale, company.functional_currency)}</div>
+                          <Badge kind={entry.status === 'posted' ? 'success' : 'warning'}>
+                            {entry.status === 'posted' ? tr.statusPosted : tr.statusDraft}
+                          </Badge>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
+            </div>
+
+            <div className="dashboard-stack">
+              <Card title={tr.toProcess}>
+                <ul className="dashboard-list">
+                  <li>
+                    <span className="kpi-icon"><AppIcon name="ocr" size={16} /></span>
+                    <div className="dashboard-list-main">
+                      <strong>{pendingDocuments}</strong>
+                      <span className="dashboard-list-meta">{tr.documentsCount}</span>
+                    </div>
+                    <Link className="btn btn-sm" to="/accounting/journals/purchases/import/bulk">{tr.view}</Link>
+                  </li>
+                  <li>
+                    <span className="kpi-icon"><AppIcon name="reconciliation" size={16} /></span>
+                    <div className="dashboard-list-main">
+                      <strong>{unmatched}</strong>
+                      <span className="dashboard-list-meta">{tr.pendingRecon}</span>
+                    </div>
+                    <Link className="btn btn-sm" to="/accounting/banking/bulk-reconciliation">{tr.view}</Link>
+                  </li>
+                  <li>
+                    <span className="kpi-icon"><AppIcon name="tasks" size={16} /></span>
+                    <div className="dashboard-list-main">
+                      <strong>{draftEntries}</strong>
+                      <span className="dashboard-list-meta">{tr.verifyDrafts}</span>
+                    </div>
+                    <Link className="btn btn-sm" to="/entries?status=draft">{tr.view}</Link>
+                  </li>
+                </ul>
+              </Card>
+
+              <Card title={tr.reconciliation}>
+                <p className="page-sub">{tr.reconciliationHelp}</p>
+                {accounts.length === 0 ? (
+                  <EmptyState title={tr.noAccounts} />
+                ) : (
+                  <ul className="dashboard-list">
+                    {accounts.slice(0, 5).map((account) => (
+                      <li key={account.id}>
+                        <span className="kpi-icon"><AppIcon name="bank" size={16} /></span>
+                        <div className="dashboard-list-main">
+                          <strong>{account.name}</strong>
+                          <span className="dashboard-list-meta">{account.bank_name} · {account.currency}</span>
+                        </div>
+                        <Badge kind={(account.unmatched_count ?? 0) > 0 ? 'warning' : 'success'}>
+                          {account.unmatched_count ?? 0}
+                        </Badge>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <Link className="btn btn-sm" to="/accounting/banking/bulk-reconciliation" style={{ marginTop: 10 }}>
+                  <AppIcon name="reconciliation" size={15} /> {tr.openReconciliation}
+                </Link>
+              </Card>
+
+              <Card title={tr.imports}>
+                {imports.length === 0 ? (
+                  <EmptyState title={tr.importsEmpty} />
+                ) : (
+                  <ul className="dashboard-list">
+                    {imports.map((item) => (
+                      <li key={item.id}>
+                        <span className="kpi-icon"><AppIcon name="import" size={16} /></span>
+                        <div className="dashboard-list-main">
+                          <strong>{item.file_name}</strong>
+                          <span className="dashboard-list-meta">
+                            {item.row_count} {tr.importMeta} {item.imported_count}
+                            {item.duplicate_count > 0 ? ` · ${item.duplicate_count} ${tr.duplicates}` : ''}
+                          </span>
+                          <span className="dashboard-list-meta">{tr.importDate} {date(item.created_at, locale)}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
+
+              <Card title={tr.quick}>
+                <div className="dashboard-quick-grid">
+                  {quickLinks.map((link) => (
+                    <Link className="dashboard-quick" to={link.to} key={link.to}>
+                      <AppIcon name={link.icon} size={17} />
+                      <span>{link.label}</span>
+                    </Link>
+                  ))}
+                </div>
+              </Card>
+            </div>
+          </section>
+
+          <p className="page-sub" style={{ marginTop: 12 }}>{tr.realData}</p>
         </>
       )}
     </>

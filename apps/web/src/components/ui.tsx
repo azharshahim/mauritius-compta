@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useI18n } from '../i18n';
+import { AppIcon } from './AppIcon';
 
 export function Card({
   title,

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../../api';
 import { demoEnabled } from '../../demo';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
 import { useAsync } from '../../hooks';
 import { Badge, Button, Card, DemoNotice, EmptyState, ErrorBanner, Field, Spinner } from '../../components/ui';
+import { AppIcon } from '../../components/AppIcon';
 
 interface DocumentListRow {
   id: string; kind: 'purchase' | 'sale' | 'unknown'; status: string; original_name: string;
@@ -63,6 +64,8 @@ export default function ScanImportPage({ mode }: { mode?: 'purchase' | 'sale' } 
   const { t, locale } = useI18n();
   const { company } = useSession();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedDocumentId = searchParams.get('doc');
   const [kind, setKind] = useState<'purchase' | 'sale'>(mode ?? 'purchase');
   const [file, setFile] = useState<File | null>(null);
   const [localUrl, setLocalUrl] = useState<string | null>(null);
@@ -151,6 +154,12 @@ export default function ScanImportPage({ mode }: { mode?: 'purchase' | 'sale' } 
       }
     } catch (err) { setError(errorMessage(err, t('common.error')).message); }
   };
+
+  useEffect(() => {
+    if (requestedDocumentId && company) void loadDetail(requestedDocumentId);
+    // `loadDetail` only depends on the active company; the id is the trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [company?.id, requestedDocumentId]);
 
   if (!company) return <EmptyState title={t('dashboard.noCompanyHelp')} />;
 
@@ -281,14 +290,19 @@ export default function ScanImportPage({ mode }: { mode?: 'purchase' | 'sale' } 
           <h1>{mode === 'purchase' ? t('journal.importPurchaseTitle') : mode === 'sale' ? t('journal.importSaleTitle') : t('docs.title')}</h1>
           <div className="page-sub">{mode ? t('journal.importSubtitle') : t('docs.subtitle')}</div>
         </div>
+        {mode && (
+          <Link className="btn" to={`/accounting/journals/${mode === 'purchase' ? 'purchases' : 'sales'}/import/bulk`}>
+            <AppIcon name="importCloud" /> {t('journal.importBulk')}
+          </Link>
+        )}
       </div>
       {!mode && (
         <Card title={t('docs.primaryEntries')}>
           <p className="page-sub">{t('docs.consultationNote')}</p>
           <div className="page-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            <Link className="btn" to="/accounting/journals/purchases/import">🛒 {t('journal.importPurchase')}</Link>
-            <Link className="btn" to="/accounting/journals/sales/import">🧾 {t('journal.importSale')}</Link>
-            <Link className="btn" to="/accounting/banking/pdf">🏦 {t('nav.bank.pdf')}</Link>
+            <Link className="btn" to="/accounting/journals/purchases/import"><AppIcon name="purchases" /> {t('journal.importPurchase')}</Link>
+            <Link className="btn" to="/accounting/journals/sales/import"><AppIcon name="sales" /> {t('journal.importSale')}</Link>
+            <Link className="btn" to="/accounting/banking/pdf"><AppIcon name="bank" /> {t('nav.bank.pdf')}</Link>
           </div>
         </Card>
       )}

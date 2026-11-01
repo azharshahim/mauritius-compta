@@ -9,6 +9,10 @@ import './styles.css';
 
 // The GitHub Pages build is served without server-side rewrites: hash routing
 // keeps every deep link working. The real application keeps clean URLs.
+// Apply the saved theme before React renders to avoid a light flash in dark mode.
+document.documentElement.dataset.theme =
+  localStorage.getItem('mc.theme') === 'dark' ? 'dark' : 'light';
+
 const Router = demoEnabled ? HashRouter : BrowserRouter;
 if (demoEnabled) document.body.classList.add('demo-mode');
 
