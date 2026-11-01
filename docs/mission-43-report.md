@@ -3,8 +3,9 @@
 **Date** : 2026-11-01
 **Branche** : `arena/e8400c4a-mauritius-compta`
 **Base** : empilée sur M42/M42.1 (`2bfa18d`), elle-même issue de `main` `cc56984`
-**PR cible** : PR M42 nº23 (jamais une PR M43 vers `main`)
-**Statut** : code et tests locaux exécutés ; CI à exécuter après push ; **aucune fusion, aucun déploiement, aucune modification du VPS, aucune donnée réelle**
+**PR cible prévue** : PR M42 nº23 (jamais une PR M43 vers `main`)
+**PR réellement disponible** : nº23 uniquement — voir §8.1 (contrainte de branche unique de la session Arena)
+**Statut** : code, tests locaux et CI exécutés ; **aucune fusion, aucun déploiement, aucune modification du VPS, aucune donnée réelle**
 
 ---
 
@@ -17,7 +18,7 @@ M43 dépend de M42/M42.1 pour :
 - la création de règlements clients via `POST /companies/:companyId/billing/payments` ;
 - la migration `0025` (compte `1150`, liens OCR, immobilisations).
 
-La branche M43 est donc **empilée sur la branche M42**. La PR M43 doit cibler la branche `arena/e8400c4a-mauritius-compta` (PR nº23), et non `main`, tant que M42 n’est pas fusionnée avec autorisation.
+La branche M43 est donc **empilée sur la branche M42**. La PR M43 devait cibler la branche `arena/e8400c4a-mauritius-compta` (PR nº23), et non `main`, tant que M42 n’est pas fusionnée avec autorisation. La contrainte d’exécution décrite au §8.1 a conduit à livrer M43 sur la même branche et la même PR brouillon, sans jamais ouvrir de PR vers `main`.
 
 ---
 
@@ -193,7 +194,19 @@ Le rapport expose désormais :
 | Build démo | `npm run build:demo` | **exit 0** |
 | Vérification démo | `node scripts/verify-demo.mjs --dist apps/web/dist --base /mauritius-compta/` | **50/50** |
 
-**Limites** : PGlite et non PostgreSQL réel en local (`psql`/`docker` indisponibles) ; aucun navigateur réel ; aucun test de charge ; aucun test de concurrence multi-processus. Les jobs CI PostgreSQL, migrations, build démo doivent confirmer ces résultats après push. Aucun test n’a été ignoré pour masquer un échec et aucun montant attendu n’a été modifié.
+### 6.1 CI GitHub Actions — commit `9dd1477` (2026-11-01)
+
+| Job | Résultat | Durée |
+| --- | --- | --- |
+| `Typecheck, tests and build` | **pass** | 5m 4s |
+| `API tests against real PostgreSQL` | **pass** | 2m 57s |
+| `Migrations against real PostgreSQL` | **pass** | 33s |
+| `Build demo bundle` | **pass** | 1m 46s |
+| `Deploy to GitHub Pages` | **skipping** (attendu) | — |
+
+La migration `0026` a donc été appliquée, ré-appliquée et vérifiée sur **PostgreSQL réel** en CI, en plus du test PGlite sur données fictives avant/après.
+
+**Limites** : PGlite et non PostgreSQL réel en local (`psql`/`docker` indisponibles) ; aucun navigateur réel ; aucun test de charge ; aucun test de concurrence multi-processus. Aucun test n’a été ignoré pour masquer un échec et aucun montant attendu n’a été modifié.
 
 ---
 
@@ -212,6 +225,12 @@ Le rapport expose désormais :
 
 ## 8. Dépendances et suite
 
+### 8.1 Contrainte de branche unique (Arena)
+
+La session Arena est liée à la branche `arena/e8400c4a-mauritius-compta` et interdit de créer, changer ou pousser une autre branche. Il est donc **impossible d’ouvrir une seconde PR M43 distincte** depuis cette session : M42.1 et M43 sont livrés sur la même branche, dans la **PR nº23 en brouillon**, avec la dépendance M43 → M42 documentée ci-dessus.
+
+Cette situation ne doit pas être lue comme une PR M43 vers `main` : la PR nº23 cible `main` et contient l’ensemble M42.1 + M43. Après fusion autorisée de M42, un découpage en PR M43 dédiée pourra être réalisé hors de cette session, avec revue des commits. **Aucune PR supplémentaire n’a été ouverte et aucune branche n’a été créée.**
+
 - **M42** : la PR nº23 doit être auditée puis fusionnée **avec autorisation** avant toute PR M43 vers `main`.
 - **M44** : aucun fichier, aucune branche, aucune PR M44 n’a été consulté ou modifié. Aucune fusion automatique M42/M43 avec M44.
 - **Post-M43 possible** : création d’un paiement fournisseur depuis un débit bancaire, export PDF de période, tests de charge/concurrence, E2E navigateur, validation experte du compte `1150` et des règles fiscales.
@@ -221,6 +240,6 @@ Le rapport expose désormais :
 
 ## 9. Recommandation avant fusion
 
-**Recommandation : PR M43 en brouillon, ciblant la branche M42, après CI verte et revue humaine.** Les constats C-01 à C-04 sont corrigés pour le périmètre client et documentés sans masquer les limites (C-04 fournisseur partiel, pas de PDF, pas d’E2E). Aucune fusion, aucun déploiement, aucune modification du VPS, aucune donnée réelle, aucune écriture automatique n’a été effectuée.
+**Recommandation : conserver la PR nº23 en brouillon jusqu’à l’autorisation explicite, avec CI verte et revue humaine.** En raison de la contrainte de branche unique (§8.1), M42.1 et M43 sont dans la même PR ; une PR M43 distincte devra être créée après coup si le découpage est requis. Les constats C-01 à C-04 sont corrigés pour le périmètre client et documentés sans masquer les limites (C-04 fournisseur partiel, pas de PDF, pas d’E2E). Aucune fusion, aucun déploiement, aucune modification du VPS, aucune donnée réelle, aucune écriture automatique n’a été effectuée.
 
 La fusion de M42 puis de M43 reste subordonnée à l’autorisation explicite de l’utilisateur et à la validation par un expert-comptable mauricien des points `1150`, TVA et rapprochements.

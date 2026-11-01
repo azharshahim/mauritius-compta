@@ -421,6 +421,7 @@ Cette section clôt l’audit final demandé avant fusion de la PR nº23. Elle n
 | `npm run build` | **exit 0** |
 | `npm run build:demo` | **exit 0** |
 | `verify-demo --dist apps/web/dist --base /mauritius-compta/` | **50/50** |
+| CI GitHub Actions sur `9dd1477` (M42.1 + M43) | **verte** : Typecheck/tests/build, API PostgreSQL, Migrations PostgreSQL, Build démo ; Pages skipping |
 
 **Non exécuté** : navigateur réel/Playwright (absent de l’environnement), tests de charge, PostgreSQL réel local (`psql`/`docker` indisponibles — couvert par la CI). Aucun échec n’a été masqué et aucun montant attendu n’a été modifié pour verdir les tests.
 
