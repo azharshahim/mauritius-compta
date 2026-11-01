@@ -1,5 +1,55 @@
 # Journal des versions
 
+## Mission 25 — MRA e-Invoicing « À venir » et vérification de publication (1er novembre 2026)
+
+> PR en brouillon, aucune fusion, aucun déploiement d’une branche Arena, aucune donnée
+> réelle, aucun compte MRA, aucune inscription, aucun certificat, aucun appel API MRA,
+> aucune facture électronique transmise. La facturation classique reste inchangée.
+> `main` reste intact.
+
+### Vérifié — publication Mission 24
+
+- Workflow **Demo (GitHub Pages)** run `41263409932`, déclenché sur `main` au commit
+  `49ee04fee8f5e6151c9e461fb20aa60cafef436d` : build, déploiement et vérification HTTPS
+  réussis. La page publique répond et sert la démonstration Mission 24.
+- Aucune relance du workflow de publication n’a été nécessaire.
+- Réserve documentée : l’API GitHub `GET /deployments` ne liste pas ce déploiement, alors
+  que le job `deploy-pages@v4` et son contrôle HTTPS ont réussi.
+
+### Ajouté
+
+- Écran bilingue **MRA e-Invoicing — À venir** / **MRA e-Invoicing — Coming Soon** à la
+  route stable `/billing/e-invoicing`, dans le module Facturation.
+- Statut explicite **Intégration MRA non activée**, absence d’inscription et de
+  certification, zéro appel API MRA, données fictives uniquement.
+- Six fonctionnalités annoncées comme **non disponibles** : émission, transmission, suivi
+  des statuts, accusés de réception, gestion des erreurs et rapprochement comptable.
+- Emplacement de paramètres futurs entièrement inactif (environnement, identifiant EBS,
+  certificat, adresse de service) ; aucun secret demandé ni stocké.
+- Glossaire MRA (EBS, IFP, IRN) et rappel que la facturation classique reste le seul système
+  de facturation opérationnel.
+- Feuille de route `docs/mra-e-invoicing-roadmap.md` en six volets, avec sources officielles
+  MRA, statuts **CONFIRMÉ / À VÉRIFIER / HYPOTHÈSE**, questions ouvertes et étape juridique
+  distincte pour la société 50/50 et la propriété intellectuelle.
+- Tests `mission25-ui.test.tsx` : navigation, FR/EN, statut À venir, six fonctions
+  indisponibles, paramètres désactivés, route stable, facturation classique inchangée,
+  absence d’appel réseau et absence d’URL externe dans le code de l’écran.
+
+### Modifié
+
+- Libellé de navigation `MRA e-Invoicing — À venir` et badge de préparation conservé.
+- Workflow Pages : contrôles supplémentaires du bundle construit et de la page publiée pour
+  l’écran MRA e-Invoicing (aucune publication depuis une branche Arena).
+
+### Non livré
+
+- Aucune intégration, aucun compte développeur, aucune demande d’enregistrement EBS.
+- Aucune API MRA, aucun secret, aucun certificat, aucun IRN ou QR code réel.
+- Aucune modification du moteur de facturation, des migrations, du schéma de démonstration ou
+  des permissions existantes.
+- Aucune validation par la MRA, aucun statut « certifié » ou « agréé ».
+- Aucune vérification sur Samsung Android physique ni Chrome Windows.
+
 ## Mission 24 — Qualité FR/EN, finitions et préparation de l’agent IA (1er novembre 2026)
 
 > PR en brouillon, aucune fusion, aucun déploiement Pages/OVH, aucune donnée réelle,

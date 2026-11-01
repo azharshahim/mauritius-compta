@@ -109,6 +109,11 @@ jobs:
           # Mission 24 : mappings comptables et passerelle stock depuis la facturation
           grep -q 'Mappings comptables' apps/web/dist/assets/*.js
           grep -q 'Proposer les mouvements de stock' apps/web/dist/assets/*.js
+          # Mission 25 : écran MRA e-Invoicing informatif, aucune connexion activée
+          grep -q 'MRA e-Invoicing — À venir' apps/web/dist/assets/*.js
+          grep -q 'MRA e-Invoicing — Coming Soon' apps/web/dist/assets/*.js
+          grep -q 'Intégration MRA non activée' apps/web/dist/assets/*.js
+          grep -q 'MRA integration is not enabled' apps/web/dist/assets/*.js
           test -f apps/web/dist/404.html
 
       - name: Scan the demo bundle for secrets
@@ -227,6 +232,11 @@ jobs:
           grep -q 'Importer un relevé MCB' /tmp/app.js
           grep -q 'Mappings comptables' /tmp/app.js
           grep -q 'Proposer les mouvements de stock' /tmp/app.js
+          # Mission 25 : écran MRA e-Invoicing publié, intégration toujours inactive
+          grep -q 'MRA e-Invoicing — À venir' /tmp/app.js
+          grep -q 'MRA e-Invoicing — Coming Soon' /tmp/app.js
+          grep -q 'Intégration MRA non activée' /tmp/app.js
+          grep -q 'MRA integration is not enabled' /tmp/app.js
           FOUR04=$(curl -s -o /tmp/404.html -w '%{http_code}' "$BASE/404.html")
           echo "404.html: $FOUR04"
           DEEP=$(curl -s -o /tmp/deep.html -w '%{http_code}' "$BASE/entries")

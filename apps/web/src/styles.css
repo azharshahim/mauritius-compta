@@ -1143,3 +1143,164 @@ tr.total-row td { font-weight: 700; background: #f2f6fb; border-top: 2px solid v
   .docs-layout { grid-template-columns: minmax(0, 1fr); }
   .doc-view iframe { height: 300px; }
 }
+
+/* ------------------------------------------ mission 25: MRA e-Invoicing */
+.mra-hero {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(230px, 0.7fr);
+  gap: 22px;
+  align-items: stretch;
+  padding: 26px;
+  margin-bottom: 16px;
+  border-radius: 16px;
+  color: #f7fbff;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(15, 157, 138, 0.55), transparent 42%),
+    linear-gradient(135deg, #0b2545 0%, #123a63 58%, #0d4f66 100%);
+  box-shadow: 0 16px 38px rgba(11, 37, 69, 0.22);
+  overflow: hidden;
+}
+.mra-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 26px 26px;
+  mask-image: linear-gradient(90deg, black, transparent 78%);
+}
+.mra-hero-copy { min-width: 0; }
+.mra-kicker {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9fe6d8;
+  margin-bottom: 8px;
+}
+.mra-hero h2 { font-size: clamp(1.25rem, 2.4vw, 1.7rem); color: #fff; margin-bottom: 10px; }
+.mra-hero p { margin: 0 0 10px; color: #d7e6f4; max-width: 64ch; font-size: 0.92rem; }
+.mra-hero .mra-hero-note { color: #f4d58d; font-size: 0.82rem; font-weight: 600; margin-bottom: 14px; }
+.mra-hero-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.mra-hero-button { background: #fff; border-color: #fff; color: var(--navy); }
+.mra-hero-button:hover:not(:disabled) { background: #eaf4ff; border-color: #eaf4ff; color: var(--navy); }
+.mra-status-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(6px);
+}
+.mra-status-card strong { font-size: 1.55rem; color: #fff; line-height: 1.15; }
+.mra-status-card > span:last-child { color: #c9ddec; font-size: 0.8rem; }
+.mra-status-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #9fe6d8;
+}
+.mra-kpis { margin-bottom: 16px; }
+.mra-card-note { margin-top: 12px; margin-bottom: 0; }
+.mra-checklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.mra-checklist li { display: flex; align-items: flex-start; gap: 10px; font-size: 0.86rem; }
+.mra-checklist-compact li { gap: 8px; }
+.mra-dot {
+  flex: 0 0 24px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #e8f1fb;
+  color: #17456f;
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-top: 1px;
+}
+.mra-dot-outline { background: transparent; border: 1px dashed #9db4c9; color: var(--muted); }
+.mra-roadmap { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.mra-roadmap li {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fbfdff;
+}
+.mra-roadmap h3 { font-size: 0.9rem; margin: 0 0 3px; }
+.mra-roadmap p { margin: 0; color: var(--muted); font-size: 0.82rem; }
+.mra-step-number {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--navy);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+.mra-feature-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top: 12px; }
+.mra-feature {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff, #f9fbfe);
+}
+.mra-feature-icon {
+  width: 30px;
+  height: 30px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #e8f1fb;
+  color: #17456f;
+  font-weight: 700;
+}
+.mra-feature h3 { font-size: 0.9rem; }
+.mra-feature p { margin: 0; color: var(--muted); font-size: 0.82rem; flex: 1; }
+.mra-feature .badge { align-self: flex-start; }
+.mra-limitation {
+  margin: 12px 0 0;
+  padding: 9px 11px;
+  border-left: 3px solid #d0a53a;
+  border-radius: 6px;
+  background: var(--warning-bg);
+  color: #6b4b00;
+  font-size: 0.81rem;
+}
+.mra-settings { border: 1px dashed #b9c7d8; border-radius: 12px; padding: 14px; background: #f7f9fc; }
+.mra-settings .form-grid { margin: 0; }
+.mra-settings-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.mra-definition { margin-top: 10px; }
+.mra-definition dd { color: var(--muted); }
+.mra-disclaimer {
+  margin: 4px 0 20px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-align: center;
+}
+@media (max-width: 900px) {
+  .mra-hero { grid-template-columns: 1fr; padding: 20px; gap: 16px; }
+  .mra-status-card { padding: 14px; }
+  .mra-roadmap li { grid-template-columns: 30px minmax(0, 1fr); }
+  .mra-roadmap li > .badge { grid-column: 2; justify-self: start; }
+}
+@media (max-width: 640px) {
+  .mra-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mra-feature-grid { grid-template-columns: 1fr; }
+  .mra-settings-actions .btn { flex: 1 1 45%; white-space: normal; }
+}

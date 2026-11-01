@@ -300,7 +300,177 @@ const fr: Dict = {
   'nav.billing.invoices': 'Factures',
   'nav.billing.creditNotes': 'Avoirs',
   'nav.billing.payments': 'Encaissements',
-  'nav.billing.eInvoicing': 'E-Invoicing MRA',
+  'nav.billing.eInvoicing': 'MRA e-Invoicing — À venir',
+
+  // ------------------------------------------ mission 25 — MRA e-Invoicing
+  'einv.breadcrumb': 'Facturation',
+  'einv.title': 'MRA e-Invoicing — À venir',
+  'einv.subtitle':
+    'Information et préparation. Aucune intégration MRA n’est active dans cette version.',
+  'einv.badge': 'À venir',
+  'einv.kicker': 'Facturation électronique mauricienne',
+  'einv.heroTitle': 'Une intégration future, préparée sans précipitation.',
+  'einv.heroText':
+    'La MRA déploie progressivement la fiscalisation électronique des factures. Mauritius Compta documente ici le cadre officiel et la préparation nécessaire. Aucun raccordement, aucune transmission et aucune déclaration ne sont effectués.',
+  'einv.heroNote':
+    'Aucune inscription MRA, aucune certification et aucun identifiant officiel ne sont acquis.',
+  'einv.openBilling': 'Ouvrir la facturation classique',
+  'einv.statusLabel': 'Statut de l’intégration',
+  'einv.statusValue': 'Non activée',
+  'einv.statusHint': 'Aucun appel réseau vers la MRA n’est effectué.',
+  'einv.notEnabled': 'Intégration MRA non activée.',
+  'einv.notEnabledDetail':
+    'Cet écran est informatif : il ne transmet aucune facture, ne génère aucun IRN ou QR code MRA et n’enregistre aucun identifiant ou secret MRA.',
+  'einv.kpi.registration': 'Inscription MRA',
+  'einv.kpi.registrationValue': 'Aucune',
+  'einv.kpi.certification': 'Certification revendiquée',
+  'einv.kpi.certificationValue': 'Aucune',
+  'einv.kpi.api': 'Appels API MRA',
+  'einv.kpi.apiValue': '0',
+  'einv.kpi.data': 'Données utilisées',
+  'einv.kpi.dataValue': 'Fictives',
+  'einv.scopeTitle': 'Périmètre de cette version',
+  'einv.scopeClassic':
+    'La facturation classique reste fonctionnelle et inchangée : devis, factures, avoirs, encaissements et PDF serveur.',
+  'einv.scopeNotSecond':
+    'Cet écran n’est pas un second système de facturation. Il ne crée, ne modifie et n’envoie aucun document.',
+  'einv.scopePermissions':
+    'L’accès reste régi par les permissions existantes du module Facturation. Aucun nouveau droit n’est accordé.',
+  'einv.adminTitle': 'Préparation administrative',
+  'einv.admin.company':
+    'Structure de la société : la répartition 50/50 et la propriété intellectuelle feront l’objet d’une étape juridique distincte, après décision des associés.',
+  'einv.admin.registration':
+    'Inscription éditeur : aucune demande n’a été déposée auprès de la MRA et aucun statut d’éditeur agréé n’est revendiqué.',
+  'einv.admin.clients':
+    'Sociétés clientes : chaque opérateur économique devra accomplir ses propres démarches et enrôler son EBS.',
+  'einv.admin.records':
+    'Documents à conserver : les pièces sociétaires et administratives ne seront collectées qu’après confirmation officielle de la liste exigée.',
+  'einv.admin.noRealData':
+    'Aucun document d’identité, identifiant MRA ou secret réel n’est demandé ni stocké.',
+  'einv.adminNotice':
+    'À vérifier auprès de la MRA : procédure exacte, pièces exigées, frais éventuels et conditions de maintien de l’inscription.',
+  'einv.roadmapTitle': 'Préparation par étapes',
+  'einv.roadmapIntro':
+    'Chaque étape dépend de documents officiels et d’une validation professionnelle. Rien n’est engagé à ce jour.',
+  'einv.step.registration': 'Inscription de l’éditeur',
+  'einv.step.registrationText':
+    'Étudier la procédure d’inscription de la société comme fournisseur d’EBS sur le portail développeur MRA, sans demande effectuée.',
+  'einv.step.clients': 'Démarches des sociétés clientes',
+  'einv.step.clientsText':
+    'Préparer l’inscription des opérateurs économiques et l’enrôlement de chaque EBS, sous leur responsabilité.',
+  'einv.step.legal': 'Documents administratifs et sociétaires',
+  'einv.step.legalText':
+    'Rassembler les pièces exigées lorsque la liste officielle sera confirmée, y compris la structure 50/50 et la propriété intellectuelle lors d’une étape juridique distincte.',
+  'einv.step.technical': 'Spécifications et environnements de test',
+  'einv.step.technicalText':
+    'Analyser les spécifications fonctionnelles, le modèle JSON, l’authentification et le bac à sable officiels avant tout développement.',
+  'einv.step.security': 'Sécurité et conservation',
+  'einv.step.securityText':
+    'Définir le stockage inaltérable, la séquence des factures, la journalisation et la protection des secrets.',
+  'einv.step.production': 'Validation et mise en production',
+  'einv.step.productionText':
+    'Obtenir une revue professionnelle, réussir les tests officiels et formaliser une décision de mise en service.',
+  'einv.notStarted': 'Non commencé',
+  'einv.featuresTitle': 'Fonctionnalités envisagées',
+  'einv.featuresIntro':
+    'Elles décrivent une cible, pas une disponibilité. Aucune n’est accessible dans cette version.',
+  'einv.feature.issue': 'Émission de factures structurées',
+  'einv.feature.issueText':
+    'Préparer un document conforme au modèle JSON officiel, sans l’émettre.',
+  'einv.feature.transmit': 'Transmission à la MRA',
+  'einv.feature.transmitText':
+    'Acheminer la facture vers la plateforme de fiscalisation après authentification.',
+  'einv.feature.status': 'Suivi des statuts',
+  'einv.feature.statusText':
+    'Afficher les états de transmission, de rejet et de fiscalisation.',
+  'einv.feature.ack': 'Accusés de réception',
+  'einv.feature.ackText':
+    'Conserver les identifiants et preuves de dépôt retournés par la MRA.',
+  'einv.feature.errors': 'Gestion des erreurs',
+  'einv.feature.errorsText':
+    'Expliquer les rejets, permettre une correction contrôlée et une nouvelle tentative.',
+  'einv.feature.reconciliation': 'Rapprochement comptable',
+  'einv.feature.reconciliationText':
+    'Relier la facture fiscalisée à l’écriture comptable et au règlement, avec validation humaine.',
+  'einv.unavailable': 'Non disponible',
+  'einv.unavailableNote':
+    'Ces fonctions ne sont pas disponibles et ne doivent pas être présentées comme telles à des clients.',
+  'einv.technicalTitle': 'Préparation technique',
+  'einv.technicalIntro':
+    'Les éléments ci-dessous restent à confirmer dans les spécifications officielles avant toute implémentation.',
+  'einv.technical.auth': 'Authentification de l’EBS',
+  'einv.technical.authText':
+    'Jeton, identifiant EBS MRA et rotation à définir avec la MRA.',
+  'einv.technical.format': 'Format des données',
+  'einv.technical.formatText':
+    'Modèle JSON et champs obligatoires du modèle officiel.',
+  'einv.technical.fiscal': 'Fiscalisation',
+  'einv.technical.fiscalText':
+    'IRN, QR code et enregistrement préalable de l’EBS.',
+  'einv.technical.offline': 'Mode hors ligne',
+  'einv.technical.offlineText':
+    'Séquencement local, puis transmission différée des factures non fiscalisées.',
+  'einv.technical.numbering': 'Numérotation',
+  'einv.technical.numberingText':
+    'Séquence croissante, compteur non réinitialisable et chaîne de hachage.',
+  'einv.technical.environments': 'Environnements',
+  'einv.technical.environmentsText':
+    'Bac à sable développeur, puis production uniquement après autorisation.',
+  'einv.technicalStatus':
+    'À VÉRIFIER — guide technique et spécifications fonctionnelles officiels, version juin 2023.',
+  'einv.securityTitle': 'Sécurité et conservation',
+  'einv.security.secrets':
+    'Les identifiants et secrets MRA resteront côté serveur, jamais dans le bundle navigateur.',
+  'einv.security.storage':
+    'Les factures, avoirs et notes de débit seront conservés dans un stockage inaltérable.',
+  'einv.security.audit':
+    'Une piste d’audit en ajout seul tracera les transmissions, réponses et décisions humaines.',
+  'einv.security.rights':
+    'Les accès seront fondés sur les rôles, séparés de la facturation ordinaire si nécessaire.',
+  'einv.security.retention':
+    'La durée de conservation et l’archivage légal restent à confirmer avec la MRA et un conseil professionnel.',
+  'einv.security.incidents':
+    'Les procédures de rejet, d’indisponibilité et d’incident seront définies avant toute mise en service.',
+  'einv.securityNotice':
+    'Aucun secret MRA n’est présent dans cette démonstration. Les futurs secrets devront rester côté serveur et ne jamais être exposés au navigateur.',
+  'einv.settingsTitle': 'Paramètres futurs',
+  'einv.settingsIntro':
+    'Emplacement réservé. Les champs sont volontairement inactifs et ne déclenchent aucune connexion.',
+  'einv.settings.environment': 'Environnement MRA',
+  'einv.settings.environmentValue': 'Non configuré',
+  'einv.settings.ebsId': 'Identifiant EBS MRA',
+  'einv.settings.ebsIdValue': 'Non attribué',
+  'einv.settings.certificate': 'Certificat numérique',
+  'einv.settings.certificateValue': 'Aucun certificat',
+  'einv.settings.endpoint': 'Adresse du service',
+  'einv.settings.endpointValue': 'Non communiquée',
+  'einv.settings.test': 'Tester la connexion',
+  'einv.settings.save': 'Enregistrer',
+  'einv.settings.disabled': 'Indisponible dans cette version',
+  'einv.settings.noSecrets':
+    'Aucun champ n’est enregistré. Aucun identifiant, mot de passe, certificat ou secret MRA n’est demandé.',
+  'einv.glossaryTitle': 'Repères utiles',
+  'einv.glossaryIntro':
+    'Trois termes reviennent dans les documents officiels.',
+  'einv.term.ebs': GLOSSARY.electronicBillingSystem.fr,
+  'einv.term.ebsText':
+    'Logiciel de facturation utilisé par l’opérateur économique.',
+  'einv.term.ifp': GLOSSARY.invoiceFiscalisationPlatform.fr,
+  'einv.term.ifpText':
+    'Plateforme de la MRA qui reçoit, enregistre et contrôle les données de facturation.',
+  'einv.term.irn': GLOSSARY.invoiceRegistrationNumber.fr,
+  'einv.term.irnText':
+    'Numéro généré par la plateforme lors de la fiscalisation ; il ne remplace pas le numéro interne de la facture.',
+  'einv.glossaryNote':
+    'Définitions issues des documents publics de la MRA ; aucune conformité n’est revendiquée.',
+  'einv.referencesText':
+    'Les sources MRA consultées, leurs dates et les points restant à vérifier sont consignés dans docs/mra-e-invoicing-roadmap.md. L’écran ne charge aucun lien externe.',
+  'einv.classicTitle': 'La facturation classique reste disponible.',
+  'einv.classicText':
+    'Elle demeure le seul système de facturation opérationnel dans cette version et son comportement est inchangé.',
+  'einv.classicLink': 'Ouvrir les factures',
+  'einv.noCertification':
+    'Mauritius Compta n’est ni enregistré, ni certifié, ni agréé comme fournisseur de solution MRA. Aucune conformité n’est revendiquée.',
   'nav.payroll.employees': 'Salariés',
   'nav.payroll.contracts': 'Contrats',
   'nav.payroll.time': 'Temps & présences',
@@ -1991,7 +2161,177 @@ const en: Dict = {
   'nav.billing.invoices': 'Invoices',
   'nav.billing.creditNotes': 'Credit notes',
   'nav.billing.payments': 'Receipts',
-  'nav.billing.eInvoicing': 'MRA e-invoicing',
+  'nav.billing.eInvoicing': 'MRA e-Invoicing — Coming Soon',
+
+  // ------------------------------------------ mission 25 — MRA e-Invoicing
+  'einv.breadcrumb': 'Billing',
+  'einv.title': 'MRA e-Invoicing — Coming Soon',
+  'einv.subtitle':
+    'Information and preparation. No MRA integration is active in this version.',
+  'einv.badge': 'Coming Soon',
+  'einv.kicker': 'Mauritian electronic invoicing',
+  'einv.heroTitle': 'A future integration, prepared carefully.',
+  'einv.heroText':
+    'The MRA is rolling out electronic invoice fiscalisation in phases. Mauritius Compta documents the official framework and the preparation required here. No connection, transmission or return is performed.',
+  'einv.heroNote':
+    'No MRA registration, certification or official credential has been obtained.',
+  'einv.openBilling': 'Open classic billing',
+  'einv.statusLabel': 'Integration status',
+  'einv.statusValue': 'Not enabled',
+  'einv.statusHint': 'No network call is made to the MRA.',
+  'einv.notEnabled': 'MRA integration is not enabled.',
+  'einv.notEnabledDetail':
+    'This screen is informational: it transmits no invoice, generates no MRA IRN or QR code and stores no MRA credential or secret.',
+  'einv.kpi.registration': 'MRA registration',
+  'einv.kpi.registrationValue': 'None',
+  'einv.kpi.certification': 'Certification claimed',
+  'einv.kpi.certificationValue': 'None',
+  'einv.kpi.api': 'MRA API calls',
+  'einv.kpi.apiValue': '0',
+  'einv.kpi.data': 'Data used',
+  'einv.kpi.dataValue': 'Fictional',
+  'einv.scopeTitle': 'Scope of this version',
+  'einv.scopeClassic':
+    'Classic billing remains functional and unchanged: quotes, invoices, credit notes, receipts and server PDF.',
+  'einv.scopeNotSecond':
+    'This screen is not a second billing system. It creates, modifies and sends no document.',
+  'einv.scopePermissions':
+    'Access remains governed by the existing Billing permissions. No new right is granted.',
+  'einv.adminTitle': 'Administrative preparation',
+  'einv.admin.company':
+    'Company structure: the 50/50 split and intellectual property will be handled in a separate legal step, after the partners decide.',
+  'einv.admin.registration':
+    'Publisher registration: no application has been filed with the MRA and no approved-publisher status is claimed.',
+  'einv.admin.clients':
+    'Client companies: each economic operator will have to complete its own steps and onboard its EBS.',
+  'einv.admin.records':
+    'Records to keep: corporate and administrative documents will only be collected after the official list of requirements is confirmed.',
+  'einv.admin.noRealData':
+    'No identity document, MRA credential or real secret is requested or stored.',
+  'einv.adminNotice':
+    'To verify with the MRA: the exact procedure, required documents, any fees and the conditions for maintaining registration.',
+  'einv.roadmapTitle': 'Preparation in stages',
+  'einv.roadmapIntro':
+    'Each stage depends on official documents and professional validation. Nothing has been started to date.',
+  'einv.step.registration': 'Publisher registration',
+  'einv.step.registrationText':
+    'Study the procedure for registering the company as an EBS provider on the MRA developer portal, with no application filed.',
+  'einv.step.clients': 'Client company steps',
+  'einv.step.clientsText':
+    'Prepare economic operators’ registration and each EBS onboarding, under their own responsibility.',
+  'einv.step.legal': 'Administrative and corporate documents',
+  'einv.step.legalText':
+    'Collect the required documents once the official list is confirmed, including the 50/50 structure and intellectual property in a separate legal step.',
+  'einv.step.technical': 'Specifications and test environments',
+  'einv.step.technicalText':
+    'Review the functional specifications, JSON model, authentication and official sandbox before any development.',
+  'einv.step.security': 'Security and retention',
+  'einv.step.securityText':
+    'Define tamper-proof storage, invoice sequencing, logging and secret protection.',
+  'einv.step.production': 'Validation and go-live',
+  'einv.step.productionText':
+    'Obtain professional review, pass the official tests and formalise a go-live decision.',
+  'einv.notStarted': 'Not started',
+  'einv.featuresTitle': 'Planned features',
+  'einv.featuresIntro':
+    'They describe a target, not availability. None is accessible in this version.',
+  'einv.feature.issue': 'Structured invoice generation',
+  'einv.feature.issueText':
+    'Prepare a document that follows the official JSON model, without issuing it.',
+  'einv.feature.transmit': 'Transmission to the MRA',
+  'einv.feature.transmitText':
+    'Route the invoice to the fiscalisation platform after authentication.',
+  'einv.feature.status': 'Status tracking',
+  'einv.feature.statusText':
+    'Display transmission, rejection and fiscalisation states.',
+  'einv.feature.ack': 'Acknowledgements',
+  'einv.feature.ackText':
+    'Keep the identifiers and proof of submission returned by the MRA.',
+  'einv.feature.errors': 'Error handling',
+  'einv.feature.errorsText':
+    'Explain rejections, allow a controlled correction and a new attempt.',
+  'einv.feature.reconciliation': 'Accounting reconciliation',
+  'einv.feature.reconciliationText':
+    'Link the fiscalised invoice to the accounting entry and payment, with human validation.',
+  'einv.unavailable': 'Not available',
+  'einv.unavailableNote':
+    'These features are not available and must not be presented to customers as available.',
+  'einv.technicalTitle': 'Technical preparation',
+  'einv.technicalIntro':
+    'The items below remain to be confirmed in the official specifications before any implementation.',
+  'einv.technical.auth': 'EBS authentication',
+  'einv.technical.authText':
+    'Token, EBS MRA identifier and rotation to be defined with the MRA.',
+  'einv.technical.format': 'Data format',
+  'einv.technical.formatText':
+    'JSON model and mandatory fields from the official template.',
+  'einv.technical.fiscal': 'Fiscalisation',
+  'einv.technical.fiscalText':
+    'IRN, QR code and prior registration of the EBS.',
+  'einv.technical.offline': 'Offline mode',
+  'einv.technical.offlineText':
+    'Local sequencing, then deferred transmission of non-fiscalised invoices.',
+  'einv.technical.numbering': 'Numbering',
+  'einv.technical.numberingText':
+    'Increasing sequence, non-resettable counter and hash chain.',
+  'einv.technical.environments': 'Environments',
+  'einv.technical.environmentsText':
+    'Developer sandbox, then production only after authorisation.',
+  'einv.technicalStatus':
+    'TO VERIFY — official technical guide and functional specifications, June 2023 version.',
+  'einv.securityTitle': 'Security and retention',
+  'einv.security.secrets':
+    'MRA credentials and secrets will stay server-side, never in the browser bundle.',
+  'einv.security.storage':
+    'Invoices, credit notes and debit notes will be stored in tamper-proof storage.',
+  'einv.security.audit':
+    'An append-only audit trail will record transmissions, responses and human decisions.',
+  'einv.security.rights':
+    'Access will be role-based, separate from ordinary billing where required.',
+  'einv.security.retention':
+    'The retention period and legal archiving remain to be confirmed with the MRA and a professional adviser.',
+  'einv.security.incidents':
+    'Rejection, outage and incident procedures will be defined before go-live.',
+  'einv.securityNotice':
+    'No MRA secret is present in this demonstration. Future secrets must remain server-side and never be exposed to the browser.',
+  'einv.settingsTitle': 'Future settings',
+  'einv.settingsIntro':
+    'Reserved place. The fields are intentionally inactive and trigger no connection.',
+  'einv.settings.environment': 'MRA environment',
+  'einv.settings.environmentValue': 'Not configured',
+  'einv.settings.ebsId': 'MRA EBS identifier',
+  'einv.settings.ebsIdValue': 'Not assigned',
+  'einv.settings.certificate': 'Digital certificate',
+  'einv.settings.certificateValue': 'No certificate',
+  'einv.settings.endpoint': 'Service address',
+  'einv.settings.endpointValue': 'Not provided',
+  'einv.settings.test': 'Test connection',
+  'einv.settings.save': 'Save',
+  'einv.settings.disabled': 'Unavailable in this version',
+  'einv.settings.noSecrets':
+    'No field is saved. No MRA identifier, password, certificate or secret is requested.',
+  'einv.glossaryTitle': 'Useful references',
+  'einv.glossaryIntro':
+    'Three terms recur in the official documents.',
+  'einv.term.ebs': GLOSSARY.electronicBillingSystem.en,
+  'einv.term.ebsText':
+    'Billing software used by the economic operator.',
+  'einv.term.ifp': GLOSSARY.invoiceFiscalisationPlatform.en,
+  'einv.term.ifpText':
+    'The MRA platform that receives, records and monitors billing data.',
+  'einv.term.irn': GLOSSARY.invoiceRegistrationNumber.en,
+  'einv.term.irnText':
+    'Number generated by the platform during fiscalisation; it does not replace the internal invoice number.',
+  'einv.glossaryNote':
+    'Definitions based on public MRA documents; no compliance is claimed.',
+  'einv.referencesText':
+    'The MRA sources consulted, their dates and the points still to verify are recorded in docs/mra-e-invoicing-roadmap.md. The screen loads no external link.',
+  'einv.classicTitle': 'Classic billing remains available.',
+  'einv.classicText':
+    'It remains the only operational billing system in this version and its behaviour is unchanged.',
+  'einv.classicLink': 'Open invoices',
+  'einv.noCertification':
+    'Mauritius Compta is not registered, certified or approved as an MRA solution provider. No compliance is claimed.',
   'nav.payroll.employees': 'Employees',
   'nav.payroll.contracts': 'Contracts',
   'nav.payroll.time': 'Time & attendance',
