@@ -29,6 +29,11 @@
   décisions professionnelles) et rapport `docs/mission-24-report.md`.
 - Tests API : édition des données de stock et pont facture → stock, y compris refus d’une
   quantité supérieure à la quantité facturée.
+- Vérification finale de la démo : contrôles par clic des stocks, du pont facture → stock,
+  des mappings, de la bascule FR/EN et des liens profonds ; la démo refuse désormais une
+  quantité supérieure à la quantité facturée, comme l’API réelle. Les branches `arena/**`
+  construisent et testent la démo sans la publier. Voir
+  `docs/mission-24-demo-verification.md`.
 
 ### Modifié
 

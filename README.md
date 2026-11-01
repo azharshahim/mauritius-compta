@@ -511,7 +511,8 @@ des permissions et des tables séparées par module :
   mappings comptables lisibles, navigation OCR → écritures et MCB → rapprochement,
   gouvernance du catalogue d'outils IA et feuille de route de l'agent. Voir
   [`docs/mission-24-report.md`](docs/mission-24-report.md) et
-  [`docs/accounting-ai-agent-roadmap.md`](docs/accounting-ai-agent-roadmap.md).
+  [`docs/accounting-ai-agent-roadmap.md`](docs/accounting-ai-agent-roadmap.md) et
+  [`docs/mission-24-demo-verification.md`](docs/mission-24-demo-verification.md).
 - Documentation : [`docs/suite-architecture.md`](docs/suite-architecture.md),
   [`docs/cabinet-module.md`](docs/cabinet-module.md),
   [`docs/module-integration.md`](docs/module-integration.md).

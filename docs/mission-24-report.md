@@ -259,6 +259,8 @@ Exécutés localement le 1er novembre 2026 :
 
 Nouveaux tests :
 
+- Vérification finale de la démo et du workflow Pages :
+  [`docs/mission-24-demo-verification.md`](mission-24-demo-verification.md).
 - `apps/web/tests/i18n-quality.test.ts` : parité FR/EN, glossaire, absence de fuite de
   l’autre langue, résolution de toutes les clés littérales du code source.
 - `apps/api/tests/mission22.test.ts` : `PUT` catégorie/emplacement/article et pont
