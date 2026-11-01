@@ -77,7 +77,7 @@ Le flux documentaire existant a été conservé et instrumenté, sans second mot
 | `apps/api/sql/migrations/0023_document_extraction_quality.sql` | Colonnes additives : `document_type`, `discount_total`, `tax_ids`, `purchase_order`, `payment_terms`, `field_confidence`, `uncertain_fields`, `extraction_quality`, avec index par société et type. Aucune donnée n’est inventée par la base. |
 | `apps/api/src/modules/documents/service.ts` | Persistance des nouveaux champs ; confiance sur les champs critiques ; avertissement OCR faible ; objet `extraction_quality` ; **ré-extraction** avec prévisualisation (`apply: false`) ou application (`apply: true`) ; audit ; proposition adaptée aux avoirs et remises, valeurs absolues ; **refus de toute proposition sans devise** (`DOCUMENT_CURRENCY_MISSING`). |
 | `apps/api/src/modules/documents/routes.ts` | `POST /companies/:companyId/documents/:documentId/reextract` et exposition des nouveaux champs. |
-| `apps/api/src/lib/errors.ts` | Nouveau code `DOCUMENT_NOT_REEXTRACTABLE`. |
+| `apps/api/src/lib/errors.ts` | Nouveaux codes `DOCUMENT_NOT_REEXTRACTABLE` et `DOCUMENT_CURRENCY_MISSING`. |
 
 Règles conservées :
 
@@ -107,7 +107,7 @@ Règles conservées :
 | `apps/web/src/components/ui.tsx` | `Field` accepte `className` pour le surlignage. |
 | `apps/web/src/pages/accounting/BankMcb.tsx` | Affichage du profil de banque détecté à côté du nom et du compte masqué. |
 | `apps/web/src/styles.css` | `.doc-review-grid`, `.doc-tax-ids`, `.field-uncertain`, adaptation une colonne sur écran étroit. |
-| `apps/web/src/i18n.tsx` | 16 clés FR + EN pour les nouveaux libellés ; aucun texte visible codé en dur. |
+| `apps/web/src/i18n.tsx` | 19 clés FR + EN pour les nouveaux libellés d’écran ; les descriptions techniques de lignes de proposition restent côté serveur. |
 
 L’aperçu du document original utilise un blob local pour un fichier choisi pendant la session, ou l’URL privée du document en mode réel. En mode démonstration, les fixtures n’ont pas de binaire : un message explicite l’indique, plutôt que d’afficher un faux document.
 
