@@ -1098,7 +1098,10 @@ export function handleDemoBank(
         xlsx: true,
         tsv: true,
         ofx: false,
-        pdfOcr: false,
+        pdfOcr: true,
+        pdfText: true,
+        pdfScanned: true,
+        pdfGenericLayout: true,
         directBankConnection: false,
         aiProvider: null,
         suggestions: 'deterministic',
@@ -1106,7 +1109,7 @@ export function handleDemoBank(
       limits: DEMO_BANK_LIMITS,
       notImplemented: [
         { fr: 'OFX/QFX : non implémenté dans la démo.', en: 'OFX/QFX: not implemented in the demo.' },
-        { fr: 'PDF bancaire générique : non implémenté ; utilisez l’importeur MCB dédié (périmètre initial).', en: 'Generic bank PDF: not implemented; use the dedicated MCB importer (initial scope).' },
+        { fr: 'PDF bancaire : lecture prioritaire MCB, autres banques uniquement si soldes et colonnes reconnus ; import refusé sinon.', en: 'Bank PDF: MCB parsed first, other banks only when balances and columns are recognised; import refused otherwise.' },
         { fr: 'Aucune connexion bancaire réelle.', en: 'No real bank connection.' },
       ],
     };

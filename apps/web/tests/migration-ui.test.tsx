@@ -12,6 +12,7 @@ import App from '../src/App';
 import { I18nProvider } from '../src/i18n';
 import { SessionProvider } from '../src/store';
 import { resetDemo } from '../src/demo';
+import { navLink } from './nav';
 
 const JOURNAL_CSV = [
   'Pièce;Date;Journal;Compte;Libellé;Débit;Crédit',
@@ -65,7 +66,7 @@ describe('assistant de migration (démo)', () => {
 
   it('parcourt les six étapes et n’écrit qu’après confirmation explicite', async () => {
     await login();
-    fireEvent.click(screen.getByRole('link', { name: /Importation & migration/i }));
+    fireEvent.click(navLink(/Importation & migration/));
 
     await screen.findByRole('heading', { name: /Assistant de migration comptable/i });
     expect(screen.getByText(/Fichier Excel \/ CSV/i)).toBeTruthy();
@@ -133,7 +134,7 @@ describe('assistant de migration (démo)', () => {
 
   it('bloque un fichier volontairement incorrect avant toute écriture', async () => {
     await login();
-    fireEvent.click(screen.getByRole('link', { name: /Importation & migration/i }));
+    fireEvent.click(navLink(/Importation & migration/));
     await screen.findByRole('heading', { name: /Assistant de migration comptable/i });
     fireEvent.click(screen.getByRole('radio', { name: /Écritures comptables/i }));
     fireEvent.click(screen.getByRole('button', { name: /^Continuer$/i }));
@@ -163,7 +164,7 @@ describe('assistant de migration (démo)', () => {
 
   it('reste utilisable en anglais et sans débordement horizontal forcé', async () => {
     await login();
-    fireEvent.click(screen.getByRole('link', { name: /Importation & migration/i }));
+    fireEvent.click(navLink(/Importation & migration/));
     await screen.findByRole('heading', { name: /Assistant de migration comptable/i });
     const languageSelect = screen.getAllByLabelText(/Langue|Language/i)[0] as HTMLSelectElement;
     fireEvent.change(languageSelect, { target: { value: 'en' } });

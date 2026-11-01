@@ -374,6 +374,11 @@ export default function BillingDocumentsPage({ kind }: { kind: BillingKind }) {
           <h1>{t(TITLES[kind])}</h1>
           <div className="page-sub">{t(SUBTITLES[kind])}</div>
         </div>
+        {kind === 'invoice' && (
+          <Link className="btn" to="/accounting/journals/sales/import">
+            ⇪ {t('journal.importSale')}
+          </Link>
+        )}
         <Button variant="primary" onClick={startCreate}>
           {t('common.add')}
         </Button>

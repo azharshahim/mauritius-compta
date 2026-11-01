@@ -102,7 +102,7 @@ jobs:
           grep -q 'Pick-up utilitaire' apps/web/dist/assets/*.js
           grep -q 'Local en construction' apps/web/dist/assets/*.js
           # Mission 23 : OCR, plan bilingue et import MCB dans la démo préenregistrée
-          grep -q 'Scan et import de documents' apps/web/dist/assets/*.js
+          grep -q 'Documents — consultation et archives' apps/web/dist/assets/*.js
           grep -q 'Importer un relevé MCB' apps/web/dist/assets/*.js
           grep -q 'ACME OFFICE SUPPLIES LTD' apps/web/dist/assets/*.js
           grep -q 'PLH-2210' apps/web/dist/assets/*.js
@@ -114,6 +114,11 @@ jobs:
           grep -q 'MRA e-Invoicing — Coming Soon' apps/web/dist/assets/*.js
           grep -q 'Intégration MRA non activée' apps/web/dist/assets/*.js
           grep -q 'MRA integration is not enabled' apps/web/dist/assets/*.js
+          # Mission 26 : groupes de navigation, journaux et lecteur PDF bancaire
+          grep -q 'Journal des achats' apps/web/dist/assets/*.js
+          grep -q 'Importer une facture d’achat' apps/web/dist/assets/*.js
+          grep -q 'Importer un relevé bancaire PDF' apps/web/dist/assets/*.js
+          grep -q 'Banque et trésorerie' apps/web/dist/assets/*.js
           test -f apps/web/dist/404.html
 
       - name: Scan the demo bundle for secrets
@@ -228,7 +233,7 @@ jobs:
           grep -q 'assistant-panel' /tmp/app.js
           # Mission 24 : version/commit visibles, fonctionnalités 23 et mappings 24 publiés
           grep -q 'Version' /tmp/app.js
-          grep -q 'Scan et import de documents' /tmp/app.js
+          grep -q 'Documents — consultation et archives' /tmp/app.js
           grep -q 'Importer un relevé MCB' /tmp/app.js
           grep -q 'Mappings comptables' /tmp/app.js
           grep -q 'Proposer les mouvements de stock' /tmp/app.js
@@ -237,6 +242,10 @@ jobs:
           grep -q 'MRA e-Invoicing — Coming Soon' /tmp/app.js
           grep -q 'Intégration MRA non activée' /tmp/app.js
           grep -q 'MRA integration is not enabled' /tmp/app.js
+          grep -q 'Journal des achats' /tmp/app.js
+          grep -q 'Importer une facture d’achat' /tmp/app.js
+          grep -q 'Importer un relevé bancaire PDF' /tmp/app.js
+          grep -q 'Banque et trésorerie' /tmp/app.js
           FOUR04=$(curl -s -o /tmp/404.html -w '%{http_code}' "$BASE/404.html")
           echo "404.html: $FOUR04"
           DEEP=$(curl -s -o /tmp/deep.html -w '%{http_code}' "$BASE/entries")

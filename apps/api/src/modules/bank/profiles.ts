@@ -241,7 +241,7 @@ export const BANK_SOURCE_LABELS: Record<string, { fr: string; en: string; status
   tsv: { fr: 'TSV / TXT structuré', en: 'TSV / structured TXT', status: 'supported' },
   xlsx: { fr: 'Classeur Excel (.xlsx)', en: 'Excel workbook (.xlsx)', status: 'supported' },
   ofx: { fr: 'OFX / QFX', en: 'OFX / QFX', status: 'not_implemented' },
-  pdf: { fr: 'PDF bancaire (OCR)', en: 'Bank PDF (OCR)', status: 'not_implemented' },
+  pdf: { fr: 'PDF bancaire texte ou scanné (MCB prioritaire)', en: 'Text or scanned bank PDF (MCB first)', status: 'supported_with_review' },
 };
 
 /** OFX is deliberately not guessed from an extension: no partial parser ships. */

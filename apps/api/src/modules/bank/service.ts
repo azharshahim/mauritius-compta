@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { mkdir, writeFile } from 'node:fs/promises';
 import type { Db } from '../../db/index.js';
 import type { Config } from '../../config.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
@@ -189,6 +191,12 @@ export interface BankUploadInput {
   dayFirst?: boolean;
   openingBalance?: string | null;
   closingBalance?: string | null;
+  /** Original PDF metadata, kept for traceability of an extracted statement. */
+  sourceFileName?: string;
+  sourceHash?: string;
+  sourceSize?: number;
+  sourceBuffer?: Uint8Array;
+  sourceMeta?: Record<string, unknown>;
 }
 
 interface ParsedBankUpload {
@@ -266,7 +274,10 @@ async function parseAndPreview(
     openingBalance: input.openingBalance,
     closingBalance: input.closingBalance,
   });
-  return { file, sheet, mapping, suggestions, preview, bytes, fileHash: sha256Bytes(bytes) };
+  return {
+    file, sheet, mapping, suggestions, preview, bytes,
+    fileHash: input.sourceHash ?? sha256Bytes(bytes),
+  };
 }
 
 export interface BankPreviewResponse {
@@ -345,6 +356,16 @@ export async function importBankStatement(
   const account = await bankAccountOfCompany(db, actor.companyId, input.bankAccountId);
   const cabinetId = account.cabinet_id;
   const idempotencyKey = sha256(['bank-import', account.id, parsed.fileHash]);
+  let sourceStorageKey: string | null = null;
+  if (input.sourceBuffer && input.sourceBuffer.length > 0) {
+    const sourceName = (input.sourceFileName ?? 'statement.pdf').replace(/[^A-Za-z0-9._-]/g, '_').slice(-80);
+    sourceStorageKey = path.posix.join(
+      'bank-statements', actor.companyId, `${parsed.fileHash}-${sourceName || 'statement.pdf'}`,
+    );
+    const target = path.join(config.STORAGE_DIR, sourceStorageKey);
+    await mkdir(path.dirname(target), { recursive: true });
+    await writeFile(target, input.sourceBuffer, { mode: 0o600 });
+  }
 
   const existing = await db.query<BankImportRow>(
     'SELECT * FROM bank_imports WHERE bank_account_id = $1 AND idempotency_key = $2',
@@ -364,6 +385,19 @@ export async function importBankStatement(
     };
   }
 
+  const summaryWithSource = {
+    ...parsed.preview.summary,
+    ...(sourceStorageKey
+      ? {
+          source: {
+            fileName: input.sourceFileName ?? input.fileName,
+            sha256: parsed.fileHash,
+            storageKey: sourceStorageKey,
+            ...(input.sourceMeta ?? {}),
+          },
+        }
+      : {}),
+  };
   const result = await db.transaction(async (tx) => {
     const inserted = await tx.query<BankImportRow>(
       `INSERT INTO bank_imports
@@ -377,8 +411,8 @@ export async function importBankStatement(
         actor.companyId,
         account.id,
         actor.userId,
-        input.fileName.slice(0, 200),
-        parsed.bytes.length,
+        (input.sourceFileName ?? input.fileName).slice(0, 200),
+        input.sourceSize ?? parsed.bytes.length,
         parsed.fileHash,
         idempotencyKey,
         parsed.file.format,
@@ -386,7 +420,7 @@ export async function importBankStatement(
         parsed.preview.summary.total,
         parsed.preview.balances.opening,
         parsed.preview.balances.closing,
-        JSON.stringify(parsed.preview.summary),
+        JSON.stringify(summaryWithSource),
       ],
     );
     const row = inserted.rows[0]!;
@@ -425,7 +459,7 @@ export async function importBankStatement(
     await tx.query(
       `UPDATE bank_imports SET imported_count = $2, duplicate_count = $3, summary = $4::jsonb
         WHERE id = $1`,
-      [row.id, imported, duplicates, JSON.stringify({ ...parsed.preview.summary, imported, duplicates })],
+      [row.id, imported, duplicates, JSON.stringify({ ...summaryWithSource, imported, duplicates })],
     );
     return { ...row, imported_count: imported, duplicate_count: duplicates };
   });

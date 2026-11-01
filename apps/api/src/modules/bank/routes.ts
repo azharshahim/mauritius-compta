@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Db } from '../../db/index.js';
@@ -151,7 +152,11 @@ export function bankRoutes(app: FastifyInstance, db: Db, config: Config): void {
         xlsx: true,
         tsv: true,
         ofx: false,
-        pdfOcr: false,
+        pdfOcr: true,
+        pdfText: true,
+        pdfScanned: true,
+        pdfMcbPriority: true,
+        pdfGenericLayout: true,
         directBankConnection: false,
         aiProvider: null,
         suggestions: 'deterministic',
@@ -166,8 +171,8 @@ export function bankRoutes(app: FastifyInstance, db: Db, config: Config): void {
           en: 'OFX/QFX: not implemented, no partial parser is shipped.',
         },
         {
-          fr: 'PDF bancaire générique : non implémenté. Un importeur MCB dédié traite uniquement la mise en page initiale Savings Regular Account.',
-          en: 'Generic bank PDF: not implemented. A dedicated MCB importer handles only the initial Savings Regular Account layout.',
+          fr: 'PDF bancaire : MCB est le profil prioritaire. Les autres banques passent par une lecture générique prudente ; si les soldes ou les colonnes ne sont pas reconnus, l’import est refusé. Aucun format bancaire mauricien universel n’est supposé.',
+          en: 'Bank PDF: MCB is the primary profile. Other banks use a cautious generic reader; if balances or columns are not recognised, the import is blocked. No universal Mauritian bank format is assumed.',
         },
         {
           fr: 'Aucune connexion bancaire directe : uniquement des fichiers téléversés.',
@@ -458,63 +463,169 @@ export function bankRoutes(app: FastifyInstance, db: Db, config: Config): void {
     confirm: z.literal(true).optional(),
   }).strict();
 
-  async function mcbPreviewOf(companyId: string, body: { bankAccountId: string; fileName: string; contentBase64: string }) {
-    if (!/\.pdf$/i.test(body.fileName)) throw badRequest('BANK_MCB_PDF_REQUIRED', 'An MCB statement must be a PDF file');
+  type PdfEndpoint = 'mcb' | 'pdf';
+  async function pdfPreviewOf(
+    companyId: string,
+    body: { bankAccountId: string; fileName: string; contentBase64: string },
+    endpoint: PdfEndpoint,
+  ) {
+    if (!/\.pdf$/i.test(body.fileName)) {
+      throw badRequest('BANK_PDF_REQUIRED', 'A bank statement PDF is required');
+    }
     const buffer = Buffer.from(body.contentBase64.replace(/^data:[^;]+;base64,/, ''), 'base64');
     if (!buffer.length) throw badRequest('BANK_FILE_REQUIRED', 'The PDF is empty');
     if (buffer.length > Math.min(config.MAX_UPLOAD_BYTES, 8 * 1024 * 1024)) {
       throw badRequest('BANK_FILE_TOO_LARGE', 'The PDF exceeds the upload limit');
     }
     if (buffer.subarray(0, 5).toString('latin1') !== '%PDF-') {
-      throw badRequest('BANK_MCB_PDF_REQUIRED', 'The file does not have a PDF signature');
+      throw badRequest('BANK_PDF_REQUIRED', 'The file does not have a PDF signature');
     }
     const extraction = await extractDocument(buffer, 'application/pdf');
     const parsed = parseMcbStatement(extraction.text);
-    const preview = await previewBankImport(db, config, companyId, {
+    if (endpoint === 'mcb' && parsed.profileKey !== 'mcb') {
+      throw badRequest(
+        'BANK_MCB_PROFILE_UNRECOGNISED',
+        'This PDF does not match the recognised MCB Savings Regular Account layout. Use the generic PDF statement reader.',
+      );
+    }
+    const sourceHash = createHash('sha256').update(buffer).digest('hex');
+    const previewInput = {
       bankAccountId: body.bankAccountId,
-      fileName: `mcb-${body.fileName.replace(/\.pdf$/i, '')}.csv`,
+      fileName: `pdf-${body.fileName.replace(/\.pdf$/i, '').slice(0, 80)}.csv`,
       contentText: mcbRowsToCsv(parsed.rows),
       mapping: MCB_MAPPING,
       dayFirst: false,
       openingBalance: parsed.openingBalance,
       closingBalance: parsed.closingBalance,
-    });
-    return { mcb: parsed, extraction: { method: extraction.method, pageCount: extraction.pageCount,
-      warnings: extraction.warnings }, preview };
+      sourceFileName: body.fileName,
+      sourceHash,
+      sourceSize: buffer.length,
+      sourceMeta: {
+        extractionMethod: extraction.method,
+        pageCount: extraction.pageCount,
+        profileKey: parsed.profileKey,
+        bankName: parsed.bankName,
+        accountNumber: parsed.accountNumber,
+        periodStart: parsed.periodStart,
+        periodEnd: parsed.periodEnd,
+        currency: parsed.currency,
+      },
+    } as const;
+    const preview = await previewBankImport(db, config, companyId, previewInput);
+    if (parsed.profileKey === 'generic') {
+      const ambiguous = !parsed.openingBalance
+        || parsed.rows.length === 0
+        || parsed.warnings.some((warning) =>
+          warning.code === 'BANK_PDF_OPENING_MISSING'
+          || warning.code === 'BANK_PDF_NO_TRANSACTIONS');
+      if (ambiguous) {
+        preview.preview.blocksImport = true;
+        preview.preview.findings.unshift({
+          severity: 'error',
+          code: 'BANK_PDF_AMBIGUOUS',
+          rowNumber: null,
+          messageFr: 'Relevé non MCB ambigu : soldes ou lignes insuffisamment reconnus. L’import automatique est refusé ; corrigez ou utilisez un CSV.',
+          messageEn: 'Ambiguous non-MCB statement: balances or lines were not recognised reliably. Automatic import is refused; correct the file or use CSV.',
+        });
+      }
+    }
+    return {
+      mcb: parsed,
+      extraction: {
+        method: extraction.method,
+        pageCount: extraction.pageCount,
+        warnings: extraction.warnings,
+      },
+      source: {
+        fileName: body.fileName,
+        sha256: sourceHash,
+        sizeBytes: buffer.length,
+        storedOnImport: true,
+        ...previewInput.sourceMeta,
+      },
+      preview,
+    };
   }
+
+  const pdfImportOf = async (
+    companyId: string,
+    userId: string,
+    body: { bankAccountId: string; fileName: string; contentBase64: string },
+    endpoint: PdfEndpoint,
+  ) => {
+    const built = await pdfPreviewOf(companyId, body, endpoint);
+    if (built.preview.preview.blocksImport) {
+      throw badRequest('BANK_IMPORT_BLOCKED', 'Blocking findings must be fixed before importing');
+    }
+    const buffer = Buffer.from(body.contentBase64.replace(/^data:[^;]+;base64,/, ''), 'base64');
+    const result = await importBankStatement(db, config,
+      { userId, companyId, ip: undefined },
+      {
+        bankAccountId: body.bankAccountId,
+        fileName: `pdf-${body.fileName.replace(/\.pdf$/i, '').slice(0, 80)}.csv`,
+        contentText: mcbRowsToCsv(built.mcb.rows),
+        mapping: MCB_MAPPING,
+        dayFirst: false,
+        openingBalance: built.mcb.openingBalance,
+        closingBalance: built.mcb.closingBalance,
+        sourceFileName: body.fileName,
+        sourceHash: built.source.sha256,
+        sourceSize: buffer.length,
+        sourceBuffer: buffer,
+        sourceMeta: built.source,
+      });
+    return {
+      ...result,
+      mcb: {
+        openingBalance: built.mcb.openingBalance,
+        closingBalance: built.mcb.closingBalance,
+        warnings: built.mcb.warnings,
+        profile: built.mcb.profile,
+        compatibilityNote: built.mcb.compatibilityNote,
+        bankName: built.mcb.bankName,
+        accountNumber: built.mcb.accountNumber,
+        periodStart: built.mcb.periodStart,
+        periodEnd: built.mcb.periodEnd,
+        currency: built.mcb.currency,
+        profileKey: built.mcb.profileKey,
+      },
+      extraction: built.extraction,
+      source: built.source,
+    };
+  };
 
   app.post('/companies/:companyId/bank/mcb/preview', { bodyLimit: 12_000_000 }, async (req) => {
     const { companyId } = req.params as { companyId: string };
     await requireCompany(db, req.user!.id, companyId, 'accountant');
     const body = parse(McbUploadSchema, req.body);
-    return mcbPreviewOf(companyId, body);
+    return pdfPreviewOf(companyId, body, 'mcb');
   });
 
   app.post('/companies/:companyId/bank/mcb/import', { bodyLimit: 12_000_000 }, async (req, reply) => {
     const { companyId } = req.params as { companyId: string };
     await requireCompany(db, req.user!.id, companyId, 'accountant');
     const body = parse(McbUploadSchema.extend({ confirm: z.literal(true) }).strict(), req.body);
-    const built = await mcbPreviewOf(companyId, body);
-    if (built.preview.preview.blocksImport) {
-      throw badRequest('BANK_IMPORT_BLOCKED', 'Blocking findings must be fixed before importing');
-    }
-    const result = await importBankStatement(db, config,
-      { userId: req.user!.id, companyId, ip: req.ip },
-      {
-        bankAccountId: body.bankAccountId,
-        fileName: `mcb-${body.fileName.replace(/\.pdf$/i, '')}.csv`,
-        contentText: mcbRowsToCsv(built.mcb.rows),
-        mapping: MCB_MAPPING,
-        dayFirst: false,
-        openingBalance: built.mcb.openingBalance,
-        closingBalance: built.mcb.closingBalance,
-      });
-    return reply.code(result.reimport ? 200 : 201).send({
-      ...result,
-      mcb: { openingBalance: built.mcb.openingBalance, closingBalance: built.mcb.closingBalance,
-        warnings: built.mcb.warnings, profile: built.mcb.profile,
-        compatibilityNote: built.mcb.compatibilityNote },
-      extraction: built.extraction,
-    });
+    const result = await pdfImportOf(companyId, req.user!.id, body, 'mcb');
+    return reply.code(result.reimport ? 200 : 201).send(result);
+  });
+
+  /**
+   * Mission 26 — generic PDF statement reader. MCB remains the primary profile;
+   * other layouts are parsed cautiously and blocked when balances/columns are
+   * ambiguous. The original PDF is stored and hashed when the import is confirmed.
+   */
+  app.post('/companies/:companyId/bank/pdf/preview', { bodyLimit: 12_000_000 }, async (req) => {
+    const { companyId } = req.params as { companyId: string };
+    await requireCompany(db, req.user!.id, companyId, 'accountant');
+    const body = parse(McbUploadSchema, req.body);
+    return pdfPreviewOf(companyId, body, 'pdf');
+  });
+
+  app.post('/companies/:companyId/bank/pdf/import', { bodyLimit: 12_000_000 }, async (req, reply) => {
+    const { companyId } = req.params as { companyId: string };
+    await requireCompany(db, req.user!.id, companyId, 'accountant');
+    const body = parse(McbUploadSchema.extend({ confirm: z.literal(true) }).strict(), req.body);
+    const result = await pdfImportOf(companyId, req.user!.id, body, 'pdf');
+    return reply.code(result.reimport ? 200 : 201).send(result);
   });
 }

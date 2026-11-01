@@ -19,6 +19,8 @@ export interface McbRow {
   sourceLine: number;
   printedMovement?: string;
 }
+export type BankPdfProfileKey = 'mcb' | 'generic';
+
 export interface McbParseResult {
   rows: McbRow[];
   openingBalance: string | null;
@@ -27,6 +29,13 @@ export interface McbParseResult {
   unparsedLines: { line: number; text: string }[];
   profile: string;
   compatibilityNote: string;
+  /** Metadata printed on the statement, read before any import decision. */
+  bankName: string | null;
+  accountNumber: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  currency: string | null;
+  profileKey: BankPdfProfileKey;
 }
 
 const DATE_RE = /^(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4}|\d{4}-\d{2}-\d{2})\b/;
@@ -69,7 +78,80 @@ function csvCell(value: string): string {
   return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
+interface BankSignature { key: BankPdfProfileKey; name: string; pattern: RegExp }
+
+/**
+ * Known bank headers. MCB is the only profile with a dedicated parser; the
+ * other signatures are metadata only and deliberately fall back to the cautious
+ * generic layout reader. No signature list can prove that a layout is supported.
+ */
+const BANK_SIGNATURES: BankSignature[] = [
+  { key: 'mcb', name: 'Mauritius Commercial Bank', pattern: /mauritius commercial bank|\bmcb\b|savings regular account/i },
+  { key: 'generic', name: 'State Bank of Mauritius', pattern: /state bank of mauritius|\bsbm\b/i },
+  { key: 'generic', name: 'Absa Bank (Mauritius)', pattern: /absa bank/i },
+  { key: 'generic', name: 'HSBC Mauritius', pattern: /hsbc/i },
+  { key: 'generic', name: 'Bank One', pattern: /bank one/i },
+  { key: 'generic', name: 'AfrAsia Bank', pattern: /afrasia bank/i },
+  { key: 'generic', name: 'MauBank', pattern: /maubank/i },
+  { key: 'generic', name: 'Standard Chartered Mauritius', pattern: /standard chartered/i },
+  { key: 'generic', name: 'SBI (Mauritius)', pattern: /state bank of india|\bsbi\b/i },
+  { key: 'generic', name: 'Bank of Baroda (Mauritius)', pattern: /bank of baroda/i },
+  { key: 'generic', name: 'Habib Bank', pattern: /habib bank/i },
+  { key: 'generic', name: 'ABC Banking Corporation', pattern: /abc banking/i },
+  { key: 'generic', name: 'Bank of China', pattern: /bank of china/i },
+  { key: 'generic', name: 'Citibank', pattern: /citibank/i },
+  { key: 'generic', name: 'Deutsche Bank', pattern: /deutsche bank/i },
+];
+
+function detectBank(rawText: string): { key: BankPdfProfileKey; name: string | null } {
+  const head = rawText.slice(0, 3000);
+  const found = BANK_SIGNATURES.find((signature) => signature.pattern.test(head));
+  return found ? { key: found.key, name: found.name } : { key: 'generic', name: null };
+}
+
+function metadataDate(raw: string): string | null {
+  return parseDate(raw.replace(/\s+/g, ' ').trim());
+}
+
+function readMetadata(rawText: string): {
+  accountNumber: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  currency: string | null;
+} {
+  let accountNumber: string | null = null;
+  const accountPattern =
+    /(?:account\s*(?:number|no\.?|num[ée]ro)|a\/c\s*(?:no\.?)?|compte\s*(?:n[°o]|num[ée]ro)?)\s*[:#\-]?\s*([A-Z0-9*Xx][A-Z0-9*Xx\-/ ]{4,34})/i;
+  for (const line of rawText.split(/\r?\n/).slice(0, 80)) {
+    const match = accountPattern.exec(line);
+    if (!match) continue;
+    const candidate = match[1]!.replace(/\s{2,}/g, ' ').trim().replace(/[|;]+$/, '');
+    if ((candidate.match(/\d/g) ?? []).length >= 4 && !/statement|period|name|address/i.test(candidate)) {
+      accountNumber = candidate.slice(0, 40);
+      break;
+    }
+  }
+
+  const period = /(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4}|\d{4}-\d{2}-\d{2})\s*(?:to|au|jusqu(?:'|’)?au|[-–])\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4}|\d{4}-\d{2}-\d{2})/i.exec(rawText);
+  let periodStart: string | null = null;
+  let periodEnd: string | null = null;
+  if (period) {
+    periodStart = metadataDate(period[1]!);
+    periodEnd = metadataDate(period[2]!);
+  }
+
+  const currencyMatch = /\b(MUR|EUR|USD|GBP|ZAR|AUD|CAD|CHF|JPY)\b/.exec(rawText.slice(0, 4000));
+  return {
+    accountNumber,
+    periodStart,
+    periodEnd,
+    currency: currencyMatch ? currencyMatch[1]! : null,
+  };
+}
+
 export function parseMcbStatement(rawText: string): McbParseResult {
+  const detected = detectBank(rawText);
+  const metadata = readMetadata(rawText);
   const warnings: McbParseResult['warnings'] = [];
   const unparsedLines: McbParseResult['unparsedLines'] = [];
   const rows: McbRow[] = [];
@@ -202,10 +284,46 @@ export function parseMcbStatement(rawText: string): McbParseResult {
   if (!rows.length) warnings.push({ code: 'MCB_NO_TRANSACTIONS', line: null,
     message: 'No transaction line was recognised in this PDF.' });
 
+  const isMcb = detected.key === 'mcb';
+  const finalWarnings = isMcb
+    ? warnings
+    : warnings.map((warning) => ({
+        ...warning,
+        code: warning.code.replace(/^MCB_/, 'BANK_PDF_'),
+      }));
+  if (!isMcb && !openingBalance && rows.length > 0) {
+    finalWarnings.push({
+      code: 'BANK_PDF_OPENING_MISSING',
+      line: null,
+      message:
+        'No opening balance was found for a non-MCB layout: debit/credit direction cannot be proven from the statement alone.',
+    });
+  }
+  if (!isMcb && !detected.name) {
+    finalWarnings.push({
+      code: 'BANK_PDF_BANK_UNRECOGNISED',
+      line: null,
+      message: 'The bank name is not recognised. The generic layout reader must not be treated as bank-specific.',
+    });
+  }
   return {
-    rows, openingBalance, closingBalance, warnings, unparsedLines,
-    profile: 'MCB Savings Regular Account — initial statement layout',
-    compatibilityNote: 'Not asserted for every MCB account type or statement layout. Review the preview before importing.',
+    rows,
+    openingBalance,
+    closingBalance,
+    warnings: finalWarnings,
+    unparsedLines,
+    profile: isMcb
+      ? 'MCB Savings Regular Account — initial statement layout'
+      : `${detected.name ?? 'Generic bank'} — cautious generic layout`,
+    compatibilityNote: isMcb
+      ? 'Not asserted for every MCB account type or statement layout. Review the preview before importing.'
+      : 'Generic layout only: accepted when balances and debit/credit columns are recognised. No country-wide bank format is assumed; review every line and block the import when anything is uncertain.',
+    bankName: detected.name,
+    accountNumber: metadata.accountNumber,
+    periodStart: metadata.periodStart ?? rows[0]?.date ?? null,
+    periodEnd: metadata.periodEnd ?? rows[rows.length - 1]?.date ?? null,
+    currency: metadata.currency,
+    profileKey: detected.key,
   };
 }
 

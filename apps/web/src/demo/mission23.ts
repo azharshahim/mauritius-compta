@@ -324,6 +324,10 @@ function mcbPreview(s: DemoState, companyId: string, payload: Record<string, any
     rowNumber: i + 2, txnDate: row.date, valueDate: row.date, label: row.details,
     amount: row.amount, balance: row.balance, action: existing.has(`${row.date}|${row.details}|${row.amount}`) ? 'skip' : 'import',
     duplicate: existing.has(`${row.date}|${row.details}|${row.amount}`),
+    suggestion: /charge|frais|commission/i.test(row.details)
+      ? { kind: 'fees', messageFr: 'Suggestion : frais bancaires — à vérifier',
+          messageEn: 'Suggestion: bank charges — verify' }
+      : null,
   }));
   return {
     bankAccount: account,
@@ -342,6 +346,10 @@ function mcbPreview(s: DemoState, companyId: string, payload: Record<string, any
       unparsedLines: [],
       profile: 'MCB Savings Regular Account — fictional demonstration extract',
       compatibilityNote: 'Demonstration fixture only. Compatibility with real MCB statements is not asserted.',
+      bankName: 'Mauritius Commercial Bank (fictif)',
+      accountNumber: '000123456789',
+      periodStart: '2026-01-01', periodEnd: '2026-01-31', currency: account.currency,
+      profileKey: 'mcb',
     },
     extraction: { method: 'pdf_text', pageCount: 2,
       warnings: ['MODE DÉMONSTRATION : extraction préenregistrée, aucun OCR réel exécuté.'] },
@@ -522,12 +530,12 @@ export function handleDemoMission23(
     }
   }
 
-  if (rest === '/bank/mcb/preview' && method === 'POST') {
+  if ((rest === '/bank/mcb/preview' || rest === '/bank/pdf/preview') && method === 'POST') {
     const built = mcbPreview(s, companyId, payload) as any;
     // Mirror the API envelope: BankPreviewResponse.preview is the BankPreview.
     return { ...built, preview: { ...built.preview, preview: built.preview } };
   }
-  if (rest === '/bank/mcb/import' && method === 'POST') {
+  if ((rest === '/bank/mcb/import' || rest === '/bank/pdf/import') && method === 'POST') {
     const preview = mcbPreview(s, companyId, payload);
     const account = preview.bankAccount;
     let imported = 0; let duplicates = 0;
