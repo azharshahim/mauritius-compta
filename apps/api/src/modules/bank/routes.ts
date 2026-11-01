@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { Db } from '../../db/index.js';
 import type { Config } from '../../config.js';
 import { parse } from '../../lib/http.js';
+import { badRequest } from '../../lib/errors.js';
 import { requireCompany } from '../../lib/tenant.js';
 import { BANK_FIELDS, BANK_SOURCE_LABELS } from './profiles.js';
 import {
@@ -30,6 +31,8 @@ import {
   unlinkBankBillingPayment,
 } from './billing.js';
 import { bankReconciliationReport, bankReconciliationReportCsv } from './reports.js';
+import { MCB_MAPPING, mcbRowsToCsv, parseMcbStatement } from './mcb.js';
+import { extractDocument } from '../documents/extract.js';
 import {
   linkBankSupplierPayment,
   supplierPaymentCandidates,
@@ -163,8 +166,8 @@ export function bankRoutes(app: FastifyInstance, db: Db, config: Config): void {
           en: 'OFX/QFX: not implemented, no partial parser is shipped.',
         },
         {
-          fr: 'PDF bancaire : OCR non implémenté ; l’intégration ScanPro AI reste une architecture future, sans modification de ce dépôt.',
-          en: 'Bank PDF: OCR not implemented; ScanPro AI integration remains a future architecture, with no change to that repository.',
+          fr: 'PDF bancaire générique : non implémenté. Un importeur MCB dédié traite uniquement la mise en page initiale Savings Regular Account.',
+          en: 'Generic bank PDF: not implemented. A dedicated MCB importer handles only the initial Savings Regular Account layout.',
         },
         {
           fr: 'Aucune connexion bancaire directe : uniquement des fichiers téléversés.',
@@ -445,5 +448,73 @@ export function bankRoutes(app: FastifyInstance, db: Db, config: Config): void {
       .header('content-type', 'text/csv; charset=utf-8')
       .header('content-disposition', 'attachment; filename="bank-reconciliation.csv"')
       .send(bankReportCsv(report, locale));
+  });
+
+  // ---------------------------------------------------------------- MCB (Mission 23)
+  const McbUploadSchema = z.object({
+    bankAccountId: z.string().uuid(),
+    fileName: z.string().min(1).max(200),
+    contentBase64: z.string().min(1),
+    confirm: z.literal(true).optional(),
+  }).strict();
+
+  async function mcbPreviewOf(companyId: string, body: { bankAccountId: string; fileName: string; contentBase64: string }) {
+    if (!/\.pdf$/i.test(body.fileName)) throw badRequest('BANK_MCB_PDF_REQUIRED', 'An MCB statement must be a PDF file');
+    const buffer = Buffer.from(body.contentBase64.replace(/^data:[^;]+;base64,/, ''), 'base64');
+    if (!buffer.length) throw badRequest('BANK_FILE_REQUIRED', 'The PDF is empty');
+    if (buffer.length > Math.min(config.MAX_UPLOAD_BYTES, 8 * 1024 * 1024)) {
+      throw badRequest('BANK_FILE_TOO_LARGE', 'The PDF exceeds the upload limit');
+    }
+    if (buffer.subarray(0, 5).toString('latin1') !== '%PDF-') {
+      throw badRequest('BANK_MCB_PDF_REQUIRED', 'The file does not have a PDF signature');
+    }
+    const extraction = await extractDocument(buffer, 'application/pdf');
+    const parsed = parseMcbStatement(extraction.text);
+    const preview = await previewBankImport(db, config, companyId, {
+      bankAccountId: body.bankAccountId,
+      fileName: `mcb-${body.fileName.replace(/\.pdf$/i, '')}.csv`,
+      contentText: mcbRowsToCsv(parsed.rows),
+      mapping: MCB_MAPPING,
+      dayFirst: false,
+      openingBalance: parsed.openingBalance,
+      closingBalance: parsed.closingBalance,
+    });
+    return { mcb: parsed, extraction: { method: extraction.method, pageCount: extraction.pageCount,
+      warnings: extraction.warnings }, preview };
+  }
+
+  app.post('/companies/:companyId/bank/mcb/preview', { bodyLimit: 12_000_000 }, async (req) => {
+    const { companyId } = req.params as { companyId: string };
+    await requireCompany(db, req.user!.id, companyId, 'accountant');
+    const body = parse(McbUploadSchema, req.body);
+    return mcbPreviewOf(companyId, body);
+  });
+
+  app.post('/companies/:companyId/bank/mcb/import', { bodyLimit: 12_000_000 }, async (req, reply) => {
+    const { companyId } = req.params as { companyId: string };
+    await requireCompany(db, req.user!.id, companyId, 'accountant');
+    const body = parse(McbUploadSchema.extend({ confirm: z.literal(true) }).strict(), req.body);
+    const built = await mcbPreviewOf(companyId, body);
+    if (built.preview.preview.blocksImport) {
+      throw badRequest('BANK_IMPORT_BLOCKED', 'Blocking findings must be fixed before importing');
+    }
+    const result = await importBankStatement(db, config,
+      { userId: req.user!.id, companyId, ip: req.ip },
+      {
+        bankAccountId: body.bankAccountId,
+        fileName: `mcb-${body.fileName.replace(/\.pdf$/i, '')}.csv`,
+        contentText: mcbRowsToCsv(built.mcb.rows),
+        mapping: MCB_MAPPING,
+        dayFirst: false,
+        openingBalance: built.mcb.openingBalance,
+        closingBalance: built.mcb.closingBalance,
+      });
+    return reply.code(result.reimport ? 200 : 201).send({
+      ...result,
+      mcb: { openingBalance: built.mcb.openingBalance, closingBalance: built.mcb.closingBalance,
+        warnings: built.mcb.warnings, profile: built.mcb.profile,
+        compatibilityNote: built.mcb.compatibilityNote },
+      extraction: built.extraction,
+    });
   });
 }
