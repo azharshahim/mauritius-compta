@@ -6,7 +6,7 @@
 **Date :** 1er novembre 2026
 **Branche :** `arena/30ab1cd1-mauritius-compta`
 **Base :** `main` `87894b1c2d51a768935d05b1014796942adf17a8` (fusion de la PR nº17)
-**PR :** nº__ (brouillon, à compléter après création)
+**PR :** nº18 (brouillon) — https://github.com/azharshahim/mauritius-compta/pull/18
 **Statut :** implémentation et tests terminés, **non fusionnée**, **non publiée**, en attente de validation explicite
 **Données :** fictives uniquement ; aucun compte bancaire réel, aucun numéro d'enregistrement réel, aucun VPS OVH
 
@@ -370,7 +370,7 @@ Le détail est dans `docs/comptai-demo-known-limitations.md`.
 
 - Branche : `arena/30ab1cd1-mauritius-compta`, créée depuis `main` `87894b1`.
 - Commit de fusion PR nº17 confirmé ancêtre de la branche.
-- PR : **brouillon**, nº__ — à compléter après création.
+- PR : **brouillon**, nº18 — https://github.com/azharshahim/mauritius-compta/pull/18.
 - CI : à vérifier après le push (jobs typecheck/tests/build, PostgreSQL réel et
   migrations). Le résultat sera reporté ici avant toute demande de fusion.
 - **Aucune fusion, aucune publication, aucun déploiement** sans autorisation
