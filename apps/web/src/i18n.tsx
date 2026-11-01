@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { GLOSSARY } from './glossary';
+import { M44_EN, M44_FR } from './i18n-m44';
 
 export type Locale = 'fr' | 'en';
 
@@ -4223,12 +4224,24 @@ const en: Dict = {
 
 };
 
-export const dictionaries: Record<Locale, Dict> = { fr, en };
+/**
+ * Mission 44: the Accountant Workspace keys live in `i18n-m44.ts` and are
+ * merged here, so every consumer (and the FR/EN parity test) keeps seeing one
+ * flat catalogue.
+ */
+export const dictionaries: Record<Locale, Dict> = {
+  fr: { ...fr, ...M44_FR },
+  en: { ...en, ...M44_EN },
+};
 
 interface I18nContextValue {
   locale: Locale;
   setLocale: (l: Locale) => void;
-  t: (key: string) => string;
+  /**
+   * Mission 44: optional interpolation (`t('m44.drafts.step', { step: 3 })`
+   * resolves `Étape {step}`). Existing single-argument calls are unchanged.
+   */
+  t: (key: string, params?: Record<string, string | number>) => string;
 }
 
 const I18nContext = createContext<I18nContextValue | null>(null);
@@ -4247,7 +4260,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const setLocale = useCallback((l: Locale) => setLocaleState(l), []);
   const t = useCallback(
-    (key: string) => dictionaries[locale][key] ?? dictionaries.fr[key] ?? key,
+    (key: string, params?: Record<string, string | number>) => {
+      const raw = dictionaries[locale][key] ?? dictionaries.fr[key] ?? key;
+      if (!params) return raw;
+      return raw.replace(/\{(\w+)\}/g, (match, name: string) =>
+        params[name] !== undefined ? String(params[name]) : match,
+      );
+    },
     [locale],
   );
 

@@ -41,6 +41,11 @@ import {
   type DemoMission23State,
 } from './mission23';
 import { handleDemoPurchases, seedDemoPurchases } from './purchases';
+import {
+  handleDemoCabinetWorkspace,
+  seedDemoCabinetWorkspace,
+  type DemoCabinetWorkspaceState,
+} from './cabinet-workspace';
 import { handleDemoLettering, seedDemoLettering } from './lettering';
 import { handleDemoFx, seedDemoFx } from './fx';
 import {
@@ -910,6 +915,8 @@ export interface DemoState {
   fyArchives?: DemoArchive[];
   /** Mission 22 — inventory, accruals/prepayments and provisions. */
   mission22?: unknown;
+  /** Mission 44 — Accountant Workspace: client files, KYC checklist, drafts. */
+  cabinetWorkspace?: DemoCabinetWorkspaceState;
 }
 
 /* ------------------------------------------------------------------ money */
@@ -1906,7 +1913,7 @@ function seedState(): DemoState {
   });
 
   const seeded: DemoState = {
-    schema: 17,
+    schema: 18,
     users: [demoUser, ...collaborators],
     session: null,
     companies: [company, ...extraCompanies],
@@ -1997,6 +2004,7 @@ function seedState(): DemoState {
   seedDemoFinancialYears(seeded);
   seedDemoMission22(seeded);
   seedDemoMission23(seeded);
+  seedDemoCabinetWorkspace(seeded, { uid, now });
   return seeded;
 }
 
@@ -2022,8 +2030,20 @@ export function loadState(): DemoState {
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as DemoState;
+        if (parsed && parsed.schema === 18) {
+          state = parsed;
+          if (!state.cabinetWorkspace) seedDemoCabinetWorkspace(state, { uid, now });
+          if (!state.mission23) seedDemoMission23(state);
+          // Mission 30: an existing browser demo keeps its accounting data but
+          // gains the verification fields added by mission 29.
+          else upgradeDemoMission23(state);
+          persist();
+          return state;
+        }
         if (parsed && parsed.schema === 17) {
           state = parsed;
+          state.schema = 18;
+          seedDemoCabinetWorkspace(state, { uid, now });
           if (!state.mission23) seedDemoMission23(state);
           // Mission 30: an existing browser demo keeps its accounting data but
           // gains the verification fields added by mission 29.
@@ -2033,25 +2053,28 @@ export function loadState(): DemoState {
         }
         if (parsed && parsed.schema === 16) {
           state = parsed;
-          state.schema = 17;
+          state.schema = 18;
           seedDemoMission23(state);
+          seedDemoCabinetWorkspace(state, { uid, now });
           persist();
           return state;
         }
         if (parsed && parsed.schema === 15) {
           state = parsed;
-          state.schema = 17;
+          state.schema = 18;
           seedDemoMission22(state);
           seedDemoMission23(state);
+          seedDemoCabinetWorkspace(state, { uid, now });
           persist();
           return state;
         }
         if (parsed && parsed.schema === 14) {
           state = parsed;
-          state.schema = 17;
+          state.schema = 18;
           seedDemoFinancialYears(state);
           seedDemoMission22(state);
           seedDemoMission23(state);
+          seedDemoCabinetWorkspace(state, { uid, now });
           persist();
           return state;
         }
@@ -5657,6 +5680,28 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
     return { user: publicUser(user), sessionsInvalidated } as T;
   }
 
+
+  // ------------------------------------------- Mission 44: Accountant Workspace
+  // The portfolio, the guided onboarding, the KYC checklist and the drafts are
+  // served by `cabinet-workspace.ts`, which reuses the API's pure catalogue and
+  // progress engine. Authorisation mirrors the server rules.
+  const workspaceResult = handleDemoCabinetWorkspace(
+    {
+      state: s,
+      uid,
+      now,
+      persist,
+      audit,
+      requireUser,
+      requireCompany,
+      effectiveModules: effectiveModulesFor,
+    },
+    method,
+    p,
+    query,
+    payload,
+  );
+  if (workspaceResult.handled) return workspaceResult.data as T;
 
   // ------------------------------------------------------------- cabinet
   if (p === '/cabinet/dashboard' && method === 'GET') {

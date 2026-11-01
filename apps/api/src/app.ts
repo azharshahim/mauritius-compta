@@ -20,6 +20,7 @@ import { settingsRoutes } from './modules/settings/routes.js';
 import { reportRoutes } from './modules/reports/routes.js';
 import { attachmentRoutes } from './modules/attachments/routes.js';
 import { cabinetRoutes } from './modules/cabinet/routes.js';
+import { cabinetOnboardingRoutes } from './modules/cabinet-onboarding/routes.js';
 import { billingRoutes } from './modules/billing/routes.js';
 import { purchaseRoutes } from './modules/purchases/routes.js';
 import { payrollRoutes } from './modules/payroll/routes.js';
@@ -194,6 +195,9 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
       // Mauritius Business Suite modules: Cabinet first-class, Billing and
       // Payroll as prepared (501) foundations with their own permissions.
       cabinetRoutes(secured, db);
+      // Mission 44: Accountant Workspace — client files, guided onboarding,
+      // KYC checklist and workspace aggregation (read-only on accounting data).
+      cabinetOnboardingRoutes(secured, db);
       billingRoutes(secured, db);
       // Purchases & suppliers (mission 11): subledger + human-posted proposals.
       purchaseRoutes(secured, db);
