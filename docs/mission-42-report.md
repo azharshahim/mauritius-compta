@@ -197,6 +197,15 @@ Tous les tests ci-dessous ont été exécutés le 1er novembre 2026, dans cet or
 | `npm run build` | **exit 0** — build Web et API |
 | `npm run build:demo` | **exit 0** |
 | `node scripts/verify-demo.mjs --dist apps/web/dist --base /mauritius-compta/` | **50 contrôles réussis, 0 échec** |
+| CI GitHub Actions — `Typecheck, tests and build` | **succès** — 4 min 57 s |
+| CI GitHub Actions — `API tests against real PostgreSQL` | **succès** — 2 min 51 s |
+| CI GitHub Actions — `Migrations against real PostgreSQL` | **succès** — 35 s, migrations réappliquées pour l’idempotence |
+| CI GitHub Actions — `Build demo bundle` | **succès** — 2 min 12 s |
+| CI GitHub Actions — `Deploy to GitHub Pages` | **ignoré** (brouillon, aucun déploiement) |
+
+Exécutions CI du commit `b4f505f` :
+- CI : https://github.com/azharshahim/mauritius-compta/actions/runs/41354118075
+- Démo : https://github.com/azharshahim/mauritius-compta/actions/runs/41354117900
 
 ### Scénarios du fichier `apps/api/tests/mission42.test.ts`
 
@@ -211,8 +220,6 @@ Tous les tests ci-dessous ont été exécutés le 1er novembre 2026, dans cet or
 
 ### Tests non exécutés ou non disponibles
 
-- **PostgreSQL réel** : la suite complète a tourné sur **PGlite**, pas sur le job CI `postgres-tests`.
-- **CI GitHub Actions** : aucun job n’a encore tourné sur le commit final au moment de la rédaction de ce rapport.
 - **Navigateur réel / Playwright** : aucun navigateur n’est disponible dans l’environnement ; les écrans sont couverts par les tests de rendu Web et le build, pas par un parcours E2E visuel.
 - **Tests UI dédiés M42** : aucun test d’interface spécifique n’a été ajouté pour les nouveaux boutons Achats/Facturation/OCR ; ils sont couverts par le typecheck, le build et la suite Web existante.
 - **Performance de charge** : non mesurée.
@@ -280,7 +287,7 @@ Légende : **Corrigé** = comportement démontré par un test ou vérifié direc
 2. **Migration `0025`** : additive, mais elle insère le compte `1150` dans les sociétés existantes ayant un compte `1100`. Une sauvegarde et un test sur copie restent obligatoires avant toute exploitation.
 3. **Plan comptable** : `1150` fait partie du plan provisoire de démonstration ; il doit être validé par un comptable avant usage réel.
 4. **Résumé ventes** : le contrat `billing/summary` a changé (`openReceivables` et `payments.unallocated` peuvent être `null`). Les écrans internes ont été adaptés ; tout consommateur externe doit être vérifié.
-5. **PostgreSQL réel** : les tests locaux utilisent PGlite. Le job CI PostgreSQL doit confirmer le comportement des index partiels, des `FOR UPDATE` et des requêtes d’agrégation.
+5. **PostgreSQL réel** : les tests locaux utilisent PGlite ; le job CI PostgreSQL a réussi sur le commit `b4f505f`, y compris les migrations et leur réapplication. Une sauvegarde reste obligatoire avant toute exploitation.
 6. **TVA** : l’état est un contrôle de comptes, pas une déclaration MRA. Il ne doit jamais être présenté comme un formulaire officiel.
 7. **Aucune mesure de performance** sur les nouvelles requêtes d’aging et de rapprochement.
 
@@ -300,17 +307,18 @@ Légende : **Corrigé** = comportement démontré par un test ou vérifié direc
 - **Aucun déploiement** effectué.
 - **Aucune modification du VPS OVH.**
 - **Aucune publication GitHub Pages.**
-- La branche de travail est poussée sur le dépôt avec une **PR en brouillon**, pour vérification humaine.
+- Branche poussée : `arena/e8400c4a-mauritius-compta`, commit `b4f505f`.
+- **PR nº23 en brouillon** : https://github.com/azharshahim/mauritius-compta/pull/23
 - La fusion reste à la décision de l’utilisateur, après audit.
 
 ---
 
 ## 9. Recommandation finale
 
-**Statut : corrections nécessaires avant audit de fusion complet.**
+**Statut : prêt pour audit technique ; corrections d’interface nécessaires avant fusion.**
 
-Le cœur des corrections M42 est implémenté et la totalité des suites API/Web, du typecheck, des builds et de la vérification de démonstration passe localement. Les points P1 majeurs A-01, A-02, A-05, B-01, B-03, B-04 et D-01 sont corrigés et testés.
+Le cœur des corrections M42 est implémenté et vérifié : suites API et Web complètes, typecheck, builds, démonstration, CI et jobs PostgreSQL réussis. Les points P1 majeurs A-01, A-02, A-05, B-01, B-03, B-04 et D-01 sont corrigés et testés.
 
-La mission **n’est pas complète** au sens des livrables d’interface : les écrans des lots 2, 4 et 6 restent partiels, et la CI PostgreSQL n’a pas encore validé le commit final. Une revue humaine doit porter en priorité sur la migration `0025`, les signes du rapprochement, le compte `1150` et le nouveau contrat du résumé ventes.
+La mission **n’est pas complète au sens des livrables d’interface** : les écrans des lots 2, 4 et 6 restent partiels. Une revue humaine doit porter en priorité sur la migration `0025`, les signes du rapprochement, le compte `1150` et le nouveau contrat du résumé ventes.
 
-**Recommandation** : conserver la PR en brouillon, exécuter la CI complète, compléter les écrans d’affectation et de contrôle, puis soumettre à l’audit. **Ne pas fusionner et ne pas déployer en l’état.**
+**Recommandation** : soumettre la PR nº23 à l’audit technique, compléter les écrans d’affectation et de contrôle, puis seulement envisager la fusion. **Ne pas fusionner et ne pas déployer en l’état.**
