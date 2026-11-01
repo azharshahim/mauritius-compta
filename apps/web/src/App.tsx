@@ -40,6 +40,7 @@ import BillingCustomersPage from './pages/billing/Customers';
 import BillingDocumentsPage from './pages/billing/Documents';
 import BillingPaymentsPage from './pages/billing/Payments';
 import BillingAgingPage from './pages/billing/Aging';
+import MraEInvoicingPage from './pages/billing/MraEInvoicing';
 import PayrollPage from './pages/payroll/Payroll';
 import PayslipViewPage from './pages/payroll/PayslipView';
 import { MODULES, LEGACY_REDIRECTS, moduleByPath, type ModuleKey } from './modules';
@@ -243,8 +244,10 @@ export default function App() {
             <Route path="/billing/payments" element={<BillingPaymentsPage />} />
             <Route path="/billing/aging" element={<BillingAgingPage />} />
 
-            {/* E-invoicing MRA : annoncé, jamais activé. */}
-            <Route path="/billing/e-invoicing" element={<PreparedPage module="billing" />} />
+            {/* Mission 25 : écran informatif MRA e-Invoicing. Aucun appel API,
+                aucune transmission, aucun secret — la facturation classique
+                ci-dessus reste inchangée. */}
+            <Route path="/billing/e-invoicing" element={<MraEInvoicingPage />} />
             <Route path="/billing/:section" element={<PreparedPage module="billing" />} />
 
             {/* Paie & RH : préparation vérifiable, moteur réglementaire bloqué. */}

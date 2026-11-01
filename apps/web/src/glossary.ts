@@ -19,6 +19,18 @@ export const GLOSSARY = {
   payslip: { fr: 'Bulletin de paie', en: 'Payslip' },
   journalEntry: { fr: 'Écriture comptable', en: 'Journal entry' },
   accrualsAndPrepayments: { fr: 'Régularisations', en: 'Accruals & prepayments' },
+  electronicBillingSystem: {
+    fr: 'Système de facturation électronique (EBS)',
+    en: 'Electronic Billing System (EBS)',
+  },
+  invoiceFiscalisationPlatform: {
+    fr: 'Plateforme de fiscalisation des factures (IFP)',
+    en: 'Invoice Fiscalisation Platform (IFP)',
+  },
+  invoiceRegistrationNumber: {
+    fr: 'Numéro d’enregistrement de facture (IRN)',
+    en: 'Invoice Registration Number (IRN)',
+  },
 } as const;
 
 export type GlossaryKey = keyof typeof GLOSSARY;
