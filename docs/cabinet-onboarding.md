@@ -21,7 +21,7 @@ creates a chart of accounts or opening balances. Those services already exist
 and are reused through `apps/api/src/lib/client-file.ts` (which creates the
 `companies` row plus the accounting scaffolding in one transaction).
 
-## 2. Data model (migration `0025_cabinet_onboarding.sql`)
+## 2. Data model (migration `0027_cabinet_onboarding.sql`)
 
 Additive only; no existing table is rewritten and no existing row is updated.
 

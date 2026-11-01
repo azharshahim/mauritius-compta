@@ -159,8 +159,10 @@ admin-level access to the cabinet module.
 
 ## 7. Migrations
 
-One migration: `apps/api/sql/migrations/0025_cabinet_onboarding.sql`
-(106 lines, additive, reversible).
+One migration: `apps/api/sql/migrations/0027_cabinet_onboarding.sql`
+(112 lines, additive, reversible). Renumbered from `0025_…` by the Mission 44.1
+audit: Mission 42 owns migration 0025 and Mission 43 owns 0026 on their own
+branches (section 16).
 
 * 8 nullable columns on `companies` (`trade_name`, `contact_name`,
   `contact_email`, `contact_phone`, `legal_form`, `incorporation_date`,

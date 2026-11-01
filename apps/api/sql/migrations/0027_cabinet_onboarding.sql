@@ -1,5 +1,12 @@
 -- ---------------------------------------------------------------------------
--- 0025_cabinet_onboarding.sql - Mission 44, Accountant Workspace
+-- 0027_cabinet_onboarding.sql - Mission 44, Accountant Workspace
+--
+-- Numbering: Mission 42 owns 0025 (purchase/sales integrity) and Mission 43
+-- owns 0026 (bank reconciliation periods) on their own branches. Mission 44
+-- therefore takes the next globally free number, 0027, so that every branch
+-- has a unique migration version whatever the merge order. The file was
+-- initially authored as 0025_cabinet_onboarding.sql; see
+-- docs/mission-44-report.md (Mission 44.1 audit) for the rename analysis.
 --
 -- Additive and reversible. No existing table is rewritten, no existing row is
 -- updated. Three new tables hold the client-file onboarding, and a handful of
