@@ -153,9 +153,14 @@ the end of `apps/web/src/styles.css`.
 | `DELETE` | `/api/cabinet/workspace/drafts/:draftId` | own draft |
 | `POST` | `/api/cabinet/workspace/drafts/:draftId/activate` | creates the client file, `409` if incomplete, audited |
 
-Access is decided by the existing module ACL; every query is filtered on the
-companies the signed-in user belongs to. Activation additionally requires
-admin-level access to the cabinet module.
+Access to an **existing** client file is decided by the existing module ACL
+(`requireModuleAccess(..., 'cabinet', 'read' | 'write')`) and every query is
+filtered on the companies the signed-in user belongs to. Draft activation has
+the same authorisation model as `POST /companies`, which is open to any
+authenticated user: the draft must belong to the caller, the server re-checks
+every prerequisite, and the creator becomes owner of the new dossier only. No
+existing dossier can be modified through this route. (Mission 44.1 corrected an
+earlier draft of this report that described activation as "admin-gated".)
 
 ## 7. Migrations
 
@@ -234,9 +239,17 @@ asserts that the new destination exists exactly once.
   companies of the signed-in user; a test creates two firms and asserts that
   neither sees the other's client, checklist or draft.
 * **Draft privacy** — drafts are scoped to `user_id`; another accountant in the
-  same firm cannot list or open them.
+  same firm cannot list, open or activate them (404, not 403, so the existence
+  of another user's draft is not disclosed).
 * **Activation gate** — server-side prerequisites (sector, ≥ 1 module, complete
-  setup, non-blocked KYC) plus admin-level access; the UI cannot bypass it.
+  setup, valid financial year, unique BRN/client code, non-blocked KYC) are
+  enforced by the API, not by the UI; the route mirrors `POST /companies`'s
+  authorisation (authenticated caller + draft ownership) and grants rights on
+  the newly created dossier only.
+* **Double-submission guard (44.1)** — activation locks the draft row
+  (`SELECT … FOR UPDATE`) inside the transaction and re-reads it, so two
+  concurrent activations of one draft produce exactly one dossier and one
+  `404 DRAFT_NOT_FOUND`.
 * **Audit trail** — `cabinet.onboarding.activate`, `cabinet.onboarding.update`
   and `cabinet.kyc.update` are written to `audit_log` in the same transaction
   as the change.
@@ -318,9 +331,13 @@ Pages workflow only builds and verifies for `arena/**` and deploys from `main`.
 2. **Review the copy with an accountant**: six-step labels, the nine sectors,
    the "instances" wording, and the `checks & balances` list (only implemented
    controls are listed — confirm none is over-claimed).
-3. **Decide the cabinet access model**: activation currently requires
-   admin-level cabinet access. If a firm wants senior accountants to activate,
-   that is an ACL rule change, not a UI change.
+3. **Decide the firm-level access model**: today any signed-in accountant can
+   create a *new* client file from their own draft (parity with the existing
+   company creation), while editing an existing file requires cabinet `write`
+   and activating a file's onboarding requires `admin` (see the permission test
+   in `apps/api/tests/mission44-onboarding.test.ts`). If a firm wants to
+   restrict who may open new dossiers, that is a new ACL rule to decide and
+   implement — the UI cannot enforce it.
 4. **Plan secure document deposit** (storage, virus scan, retention, access
    log) before any KYC reference becomes a file.
 5. **Consider extracting the shared catalogue** into a workspace package to

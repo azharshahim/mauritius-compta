@@ -1032,6 +1032,15 @@ export function cabinetOnboardingRoutes(app: FastifyInstance, db: Db) {
     }
 
     const created = await db.transaction(async (tx) => {
+      // Double-submission guard: the draft row is locked and re-read inside the
+      // transaction. Two concurrent activations of the same draft therefore
+      // serialise; the loser finds the row deleted by the winner and gets 404
+      // instead of creating a second company file.
+      const stillThere = await tx.query<{ id: string }>(
+        'SELECT id FROM cabinet_client_drafts WHERE id = $1 AND owner_user_id = $2 FOR UPDATE',
+        [draftId, user.id],
+      );
+      if (!stillThere.rows[0]) throw notFound('DRAFT_NOT_FOUND', 'Draft not found');
       const row = await createClientFile(
         tx,
         user.id,

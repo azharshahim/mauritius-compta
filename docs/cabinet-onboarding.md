@@ -98,7 +98,11 @@ All routes require a session and are mounted under `/api`.
 | `POST` | `/cabinet/workspace/drafts` | create/update a draft |
 | `PATCH` | `/cabinet/workspace/drafts/:draftId` | own draft |
 | `DELETE` | `/cabinet/workspace/drafts/:draftId` | own draft |
-| `POST` | `/cabinet/workspace/drafts/:draftId/activate` | cabinet **write**, admin-level for activation |
+| `POST` | `/cabinet/workspace/drafts/:draftId/activate` | authenticated caller owning the draft (same authorisation model as `POST /companies`); the new dossier is attached to the caller |
+
+Activation locks the draft row (`SELECT … FOR UPDATE`) and re-reads it inside
+the transaction, so a double submission — sequential or concurrent — creates a
+single dossier and returns `404 DRAFT_NOT_FOUND` for the loser.
 
 Activation is refused with `409 ONBOARDING_INCOMPLETE` unless a sector is set,
 at least one module is selected and the accounting setup is complete. It writes
@@ -111,7 +115,11 @@ Access is decided by the existing module ACL (`requireModuleAccess(..., 'cabinet
 not by a new role system:
 
 * `read` — see the portfolio, the client file, the checklist.
-* `write` — edit onboarding, tick KYC items, save drafts, activate.
+* `write` — edit onboarding, tick KYC items, save drafts, activate an existing
+  client file.
+* Draft activation itself needs no cabinet ACL because it creates a *new*
+  company file owned by the caller, exactly like `POST /companies`; it can
+  never touch an existing dossier.
 * The `cabinet_access` field returned on each row lets the UI hide edit actions
   instead of discovering the refusal after a click.
 

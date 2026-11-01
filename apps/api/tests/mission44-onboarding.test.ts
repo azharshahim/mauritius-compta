@@ -252,6 +252,42 @@ describe('mission 44 — accountant workspace', () => {
     expect(accounts.json().accounts.length).toBeGreaterThan(10);
   });
 
+  it('never creates two client files from the same draft', async () => {
+    const draftOf = async (brn: string) => {
+      const draft = await api(ctx, owner.cookie, 'POST', '/api/cabinet/workspace/drafts', {
+        currentStep: 6,
+        payload: {
+          ...VALID_DRAFT,
+          company: { ...VALID_DRAFT.company, brn, clientCode: brn.replace('BRN', 'CODE') },
+        },
+      });
+      return draft.json().draft.id as string;
+    };
+    const countCompanies = async () =>
+      (await api(ctx, owner.cookie, 'GET', '/api/companies')).json().companies.length;
+
+    // Sequential double submission: the draft is consumed by the first call.
+    const sequential = await draftOf('M44-DOUBLE-001');
+    const before = await countCompanies();
+    const first = await api(ctx, owner.cookie, 'POST', `/api/cabinet/workspace/drafts/${sequential}/activate`);
+    expect(first.statusCode).toBe(201);
+    const second = await api(ctx, owner.cookie, 'POST', `/api/cabinet/workspace/drafts/${sequential}/activate`);
+    expect(second.statusCode).toBe(404);
+    expect(await countCompanies()).toBe(before + 1);
+
+    // Concurrent double submission: the row lock serialises the two requests,
+    // so exactly one company is created and the loser gets 404.
+    const concurrent = await draftOf('M44-DOUBLE-002');
+    const beforeConcurrent = await countCompanies();
+    const [a, b] = await Promise.all([
+      api(ctx, owner.cookie, 'POST', `/api/cabinet/workspace/drafts/${concurrent}/activate`),
+      api(ctx, owner.cookie, 'POST', `/api/cabinet/workspace/drafts/${concurrent}/activate`),
+    ]);
+    const codes = [a.statusCode, b.statusCode].sort();
+    expect(codes).toEqual([201, 404]);
+    expect(await countCompanies()).toBe(beforeConcurrent + 1);
+  });
+
   it('rejects a draft activation without a sector, a module or a valid year', async () => {
     const draft = await api(ctx, owner.cookie, 'POST', '/api/cabinet/workspace/drafts', {
       payload: {
