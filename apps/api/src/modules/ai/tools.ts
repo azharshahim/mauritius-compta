@@ -63,13 +63,24 @@ export interface ToolResult {
   rowCount: number;
 }
 
+export type ToolMode = 'read' | 'prepare' | 'execute';
+export type ToolRisk = 'low' | 'medium' | 'high';
+
 export interface ToolDefinition {
   key: string;
   module: ModuleName;
+  /** True when the tool cannot post or modify accounting records. */
   readOnly: true;
   title: { fr: string; en: string };
   description: { fr: string; en: string };
   args: z.ZodTypeAny;
+  /** Defaults to `read`; only an explicit `prepare` tool may create a draft. */
+  mode?: ToolMode;
+  risk?: ToolRisk;
+  /** Minimum module access enforced by the tool's own permission checks. */
+  requiredAccess?: AccessLevel;
+  /** True when a human must approve the prepared object outside the tool. */
+  humanValidation?: boolean;
   run: (ctx: AssistantContext, args: any) => Promise<ToolResult>;
 }
 
@@ -738,6 +749,10 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
     key: 'accounting.proposal.prepare',
     module: 'accounting',
     readOnly: true,
+    mode: 'prepare',
+    risk: 'medium',
+    requiredAccess: 'write',
+    humanValidation: true,
     title: { fr: 'Préparer une proposition d’écriture', en: 'Prepare an entry proposal' },
     description: {
       fr: 'Crée un brouillon via l’Assistant V2 : aucun compte, taux ou justificatif n’est inventé.',
@@ -754,6 +769,7 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
       })
       .strict(),
     async run(ctx, args) {
+      requireAccess(ctx, 'accounting', 'write');
       if (parseAmount(args.amount ?? '0') <= 0n) {
         throw new AppError(
           'AI_INPUT_INCOMPLETE',
@@ -1655,6 +1671,12 @@ export function toolCatalogue() {
     key: tool.key,
     module: tool.module,
     readOnly: tool.readOnly,
+    mode: tool.mode ?? 'read',
+    risk: tool.risk ?? 'low',
+    requiredAccess: tool.requiredAccess ?? 'read',
+    humanValidation: tool.humanValidation ?? false,
+    audit: true,
+    companyScoped: true,
     title: tool.title,
     description: tool.description,
   }));

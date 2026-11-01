@@ -866,7 +866,7 @@ function composeReply(
   }
   if (errorCode && !toolResult) {
     return fr
-      ? `La demander n’a pas pu être exécutée (${errorCode}). Aucune donnée n’a été modifiée.`
+      ? `La demande n’a pas pu être exécutée (${errorCode}). Aucune donnée n’a été modifiée.`
       : `The request could not be executed (${errorCode}). No data was changed.`;
   }
   if (toolResult) {

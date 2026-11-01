@@ -725,7 +725,19 @@ export function aiRoutes(app: FastifyInstance, db: Db, config: Config): void {
     return {
       tools: toolCatalogue(),
       provider: null,
-      mode: 'deterministic-read-only',
+      mode: 'deterministic-supervised',
+      governance: {
+        executionEnabled: false,
+        availableModes: ['read', 'prepare'],
+        humanValidationRequired: true,
+        companyScoped: true,
+        auditTable: 'ai_tool_runs',
+        secretsInFrontend: false,
+        note: {
+          fr: 'Aucun outil ne comptabilise, n’envoie d’e-mail et ne génère de bulletin. Une proposition préparée reste à valider humainement.',
+          en: 'No tool posts, sends email or generates a payslip. A prepared proposal still requires human validation.',
+        },
+      },
       disclaimer: {
         fr: 'Réponses construites à partir des données du dossier actif. Aucune écriture comptable n’est créée par l’assistant.',
         en: 'Answers built from the active dossier. The assistant never creates an accounting entry.',
