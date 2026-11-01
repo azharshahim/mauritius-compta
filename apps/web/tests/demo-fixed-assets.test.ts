@@ -10,7 +10,7 @@ const call = <T>(method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE', path: stri
 function login() {
   call('POST', '/auth/login', { email: DEMO_EMAIL, password: DEMO_PASSWORD });
   const companies = call<{ companies: { id: string; name: string }[] }>('GET', '/companies').companies;
-  const company = companies.find((c) => /Lagon Bleu/i.test(c.name))!;
+  const company = companies.find((c) => /Island Trading/i.test(c.name))!;
   const second = companies.find((c) => c.id !== company.id && !/archived/i.test(c.name))!;
   return { company, second, base: `/companies/${company.id}`, baseB: `/companies/${second.id}` };
 }
@@ -27,13 +27,13 @@ describe('démo immobilisations et amortissements — simulation navigateur', ()
     const { base, baseB } = login();
     const assets = call<{ assets: any[] }>('GET', `${base}/fixed-assets`).assets;
     expect(assets.length).toBeGreaterThanOrEqual(5);
-    const vehicle = assets.find((a) => a.description.includes('Pick-up'))!;
+    const vehicle = assets.find((a) => /pick-up/i.test(a.description))!;
     expect(vehicle.cost).toBe('480000.0000');
     expect(vehicle.accumulatedDepreciation).toBe('8000.0000');
     expect(vehicle.netBookValue).toBe('472000.0000');
     const disposed = assets.find((a) => a.status === 'disposed')!;
     expect(disposed.netBookValue).toBe('0.0000');
-    const fully = assets.find((a) => a.description.includes('totalement amortie'))!;
+    const fully = assets.find((a) => /fully depreciated/i.test(a.description))!;
     expect(fully.netBookValue).toBe('0.0000');
     const cwip = assets.find((a) => a.status === 'draft' && a.description.includes('construction'))!;
     expect(cwip).toBeTruthy();

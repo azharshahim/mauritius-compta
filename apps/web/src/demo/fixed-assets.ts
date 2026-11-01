@@ -408,7 +408,7 @@ function ensureAccount(state: DemoState, companyId: string, code: string, name: 
   if (existing) return existing;
   const account: DemoAccount = {
     id: uid(), company_id: companyId, code, name, type, parent_id: null,
-    currency: 'MUR', is_active: true, fs_mapping: null, description: 'Compte fictif de démonstration',
+    currency: 'MUR', is_active: true, fs_mapping: null, description: 'Fictitious demonstration account',
   };
   state.accounts.push(account);
   return account;
@@ -460,13 +460,13 @@ export function seedDemoFixedAssets(all: DemoState): void {
   const second = all.companies.find((c) => c.id !== main.id && c.status === 'active');
 
   const setup = (companyId: string) => {
-    const assetAccount = ensureAccount(all, companyId, '1500', 'Immobilisations (démo)', 'asset');
-    const accumAccount = ensureAccount(all, companyId, '1510', 'Amortissements cumulés (démo)', 'asset');
-    const expenseAccount = ensureAccount(all, companyId, '6200', 'Dotations aux amortissements (démo)', 'expense');
-    const impairmentAccount = ensureAccount(all, companyId, '1530', 'Dépréciations cumulées (démo)', 'asset');
-    const lossAccount = ensureAccount(all, companyId, '6290', 'Pertes de dépréciation et de cession (démo)', 'expense');
-    const gainAccount = ensureAccount(all, companyId, '4100', 'Autres produits (démo)', 'revenue');
-    const cwipAccount = ensureAccount(all, companyId, '1520', 'Immobilisations en cours (démo)', 'asset');
+    const assetAccount = ensureAccount(all, companyId, '1500', 'Fixed assets (DEMO)', 'asset');
+    const accumAccount = ensureAccount(all, companyId, '1510', 'Accumulated depreciation (DEMO)', 'asset');
+    const expenseAccount = ensureAccount(all, companyId, '6200', 'Depreciation expense (DEMO)', 'expense');
+    const impairmentAccount = ensureAccount(all, companyId, '1530', 'Accumulated impairment (DEMO)', 'asset');
+    const lossAccount = ensureAccount(all, companyId, '6290', 'Impairment and disposal losses (DEMO)', 'expense');
+    const gainAccount = ensureAccount(all, companyId, '4100', 'Other income (DEMO)', 'revenue');
+    const cwipAccount = ensureAccount(all, companyId, '1520', 'Assets under construction (DEMO)', 'asset');
     return { assetAccount, accumAccount, expenseAccount, impairmentAccount, lossAccount, gainAccount, cwipAccount };
   };
 
@@ -509,19 +509,19 @@ export function seedDemoFixedAssets(all: DemoState): void {
     assets.push(asset);
     events.push({
       id: uid(), company_id: companyId, asset_id: asset.id, event_type: 'created',
-      event_date: asset.acquisition_date, reason: 'Création fictive de démonstration', details: {}, created_at: timestamp,
+      event_date: asset.acquisition_date, reason: 'Fictitious demo creation', details: {}, created_at: timestamp,
     });
     return asset;
   };
 
   const acquisition = (companyId: string, asset: DemoFaAsset, category: DemoFaCategory, journal: DemoJournal, kind: 'acquisition' | 'cwip' = 'acquisition') => {
     const target = kind === 'cwip' ? category.cwip_account_id! : category.asset_account_id!;
-    const bank = ensureAccount(all, companyId, '1010', 'Banque (MUR)', 'asset');
+    const bank = ensureAccount(all, companyId, '1010', 'Bank (MUR)', 'asset');
     const amount = amt(asset.cost) + amt(asset.attributable_costs);
     const entry = postEntry(all, companyId, journal, asset.acquisition_date, `FA-${asset.asset_code}`,
-      `${kind === 'cwip' ? 'Immobilisation en cours' : 'Acquisition'} — ${asset.description} (démo fictive)`,
+      `${kind === 'cwip' ? 'Asset under construction' : 'Acquisition'} — ${asset.description} (fictitious demo)`,
       [{ accountId: target, description: asset.description, debit: amount },
-        { accountId: bank.id, description: 'Décaissement fictif', credit: amount }]);
+        { accountId: bank.id, description: 'Fictitious cash payment', credit: amount }]);
     const proposal: DemoFaProposal = {
       id: uid(), company_id: companyId, asset_id: asset.id, kind, event_date: asset.acquisition_date,
       reference: `FA-${asset.asset_code}`, description: `Acquisition fictive — ${asset.description}`,
@@ -550,9 +550,9 @@ export function seedDemoFixedAssets(all: DemoState): void {
     if (schedule.length === 0) return null;
     const total = schedule.reduce((sum, line) => sum + line.amount, 0n);
     const entry = postEntry(all, companyId, journal, monthEnd(to), reference,
-      `Dotation aux amortissements ${from} → ${to} (démo fictive)`,
-      [{ accountId: accounts.expenseAccount.id, description: 'Dotation aux amortissements', debit: total },
-        { accountId: accounts.accumAccount.id, description: 'Amortissements cumulés', credit: total }]);
+      `Depreciation charge ${from} → ${to} (fictitious demo)`,
+      [{ accountId: accounts.expenseAccount.id, description: 'Depreciation charge', debit: total },
+        { accountId: accounts.accumAccount.id, description: 'Accumulated depreciation', credit: total }]);
     const batch: DemoFaBatch = {
       id: uid(), company_id: companyId, reference, period_start: from, period_end: to, journal_id: journal.id,
       status: 'POSTED', total_amount: fmt(total),
@@ -588,7 +588,7 @@ export function seedDemoFixedAssets(all: DemoState): void {
       isMain ? 'Computer and office equipment (demo)' : 'Equipment — second demo company',
       isMain ? 'Matériel informatique et bureau (démo)' : 'Matériel — seconde société (démo)', accounts);
     const cwipCategory = createCategory(company.id, isMain ? 'CWIP' : 'CWIP-B',
-      'Assets under construction (demo)', 'Immobilisations en cours (démo)', accounts,
+      'Assets under construction (demo)', 'Assets under construction (DEMO)', accounts,
       {
         asset_account_id: accounts.cwipAccount.id,
         accumulated_depreciation_account_id: null,
@@ -600,17 +600,17 @@ export function seedDemoFixedAssets(all: DemoState): void {
 
     if (isMain) {
       const vehicle = createAsset(company.id, category, {
-        code: 'FA-2025-0001', description: 'Pick-up utilitaire (fictif)', acquisition: '2025-07-01',
+        code: 'FA-2025-0001', description: 'Utility pick-up (fictitious)', acquisition: '2025-07-01',
         in_service_date: '2025-07-01', cost: '480000.0000', method: 'straight_line', useful_life_months: 60,
         depreciation_start_date: '2025-07-01', depreciation_end_date: '2030-06-30', status: 'in_service',
-        invoice_ref: 'FACT-DEMO-001', location: 'Entrepôt fictif, Port-Louis',
+        invoice_ref: 'FACT-DEMO-001', location: 'Fictitious warehouse, Port Louis',
       });
       estimates.push({ id: uid(), company_id: company.id, asset_id: vehicle.id, effective_from: '2025-07-01', method: 'straight_line', useful_life_months: 60, residual_value: '0.0000', reducing_rate: null, reason: 'Estimation fictive initiale', created_at: timestamp });
       acquisition(company.id, vehicle, category, journal);
       addDepreciationBatch(company.id, vehicle, category, journal, accounts, '2025-07-01', '2025-07-31', 'DEP-DEMO-2025-07-VEH');
 
       const computer = createAsset(company.id, equipment, {
-        code: 'FA-2025-0002', description: 'Ordinateur portable (fictif)', acquisition: '2025-07-01',
+        code: 'FA-2025-0002', description: 'Laptop computer (fictitious)', acquisition: '2025-07-01',
         in_service_date: '2025-07-01', cost: '36000.0000', method: 'straight_line', useful_life_months: 36,
         depreciation_start_date: '2025-07-01', depreciation_end_date: '2028-06-30', status: 'in_service',
         invoice_ref: 'FACT-DEMO-002', serial_number: 'SERIE-FICTIVE-001',
@@ -619,18 +619,18 @@ export function seedDemoFixedAssets(all: DemoState): void {
       acquisition(company.id, computer, equipment, journal);
       addDepreciationBatch(company.id, computer, equipment, journal, accounts, '2025-07-01', '2025-07-31', 'DEP-DEMO-2025-07-EQP');
       const impairmentEntry = postEntry(all, company.id, journal, '2025-07-31', 'IMP-DEMO-001',
-        'Dépréciation fictive documentée — ordinateur portable',
-        [{ accountId: accounts.lossAccount.id, description: 'Perte de dépréciation', debit: 20_000_000n },
-          { accountId: accounts.impairmentAccount.id, description: 'Dépréciation cumulée', credit: 20_000_000n }]);
+        'Documented fictitious impairment — laptop computer',
+        [{ accountId: accounts.lossAccount.id, description: 'Impairment loss', debit: 20_000_000n },
+          { accountId: accounts.impairmentAccount.id, description: 'Accumulated impairment', credit: 20_000_000n }]);
       impairments.push({
         id: uid(), company_id: company.id, asset_id: computer.id, impairment_date: '2025-07-31',
         amount: '2000.0000', reason: 'Obsolescence fictive documentée (démonstration)', is_reversal: false,
         status: 'POSTED', entry_id: impairmentEntry.id, created_at: timestamp,
       });
-      events.push({ id: uid(), company_id: company.id, asset_id: computer.id, event_type: 'impairment', event_date: '2025-07-31', reason: 'Dépréciation fictive documentée', details: {}, created_at: timestamp });
+      events.push({ id: uid(), company_id: company.id, asset_id: computer.id, event_type: 'impairment', event_date: '2025-07-31', reason: 'Documented fictitious impairment', details: {}, created_at: timestamp });
 
       const machine = createAsset(company.id, category, {
-        code: 'FA-2025-0003', description: 'Machine cédée avant la fin de sa durée (fictive)', acquisition: '2025-07-01',
+        code: 'FA-2025-0003', description: 'Machine disposed before the end of its useful life (fictitious)', acquisition: '2025-07-01',
         in_service_date: '2025-07-01', cost: '30000.0000', method: 'straight_line', useful_life_months: 60,
         depreciation_start_date: '2025-07-01', depreciation_end_date: '2030-06-30', status: 'in_service',
         invoice_ref: 'FACT-DEMO-003',
@@ -640,18 +640,18 @@ export function seedDemoFixedAssets(all: DemoState): void {
       addDepreciationBatch(company.id, machine, category, journal, accounts, '2025-07-01', '2025-07-31', 'DEP-DEMO-2025-07-MACH');
       // Disposal: NBV 275 000, proceeds 260 000, loss 15 000.
       const disposalEntry = postEntry(all, company.id, journal, '2025-07-20', 'FA-DEMO-DIS-001',
-        'Cession fictive de la machine — produit 26 500, moins-value 3 000',
-        [{ accountId: ensureAccount(all, company.id, '1010', 'Banque (MUR)', 'asset').id, description: 'Produit de cession fictif', debit: 265_000_000n },
-          { accountId: accounts.accumAccount.id, description: 'Amortissements repris', debit: 5_000_000n },
-          { accountId: accounts.lossAccount.id, description: 'Moins-value de cession', debit: 30_000_000n },
-          { accountId: accounts.assetAccount.id, description: 'Coût d’origine', credit: 300_000_000n }]);
+        'Fictitious disposal of the machine — proceeds 26,500, loss 3,000',
+        [{ accountId: ensureAccount(all, company.id, '1010', 'Bank (MUR)', 'asset').id, description: 'Fictitious disposal proceeds', debit: 265_000_000n },
+          { accountId: accounts.accumAccount.id, description: 'Accumulated depreciation derecognised', debit: 5_000_000n },
+          { accountId: accounts.lossAccount.id, description: 'Loss on disposal', debit: 30_000_000n },
+          { accountId: accounts.assetAccount.id, description: 'Original cost', credit: 300_000_000n }]);
       machine.status = 'disposed';
       machine.disposal_date = '2025-07-20';
       machine.disposal_proceeds = '26500.0000';
       machine.disposal_costs = '0.0000';
       const disposalProposal: DemoFaProposal = {
         id: uid(), company_id: company.id, asset_id: machine.id, kind: 'disposal', event_date: '2025-07-20',
-        reference: 'FA-DEMO-DIS-001', description: 'Cession fictive de la machine', journal_id: journal.id,
+        reference: 'FA-DEMO-DIS-001', description: 'Fictitious disposal of the machine', journal_id: journal.id,
         currency: 'MUR', lines: all.lines.filter((l) => l.entry_id === disposalEntry.id).map((l) => ({
           accountId: l.account_id, description: l.description ?? '', debit: l.debit, credit: l.credit,
         })),
@@ -661,10 +661,28 @@ export function seedDemoFixedAssets(all: DemoState): void {
         entry_id: disposalEntry.id, posted_at: timestamp, created_at: timestamp,
       };
       proposals.push(disposalProposal);
-      events.push({ id: uid(), company_id: company.id, asset_id: machine.id, event_type: 'disposal', event_date: '2025-07-20', reason: 'Cession fictive', details: {}, created_at: timestamp });
+      events.push({ id: uid(), company_id: company.id, asset_id: machine.id, event_type: 'disposal', event_date: '2025-07-20', reason: 'Fictitious disposal', details: {}, created_at: timestamp });
+
+      // A pre-existing demonstration purchase already debits the asset account;
+      // registering it keeps the register reconciled with the ledger. It is
+      // created before the printer so that both asset codes come from the same
+      // sequence and can never collide.
+      const existing = all.entries.find((e) => e.company_id === company.id && /computer equipment purchase|matériel informatique/i.test(e.description));
+      if (existing) {
+        const line = all.lines.find((l) => l.entry_id === existing.id && l.account_id === accounts.assetAccount.id);
+        if (line) {
+          createAsset(company.id, equipment, {
+            code: 'FA-2025-0004',
+            description: 'Computer equipment already recorded (fictitious)', acquisition: existing.entry_date,
+            cost: line.debit, status: 'draft', invoice_ref: 'FACT-DEMO-000',
+            notes: 'Immobilisation fictive rattachée à une écriture de démonstration existante.',
+          });
+        }
+      }
 
       const fully = createAsset(company.id, equipment, {
-        code: 'FA-2025-0005', description: 'Imprimante totalement amortie (fictive)', acquisition: '2025-07-01',
+        code: 'FA-2025-0005',
+        description: 'Fully depreciated printer (fictitious)', acquisition: '2025-07-01',
         in_service_date: '2025-07-01', cost: '12000.0000', method: 'straight_line', useful_life_months: 1,
         depreciation_start_date: '2025-07-01', depreciation_end_date: '2025-07-31', status: 'in_service',
         invoice_ref: 'FACT-DEMO-004',
@@ -673,32 +691,17 @@ export function seedDemoFixedAssets(all: DemoState): void {
       acquisition(company.id, fully, equipment, journal);
       addDepreciationBatch(company.id, fully, equipment, journal, accounts, '2025-07-01', '2025-07-31', 'DEP-DEMO-2025-07-FULL');
 
-      // A pre-existing demonstration purchase already debits the asset account;
-      // registering it keeps the register reconciled with the ledger.
-      const existing = all.entries.find((e) => e.company_id === company.id && /matériel informatique/i.test(e.description));
-      if (existing) {
-        const line = all.lines.find((l) => l.entry_id === existing.id && l.account_id === accounts.assetAccount.id);
-        if (line) {
-          createAsset(company.id, equipment, {
-            code: nextAssetCode({ categories, assets, estimates, events, batches, proposals, impairments, sequences }, company.id, Number(existing.entry_date.slice(0, 4))),
-            description: 'Matériel informatique déjà enregistré (fictif)', acquisition: existing.entry_date,
-            cost: line.debit, status: 'draft', invoice_ref: 'FACT-DEMO-000',
-            notes: 'Immobilisation fictive rattachée à une écriture de démonstration existante.',
-          });
-        }
-      }
-
       const cwip = createAsset(company.id, cwipCategory, {
-        code: 'FA-2025-0004', description: 'Local en construction (fictif)', acquisition: '2025-07-01',
+        code: 'FA-2025-0006', description: 'Building under construction (fictitious)', acquisition: '2025-07-01',
         cost: '500000.0000', status: 'draft', invoice_ref: 'FACT-DEMO-005',
       });
       const cwipEntry = postEntry(all, company.id, journal, '2025-07-01', 'FA-DEMO-CWIP-001',
-        'Immobilisation en cours — local fictif',
-        [{ accountId: accounts.cwipAccount.id, description: 'Immobilisation en cours', debit: 5000000000n },
-          { accountId: ensureAccount(all, company.id, '1010', 'Banque (MUR)', 'asset').id, description: 'Décaissement fictif', credit: 5000000000n }]);
+        'Asset under construction — fictitious premises',
+        [{ accountId: accounts.cwipAccount.id, description: 'Asset under construction', debit: 5000000000n },
+          { accountId: ensureAccount(all, company.id, '1010', 'Bank (MUR)', 'asset').id, description: 'Fictitious cash payment', credit: 5000000000n }]);
       proposals.push({
         id: uid(), company_id: company.id, asset_id: cwip.id, kind: 'cwip', event_date: '2025-07-01',
-        reference: 'FA-DEMO-CWIP-001', description: 'Immobilisation en cours fictive', journal_id: journal.id,
+        reference: 'FA-DEMO-CWIP-001', description: 'Fictitious asset under construction', journal_id: journal.id,
         currency: 'MUR', lines: all.lines.filter((l) => l.entry_id === cwipEntry.id).map((l) => ({
           accountId: l.account_id, description: l.description ?? '', debit: l.debit, credit: l.credit,
         })),
@@ -708,7 +711,7 @@ export function seedDemoFixedAssets(all: DemoState): void {
       });
     } else {
       const truck = createAsset(company.id, category, {
-        code: 'FA-2025-0101', description: 'Camionnette (fictif — seconde société)', acquisition: '2025-08-01',
+        code: 'FA-2025-0101', description: 'Delivery van (fictitious — second company)', acquisition: '2025-08-01',
         in_service_date: '2025-08-01', cost: '600000.0000', method: 'straight_line', useful_life_months: 48,
         depreciation_start_date: '2025-08-01', depreciation_end_date: '2029-07-31', status: 'in_service',
         invoice_ref: 'FACT-DEMO-B-001',
@@ -718,7 +721,7 @@ export function seedDemoFixedAssets(all: DemoState): void {
       addDepreciationBatch(company.id, truck, category, journal, accounts, '2025-08-01', '2025-12-31', 'DEP-DEMO-B-2025');
 
       const press = createAsset(company.id, equipment, {
-        code: 'FA-2025-0102', description: 'Presse (fictive — seconde société)', acquisition: '2025-09-01',
+        code: 'FA-2025-0102', description: 'Press (fictitious — second company)', acquisition: '2025-09-01',
         in_service_date: '2025-09-01', cost: '240000.0000', method: 'reducing_balance', useful_life_months: 60,
         reducing_rate: '0.20000000', depreciation_start_date: '2025-09-01', depreciation_end_date: '2030-08-31', status: 'in_service',
         invoice_ref: 'FACT-DEMO-B-002',
@@ -1114,12 +1117,12 @@ export function handleDemoFixedAssets(
       const lines: { accountId: string; description: string; debit?: bigint; credit?: bigint }[] = [];
       let total = 0n;
       for (const line of batch.lines) {
-        lines.push({ accountId: line.expense_account_id, description: `Dotation ${line.month_start}`, debit: amt(line.amount) });
-        lines.push({ accountId: line.accumulated_account_id, description: `Amortissements cumulés ${line.month_start}`, credit: amt(line.amount) });
+        lines.push({ accountId: line.expense_account_id, description: `Depreciation ${line.month_start}`, debit: amt(line.amount) });
+        lines.push({ accountId: line.accumulated_account_id, description: `Accumulated depreciation ${line.month_start}`, credit: amt(line.amount) });
         total += amt(line.amount);
       }
       const entry = postEntry(all, companyId, journal, batch.period_end, batch.reference,
-        `Dotation aux amortissements ${batch.period_start} → ${batch.period_end} (démo)`, lines);
+        `Depreciation charge ${batch.period_start} → ${batch.period_end} (DEMO)`, lines);
       batch.status = 'POSTED';
       batch.entry_id = entry.id;
       batch.posted_at = nowIso();

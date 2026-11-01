@@ -80,8 +80,8 @@ export function seedDemoBank(state: DemoState): void {
   const mur: DemoBankAccount = {
     id: id(),
     company_id: company.id,
-    name: 'Compte courant principal (démo)',
-    bank_name: 'Banque Fictive de l’Océan',
+    name: 'Main current account (DEMO practice)',
+    bank_name: 'Fictitious Ocean Bank (DEMO)',
     currency: 'MUR',
     account_id: bankAccount.id,
     masked_reference: '•••• 1234',
@@ -91,8 +91,8 @@ export function seedDemoBank(state: DemoState): void {
   const eur: DemoBankAccount = {
     id: id(),
     company_id: company.id,
-    name: 'Compte devises (démo)',
-    bank_name: 'Banque Fictive de l’Océan',
+    name: 'Foreign currency account (DEMO)',
+    bank_name: 'Fictitious Ocean Bank (DEMO)',
     currency: 'EUR',
     account_id: fxAccount.id,
     masked_reference: '•••• 9876',
@@ -182,7 +182,7 @@ export function seedDemoBank(state: DemoState): void {
       status: 'issued',
       source_kind: null,
       source_document_id: null,
-      notes: `${label} — donnée fictive de démonstration, aucune valeur réelle.`,
+      notes: `${label} — fictitious demonstration data, no real-world value.`,
       terms: null,
       sequence_year: Number(date.slice(0, 4)),
       sequence_no: 900 + scenarioDocs.size,
@@ -295,7 +295,7 @@ export function seedDemoBank(state: DemoState): void {
       entry_no: `${postedJournal.code}-${year}-9001`,
       entry_date: '2025-08-20',
       reference: 'SCEN-D',
-      description: 'Comptabilisation fictive du règlement SCEN-D (démo)',
+      description: 'Fictitious posting of SCEN-D settlement (DEMO)',
       currency: 'MUR',
       exchange_rate: '1.00000000',
       status: 'posted',
@@ -313,7 +313,7 @@ export function seedDemoBank(state: DemoState): void {
           company_id: company.id,
           account_id: bankChart.id,
           line_no: 1,
-          description: 'Encaissement fictif SCEN-D',
+          description: 'Fictitious receipt SCEN-D',
           debit: '12000.0000',
           credit: '0.0000',
           txn_amount: '12000.0000',
@@ -326,7 +326,7 @@ export function seedDemoBank(state: DemoState): void {
           company_id: company.id,
           account_id: scenarioAccount.id,
           line_no: 2,
-          description: 'Créance fictive SCEN-D',
+          description: 'Fictitious receivable SCEN-D',
           debit: '0.0000',
           credit: '12000.0000',
           txn_amount: '12000.0000',
@@ -338,18 +338,18 @@ export function seedDemoBank(state: DemoState): void {
     }
   }
 
-  const scenarioA = makeScenarioInvoice('A', '100000.0000', '2025-08-01', 'Scénario A — trois virements pour une facture');
+  const scenarioA = makeScenarioInvoice('A', '100000.0000', '2025-08-01', 'Practice scenario A — three transfers for one invoice');
   makeScenarioPayment('A1', '2025-08-05', '40000.0000', [{ doc: scenarioA, amount: '40000.0000' }]);
   makeScenarioPayment('A2', '2025-08-06', '35000.0000', [{ doc: scenarioA, amount: '35000.0000' }]);
   makeScenarioPayment('A3', '2025-08-07', '25000.0000', [{ doc: scenarioA, amount: '25000.0000' }]);
   refreshScenarioInvoice(scenarioA);
 
-  const scenarioB = makeScenarioInvoice('B', '80000.0000', '2025-08-02', 'Scénario B — facture partiellement réglée');
+  const scenarioB = makeScenarioInvoice('B', '80000.0000', '2025-08-02', 'Practice scenario B — partially settled invoice');
   makeScenarioPayment('B1', '2025-08-08', '30000.0000', [{ doc: scenarioB, amount: '30000.0000' }]);
   refreshScenarioInvoice(scenarioB);
 
-  const scenarioC1 = makeScenarioInvoice('C1', '60000.0000', '2025-08-03', 'Scénario C — première facture groupée');
-  const scenarioC2 = makeScenarioInvoice('C2', '40000.0000', '2025-08-03', 'Scénario C — seconde facture groupée');
+  const scenarioC1 = makeScenarioInvoice('C1', '60000.0000', '2025-08-03', 'Practice scenario C — first grouped invoice');
+  const scenarioC2 = makeScenarioInvoice('C2', '40000.0000', '2025-08-03', 'Practice scenario C — second grouped invoice');
   makeScenarioPayment('C1', '2025-08-09', '100000.0000', [
     { doc: scenarioC1, amount: '60000.0000' },
     { doc: scenarioC2, amount: '40000.0000' },
@@ -357,7 +357,7 @@ export function seedDemoBank(state: DemoState): void {
   refreshScenarioInvoice(scenarioC1);
   refreshScenarioInvoice(scenarioC2);
 
-  const scenarioD = makeScenarioInvoice('D', '12000.0000', '2025-08-04', 'Scénario D — règlement déjà comptabilisé');
+  const scenarioD = makeScenarioInvoice('D', '12000.0000', '2025-08-04', 'Practice scenario D — settlement already posted');
   makeScenarioPayment(
     'D1',
     '2025-08-20',
@@ -367,12 +367,12 @@ export function seedDemoBank(state: DemoState): void {
   );
   refreshScenarioInvoice(scenarioD);
 
-  const scenarioE = makeScenarioInvoice('E', '15000.0000', '2025-08-05', 'Scénario E — tentative de double rapprochement');
+  const scenarioE = makeScenarioInvoice('E', '15000.0000', '2025-08-05', 'Practice scenario E — duplicate-match attempt');
   makeScenarioPayment('E1', '2025-08-21', '15000.0000', [{ doc: scenarioE, amount: '15000.0000' }]);
   refreshScenarioInvoice(scenarioE);
 
-  const scenarioF1 = makeScenarioInvoice('F1', '5000.0000', '2025-08-06', 'Scénario F — facture ambiguë 1');
-  const scenarioF2 = makeScenarioInvoice('F2', '5000.0000', '2025-08-06', 'Scénario F — facture ambiguë 2');
+  const scenarioF1 = makeScenarioInvoice('F1', '5000.0000', '2025-08-06', 'Practice scenario F — ambiguous invoice 1');
+  const scenarioF2 = makeScenarioInvoice('F2', '5000.0000', '2025-08-06', 'Practice scenario F — ambiguous invoice 2');
   makeScenarioPayment('F1', '2025-08-22', '5000.0000', [{ doc: scenarioF1, amount: '5000.0000' }]);
   makeScenarioPayment('F2', '2025-08-22', '5000.0000', [{ doc: scenarioF2, amount: '5000.0000' }]);
   refreshScenarioInvoice(scenarioF1);
@@ -430,77 +430,77 @@ export function seedDemoBank(state: DemoState): void {
     }),
     txn(mur, {
       date: '2025-08-05',
-      label: 'Scénario A — virement 1/3',
+      label: 'Practice scenario A — transfer 1/3',
       reference: 'SCEN-A1',
       amount: '40000.0000',
       balance: '565000.0000',
     }),
     txn(mur, {
       date: '2025-08-06',
-      label: 'Scénario A — virement 2/3',
+      label: 'Practice scenario A — transfer 2/3',
       reference: 'SCEN-A2',
       amount: '35000.0000',
       balance: '600000.0000',
     }),
     txn(mur, {
       date: '2025-08-07',
-      label: 'Scénario A — virement 3/3',
+      label: 'Practice scenario A — transfer 3/3',
       reference: 'SCEN-A3',
       amount: '25000.0000',
       balance: '625000.0000',
     }),
     txn(mur, {
       date: '2025-08-08',
-      label: 'Scénario B — règlement partiel 30 000',
+      label: 'Practice scenario B — partial settlement 30,000',
       reference: 'SCEN-B1',
       amount: '30000.0000',
       balance: '655000.0000',
     }),
     txn(mur, {
       date: '2025-08-09',
-      label: 'Scénario C — virement groupé 100 000',
+      label: 'Practice scenario C — grouped transfer 100,000',
       reference: 'SCEN-C',
       amount: '100000.0000',
       balance: '755000.0000',
     }),
     txn(mur, {
       date: '2025-08-20',
-      label: 'Scénario D — règlement déjà comptabilisé',
+      label: 'Practice scenario D — settlement already posted',
       reference: 'SCEN-D',
       amount: '12000.0000',
       balance: '767000.0000',
     }),
     txn(mur, {
       date: '2025-08-21',
-      label: 'Scénario E — tentative de double rapprochement',
+      label: 'Practice scenario E — duplicate-match attempt',
       reference: 'SCEN-E',
       amount: '15000.0000',
       balance: '782000.0000',
     }),
     txn(mur, {
       date: '2025-08-22',
-      label: 'Scénario F — virement ambigu',
+      label: 'Practice scenario F — ambiguous transfer',
       reference: 'SCEN-F',
       amount: '5000.0000',
       balance: '787000.0000',
     }),
     txn(mur, {
       date: '2025-08-23',
-      label: 'Scénario G — virement interne (sortie)',
+      label: 'Practice scenario G — internal transfer (out)',
       reference: 'SCEN-G-OUT',
       amount: '-10000.0000',
       balance: '777000.0000',
     }),
     txn(mur, {
       date: '2025-08-23',
-      label: 'Scénario G — virement interne (entrée)',
+      label: 'Practice scenario G — internal transfer (in)',
       reference: 'SCEN-G-IN',
       amount: '10000.0000',
       balance: '787000.0000',
     }),
     txn(eur, {
       date: '2025-08-12',
-      label: 'Virement reçu en euros (fictif)',
+      label: 'Transfer received in euros (fictitious)',
       reference: 'EUR-DEMO-01',
       amount: '1000.0000',
       balance: '1000.0000',

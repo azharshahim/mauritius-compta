@@ -319,7 +319,7 @@ describe('demo backend — cabinet module and module permissions', () => {
   });
 
   it('creates, updates and comments a task', () => {
-    const companyId = companyIdByName(/Lagon Bleu/);
+    const companyId = companyIdByName(/Island Trading/);
     const created = call<{ task: { id: string; status: string } }>(
       'POST',
       `/companies/${companyId}/tasks`,
@@ -344,7 +344,7 @@ describe('demo backend — cabinet module and module permissions', () => {
   });
 
   it('rejects an assignee outside the dossier', () => {
-    const companyId = companyIdByName(/Lagon Bleu/);
+    const companyId = companyIdByName(/Island Trading/);
     expect(() =>
       call('POST', `/companies/${companyId}/tasks`, {
         title: 'Affectation interdite',
@@ -385,7 +385,7 @@ describe('demo backend — cabinet module and module permissions', () => {
   });
 
   it('separates payroll from accounting permissions', () => {
-    const companyId = companyIdByName(/Lagon Bleu/);
+    const companyId = companyIdByName(/Island Trading/);
 
     // The demonstration owner administers every module.
     const payroll = call<{ capabilities: { paye: boolean; csg: boolean } }>(
@@ -412,7 +412,7 @@ describe('demo backend — cabinet module and module permissions', () => {
   });
 
   it('exposes billing as operational while e-invoicing stays disabled', () => {
-    const companyId = companyIdByName(/Lagon Bleu/);
+    const companyId = companyIdByName(/Island Trading/);
     const summary = call<{
       available: boolean;
       capabilities: { vatComputation: boolean; mraEInvoicing: boolean; postingToAccounting: boolean };

@@ -82,7 +82,7 @@ describe('demo build (jsdom)', () => {
 
     fireEvent.click(navLink(/Dossiers clients/));
     await screen.findByRole('heading', { name: /Dossiers clients/i });
-    expect(await tableText(/Lagon Bleu Trading Ltd \(DEMO\)/)).toBeTruthy();
+    expect(await tableText(/Island Trading/)).toBeTruthy();
     expect(await tableText(/Case Noyale Retail Ltd \(DEMO\)/)).toBeTruthy();
     expect(window.location.hash).toBe('#/cabinet/companies');
 
@@ -93,7 +93,7 @@ describe('demo build (jsdom)', () => {
     // Mission 19 adds entries to the shared demo ledger: the invoice asserted
     // here now lives on the second page of the paginated journal.
     fireEvent.click(screen.getByRole('button', { name: '›' }));
-    expect(await screen.findByText(/Facture de vente fictive FA-2025-001/)).toBeTruthy();
+    expect(await screen.findByText(/Fictitious sales invoice FA-2025-001/)).toBeTruthy();
     expect(window.location.hash).toBe('#/accounting/journals');
 
     fireEvent.click(navLink(/Balance générale/));

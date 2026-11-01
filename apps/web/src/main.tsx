@@ -5,6 +5,7 @@ import App from './App';
 import { I18nProvider } from './i18n';
 import { SessionProvider } from './store';
 import { demoEnabled } from './demo/mode';
+import { ensureDemoLocale } from './demo/preferences';
 import './styles.css';
 
 // The GitHub Pages build is served without server-side rewrites: hash routing
@@ -12,6 +13,10 @@ import './styles.css';
 // Apply the saved theme before React renders to avoid a light flash in dark mode.
 document.documentElement.dataset.theme =
   localStorage.getItem('mc.theme') === 'dark' ? 'dark' : 'light';
+
+// Mission 37: the demonstration starts in English unless a reviewer already
+// chose French. Production is untouched.
+ensureDemoLocale();
 
 const Router = demoEnabled ? HashRouter : BrowserRouter;
 if (demoEnabled) document.body.classList.add('demo-mode');

@@ -23,7 +23,7 @@ async function loginAndSelect() {
   fireEvent.click(await screen.findByRole('button', { name: /Se connecter/i }));
   await screen.findByRole('heading', { name: /Tableau de bord Cabinet/i });
   const companySelect = screen.getByRole('combobox', { name: /Société/i }) as HTMLSelectElement;
-  const option = [...companySelect.options].find((item) => /Lagon Bleu/i.test(item.textContent ?? ''));
+  const option = [...companySelect.options].find((item) => /Island Trading/i.test(item.textContent ?? ''));
   expect(option).toBeTruthy();
   fireEvent.change(companySelect, { target: { value: option!.value } });
 }
@@ -46,8 +46,8 @@ describe('capitaux propres & clôture (interface démonstration)', () => {
     window.location.hash = '#/accounting/equity';
     expect(await screen.findByRole('heading', { name: /Capitaux propres, clôture et report à nouveau/i })).toBeTruthy();
     expect(await screen.findByText(/Aucun traitement juridique, fiscal ou IFRS n’est imposé/i)).toBeTruthy();
-    expect(await screen.findByText(/Capital social/)).toBeTruthy();
-    expect(await screen.findByText(/Réserves/)).toBeTruthy();
+    expect(await screen.findByText(/Share capital/)).toBeTruthy();
+    expect(await screen.findByText(/Reserves/)).toBeTruthy();
     expect(await screen.findByText(/Conforme à la balance/i)).toBeTruthy();
     expect(fetchSpy).not.toHaveBeenCalled();
   });

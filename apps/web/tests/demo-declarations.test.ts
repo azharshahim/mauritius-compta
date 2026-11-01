@@ -11,7 +11,7 @@ function login() {
   return {
     companies,
     mds: companies.find((company) => /Mauritius Demo Services/i.test(company.name))!,
-    lagon: companies.find((company) => /Lagon Bleu/i.test(company.name))!,
+    lagon: companies.find((company) => /Island Trading/i.test(company.name))!,
   };
 }
 

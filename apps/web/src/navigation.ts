@@ -1,5 +1,6 @@
 import type { ModuleKey } from './modules';
 import type { IconName } from './components/AppIcon';
+import { demoEnabled } from './demo/mode';
 
 /**
  * Mission 36 — professional accounting navigation.
@@ -36,6 +37,11 @@ export interface NavGroup {
   items: NavItem[];
 }
 
+/** Mission 37: the review tour exists only in the demonstration bundle. */
+const demoTourItem: NavItem | null = demoEnabled
+  ? { to: '/demo', key: 'nav.demo.guided', icon: 'validate', module: 'cabinet' }
+  : null;
+
 export const NAV_GROUPS: NavGroup[] = [
   {
     key: 'home',
@@ -44,6 +50,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/cabinet', key: 'nav.cabinet.dashboard', icon: 'dashboard', module: 'cabinet', end: true },
       { to: '/accounting', key: 'nav.accounting.dashboard', icon: 'gauge', module: 'accounting', end: true },
+      ...(demoTourItem ? [demoTourItem] : []),
     ],
   },
   {

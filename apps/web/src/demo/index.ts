@@ -6,6 +6,7 @@
  * become a fallback when the API is unreachable.
  */
 export { demoEnabled, appMode } from './mode';
+export { ensureDemoLocale } from './preferences';
 export {
   DEMO_EMAIL,
   DEMO_PASSWORD,

@@ -70,8 +70,8 @@ const DEMO_TOKEN_GROUPS = {
     'Vieux Grand Port Logistics',
     'FAC-DEMO-0002',
     'FA-2025-0001',
-    'Pick-up utilitaire',
-    'Local en construction',
+    'Utility pick-up',
+    'Building under construction',
   ],
   'missions 24 à 27': [
     'Assistant IA',

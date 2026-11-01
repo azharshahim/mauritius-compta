@@ -33,7 +33,7 @@ async function openSettings() {
 
   fireEvent.click(navLink(/Dossiers clients/));
 
-  const dossier = await screen.findByRole('link', { name: /Lagon Bleu/i });
+  const dossier = await screen.findByRole('link', { name: /Island Trading/i });
   fireEvent.click(dossier);
   fireEvent.click(await screen.findByRole('link', { name: /Paramètres société/i }));
   await screen.findByRole('heading', { name: /Paramètres société/i });
@@ -57,7 +57,7 @@ describe('paramètres société (démo)', () => {
       expect(screen.getAllByRole('button', { name: label }).length).toBeGreaterThan(0);
     }
     const name = screen.getByLabelText(/Raison sociale/i) as HTMLInputElement;
-    expect(name.value).toContain('Lagon Bleu');
+    expect(name.value).toContain('Island Trading');
   });
 
   it('affiche le taux de démonstration 15 % comme non vérifié et exige une source', async () => {

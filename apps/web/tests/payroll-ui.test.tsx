@@ -132,7 +132,7 @@ describe('paie & RH (interface démonstration)', () => {
     window.location.hash = '#/payroll/transfer';
     await screen.findByRole('heading', { name: /Paie & RH/i });
     expect(await screen.findByText(/Proposition comptable préparée depuis/i)).toBeTruthy();
-    expect((await screen.findAllByText(/6020 — Charges de personnel/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/6020 — Staff costs/)).length).toBeGreaterThan(0);
     expect((await screen.findAllByText(/32[\s\u00a0\u202f]756,325 MUR/)).length).toBeGreaterThan(0);
     expect(await screen.findByText(/Le débit est exactement égal au crédit/)).toBeTruthy();
     const generate = screen.getByRole('button', { name: /Générer une proposition/i }) as HTMLButtonElement;

@@ -68,8 +68,8 @@ describe('banque & rapprochement (démo)', () => {
     window.location.hash = '#/accounting/banking';
     await screen.findByRole('heading', { name: /Banque & rapprochement/i });
 
-    expect(await screen.findByText(/Compte courant principal \(démo\)/i)).toBeTruthy();
-    expect(screen.getByText(/Compte devises \(démo\)/i)).toBeTruthy();
+    expect(await screen.findByText(/Main current account \(DEMO practice\)/i)).toBeTruthy();
+    expect(screen.getByText(/Foreign currency account \(DEMO\)/i)).toBeTruthy();
     expect(screen.getAllByText(/•••• 1234/).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('tab', { name: /Importer un relevé/i }));
@@ -130,11 +130,11 @@ describe('banque & rapprochement (démo)', () => {
     window.location.hash = '#/accounting/banking';
     await screen.findByRole('heading', { name: /Banque & rapprochement/i });
     fireEvent.click(screen.getByRole('tab', { name: /Transactions/i }));
-    await screen.findAllByText(/Scénario B — règlement partiel/i);
+    await screen.findAllByText(/Practice scenario B — partial settlement/i);
 
     const row = screen
       .getAllByRole('row')
-      .find((candidate) => candidate.textContent?.includes('Scénario B — règlement partiel'))!;
+      .find((candidate) => candidate.textContent?.includes('Practice scenario B — partial settlement'))!;
     fireEvent.click(withinRow(row, /Ouvrir/i));
     expect(await screen.findByText(/Règlements clients liés/i)).toBeTruthy();
     expect(screen.getByText(/Restant à affecter sur la transaction/i)).toBeTruthy();
@@ -155,10 +155,10 @@ describe('banque & rapprochement (démo)', () => {
     window.location.hash = '#/accounting/banking';
     await screen.findByRole('heading', { name: /Banque & rapprochement/i });
     fireEvent.click(screen.getByRole('tab', { name: /Transactions/i }));
-    await screen.findAllByText(/Scénario B — règlement partiel/i);
+    await screen.findAllByText(/Practice scenario B — partial settlement/i);
     const row = screen
       .getAllByRole('row')
-      .find((candidate) => candidate.textContent?.includes('Scénario B — règlement partiel'))!;
+      .find((candidate) => candidate.textContent?.includes('Practice scenario B — partial settlement'))!;
     fireEvent.click(withinRow(row, /Ouvrir/i));
     expect(await screen.findByText(/Règlements fournisseurs liés/i)).toBeTruthy();
     expect(screen.getByText(/Restant fournisseur à affecter sur la transaction/i)).toBeTruthy();

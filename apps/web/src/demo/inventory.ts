@@ -118,8 +118,17 @@ function journal(state: DemoState, companyId: string, id?: string): DemoJournal 
 }
 function entryNo(state: DemoState, j: DemoJournal, date: string): string {
   const year = date.slice(0, 4);
-  const count = state.entries.filter((e) => e.company_id === j.company_id && e.journal_id === j.id && e.entry_date.startsWith(year)).length;
-  return `${j.code}-${year}-${String(count + 1).padStart(4, '0')}`;
+  const key = `${j.code}-${year}`;
+  // A count is not a sequence: another module may already have posted an
+  // entry in the same journal/year. Use the shared sequence and the highest
+  // existing suffix so the demonstration can never contain two identical
+  // entry numbers.
+  const highest = state.entries
+    .filter((e) => e.company_id === j.company_id && e.journal_id === j.id && e.entry_no.startsWith(`${j.code}-${year}-`))
+    .reduce((max, e) => Math.max(max, Number(e.entry_no.slice(-4)) || 0), 0);
+  const next = Math.max(state.sequences[key] ?? 0, highest) + 1;
+  state.sequences[key] = next;
+  return `${j.code}-${year}-${String(next).padStart(4, '0')}`;
 }
 function postEntry(state: DemoState, companyId: string, journalId: string, date: string, reference: string,
   description: string, lines: { accountId: string; description: string; debit?: bigint | string; credit?: bigint | string }[], source: DemoEntry['source']): DemoEntry {
@@ -524,7 +533,7 @@ function postAccrualLine(state: DemoState, companyId: string, schedule: DemoAccr
     : [{ accountId: schedule.balance_account_id, description: schedule.description, debit: fmt(value) },
       { accountId: schedule.pnl_account_id, description: schedule.description, credit: fmt(value) }];
   const entry = postEntry(state, companyId, schedule.journal_id, line.period_end, schedule.reference,
-    `Échéancier ${schedule.reference} ${line.period_start} → ${line.period_end}`, lines, 'accrual');
+    `Accrual schedule ${schedule.reference} ${line.period_start} → ${line.period_end}`, lines, 'accrual');
   line.status = 'POSTED'; line.entry_id = entry.id; line.posted_at = now();
   if (schedule.lines.every((l) => l.status !== 'PENDING')) schedule.status = 'COMPLETED';
   else schedule.status = 'ACTIVE';
@@ -606,16 +615,16 @@ export function seedDemoMission22(state: DemoState): void {
     const fifo = index === 0;
     const year = company.financial_year_start?.slice(0, 4) ?? '2025';
     const category: DemoInvCategory = { id: uid(), company_id: companyId, code: fifo ? 'FIFO-COMM' : 'WAVG-COMM',
-      name: fifo ? 'Marchandises FIFO (fictif)' : 'Marchandises coût moyen (fictif)',
+      name: fifo ? 'FIFO goods (fictitious)' : 'Weighted-average goods (fictitious)',
       valuation_method: fifo ? 'fifo' : 'weighted_average', inventory_account_id: inv.id, cogs_account_id: cogs.id,
       adjustment_account_id: adjust.id, write_down_account_id: writeDown.id, allow_negative_stock: false, is_active: true, created_at: now() };
     s.categories.push(category);
     const location: DemoInvLocation = { id: uid(), company_id: companyId, code: 'MAIN',
-      name: 'Magasin principal fictif', description: 'Entrepôt fictif', is_active: true };
+      name: 'Main fictitious warehouse', description: 'Fictitious warehouse', is_active: true };
     s.locations.push(location);
     const item: DemoInvItem = { id: uid(), company_id: companyId, category_id: category.id,
-      sku: fifo ? 'DEMO-FIFO-01' : 'DEMO-WAVG-01', name: fifo ? 'Article FIFO fictif' : 'Article coût moyen fictif',
-      unit: 'unité', reorder_level: '10.0000', is_active: true };
+      sku: fifo ? 'DEMO-FIFO-01' : 'DEMO-WAVG-01', name: fifo ? 'Fictitious FIFO item' : 'Fictitious weighted-average item',
+      unit: 'unit', reorder_level: '10.0000', is_active: true };
     s.items.push(item);
     const mk = (date: string, direction: string, qty: string, unitCost: string | null, sourceKind: string,
       description: string): DemoInvMovement => {
@@ -684,7 +693,7 @@ export function seedDemoMission22(state: DemoState): void {
       approval_note: 'Validation fictive.', rejection_reason: null, entry_id: null, created_at: now() };
     warranty.movements.push(rec);
     rec.entry_id = postEntry(state, companyId, journalId, rec.movement_date, rec.movement_no,
-      'Reconnaissance de provision fictive', [
+      'Fictitious provision recognition', [
         { accountId: expense.id, description: rec.reason, debit: '50000.0000' },
         { accountId: liability.id, description: rec.reason, credit: '50000.0000' },
       ], 'provision').id;
@@ -695,7 +704,7 @@ export function seedDemoMission22(state: DemoState): void {
       entry_id: null, created_at: now() };
     warranty.movements.push(use);
     use.entry_id = postEntry(state, companyId, journalId, use.movement_date, use.movement_no,
-      'Utilisation de provision fictive', [
+      'Fictitious provision utilisation', [
         { accountId: liability.id, description: use.reason, debit: '20000.0000' },
         { accountId: bank.id, description: use.reason, credit: '20000.0000' },
       ], 'provision').id;
@@ -706,7 +715,7 @@ export function seedDemoMission22(state: DemoState): void {
       entry_id: null, created_at: now() };
     warranty.movements.push(rev);
     rev.entry_id = postEntry(state, companyId, journalId, rev.movement_date, rev.movement_no,
-      'Reprise de provision fictive', [
+      'Fictitious provision reversal', [
         { accountId: liability.id, description: rev.reason, debit: '30000.0000' },
         { accountId: expense.id, description: rev.reason, credit: '30000.0000' },
       ], 'provision').id;
@@ -799,7 +808,7 @@ export function handleDemoMission22(state: DemoState, companyId: string, method:
   if (rest === '/items' && method === 'POST') {
     write();
     const i: DemoInvItem = { id: uid(), company_id: companyId, category_id: payload.categoryId, sku: String(payload.sku ?? '').trim(),
-      name: String(payload.name ?? '').trim(), unit: String(payload.unit ?? 'unité'), reorder_level: payload.reorderLevel ?? null, is_active: true };
+      name: String(payload.name ?? '').trim(), unit: String(payload.unit ?? 'unit'), reorder_level: payload.reorderLevel ?? null, is_active: true };
     if (!s.categories.some((c) => c.id === i.category_id && c.company_id === companyId)) throw new ApiError(400, 'INVENTORY_CATEGORY_INACTIVE', 'Catégorie invalide');
     if (!i.sku || !i.name) throw new ApiError(400, 'VALIDATION_ERROR', 'SKU et nom requis');
     s.items.push(i); return { item: itemView(state, companyId, i) };

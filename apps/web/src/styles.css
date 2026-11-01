@@ -1722,3 +1722,68 @@ table { font-size: 0.865rem; }
   .sidebar { padding-top: max(14px, env(safe-area-inset-top)); }
   .drawer-backdrop { z-index: 45; }
 }
+
+/* Mission 37 — guided review tour (demonstration bundle only). */
+.demo-tour-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.demo-tour-facts > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--surface-2, transparent);
+}
+.demo-tour-facts span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.demo-tour-facts strong { font-size: 0.95rem; }
+.demo-health { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 8px; }
+.demo-health-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+}
+.demo-health-row > div { min-width: 0; }
+.demo-health-ok { border-left: 3px solid var(--success); }
+.demo-health-warn { border-left: 3px solid var(--warning); }
+.demo-health-info { border-left: 3px solid var(--accent); }
+.demo-quick-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.demo-quick-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  text-decoration: none;
+  background: var(--surface-2, transparent);
+  font-size: 0.88rem;
+}
+.demo-quick-link:hover { border-color: var(--accent); color: var(--accent); }
+.demo-steps { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
+.demo-step {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--surface-2, transparent);
+}
+.demo-step-body { padding: 12px 14px; }
+.demo-step-body p { margin: 6px 0; }
+.demo-step-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.demo-limits { margin: 12px 0 0; padding-left: 20px; display: grid; gap: 8px; }
+@media (max-width: 640px) {
+  .demo-tour-facts { grid-template-columns: 1fr 1fr; }
+  .demo-health-row { padding: 8px; }
+}

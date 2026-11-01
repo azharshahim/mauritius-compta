@@ -20,7 +20,7 @@ async function loginAndSelect() {
   fireEvent.click(await screen.findByRole('button', { name: /Se connecter/i }));
   await screen.findByRole('button', { name: /Facturation/i });
   const select = screen.getByRole('combobox', { name: /Société/i }) as HTMLSelectElement;
-  const option = [...select.options].find((item) => /Lagon Bleu/i.test(item.textContent ?? ''))!;
+  const option = [...select.options].find((item) => /Island Trading/i.test(item.textContent ?? ''))!;
   fireEvent.change(select, { target: { value: option.value } });
 }
 

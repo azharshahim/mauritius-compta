@@ -10,6 +10,7 @@
 export interface DemoSeedAccount {
   code: string;
   name: string;
+  name_fr?: string | null;
   type: string;
   parent_code: string | null;
   currency: string;
@@ -53,7 +54,7 @@ export interface DemoSeed {
 
 export const DEMO_SEED: DemoSeed = {
   "company": {
-    "name": "Lagon Bleu Trading Ltd (DEMO)",
+    "name": "Island Trading Ltd — DEMO COMPANY",
     "brn": "DEMO-BRN-0001",
     "vat_number": "DEMO-VAT-0001",
     "registered_address": "12, Royal Road, Port Louis, Mauritius (fictitious address)",
@@ -62,14 +63,15 @@ export const DEMO_SEED: DemoSeed = {
     "financial_year_end": "2026-06-30",
     "functional_currency": "MUR",
     "presentation_currency": "MUR",
-    "accounting_standard": "IFRS",
+    "accounting_standard": "Other",
     "status": "active",
-    "locale": "fr"
+    "locale": "en"
   },
   "accounts": [
     {
       "code": "1000",
-      "name": "Caisse",
+      "name": "Cash",
+      "name_fr": "Caisse",
       "type": "asset",
       "parent_code": null,
       "currency": "MUR",
@@ -79,7 +81,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "1010",
-      "name": "Banque — compte courant MUR",
+      "name": "Bank — MUR current account",
+      "name_fr": "Banque — compte courant MUR",
       "type": "asset",
       "parent_code": null,
       "currency": "MUR",
@@ -89,7 +92,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "1015",
-      "name": "Banque — compte courant devises",
+      "name": "Bank — foreign currency account",
+      "name_fr": "Banque — compte courant devises",
       "type": "asset",
       "parent_code": null,
       "currency": "MUR",
@@ -99,7 +103,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "1100",
-      "name": "Clients",
+      "name": "Trade receivables",
+      "name_fr": "Clients",
       "type": "asset",
       "parent_code": null,
       "currency": "MUR",
@@ -109,7 +114,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "1150",
-      "name": "Autres débiteurs et charges payées d’avance",
+      "name": "Other receivables and prepayments",
+      "name_fr": "Autres débiteurs et charges payées d’avance",
       "type": "asset",
       "parent_code": null,
       "currency": "MUR",
@@ -119,7 +125,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "1200",
-      "name": "TVA récupérable",
+      "name": "VAT recoverable (preliminary)",
+      "name_fr": "TVA récupérable",
       "type": "asset",
       "parent_code": null,
       "currency": "MUR",
@@ -129,7 +136,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "1300",
-      "name": "Stocks",
+      "name": "Inventory",
+      "name_fr": "Stocks",
       "type": "asset",
       "parent_code": null,
       "currency": "MUR",
@@ -139,7 +147,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "1500",
-      "name": "Immobilisations corporelles",
+      "name": "Property, plant and equipment",
+      "name_fr": "Immobilisations corporelles",
       "type": "asset",
       "parent_code": null,
       "currency": "MUR",
@@ -149,7 +158,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "1510",
-      "name": "Amortissements cumulés",
+      "name": "Accumulated depreciation",
+      "name_fr": "Amortissements cumulés",
       "type": "asset",
       "parent_code": null,
       "currency": "MUR",
@@ -159,7 +169,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "1600",
-      "name": "Immobilisations incorporelles",
+      "name": "Intangible assets",
+      "name_fr": "Immobilisations incorporelles",
       "type": "asset",
       "parent_code": null,
       "currency": "MUR",
@@ -169,7 +180,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "2000",
-      "name": "Fournisseurs",
+      "name": "Trade payables",
+      "name_fr": "Fournisseurs",
       "type": "liability",
       "parent_code": null,
       "currency": "MUR",
@@ -179,7 +191,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "2100",
-      "name": "Charges à payer et produits constatés d’avance",
+      "name": "Accruals and deferred income",
+      "name_fr": "Charges à payer et produits constatés d’avance",
       "type": "liability",
       "parent_code": null,
       "currency": "MUR",
@@ -189,7 +202,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "2200",
-      "name": "TVA collectée",
+      "name": "VAT payable (preliminary)",
+      "name_fr": "TVA collectée",
       "type": "liability",
       "parent_code": null,
       "currency": "MUR",
@@ -199,7 +213,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "2300",
-      "name": "PAYE à payer (provisoire)",
+      "name": "PAYE payable (preliminary)",
+      "name_fr": "PAYE à payer (provisoire)",
       "type": "liability",
       "parent_code": null,
       "currency": "MUR",
@@ -209,7 +224,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "2400",
-      "name": "CSG à payer (provisoire)",
+      "name": "CSG payable (preliminary)",
+      "name_fr": "CSG à payer (provisoire)",
       "type": "liability",
       "parent_code": null,
       "currency": "MUR",
@@ -219,7 +235,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "2500",
-      "name": "Emprunts bancaires",
+      "name": "Bank borrowings",
+      "name_fr": "Emprunts bancaires",
       "type": "liability",
       "parent_code": null,
       "currency": "MUR",
@@ -229,7 +246,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "3000",
-      "name": "Capital social",
+      "name": "Share capital",
+      "name_fr": "Capital social",
       "type": "equity",
       "parent_code": null,
       "currency": "MUR",
@@ -239,7 +257,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "3100",
-      "name": "Report à nouveau",
+      "name": "Retained earnings",
+      "name_fr": "Report à nouveau",
       "type": "equity",
       "parent_code": null,
       "currency": "MUR",
@@ -249,7 +268,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "3200",
-      "name": "Réserves",
+      "name": "Reserves",
+      "name_fr": "Réserves",
       "type": "equity",
       "parent_code": null,
       "currency": "MUR",
@@ -259,7 +279,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "4000",
-      "name": "Ventes de marchandises",
+      "name": "Sales of goods",
+      "name_fr": "Ventes de marchandises",
       "type": "revenue",
       "parent_code": null,
       "currency": "MUR",
@@ -269,7 +290,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "4010",
-      "name": "Prestations de services",
+      "name": "Service revenue",
+      "name_fr": "Prestations de services",
       "type": "revenue",
       "parent_code": null,
       "currency": "MUR",
@@ -279,7 +301,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "4100",
-      "name": "Autres produits",
+      "name": "Other income",
+      "name_fr": "Autres produits",
       "type": "revenue",
       "parent_code": null,
       "currency": "MUR",
@@ -289,7 +312,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "5000",
-      "name": "Achats de marchandises",
+      "name": "Purchases of goods",
+      "name_fr": "Achats de marchandises",
       "type": "expense",
       "parent_code": null,
       "currency": "MUR",
@@ -299,7 +323,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "5100",
-      "name": "Variation de stocks",
+      "name": "Change in inventory",
+      "name_fr": "Variation de stocks",
       "type": "expense",
       "parent_code": null,
       "currency": "MUR",
@@ -309,7 +334,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "6000",
-      "name": "Salaires et traitements",
+      "name": "Salaries and wages",
+      "name_fr": "Salaires et traitements",
       "type": "expense",
       "parent_code": null,
       "currency": "MUR",
@@ -319,7 +345,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "6010",
-      "name": "Charges sociales patronales",
+      "name": "Employer social contributions",
+      "name_fr": "Charges sociales patronales",
       "type": "expense",
       "parent_code": null,
       "currency": "MUR",
@@ -329,7 +356,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "6100",
-      "name": "Loyers",
+      "name": "Rent",
+      "name_fr": "Loyers",
       "type": "expense",
       "parent_code": null,
       "currency": "MUR",
@@ -339,7 +367,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "6110",
-      "name": "Eau et électricité",
+      "name": "Utilities",
+      "name_fr": "Eau et électricité",
       "type": "expense",
       "parent_code": null,
       "currency": "MUR",
@@ -349,7 +378,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "6120",
-      "name": "Téléphone et internet",
+      "name": "Telephone and internet",
+      "name_fr": "Téléphone et internet",
       "type": "expense",
       "parent_code": null,
       "currency": "MUR",
@@ -359,7 +389,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "6130",
-      "name": "Honoraires professionnels",
+      "name": "Professional fees",
+      "name_fr": "Honoraires professionnels",
       "type": "expense",
       "parent_code": null,
       "currency": "MUR",
@@ -369,7 +400,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "6140",
-      "name": "Frais bancaires",
+      "name": "Bank charges",
+      "name_fr": "Frais bancaires",
       "type": "expense",
       "parent_code": null,
       "currency": "MUR",
@@ -379,7 +411,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "6150",
-      "name": "Assurances",
+      "name": "Insurance",
+      "name_fr": "Assurances",
       "type": "expense",
       "parent_code": null,
       "currency": "MUR",
@@ -389,7 +422,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "6200",
-      "name": "Dotations aux amortissements",
+      "name": "Depreciation expense",
+      "name_fr": "Dotations aux amortissements",
       "type": "expense",
       "parent_code": null,
       "currency": "MUR",
@@ -399,7 +433,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "6300",
-      "name": "Écarts de change (provisoire)",
+      "name": "Foreign exchange differences (preliminary)",
+      "name_fr": "Écarts de change (provisoire)",
       "type": "expense",
       "parent_code": null,
       "currency": "MUR",
@@ -409,7 +444,8 @@ export const DEMO_SEED: DemoSeed = {
     },
     {
       "code": "7000",
-      "name": "Impôt sur les sociétés (provisoire)",
+      "name": "Corporate income tax (preliminary)",
+      "name_fr": "Impôt sur les sociétés (provisoire)",
       "type": "expense",
       "parent_code": null,
       "currency": "MUR",
@@ -421,27 +457,27 @@ export const DEMO_SEED: DemoSeed = {
   "journals": [
     {
       "code": "BQ",
-      "name": "Journal de banque",
+      "name": "Bank journal",
       "type": "bank"
     },
     {
       "code": "CA",
-      "name": "Journal de caisse",
+      "name": "Cash journal",
       "type": "cash"
     },
     {
       "code": "OD",
-      "name": "Opérations diverses",
+      "name": "General journal",
       "type": "general"
     },
     {
       "code": "PUR",
-      "name": "Journal des achats",
+      "name": "Purchases journal",
       "type": "purchases"
     },
     {
       "code": "SAL",
-      "name": "Journal des ventes",
+      "name": "Sales journal",
       "type": "sales"
     }
   ],
@@ -451,7 +487,7 @@ export const DEMO_SEED: DemoSeed = {
       "journal_code": "OD",
       "entry_date": "2025-07-01",
       "reference": "DEMO-CAP-001",
-      "description": "Apport en capital — données fictives / Opening capital — fictitious data",
+      "description": "Opening capital — fictitious data",
       "currency": "MUR",
       "exchange_rate": "1.00000000",
       "status": "posted",
@@ -483,7 +519,7 @@ export const DEMO_SEED: DemoSeed = {
       "journal_code": "BQ",
       "entry_date": "2025-07-10",
       "reference": "DEMO-EQP-001",
-      "description": "Achat de matériel informatique — démonstration",
+      "description": "Computer equipment purchase — demonstration",
       "currency": "MUR",
       "exchange_rate": "1.00000000",
       "status": "posted",
@@ -515,7 +551,7 @@ export const DEMO_SEED: DemoSeed = {
       "journal_code": "SAL",
       "entry_date": "2025-07-15",
       "reference": "FA-2025-001",
-      "description": "Facture de vente fictive FA-2025-001",
+      "description": "Fictitious sales invoice FA-2025-001",
       "currency": "MUR",
       "exchange_rate": "1.00000000",
       "status": "posted",
@@ -547,7 +583,7 @@ export const DEMO_SEED: DemoSeed = {
       "journal_code": "PUR",
       "entry_date": "2025-07-20",
       "reference": "AC-2025-001",
-      "description": "Achat de marchandises fictif AC-2025-001",
+      "description": "Fictitious goods purchase AC-2025-001",
       "currency": "MUR",
       "exchange_rate": "1.00000000",
       "status": "posted",
@@ -579,7 +615,7 @@ export const DEMO_SEED: DemoSeed = {
       "journal_code": "BQ",
       "entry_date": "2025-08-01",
       "reference": "LOY-2025-08",
-      "description": "Loyer du mois d’août — démonstration",
+      "description": "August rent — demonstration",
       "currency": "MUR",
       "exchange_rate": "1.00000000",
       "status": "posted",
@@ -611,7 +647,7 @@ export const DEMO_SEED: DemoSeed = {
       "journal_code": "BQ",
       "entry_date": "2025-08-05",
       "reference": "ENC-2025-001",
-      "description": "Encaissement du client fictif FA-2025-001",
+      "description": "Receipt from fictitious customer FA-2025-001",
       "currency": "MUR",
       "exchange_rate": "1.00000000",
       "status": "posted",
@@ -643,7 +679,7 @@ export const DEMO_SEED: DemoSeed = {
       "journal_code": "SAL",
       "entry_date": "2025-08-12",
       "reference": "FA-EUR-001",
-      "description": "Vente en EUR — taux saisi manuellement (démo)",
+      "description": "EUR sale — manually entered rate (demo)",
       "currency": "EUR",
       "exchange_rate": "48.50000000",
       "status": "posted",
@@ -675,7 +711,7 @@ export const DEMO_SEED: DemoSeed = {
       "journal_code": "OD",
       "entry_date": "2025-08-20",
       "reference": "BROUILLON-001",
-      "description": "Brouillon — frais bancaires à confirmer (non validé)",
+      "description": "Draft — bank charges to confirm (not posted)",
       "currency": "MUR",
       "exchange_rate": "1.00000000",
       "status": "draft",
@@ -707,7 +743,7 @@ export const DEMO_SEED: DemoSeed = {
       "journal_code": "BQ",
       "entry_date": "2025-09-01",
       "reference": "LOY-2025-08-ANN",
-      "description": "Contrepassation du loyer d’août (démo)",
+      "description": "Reversal of August rent (demo)",
       "currency": "MUR",
       "exchange_rate": "1.00000000",
       "status": "posted",
