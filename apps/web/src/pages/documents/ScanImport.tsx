@@ -14,6 +14,11 @@ interface DocumentListRow {
   confidence: string | null; party_name: string | null; invoice_number: string | null;
   invoice_date: string | null; due_date: string | null; currency: string | null; subtotal: string | null;
   vat_total: string | null; total_amount: string | null; duplicate_of: string | null;
+  document_type?: 'invoice' | 'credit_note' | 'unknown' | null;
+  discount_total?: string | null; purchase_order?: string | null; payment_terms?: string | null;
+  tax_ids?: { supplierBrn?: string | null; supplierVat?: string | null; customerBrn?: string | null; customerVat?: string | null } | null;
+  field_confidence?: Record<string, number> | null; uncertain_fields?: string[] | null;
+  extraction_quality?: Record<string, unknown> | null;
   created_at: string;
 }
 interface Extracted {
@@ -21,6 +26,10 @@ interface Extracted {
   invoiceDate?: string | null; dueDate?: string | null; currency?: string | null;
   subtotal?: string | null; vatTotal?: string | null; total?: string | null;
   references?: string[]; warnings?: string[];
+  documentType?: 'invoice' | 'credit_note' | 'unknown';
+  discountTotal?: string | null; purchaseOrder?: string | null; paymentTerms?: string | null;
+  taxIds?: { supplierBrn?: string | null; supplierVat?: string | null; customerBrn?: string | null; customerVat?: string | null };
+  fieldConfidence?: Record<string, number>; uncertainFields?: string[]; warningCodes?: string[];
   lines?: { description: string; quantity: string | null; unitPrice: string | null;
     netAmount: string; vatAmount: string; totalAmount: string }[];
 }
@@ -74,7 +83,11 @@ export default function ScanImportPage({ mode }: { mode?: 'purchase' | 'sale' } 
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
   const [busy, setBusy] = useState(false);
-  const [corrections, setCorrections] = useState({ party_name: '', invoice_number: '', invoice_date: '', due_date: '', subtotal: '', vat_total: '', total_amount: '', currency: 'MUR' });
+  const [corrections, setCorrections] = useState({
+    party_name: '', invoice_number: '', invoice_date: '', due_date: '', subtotal: '', vat_total: '',
+    total_amount: '', currency: '', document_type: 'unknown' as 'invoice' | 'credit_note' | 'unknown',
+    discount_total: '', purchase_order: '',
+  });
   const [draftLines, setDraftLines] = useState<{ accountId: string; description: string; debit: string; credit: string }[]>([]);
   const [journalId, setJournalId] = useState('');
   const [entryDate, setEntryDate] = useState('');
@@ -138,7 +151,8 @@ export default function ScanImportPage({ mode }: { mode?: 'purchase' | 'sale' } 
         party_name: d.party_name ?? '', invoice_number: d.invoice_number ?? '',
         invoice_date: d.invoice_date?.slice(0, 10) ?? '', due_date: d.due_date?.slice(0, 10) ?? '',
         subtotal: d.subtotal ?? '', vat_total: d.vat_total ?? '', total_amount: d.total_amount ?? '',
-        currency: d.currency ?? 'MUR',
+        currency: d.currency ?? '', document_type: d.document_type ?? 'unknown',
+        discount_total: d.discount_total ?? '', purchase_order: d.purchase_order ?? '',
       });
       const proposal = result.proposals[0];
       if (proposal && proposal.status === 'PROPOSED') {
@@ -203,9 +217,26 @@ export default function ScanImportPage({ mode }: { mode?: 'purchase' | 'sale' } 
         subtotal: corrections.subtotal || null,
         vat_total: corrections.vat_total || null,
         total_amount: corrections.total_amount || null,
+        document_type: corrections.document_type,
+        discount_total: corrections.discount_total || null,
+        purchase_order: corrections.purchase_order || null,
       });
       await loadDetail(detail.document.id);
       setMessage(t('docs.saved'));
+    } catch (err) { setError(errorMessage(err, t('common.error')).message); }
+    finally { setBusy(false); }
+  };
+
+  const reextract = async () => {
+    if (!detail) return;
+    if (!window.confirm(t('docs.reextractConfirm'))) return;
+    setBusy(true); setError(null);
+    try {
+      const result = await api.post<{ applied: boolean; changedFields: string[]; warnings: string[] }>(
+        `/companies/${company.id}/documents/${detail.document.id}/reextract`, { apply: true });
+      await loadDetail(detail.document.id);
+      await reloadList();
+      setMessage(t('docs.reextractDone').replace('{n}', String(result.changedFields.length)));
     } catch (err) { setError(errorMessage(err, t('common.error')).message); }
     finally { setBusy(false); }
   };
@@ -272,6 +303,17 @@ export default function ScanImportPage({ mode }: { mode?: 'purchase' | 'sale' } 
 
   const proposal = detail?.proposals.find((p) => p.status === 'PROPOSED') ?? detail?.proposals[0] ?? null;
   const previewUrl = demoEnabled ? localUrl : fileUrl;
+  const uncertainFields = new Set(detail?.document.uncertain_fields ?? []);
+  const taxIds = detail?.document.tax_ids ?? detail?.document.extracted?.taxIds ?? {};
+  const fieldLabels: Record<string, string> = {
+    supplierName: t('docs.party'), customerName: t('docs.party'),
+    invoiceNumber: t('docs.invoiceNo'), invoiceDate: t('docs.date'), dueDate: t('docs.due'),
+    currency: t('docs.currency'), subtotal: t('docs.subtotal'), vatTotal: t('docs.vat'),
+    total: t('docs.total'), discountTotal: t('docs.discount'), documentType: t('docs.documentType'),
+    purchaseOrder: t('docs.purchaseOrder'), supplierBrn: 'BRN', supplierVat: t('docs.vatId'),
+    customerBrn: 'BRN', customerVat: t('docs.vatId'),
+  };
+  const fieldClass = (field: string) => uncertainFields.has(field) ? 'field-uncertain' : undefined;
   const totals = useMemo(() => {
     const debit = draftLines.reduce((sum, l) => sum + (Number(l.debit) || 0), 0);
     const credit = draftLines.reduce((sum, l) => sum + (Number(l.credit) || 0), 0);
@@ -399,86 +441,127 @@ export default function ScanImportPage({ mode }: { mode?: 'purchase' | 'sale' } 
             <Card><EmptyState title={t('docs.select')} /></Card>
           ) : (
             <>
-              <Card>
-                <div className="page-head" style={{ marginBottom: 8 }}>
-                  <div className="grow">
-                    <h2 style={{ margin: 0 }}>{detail.document.invoice_number || detail.document.original_name}</h2>
-                    <div className="page-sub">
-                      {t(`docs.method.${detail.document.extraction_method}`)} · {detail.document.page_count} {t('docs.pages')}
+              <div className="doc-review-grid">
+                <Card>
+                  <div className="page-head" style={{ marginBottom: 8 }}>
+                    <div className="grow">
+                      <h2 style={{ margin: 0 }}>{t('docs.originalDocument')}</h2>
+                      <div className="page-sub">{detail.document.original_name}</div>
+                    </div>
+                    <Badge kind={detail.document.status === 'APPROVED' ? 'success' : 'info'}>
+                      {t(`docs.status.${detail.document.status}`)}
+                    </Badge>
+                  </div>
+                  {detail.document.status === 'DUPLICATE' && (
+                    <p className="warning-text">{t('docs.duplicate')}</p>
+                  )}
+                  <div className="doc-view">
+                    {previewUrl ? (
+                      detail.document.mime_type === 'application/pdf' ? (
+                        <iframe title={detail.document.original_name} src={previewUrl} />
+                      ) : <img src={previewUrl} alt={detail.document.original_name} />
+                    ) : <p className="page-sub">{demoEnabled ? t('docs.demoNoFile') : t('common.loading')}</p>}
+                  </div>
+                  <details>
+                    <summary>{t('docs.warnings')} ({detail.document.warnings.length})</summary>
+                    <ul>{detail.document.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
+                  </details>
+                </Card>
+
+                <Card>
+                  <div className="page-head" style={{ marginBottom: 8 }}>
+                    <div className="grow">
+                      <h2 style={{ margin: 0 }}>{t('docs.extracted')}</h2>
+                      <div className="page-sub">
+                        {t(`docs.method.${detail.document.extraction_method}`)} · {detail.document.page_count} {t('docs.pages')}
+                        {detail.document.document_type === 'credit_note' && <> · <Badge kind="warning">{t('docs.creditNote')}</Badge></>}
+                      </div>
                     </div>
                   </div>
-                  <Badge kind={detail.document.status === 'APPROVED' ? 'success' : 'info'}>
-                    {t(`docs.status.${detail.document.status}`)}
-                  </Badge>
-                </div>
-                {detail.document.status === 'DUPLICATE' && (
-                  <p className="warning-text">{t('docs.duplicate')}</p>
-                )}
-                <div className="doc-view">
-                  {previewUrl ? (
-                    detail.document.mime_type === 'application/pdf' ? (
-                      <iframe title={detail.document.original_name} src={previewUrl} />
-                    ) : <img src={previewUrl} alt={detail.document.original_name} />
-                  ) : <p className="page-sub">{demoEnabled ? t('docs.demoNoFile') : t('common.loading')}</p>}
-                </div>
-                <details>
-                  <summary>{t('docs.warnings')} ({detail.document.warnings.length})</summary>
-                  <ul>{detail.document.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
-                </details>
-              </Card>
-
-              <Card>
-                <h2>{t('docs.extracted')}</h2>
-                <p className="page-sub">{t('docs.correctionNote')}</p>
-                <div className="form-grid">
-                  <Field label={t('docs.party')}>
-                    <input value={corrections.party_name} onChange={(e) => setCorrections({ ...corrections, party_name: e.target.value })} />
-                  </Field>
-                  <Field label={t('docs.invoiceNo')}>
-                    <input value={corrections.invoice_number} onChange={(e) => setCorrections({ ...corrections, invoice_number: e.target.value })} />
-                  </Field>
-                  <Field label={t('docs.date')}>
-                    <input type="date" value={corrections.invoice_date} onChange={(e) => setCorrections({ ...corrections, invoice_date: e.target.value })} />
-                  </Field>
-                  <Field label={t('docs.due')}>
-                    <input type="date" value={corrections.due_date} onChange={(e) => setCorrections({ ...corrections, due_date: e.target.value })} />
-                  </Field>
-                  <Field label={t('docs.subtotal')}>
-                    <input inputMode="decimal" value={corrections.subtotal} onChange={(e) => setCorrections({ ...corrections, subtotal: e.target.value })} />
-                  </Field>
-                  <Field label={t('docs.vat')}>
-                    <input inputMode="decimal" value={corrections.vat_total} onChange={(e) => setCorrections({ ...corrections, vat_total: e.target.value })} />
-                  </Field>
-                  <Field label={t('docs.total')}>
-                    <input inputMode="decimal" value={corrections.total_amount} onChange={(e) => setCorrections({ ...corrections, total_amount: e.target.value })} />
-                  </Field>
-                  <Field label={t('docs.currency')}>
-                    <select value={corrections.currency} onChange={(e) => setCorrections({ ...corrections, currency: e.target.value })}>
-                      {['MUR', 'EUR', 'USD', 'GBP'].map((c) => <option key={c}>{c}</option>)}
-                    </select>
-                  </Field>
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <Button onClick={() => void saveCorrections()} disabled={busy}>{t('docs.saveCorrections')}</Button>
-                  <Button variant="primary" onClick={() => void propose()} disabled={busy || !detail.document.total_amount}>
-                    {t('docs.generate')}
-                  </Button>
-                </div>
-                {detail.lines.length > 0 && (
-                  <div className="table-wrap" style={{ marginTop: 12 }}>
-                    <table>
-                      <thead><tr><th>{t('common.description')}</th><th>{t('docs.net')}</th><th>{t('docs.vat')}</th><th>{t('docs.total')}</th></tr></thead>
-                      <tbody>
-                        {detail.lines.map((l) => (
-                          <tr key={l.id}>
-                            <td>{l.description}</td><td>{fmt(l.net_amount)}</td><td>{fmt(l.vat_amount)}</td><td>{fmt(l.total_amount)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <p className="page-sub">{t('docs.correctionNote')}</p>
+                  {uncertainFields.size > 0 && (
+                    <div className="alert alert-warn" role="status">
+                      <strong>{t('docs.uncertain')} :</strong>{' '}
+                      {[...uncertainFields].map((field) => fieldLabels[field] ?? field).join(' · ')}.
+                      {' '}{t('docs.uncertainHint')}
+                    </div>
+                  )}
+                  <div className="form-grid">
+                    <Field label={t('docs.documentType')} className={fieldClass('documentType')}>
+                      <select value={corrections.document_type}
+                        onChange={(e) => setCorrections({ ...corrections, document_type: e.target.value as 'invoice' | 'credit_note' | 'unknown' })}>
+                        <option value="invoice">{t('docs.invoice')}</option>
+                        <option value="credit_note">{t('docs.creditNote')}</option>
+                        <option value="unknown">{t('docs.unknown')}</option>
+                      </select>
+                    </Field>
+                    <Field label={t('docs.party')} className={fieldClass('supplierName')}>
+                      <input value={corrections.party_name} onChange={(e) => setCorrections({ ...corrections, party_name: e.target.value })} />
+                    </Field>
+                    <Field label={t('docs.invoiceNo')} className={fieldClass('invoiceNumber')}>
+                      <input value={corrections.invoice_number} onChange={(e) => setCorrections({ ...corrections, invoice_number: e.target.value })} />
+                    </Field>
+                    <Field label={t('docs.date')} className={fieldClass('invoiceDate')}>
+                      <input type="date" value={corrections.invoice_date} onChange={(e) => setCorrections({ ...corrections, invoice_date: e.target.value })} />
+                    </Field>
+                    <Field label={t('docs.due')} className={fieldClass('dueDate')}>
+                      <input type="date" value={corrections.due_date} onChange={(e) => setCorrections({ ...corrections, due_date: e.target.value })} />
+                    </Field>
+                    <Field label={t('docs.subtotal')} className={fieldClass('subtotal')}>
+                      <input inputMode="decimal" value={corrections.subtotal} onChange={(e) => setCorrections({ ...corrections, subtotal: e.target.value })} />
+                    </Field>
+                    <Field label={t('docs.discount')} className={fieldClass('discountTotal')}>
+                      <input inputMode="decimal" value={corrections.discount_total} onChange={(e) => setCorrections({ ...corrections, discount_total: e.target.value })} />
+                    </Field>
+                    <Field label={t('docs.vat')} className={fieldClass('vatTotal')}>
+                      <input inputMode="decimal" value={corrections.vat_total} onChange={(e) => setCorrections({ ...corrections, vat_total: e.target.value })} />
+                    </Field>
+                    <Field label={t('docs.total')} className={fieldClass('total')}>
+                      <input inputMode="decimal" value={corrections.total_amount} onChange={(e) => setCorrections({ ...corrections, total_amount: e.target.value })} />
+                    </Field>
+                    <Field label={t('docs.currency')} className={fieldClass('currency')}>
+                      <select value={corrections.currency} onChange={(e) => setCorrections({ ...corrections, currency: e.target.value })}>
+                        <option value="">{t('docs.notSpecified')}</option>
+                        {['MUR', 'EUR', 'USD', 'GBP'].map((c) => <option key={c}>{c}</option>)}
+                      </select>
+                    </Field>
+                    <Field label={t('docs.purchaseOrder')} className={fieldClass('purchaseOrder')}>
+                      <input value={corrections.purchase_order} onChange={(e) => setCorrections({ ...corrections, purchase_order: e.target.value })} />
+                    </Field>
                   </div>
-                )}
-              </Card>
+                  <div className="doc-tax-ids">
+                    <span><strong>BRN</strong> {taxIds.supplierBrn ?? '—'}</span>
+                    <span><strong>{t('docs.vatId')}</strong> {taxIds.supplierVat ?? '—'}</span>
+                    <span><strong>{t('docs.customerBrn')}</strong> {taxIds.customerBrn ?? '—'}</span>
+                    <span><strong>{t('docs.customerVat')}</strong> {taxIds.customerVat ?? '—'}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <Button onClick={() => void saveCorrections()} disabled={busy}>{t('docs.saveCorrections')}</Button>
+                    <Button variant="primary" onClick={() => void propose()} disabled={busy || !detail.document.total_amount || !detail.document.currency}>
+                      {t('docs.generate')}
+                    </Button>
+                    {detail.document.status === 'EXTRACTED' && !demoEnabled && (
+                      <Button onClick={() => void reextract()} disabled={busy}>
+                        <AppIcon name="refresh" size={15} /> {t('docs.reextract')}
+                      </Button>
+                    )}
+                  </div>
+                  {detail.lines.length > 0 && (
+                    <div className="table-wrap" style={{ marginTop: 12 }}>
+                      <table>
+                        <thead><tr><th>{t('common.description')}</th><th>{t('docs.net')}</th><th>{t('docs.vat')}</th><th>{t('docs.total')}</th></tr></thead>
+                        <tbody>
+                          {detail.lines.map((l) => (
+                            <tr key={l.id}>
+                              <td>{l.description}</td><td>{fmt(l.net_amount)}</td><td>{fmt(l.vat_amount)}</td><td>{fmt(l.total_amount)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </Card>
+              </div>
 
               {proposal && (
                 <Card>

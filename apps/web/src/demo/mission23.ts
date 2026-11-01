@@ -17,6 +17,7 @@ export interface DemoDocument {
   party_name: string | null; invoice_number: string | null; invoice_date: string | null;
   due_date: string | null; currency: string | null; subtotal: string | null;
   vat_total: string | null; total_amount: string | null; duplicate_of: string | null;
+  document_type?: 'invoice' | 'credit_note' | 'unknown';
   created_at: string; approved_at?: string | null;
 }
 export interface DemoDocumentLine {
@@ -208,6 +209,7 @@ export function seedDemoMission23(state: DemoState): void {
   if (!company) return;
   const documents: DemoDocument[] = FIXTURE_DOCS.map((doc, index) => ({
     ...doc, id: `demo-doc-${index + 1}`, company_id: company.id, created_at: NOW,
+    document_type: 'invoice',
     duplicate_of: index === 5 ? 'demo-doc-1' : null,
   }));
   const account = (code: string) => state.accounts.find((a) => a.company_id === company.id && a.code === code);

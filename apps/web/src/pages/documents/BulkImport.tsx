@@ -39,6 +39,13 @@ interface DocumentRow {
   vat_total: string | null;
   total_amount: string | null;
   duplicate_of: string | null;
+  document_type?: 'invoice' | 'credit_note' | 'unknown' | null;
+  discount_total?: string | null;
+  purchase_order?: string | null;
+  tax_ids?: Record<string, string | null> | null;
+  uncertain_fields?: string[] | null;
+  field_confidence?: Record<string, number> | null;
+  creation_quality?: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -166,6 +173,8 @@ const L = {
     multipage: 'PDF multipage — vérifier sans découpage automatique',
     duplicate: 'Doublon',
     duplicateHint: 'Fichier ou facture déjà présent : aucune proposition ne sera créée.',
+    uncertain: 'Champs à vérifier',
+    creditNote: 'Avoir',
     noValue: '—',
     editHint: 'Les champs surlignés sont modifiables avant validation.',
     save: 'Enregistrer les corrections',
@@ -267,6 +276,8 @@ const L = {
     multipage: 'Multipage PDF — review without automatic splitting',
     duplicate: 'Duplicate',
     duplicateHint: 'Identical file or invoice already present: no proposal will be created.',
+    uncertain: 'Fields to check',
+    creditNote: 'Credit note',
     noValue: '—',
     editHint: 'Highlighted fields can be corrected before validation.',
     save: 'Save corrections',
@@ -350,7 +361,7 @@ function correctionOf(document?: DocumentRow): Correction {
     invoice_number: document?.invoice_number ?? '',
     invoice_date: document?.invoice_date?.slice(0, 10) ?? '',
     due_date: document?.due_date?.slice(0, 10) ?? '',
-    currency: document?.currency ?? 'MUR',
+    currency: document?.currency ?? '',
     subtotal: document?.subtotal ?? '',
     vat_total: document?.vat_total ?? '',
     total_amount: document?.total_amount ?? '',
@@ -923,6 +934,9 @@ export default function BulkImportPage({ mode }: { mode: Side }) {
                         <span className="page-sub">
                           {document ? `${Math.max(1, document.page_count)} ${tr.pages}` : row.file ? `${(row.file.size / 1024).toFixed(0)} Ko` : ''}
                         </span>
+                        {document && document.document_type === 'credit_note' && (
+                          <Badge kind="warning">{tr.creditNote}</Badge>
+                        )}
                         {document && document.page_count > 1 && (
                           <div className="bulk-warning">{tr.multipage}</div>
                         )}
@@ -953,6 +967,7 @@ export default function BulkImportPage({ mode }: { mode: Side }) {
                         <select value={row.correction.currency} disabled={disabled}
                           aria-label={`${tr.currency} ${row.fileName}`}
                           onChange={(event) => correct(row, 'currency', event.target.value)}>
+                          <option value="">{t('docs.notSpecified')}</option>
                           {['MUR', 'EUR', 'USD', 'GBP'].map((currency) => <option key={currency}>{currency}</option>)}
                         </select>
                       </td>
@@ -972,6 +987,9 @@ export default function BulkImportPage({ mode }: { mode: Side }) {
                       </td>
                       <td className="cell-status" data-label={tr.status}>
                         <Badge kind={statusKind(row)}>{statusLabel(row)}</Badge>
+                        {document?.uncertain_fields?.length ? (
+                          <div className="bulk-warning">{tr.uncertain}: {document.uncertain_fields.join(', ')}</div>
+                        ) : null}
                         {row.proposal?.uncertain_fields.length ? (
                           <div className="bulk-warning">{row.proposal.uncertain_fields.join(', ')}</div>
                         ) : null}

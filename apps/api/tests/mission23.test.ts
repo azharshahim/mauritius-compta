@@ -130,7 +130,7 @@ describe('MCB statement parser', () => {
     const result = parseMcbStatement(GENERIC_TEXT.join('\n'));
     expect(result.profileKey).toBe('generic');
     expect(result.bankName).toBe('State Bank of Mauritius');
-    expect(result.accountNumber).toBe('012345678901');
+    expect(result.accountNumber).toBe('****8901');
     expect(result.periodStart).toBe('2026-02-01');
     expect(result.periodEnd).toBe('2026-02-28');
     expect(result.currency).toBe('MUR');
@@ -419,7 +419,7 @@ describe('documents, chart and MCB API', () => {
     expect(preview.statusCode).toBe(200);
     expect(preview.json().mcb.profileKey).toBe('generic');
     expect(preview.json().mcb.bankName).toBe('State Bank of Mauritius');
-    expect(preview.json().mcb.accountNumber).toBe('012345678901');
+    expect(preview.json().mcb.accountNumber).toBe('****8901');
     expect(preview.json().preview.preview.transactions).toHaveLength(3);
     expect(preview.json().source.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(preview.json().source.fileName).toBe('sbm-fictif.pdf');

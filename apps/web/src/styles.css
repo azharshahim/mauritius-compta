@@ -1664,3 +1664,38 @@ table { font-size: 0.865rem; }
 [data-theme='dark'] .amount-out { color: #ff9f97; }
 [data-theme='dark'] .empty-title { color: var(--text); }
 [data-theme='dark'] .dropzone { background: var(--surface-2); }
+
+/* Mission 29 — document review: original and extracted data side by side. */
+.doc-review-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+.doc-review-grid .doc-view iframe { height: 520px; }
+.doc-review-grid .doc-view img { max-height: 520px; }
+.doc-tax-ids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 4px 0 12px;
+  padding: 8px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.field.field-uncertain input,
+.field.field-uncertain select {
+  border-color: var(--warning, #b7791f);
+  background: color-mix(in srgb, var(--warning, #b7791f) 8%, var(--surface, #fff));
+}
+.field.field-uncertain .field-label::after {
+  content: ' •';
+  color: var(--warning, #b7791f);
+}
+@media (max-width: 1100px) {
+  .doc-review-grid { grid-template-columns: minmax(0, 1fr); }
+  .doc-review-grid .doc-view iframe { height: 360px; }
+  .doc-review-grid .doc-view img { max-height: 360px; }
+}

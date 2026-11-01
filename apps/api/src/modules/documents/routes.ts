@@ -8,8 +8,8 @@ import { writeAudit } from '../../lib/audit.js';
 import { requireCompany } from '../../lib/tenant.js';
 import {
   approveProposal, documentFile, generateProposal, getDocument, listDocumentRules,
-  listDocuments, partyCandidates, rejectProposal, updateDocument, updateDocumentRule,
-  uploadDocument,
+  listDocuments, partyCandidates, reextractDocument, rejectProposal, updateDocument,
+  updateDocumentRule, uploadDocument,
 } from './service.js';
 
 const financialYear = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish();
@@ -29,7 +29,18 @@ const UpdateSchema = z.object({
   subtotal: z.union([z.string(), z.number()]).nullish(),
   vat_total: z.union([z.string(), z.number()]).nullish(),
   total_amount: z.union([z.string(), z.number()]).nullish(),
+  document_type: z.enum(['invoice', 'credit_note', 'unknown']).optional(),
+  discount_total: z.union([z.string(), z.number()]).nullish(),
+  purchase_order: z.string().trim().max(80).nullish(),
+  payment_terms: z.string().trim().max(200).nullish(),
+  tax_ids: z.object({
+    supplierBrn: z.string().trim().max(30).nullish(),
+    supplierVat: z.string().trim().max(30).nullish(),
+    customerBrn: z.string().trim().max(30).nullish(),
+    customerVat: z.string().trim().max(30).nullish(),
+  }).strict().nullish(),
 }).strict();
+const ReextractSchema = z.object({ apply: z.boolean().optional() }).strict();
 const ApprovalSchema = z.object({
   confirm: z.literal(true),
   partyId: z.string().uuid().nullish(),
@@ -89,6 +100,18 @@ export function documentRoutes(app: FastifyInstance, db: Db, config: Config) {
       entityType: 'document_mapping', entityId: ruleId,
       details: { accountId: body.accountId ?? null, isActive: body.isActive ?? null }, ip: clientIp(req) });
     return { rule };
+  });
+
+  app.post(`${base}/:documentId/reextract`, async (req) => {
+    const { companyId, documentId } = req.params as { companyId: string; documentId: string };
+    await requireCompany(db, req.user!.id, companyId, 'accountant');
+    const body = parse(ReextractSchema, req.body ?? {});
+    const result = await reextractDocument(db, config, { userId: req.user!.id, companyId }, documentId, body.apply === true);
+    await writeAudit(db, { companyId, userId: req.user!.id, action: 'document.reextract',
+      entityType: 'document', entityId: documentId,
+      details: { applied: result.applied, method: result.extraction.method, changedFields: result.changedFields },
+      ip: clientIp(req) });
+    return result;
   });
 
   app.get(`${base}/:documentId`, async (req) => {

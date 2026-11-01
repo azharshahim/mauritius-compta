@@ -40,7 +40,29 @@ export interface DocumentRow {
   confidence: string | null; party_name: string | null; invoice_number: string | null;
   invoice_date: string | null; due_date: string | null; currency: string | null;
   subtotal: string | null; vat_total: string | null; total_amount: string | null;
+  document_type: 'invoice' | 'credit_note' | 'unknown'; discount_total: string | null;
+  tax_ids: ParsedInvoice['taxIds']; purchase_order: string | null; payment_terms: string | null;
+  field_confidence: Record<string, number>; uncertain_fields: string[]; extraction_quality: Record<string, unknown>;
   duplicate_of: string | null; created_at: string;
+}
+
+const CORRECTED_FIELD_NAMES: Record<string, string[]> = {
+  party_name: ['supplierName', 'customerName'],
+  invoice_number: ['invoiceNumber'],
+  invoice_date: ['invoiceDate'],
+  due_date: ['dueDate'],
+  currency: ['currency'],
+  subtotal: ['subtotal'],
+  vat_total: ['vatTotal'],
+  total_amount: ['total'],
+  document_type: ['documentType'],
+  discount_total: ['discountTotal'],
+  purchase_order: ['purchaseOrder'],
+  payment_terms: ['paymentTerms'],
+  tax_ids: ['supplierBrn', 'supplierVat', 'customerBrn', 'customerVat'],
+};
+function correctedFieldNames(patch: Record<string, unknown>): string[] {
+  return [...new Set(Object.keys(patch).flatMap((key) => CORRECTED_FIELD_NAMES[key] ?? []))];
 }
 
 async function cabinetOf(db: Db, companyId: string): Promise<string | null> {
@@ -88,13 +110,23 @@ export async function uploadDocument(
   } catch (error) {
     throw badRequest('DOCUMENT_EXTRACTION_FAILED', `Text extraction failed: ${(error as Error).message}`);
   }
-  const parsed = parseInvoiceText(extraction.text);
+  const parsed = parseInvoiceText(extraction.text, {
+    extractionMethod: extraction.method,
+    extractionConfidence: extraction.confidence,
+    pageCount: extraction.pageCount,
+  });
   const warnings = [...extraction.warnings, ...parsed.warnings];
   if (!extraction.text.trim()) warnings.push('No text was recognised. Enter the fields manually.');
+  if (extraction.method !== 'pdf_text' && extraction.confidence < 0.6) {
+    warnings.push(`OCR quality is low (${Math.round(extraction.confidence * 100)}%); review every field before generating a proposal.`);
+  }
   if (duplicateOf) warnings.push('An identical file was already imported for this company.');
-  const confidenceValues = Object.values(parsed.fieldConfidence).filter((v) => v > 0);
+  const criticalFields = ['supplierName', 'invoiceNumber', 'invoiceDate', 'currency', 'total', 'vatTotal'];
+  const confidenceValues = criticalFields
+    .map((field) => parsed.fieldConfidence[field] ?? 0)
+    .filter((value) => value > 0);
   const confidence = confidenceValues.length
-    ? (confidenceValues.reduce((a, b) => a + b, 0) / Object.keys(parsed.fieldConfidence).length).toFixed(4)
+    ? (confidenceValues.reduce((a, b) => a + b, 0) / confidenceValues.length).toFixed(4)
     : '0.0000';
 
   const id = randomUUID();
@@ -120,15 +152,32 @@ export async function uploadDocument(
        (id, cabinet_id, company_id, created_by, kind, status, original_name, mime_type, size_bytes,
         sha256, storage_key, page_count, extraction_method, extracted, warnings, confidence,
         party_name, invoice_number, invoice_date, due_date, currency, subtotal, vat_total,
-        total_amount, duplicate_of)
+        total_amount, document_type, discount_total, tax_ids, purchase_order, payment_terms,
+        field_confidence, uncertain_fields, extraction_quality, duplicate_of)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb,$16,
-        $17,$18,$19,$20,$21,$22,$23,$24,$25) RETURNING *`,
+        $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27::jsonb,$28,$29,$30::jsonb,$31::jsonb,
+        $32::jsonb,$33) RETURNING *`,
     [id, await cabinetOf(db, actor.companyId), actor.companyId, actor.userId, input.kind, status,
       safeName(input.fileName).slice(0, 200), signature, buffer.length, sha256, storageKey,
       extraction.pageCount, extraction.method, JSON.stringify({ ...parsed, text: extraction.text.slice(0, 200_000) }),
       JSON.stringify(extraWarnings), confidence, parsed.supplierName ?? parsed.customerName,
       parsed.invoiceNumber, parsed.invoiceDate, parsed.dueDate, parsed.currency, parsed.subtotal,
-      parsed.vatTotal, parsed.total, duplicateOf ?? invoiceDuplicate]);
+      parsed.vatTotal, parsed.total, parsed.documentType, parsed.discountTotal,
+      JSON.stringify(parsed.taxIds), parsed.purchaseOrder, parsed.paymentTerms,
+      JSON.stringify(parsed.fieldConfidence), JSON.stringify(parsed.uncertainFields),
+      JSON.stringify({
+        method: extraction.method,
+        confidence: Math.round(extraction.confidence * 10000) / 10000,
+        pageCount: extraction.pageCount,
+        pages: extraction.pages.map((page) => ({
+          characters: page.text.replace(/\s/g, '').length,
+          confidence: page.confidence === null ? null : Math.round(page.confidence * 10000) / 10000,
+        })),
+        invoiceCountSuspected: parsed.invoiceCountSuspected,
+        multipleInvoicesSuspected: parsed.warningCodes.includes('MULTIPLE_INVOICES_SUSPECTED'),
+        extractionWarnings: extraction.warnings,
+      }),
+      duplicateOf ?? invoiceDuplicate]);
 
   let lineNo = 1;
   for (const line of parsed.lines) {
@@ -143,14 +192,100 @@ export async function uploadDocument(
   return { document: inserted.rows[0]! };
 }
 
+/**
+ * Mission 29 — re-read the stored source with the current parser.
+ *
+ * The preview is read-only. Applying a new extraction is an explicit human
+ * action and is restricted to an EXTRACTED document so a proposal is never
+ * silently invalidated or a finalised document rewritten.
+ */
+export async function reextractDocument(
+  db: Db, config: Config, actor: { userId: string; companyId: string },
+  documentId: string, apply = false,
+) {
+  const existing = await db.query<DocumentRow>(
+    'SELECT * FROM document_imports WHERE id=$1 AND company_id=$2', [documentId, actor.companyId]);
+  const document = existing.rows[0];
+  if (!document) throw notFound('DOCUMENT_NOT_FOUND', 'Document not found');
+  if (apply && document.status !== 'EXTRACTED') {
+    throw conflict('DOCUMENT_NOT_REEXTRACTABLE', 'Only an extracted document that has not been proposed can be re-extracted');
+  }
+  const file = await documentFile(db, config, actor.companyId, documentId);
+  const extraction = await extractDocument(file.buffer, file.mimeType as 'application/pdf' | 'image/jpeg' | 'image/png');
+  const parsed = parseInvoiceText(extraction.text, {
+    extractionMethod: extraction.method,
+    extractionConfidence: extraction.confidence,
+    pageCount: extraction.pageCount,
+  });
+  const criticalFields = ['supplierName', 'invoiceNumber', 'invoiceDate', 'currency', 'total', 'vatTotal'];
+  const values = criticalFields.map((field) => parsed.fieldConfidence[field] ?? 0).filter((value) => value > 0);
+  const confidence = values.length ? (values.reduce((a, b) => a + b, 0) / values.length).toFixed(4) : '0.0000';
+  const warnings = [...extraction.warnings, ...parsed.warnings];
+  const fields = {
+    party_name: parsed.supplierName ?? parsed.customerName,
+    invoice_number: parsed.invoiceNumber,
+    invoice_date: parsed.invoiceDate,
+    due_date: parsed.dueDate,
+    currency: parsed.currency,
+    subtotal: parsed.subtotal,
+    vat_total: parsed.vatTotal,
+    total_amount: parsed.total,
+    document_type: parsed.documentType,
+    discount_total: parsed.discountTotal,
+    purchase_order: parsed.purchaseOrder,
+    payment_terms: parsed.paymentTerms,
+  };
+  const changedFields = Object.entries(fields)
+    .filter(([key, value]) => String((document as unknown as Record<string, unknown>)[key] ?? '') !== String(value ?? ''))
+    .map(([key]) => key);
+
+  if (!apply) {
+    return {
+      documentId,
+      applied: false,
+      extraction: { method: extraction.method, pageCount: extraction.pageCount,
+        confidence: Math.round(extraction.confidence * 10000) / 10000, warnings: extraction.warnings },
+      parsed,
+      warnings,
+      changedFields,
+      note: 'Preview only. Call again with apply=true to replace the extraction fields of this EXTRACTED document.',
+    };
+  }
+
+  const updated = await db.query<DocumentRow>(
+    `UPDATE document_imports SET
+       party_name=$3, invoice_number=$4, invoice_date=$5, due_date=$6, currency=$7,
+       subtotal=$8, vat_total=$9, total_amount=$10, document_type=$11, discount_total=$12,
+       purchase_order=$13, payment_terms=$14, tax_ids=$15::jsonb, field_confidence=$16::jsonb,
+       uncertain_fields=$17::jsonb, extraction_quality=$18::jsonb, extracted=$19::jsonb,
+       warnings=$20::jsonb, confidence=$21, extraction_method=$22, page_count=$23, updated_at=now()
+     WHERE id=$1 AND company_id=$2 RETURNING *`,
+    [documentId, actor.companyId, fields.party_name, fields.invoice_number, fields.invoice_date,
+      fields.due_date, fields.currency, fields.subtotal, fields.vat_total, fields.total_amount,
+      fields.document_type, fields.discount_total, fields.purchase_order, fields.payment_terms,
+      JSON.stringify(parsed.taxIds), JSON.stringify(parsed.fieldConfidence),
+      JSON.stringify(parsed.uncertainFields), JSON.stringify({
+        method: extraction.method, confidence: Math.round(extraction.confidence * 10000) / 10000,
+        pageCount: extraction.pageCount, invoiceCountSuspected: parsed.invoiceCountSuspected,
+        multipleInvoicesSuspected: parsed.warningCodes.includes('MULTIPLE_INVOICES_SUSPECTED'),
+      }), JSON.stringify({ ...parsed, text: extraction.text.slice(0, 200_000) }),
+      JSON.stringify(warnings), confidence, extraction.method, extraction.pageCount]);
+  return { documentId, applied: true, document: updated.rows[0]!, extraction: {
+    method: extraction.method, pageCount: extraction.pageCount,
+    confidence: Math.round(extraction.confidence * 10000) / 10000, warnings: extraction.warnings,
+  }, parsed, warnings, changedFields };
+}
+
 export async function listDocuments(db: Db, companyId: string, status?: string) {
   const params: unknown[] = [companyId];
   let where = 'company_id=$1';
   if (status) { params.push(status); where += ` AND status=$${params.length}`; }
   const res = await db.query(
     `SELECT id, kind, status, original_name, mime_type, size_bytes, page_count, extraction_method,
-            confidence, party_name, invoice_number, invoice_date, currency, subtotal,
-            vat_total, total_amount, duplicate_of, created_at
+            confidence, party_name, invoice_number, invoice_date, due_date, currency, subtotal,
+            vat_total, total_amount, document_type, discount_total, tax_ids, purchase_order,
+            payment_terms, field_confidence, uncertain_fields, extraction_quality,
+            warnings, duplicate_of, created_at
        FROM document_imports WHERE ${where} ORDER BY created_at DESC LIMIT 200`, params);
   return res.rows;
 }
@@ -188,6 +323,11 @@ export async function updateDocument(
     invoice_date?: string | null; due_date?: string | null; currency?: string | null;
     subtotal?: string | number | null; vat_total?: string | number | null;
     total_amount?: string | number | null;
+    document_type?: 'invoice' | 'credit_note' | 'unknown';
+    discount_total?: string | number | null;
+    purchase_order?: string | null;
+    payment_terms?: string | null;
+    tax_ids?: Partial<ParsedInvoice['taxIds']> | null;
   },
 ) {
   const existing = await db.query<DocumentRow>(
@@ -206,12 +346,21 @@ export async function updateDocument(
        due_date=CASE WHEN $8::boolean THEN $9::date ELSE due_date END,
        currency=COALESCE($10,currency), subtotal=COALESCE($11,subtotal),
        vat_total=COALESCE($12,vat_total), total_amount=COALESCE($13,total_amount),
+       document_type=COALESCE($14,document_type),
+       discount_total=COALESCE($15,discount_total),
+       purchase_order=COALESCE($16,purchase_order),
+       tax_ids=CASE WHEN $17::jsonb IS NULL THEN tax_ids ELSE tax_ids || $17::jsonb END,
+       payment_terms=COALESCE($18,payment_terms),
+       uncertain_fields=uncertain_fields - $19::text[],
        updated_at=now()
      WHERE id=$1 AND company_id=$2 RETURNING *`,
     [documentId, companyId, patch.kind ?? null, patch.party_name ?? null, patch.invoice_number ?? null,
       patch.invoice_date !== undefined, patch.invoice_date ?? null,
       patch.due_date !== undefined, patch.due_date ?? null, patch.currency ?? null,
-      amount(patch.subtotal), amount(patch.vat_total), amount(patch.total_amount)]);
+      amount(patch.subtotal), amount(patch.vat_total), amount(patch.total_amount),
+      patch.document_type ?? null, amount(patch.discount_total), patch.purchase_order ?? null,
+      patch.tax_ids === undefined || patch.tax_ids === null ? null : JSON.stringify(patch.tax_ids),
+      patch.payment_terms ?? null, correctedFieldNames(patch)]);
   return updated.rows[0]!;
 }
 
@@ -317,8 +466,16 @@ export async function generateProposal(
   if (document.status === 'DUPLICATE') throw conflict('DOCUMENT_DUPLICATE', 'A duplicate document cannot be proposed');
   if (['APPROVED', 'REJECTED'].includes(document.status)) throw conflict('DOCUMENT_FINAL', 'This document is already finalised');
   const kind: 'purchase' | 'sale' = document.kind === 'sale' ? 'sale' : 'purchase';
-  const totalRaw = document.total_amount ? formatAmount(parseAmount(document.total_amount)) : null;
+  const absolute = (value: string | null) => value === null ? null : formatAmount((() => {
+    const parsed = parseAmount(value);
+    return parsed < 0n ? -parsed : parsed;
+  })());
+  const isCreditNote = document.document_type === 'credit_note';
+  const totalRaw = absolute(document.total_amount ? formatAmount(parseAmount(document.total_amount)) : null);
   if (!totalRaw) throw badRequest('DOCUMENT_TOTAL_MISSING', 'Enter the document total before generating a proposal');
+  // The proposal currency is never guessed: a missing document currency must
+  // be corrected by a human before any accounting proposal is created.
+  if (!document.currency) throw badRequest('DOCUMENT_CURRENCY_MISSING', 'Choose the document currency before generating a proposal');
 
   const accountsRes = await db.query<Account>(
     `SELECT id, code, name, type, account_role, name_en, name_fr FROM accounts
@@ -334,13 +491,18 @@ export async function generateProposal(
   // key learned from a human approval still applies to the extracted name.
   const learnedPartyName = party?.name ?? document.party_name;
 
-  const net = document.subtotal ? formatAmount(parseAmount(document.subtotal)) : null;
-  const vat = document.vat_total ? formatAmount(parseAmount(document.vat_total)) : '0.0000';
+  const net = absolute(document.subtotal ? formatAmount(parseAmount(document.subtotal)) : null);
+  const vat = absolute(document.vat_total ? formatAmount(parseAmount(document.vat_total)) : '0.0000') ?? '0.0000';
+  const discount = absolute(document.discount_total ? formatAmount(parseAmount(document.discount_total)) : null);
   const uncertain: string[] = [];
   if (!journalId) uncertain.push('journal');
   if (!party) uncertain.push('party');
   if (!document.invoice_date) uncertain.push('invoiceDate');
   if (!document.currency) uncertain.push('currency');
+  if (document.document_type === 'unknown') uncertain.push('documentType');
+  if (Array.isArray(document.uncertain_fields)) {
+    for (const field of document.uncertain_fields) if (typeof field === 'string') uncertain.push(field);
+  }
 
   const lines: ProposalLine[] = [];
   const mappings = learnedPartyName ? await db.query<{ keyword_key: string; account_id: string }>(
@@ -352,6 +514,7 @@ export async function generateProposal(
   const expenseLines = detail.lines.length
     ? detail.lines
     : [{ description: 'Document total', net_amount: net ?? totalRaw, vat_amount: vat, line_no: 1 }];
+  const tradingAccounts: (Account | null)[] = [];
   for (const docLine of expenseLines) {
     const description = String(docLine.description);
     const learned = mappings?.rows.find((m) => keywordOf(description).startsWith(m.keyword_key)
@@ -360,10 +523,24 @@ export async function generateProposal(
     if (!account) account = accountForDescription(accounts, description, kind)
       ?? fallbackTradingAccount(accounts, kind);
     if (!account) uncertain.push('account');
-    const netLine = docLine.net_amount ? formatAmount(parseAmount(docLine.net_amount)) : totalRaw;
+    tradingAccounts.push(account);
+    const netLine = absolute(docLine.net_amount ? formatAmount(parseAmount(docLine.net_amount)) : net)
+      ?? totalRaw;
     lines.push(kind === 'purchase'
       ? line(account, description, netLine, '0.0000', account?.account_role ?? null)
       : line(account, description, '0.0000', netLine, account?.account_role ?? null));
+  }
+
+  // A printed discount reduces the expense/revenue without changing the
+  // document total. It is represented by a separate line so the audit trail
+  // shows the discount instead of silently reducing a line amount.
+  if (discount && parseAmount(discount) > 0n) {
+    const discountAccount = tradingAccounts.find((account) => account !== null)
+      ?? fallbackTradingAccount(accounts, kind);
+    if (!discountAccount) uncertain.push('discountAccount');
+    lines.push(kind === 'purchase'
+      ? line(discountAccount, 'Discount stated on document', '0.0000', discount, 'discount')
+      : line(discountAccount, 'Discount stated on document', discount, '0.0000', 'discount'));
   }
 
   const vatValue = parseAmount(vat);
@@ -390,6 +567,16 @@ export async function generateProposal(
     ? line(partyAcc, party?.name ?? document.party_name ?? 'Supplier', '0.0000', totalRaw, 'payable')
     : line(partyAcc, party?.name ?? document.party_name ?? 'Customer', totalRaw, '0.0000', 'receivable'));
 
+  // A supplier credit note reverses the invoice directions. It is still only a
+  // proposal; the human approval creates a draft entry, never a posted entry.
+  if (isCreditNote) {
+    for (const draftLine of lines) {
+      const debitValue = draftLine.debit;
+      draftLine.debit = draftLine.credit;
+      draftLine.credit = debitValue;
+    }
+  }
+
   const debit = lines.reduce((sum, l) => sum + parseAmount(l.debit), 0n);
   const credit = lines.reduce((sum, l) => sum + parseAmount(l.credit), 0n);
   const balanced = debit === credit;
@@ -410,7 +597,7 @@ export async function generateProposal(
      RETURNING *`,
     [await cabinetOf(db, actor.companyId), actor.companyId, documentId, kind, party?.id ?? null,
       party?.name ?? document.party_name, journalId, entryDate,
-      document.currency ?? 'MUR', JSON.stringify(lines), balanced,
+      document.currency, JSON.stringify(lines), balanced,
       JSON.stringify([...new Set(uncertain)]),
       JSON.stringify({ candidates, debitTotal: formatAmount(debit), creditTotal: formatAmount(credit),
         confidence: document.confidence, extractionMethod: document.extraction_method })]);
