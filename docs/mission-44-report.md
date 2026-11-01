@@ -543,6 +543,10 @@ Commit `71c4201` (code + tests + docs):
 | Build demo bundle | **pass** (1m46s) |
 | Deploy to GitHub Pages | skipped — expected, `main` only |
 
+The docs-only follow-up commit that adds this section re-ran the same four
+checks on the final branch head: **all pass** (typecheck/tests/build,
+PostgreSQL API tests, PostgreSQL migrations, demo bundle), Pages deploy skipped.
+
 ### 16.10 Residual risks
 
 1. **The real browser suite has never run**: CSS/Android behaviour is asserted
