@@ -194,7 +194,7 @@ Le rapport expose désormais :
 | Build démo | `npm run build:demo` | **exit 0** |
 | Vérification démo | `node scripts/verify-demo.mjs --dist apps/web/dist --base /mauritius-compta/` | **50/50** |
 
-### 6.1 CI GitHub Actions — commit `9dd1477` (2026-11-01)
+### 6.1 CI GitHub Actions — commit `4c9c64d` (2026-11-01)
 
 | Job | Résultat | Durée |
 | --- | --- | --- |
