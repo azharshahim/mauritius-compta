@@ -184,9 +184,10 @@ Non garanti :
 | `npm run build` | ✅ 1 237,89 kB (306,99 kB gzip) pour le chunk principal ; aucun chunk runtime |
 | `npm run build:demo` | ✅ chunk principal 1 240,48 kB (307,54 kB gzip) + `runtime-*.js` 716,30 kB (198,88 kB gzip) |
 | Manifeste sous `base=/mauritius-compta/` | ✅ chemins relatifs, icônes et `sw.js` servis en 200 |
+| CI GitHub Actions (commit `01af5b8`) | ✅ 4 contrôles verts (typecheck/tests/build, API PostgreSQL, migrations, build démo) ; **Deploy Pages ignoré** |
 | Test sur Android physique | ❌ non réalisé dans cet environnement |
 
-Le lien de prévisualisation HTTPS de la démonstration est fourni dans la conversation et rappelé dans la PR. Il sert le build `build:demo` sous le préfixe `/mauritius-compta/`, avec redirection depuis la racine.
+Le lien de prévisualisation HTTPS de la démonstration est fourni dans la conversation et rappelé dans la PR. Il sert le build `build:demo` sous le préfixe `/mauritius-compta/`, avec redirection depuis la racine. Lien temporaire lié à l’environnement de session : <https://4173-iun6s3rfpj5o1xox1vafx.e2b.app>.
 
 ## 9. Procédure de rafraîchissement des icônes et du nom déjà installés
 
