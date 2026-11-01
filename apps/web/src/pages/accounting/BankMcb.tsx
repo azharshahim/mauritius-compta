@@ -140,7 +140,7 @@ export default function BankMcbPage() {
         <Card>
           <h2>{t('mcb.imported')}</h2>
           <p>{imported.reimport ? t('mcb.alreadyImported') : t('mcb.importedCount').replace('{n}', String(imported.imported)).replace('{d}', String(imported.duplicates))}</p>
-          <Button onClick={() => navigate('/accounting/banking')}>{t('mcb.openBank')}</Button>
+          <Button onClick={() => navigate(`/accounting/banking${accountId ? `?bankAccountId=${accountId}` : ''}`)}>{t('mcb.openBank')}</Button>
         </Card>
       )}
 

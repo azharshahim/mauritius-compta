@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api, downloadExport, qs } from '../../api';
 import { useI18n } from '../../i18n';
 import { useSession } from '../../store';
@@ -53,7 +54,9 @@ export default function InventoryPage() {
   const { locale } = useI18n();
   const { company } = useSession();
   const L = (fr: string, en: string) => (locale === 'en' ? en : fr);
-  const [tab, setTab] = useState<Tab>('stock');
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab');
+  const [tab, setTab] = useState<Tab>(['stock', 'movements', 'counts', 'writeDowns', 'reports', 'settings'].includes(initialTab ?? '') ? initialTab as Tab : 'stock');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [journals, setJournals] = useState<Journal[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -74,6 +77,9 @@ export default function InventoryPage() {
   const [categoryModal, setCategoryModal] = useState(false);
   const [locationModal, setLocationModal] = useState(false);
   const [itemModal, setItemModal] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [editingLocation, setEditingLocation] = useState<string | null>(null);
+  const [editingItem, setEditingItem] = useState<string | null>(null);
   const [movementModal, setMovementModal] = useState(false);
   const [countModal, setCountModal] = useState(false);
   const [writeDownModal, setWriteDownModal] = useState(false);
@@ -167,32 +173,73 @@ export default function InventoryPage() {
     catch (err: any) { setActionError(err?.message ?? 'Erreur'); }
     finally { setBusy(false); }
   }
-  async function createCategory() {
+  async function saveCategory() {
     if (!company) return;
     await run(async () => {
-      await api.post(`/companies/${company.id}/inventory/categories`, {
+      const body = {
         ...categoryForm,
         adjustmentAccountId: categoryForm.adjustmentAccountId || null,
         writeDownAccountId: categoryForm.writeDownAccountId || null,
-      });
+      };
+      if (editingCategory) {
+        await api.put(`/companies/${company.id}/inventory/categories/${editingCategory}`, body);
+      } else {
+        await api.post(`/companies/${company.id}/inventory/categories`, body);
+      }
       setCategoryModal(false);
+      setEditingCategory(null);
     });
   }
-  async function createLocation() {
+  async function saveLocation() {
     if (!company) return;
     await run(async () => {
-      await api.post(`/companies/${company.id}/inventory/locations`, { ...locationForm, description: locationForm.description || null });
+      const body = { ...locationForm, description: locationForm.description || null };
+      if (editingLocation) {
+        await api.put(`/companies/${company.id}/inventory/locations/${editingLocation}`, body);
+      } else {
+        await api.post(`/companies/${company.id}/inventory/locations`, body);
+      }
       setLocationModal(false);
+      setEditingLocation(null);
     });
   }
-  async function createItem() {
+  async function saveItem() {
     if (!company) return;
     await run(async () => {
-      await api.post(`/companies/${company.id}/inventory/items`, {
-        ...itemForm, reorderLevel: itemForm.reorderLevel || null,
-      });
+      const body = { ...itemForm, reorderLevel: itemForm.reorderLevel || null };
+      if (editingItem) {
+        await api.put(`/companies/${company.id}/inventory/items/${editingItem}`, body);
+      } else {
+        await api.post(`/companies/${company.id}/inventory/items`, body);
+      }
       setItemModal(false);
+      setEditingItem(null);
     });
+  }
+
+  function openCategory(c?: Category) {
+    setEditingCategory(c?.id ?? null);
+    setCategoryForm(c ? {
+      code: c.code, name: c.name, valuationMethod: c.valuationMethod,
+      inventoryAccountId: c.inventoryAccountId, cogsAccountId: c.cogsAccountId,
+      adjustmentAccountId: c.adjustmentAccountId ?? '', writeDownAccountId: c.writeDownAccountId ?? '',
+      allowNegativeStock: c.allowNegativeStock, isActive: c.isActive,
+    } : {
+      code: '', name: '', valuationMethod: 'fifo', inventoryAccountId: '',
+      cogsAccountId: '', adjustmentAccountId: '', writeDownAccountId: '',
+      allowNegativeStock: false, isActive: true,
+    });
+    setCategoryModal(true);
+  }
+  function openLocation(l?: Location) {
+    setEditingLocation(l?.id ?? null);
+    setLocationForm(l ? { code: l.code, name: l.name, description: l.description ?? '', isActive: l.isActive } : { code: '', name: '', description: '', isActive: true });
+    setLocationModal(true);
+  }
+  function openItem(i?: Item) {
+    setEditingItem(i?.id ?? null);
+    setItemForm(i ? { categoryId: i.categoryId, sku: i.sku, name: i.name, unit: i.unit, reorderLevel: i.reorderLevel ?? '', isActive: i.isActive } : { categoryId: '', sku: '', name: '', unit: 'unit', reorderLevel: '', isActive: true });
+    setItemModal(true);
   }
   async function createMovement() {
     if (!company) return;
@@ -447,24 +494,24 @@ export default function InventoryPage() {
 
       {tab === 'settings' && (
         <>
-          <Card title={L('Catégories', 'Categories')} actions={<Button onClick={() => setCategoryModal(true)}>{L('Nouvelle catégorie', 'New category')}</Button>}>
+          <Card title={L('Catégories', 'Categories')} actions={<Button onClick={() => openCategory()}>{L('Nouvelle catégorie', 'New category')}</Button>}>
             <div className="table-wrap">
               <table className="table">
-                <thead><tr><th>{L('Code', 'Code')}</th><th>{L('Nom', 'Name')}</th><th>{L('Méthode', 'Method')}</th><th>{L('Compte stock', 'Stock account')}</th><th>{L('Compte COGS', 'COGS account')}</th><th>{L('Stock négatif', 'Negative stock')}</th></tr></thead>
-                <tbody>{categories.map((c) => <tr key={c.id}><td className="mono">{c.code}</td><td>{c.name}</td><td>{c.valuationMethod === 'fifo' ? 'FIFO' : L('Coût moyen', 'Weighted average')}</td><td>{accounts.find((a) => a.id === c.inventoryAccountId)?.code ?? '—'}</td><td>{accounts.find((a) => a.id === c.cogsAccountId)?.code ?? '—'}</td><td>{c.allowNegativeStock ? L('Autorisé', 'Allowed') : L('Refusé', 'Refused')}</td></tr>)}
-              {categories.length === 0 && <tr><td colSpan={6} className="page-sub">{L('Aucune catégorie.', 'No category.')}</td></tr>}</tbody>
+                <thead><tr><th>{L('Code', 'Code')}</th><th>{L('Nom', 'Name')}</th><th>{L('Méthode', 'Method')}</th><th>{L('Compte stock', 'Stock account')}</th><th>{L('Compte COGS', 'COGS account')}</th><th>{L('Stock négatif', 'Negative stock')}</th><th>{L('Actions', 'Actions')}</th></tr></thead>
+                <tbody>{categories.map((c) => <tr key={c.id}><td className="mono">{c.code}</td><td>{c.name}</td><td>{c.valuationMethod === 'fifo' ? 'FIFO' : L('Coût moyen', 'Weighted average')}</td><td>{accounts.find((a) => a.id === c.inventoryAccountId)?.code ?? '—'}</td><td>{accounts.find((a) => a.id === c.cogsAccountId)?.code ?? '—'}</td><td>{c.allowNegativeStock ? L('Autorisé', 'Allowed') : L('Refusé', 'Refused')}</td><td><Button variant="link" onClick={() => openCategory(c)}>{L('Modifier', 'Edit')}</Button></td></tr>)}
+              {categories.length === 0 && <tr><td colSpan={7} className="page-sub">{L('Aucune catégorie.', 'No category.')}</td></tr>}</tbody>
               </table>
             </div>
           </Card>
-          <Card title={L('Emplacements', 'Locations')} actions={<Button onClick={() => setLocationModal(true)}>{L('Nouvel emplacement', 'New location')}</Button>}>
-            <div className="table-wrap"><table className="table"><thead><tr><th>{L('Code', 'Code')}</th><th>{L('Nom', 'Name')}</th><th>{L('Description', 'Description')}</th></tr></thead>
-              <tbody>{locations.map((l) => <tr key={l.id}><td className="mono">{l.code}</td><td>{l.name}</td><td>{l.description ?? '—'}</td></tr>)}
-              {locations.length === 0 && <tr><td colSpan={3} className="page-sub">{L('Aucun emplacement.', 'No location.')}</td></tr>}</tbody></table></div>
+          <Card title={L('Emplacements', 'Locations')} actions={<Button onClick={() => openLocation()}>{L('Nouvel emplacement', 'New location')}</Button>}>
+            <div className="table-wrap"><table className="table"><thead><tr><th>{L('Code', 'Code')}</th><th>{L('Nom', 'Name')}</th><th>{L('Description', 'Description')}</th><th>{L('Actions', 'Actions')}</th></tr></thead>
+              <tbody>{locations.map((l) => <tr key={l.id}><td className="mono">{l.code}</td><td>{l.name}</td><td>{l.description ?? '—'}</td><td><Button variant="link" onClick={() => openLocation(l)}>{L('Modifier', 'Edit')}</Button></td></tr>)}
+              {locations.length === 0 && <tr><td colSpan={4} className="page-sub">{L('Aucun emplacement.', 'No location.')}</td></tr>}</tbody></table></div>
           </Card>
-          <Card title={L('Articles', 'Items')} actions={<Button onClick={() => setItemModal(true)}>{L('Nouvel article', 'New item')}</Button>}>
-            <div className="table-wrap"><table className="table"><thead><tr><th>SKU</th><th>{L('Nom', 'Name')}</th><th>{L('Catégorie', 'Category')}</th><th>{L('Unité', 'Unit')}</th><th className="num">{L('Seuil de réappro.', 'Reorder level')}</th></tr></thead>
-              <tbody>{items.map((i) => <tr key={i.id}><td className="mono">{i.sku}</td><td>{i.name}</td><td>{categoryName(i.categoryId)}</td><td>{i.unit}</td><td className="num">{i.reorderLevel ?? '—'}</td></tr>)}
-              {items.length === 0 && <tr><td colSpan={5} className="page-sub">{L('Aucun article.', 'No item.')}</td></tr>}</tbody></table></div>
+          <Card title={L('Articles', 'Items')} actions={<Button onClick={() => openItem()}>{L('Nouvel article', 'New item')}</Button>}>
+            <div className="table-wrap"><table className="table"><thead><tr><th>SKU</th><th>{L('Nom', 'Name')}</th><th>{L('Catégorie', 'Category')}</th><th>{L('Unité', 'Unit')}</th><th className="num">{L('Seuil de réappro.', 'Reorder level')}</th><th>{L('Actions', 'Actions')}</th></tr></thead>
+              <tbody>{items.map((i) => <tr key={i.id}><td className="mono">{i.sku}</td><td>{i.name}</td><td>{categoryName(i.categoryId)}</td><td>{i.unit}</td><td className="num">{i.reorderLevel ?? '—'}</td><td><Button variant="link" onClick={() => openItem(i)}>{L('Modifier', 'Edit')}</Button></td></tr>)}
+              {items.length === 0 && <tr><td colSpan={6} className="page-sub">{L('Aucun article.', 'No item.')}</td></tr>}</tbody></table></div>
           </Card>
         </>
       )}
@@ -495,7 +542,7 @@ export default function InventoryPage() {
         <Button variant="primary" disabled={busy} onClick={() => void createMovement()}>{L('Créer le mouvement', 'Create movement')}</Button>
       </Modal>
 
-      <Modal open={categoryModal} title={L('Nouvelle catégorie', 'New category')} onClose={() => setCategoryModal(false)}>
+      <Modal open={categoryModal} title={editingCategory ? L('Modifier la catégorie', 'Edit category') : L('Nouvelle catégorie', 'New category')} onClose={() => { setCategoryModal(false); setEditingCategory(null); }}>
         <Field label={L('Code', 'Code')}><input value={categoryForm.code} onChange={(e) => setCategoryForm({ ...categoryForm, code: e.target.value })} /></Field>
         <Field label={L('Nom', 'Name')}><input value={categoryForm.name} onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })} /></Field>
         <Field label={L('Méthode de valorisation', 'Valuation method')}><select value={categoryForm.valuationMethod} onChange={(e) => setCategoryForm({ ...categoryForm, valuationMethod: e.target.value })}><option value="fifo">FIFO</option><option value="weighted_average">{L('Coût moyen pondéré', 'Weighted average')}</option></select></Field>
@@ -504,23 +551,23 @@ export default function InventoryPage() {
         <Field label={L('Compte d’ajustement', 'Adjustment account')}><select value={categoryForm.adjustmentAccountId} onChange={(e) => setCategoryForm({ ...categoryForm, adjustmentAccountId: e.target.value })}><option value="">—</option>{accountOptions(['expense', 'revenue']).map((a) => <option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></Field>
         <Field label={L('Compte de dépréciation', 'Write-down account')}><select value={categoryForm.writeDownAccountId} onChange={(e) => setCategoryForm({ ...categoryForm, writeDownAccountId: e.target.value })}><option value="">—</option>{accountOptions(['expense']).map((a) => <option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></Field>
         <label className="checkbox"><input type="checkbox" checked={categoryForm.allowNegativeStock} onChange={(e) => setCategoryForm({ ...categoryForm, allowNegativeStock: e.target.checked })} /> {L('Autoriser un stock négatif (déconseillé)', 'Allow negative stock (not recommended)')}</label>
-        <Button variant="primary" disabled={busy} onClick={() => void createCategory()}>{L('Créer', 'Create')}</Button>
+        <Button variant="primary" disabled={busy} onClick={() => void saveCategory()}>{L('Enregistrer', 'Save')}</Button>
       </Modal>
 
-      <Modal open={locationModal} title={L('Nouvel emplacement', 'New location')} onClose={() => setLocationModal(false)}>
+      <Modal open={locationModal} title={editingLocation ? L('Modifier l’emplacement', 'Edit location') : L('Nouvel emplacement', 'New location')} onClose={() => { setLocationModal(false); setEditingLocation(null); }}>
         <Field label={L('Code', 'Code')}><input value={locationForm.code} onChange={(e) => setLocationForm({ ...locationForm, code: e.target.value })} /></Field>
         <Field label={L('Nom', 'Name')}><input value={locationForm.name} onChange={(e) => setLocationForm({ ...locationForm, name: e.target.value })} /></Field>
         <Field label={L('Description', 'Description')}><input value={locationForm.description} onChange={(e) => setLocationForm({ ...locationForm, description: e.target.value })} /></Field>
-        <Button variant="primary" disabled={busy} onClick={() => void createLocation()}>{L('Créer', 'Create')}</Button>
+        <Button variant="primary" disabled={busy} onClick={() => void saveLocation()}>{L('Enregistrer', 'Save')}</Button>
       </Modal>
 
-      <Modal open={itemModal} title={L('Nouvel article', 'New item')} onClose={() => setItemModal(false)}>
+      <Modal open={itemModal} title={editingItem ? L('Modifier l’article', 'Edit item') : L('Nouvel article', 'New item')} onClose={() => { setItemModal(false); setEditingItem(null); }}>
         <Field label={L('Catégorie', 'Category')}><select value={itemForm.categoryId} onChange={(e) => setItemForm({ ...itemForm, categoryId: e.target.value })}><option value="">—</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.code} — {c.name}</option>)}</select></Field>
         <Field label="SKU"><input value={itemForm.sku} onChange={(e) => setItemForm({ ...itemForm, sku: e.target.value })} /></Field>
         <Field label={L('Nom', 'Name')}><input value={itemForm.name} onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })} /></Field>
         <Field label={L('Unité', 'Unit')}><input value={itemForm.unit} onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })} /></Field>
         <Field label={L('Seuil de réapprovisionnement', 'Reorder level')}><input type="number" min="0" step="0.0001" value={itemForm.reorderLevel} onChange={(e) => setItemForm({ ...itemForm, reorderLevel: e.target.value })} /></Field>
-        <Button variant="primary" disabled={busy} onClick={() => void createItem()}>{L('Créer', 'Create')}</Button>
+        <Button variant="primary" disabled={busy} onClick={() => void saveItem()}>{L('Enregistrer', 'Save')}</Button>
       </Modal>
 
       <Modal open={countModal} title={L('Nouvel inventaire physique', 'New physical count')} onClose={() => setCountModal(false)} wide>

@@ -760,6 +760,22 @@ export function handleDemoMission22(state: DemoState, companyId: string, method:
       allow_negative_stock: Boolean(payload.allowNegativeStock), is_active: true, created_at: now() };
     s.categories.push(c); return { category: categoryView(c) };
   }
+  const catMatch = /^\/categories\/([^/]+)$/.exec(rest);
+  if (catMatch && method === 'PUT') {
+    write();
+    const c = s.categories.find((x) => x.id === catMatch[1] && x.company_id === companyId);
+    if (!c) throw new ApiError(404, 'INVENTORY_CATEGORY_NOT_FOUND', 'Catégorie introuvable');
+    if (payload.code !== undefined) c.code = String(payload.code).trim();
+    if (payload.name !== undefined) c.name = String(payload.name).trim();
+    if (payload.valuationMethod !== undefined) c.valuation_method = payload.valuationMethod;
+    if (payload.inventoryAccountId !== undefined) c.inventory_account_id = payload.inventoryAccountId;
+    if (payload.cogsAccountId !== undefined) c.cogs_account_id = payload.cogsAccountId;
+    if (payload.adjustmentAccountId !== undefined) c.adjustment_account_id = payload.adjustmentAccountId || null;
+    if (payload.writeDownAccountId !== undefined) c.write_down_account_id = payload.writeDownAccountId || null;
+    if (payload.allowNegativeStock !== undefined) c.allow_negative_stock = Boolean(payload.allowNegativeStock);
+    if (payload.isActive !== undefined) c.is_active = Boolean(payload.isActive);
+    return { category: categoryView(c) };
+  }
   if (rest === '/locations' && method === 'GET') return { locations: s.locations.filter((l) => l.company_id === companyId).map(locationView) };
   if (rest === '/locations' && method === 'POST') {
     write();
@@ -767,6 +783,17 @@ export function handleDemoMission22(state: DemoState, companyId: string, method:
       name: String(payload.name ?? '').trim(), description: payload.description ?? null, is_active: true };
     if (!l.code || !l.name) throw new ApiError(400, 'VALIDATION_ERROR', 'Code et nom requis');
     s.locations.push(l); return { location: locationView(l) };
+  }
+  const locMatch = /^\/locations\/([^/]+)$/.exec(rest);
+  if (locMatch && method === 'PUT') {
+    write();
+    const l = s.locations.find((x) => x.id === locMatch[1] && x.company_id === companyId);
+    if (!l) throw new ApiError(404, 'INVENTORY_LOCATION_NOT_FOUND', 'Emplacement introuvable');
+    if (payload.code !== undefined) l.code = String(payload.code).trim();
+    if (payload.name !== undefined) l.name = String(payload.name).trim();
+    if (payload.description !== undefined) l.description = payload.description || null;
+    if (payload.isActive !== undefined) l.is_active = Boolean(payload.isActive);
+    return { location: locationView(l) };
   }
   if (rest === '/items' && method === 'GET') return { items: s.items.filter((i) => i.company_id === companyId).map((i) => itemView(state, companyId, i)) };
   if (rest === '/items' && method === 'POST') {
@@ -776,6 +803,34 @@ export function handleDemoMission22(state: DemoState, companyId: string, method:
     if (!s.categories.some((c) => c.id === i.category_id && c.company_id === companyId)) throw new ApiError(400, 'INVENTORY_CATEGORY_INACTIVE', 'Catégorie invalide');
     if (!i.sku || !i.name) throw new ApiError(400, 'VALIDATION_ERROR', 'SKU et nom requis');
     s.items.push(i); return { item: itemView(state, companyId, i) };
+  }
+  const itemMatch = /^\/items\/([^/]+)$/.exec(rest);
+  if (itemMatch && method === 'PUT') {
+    write();
+    const i = s.items.find((x) => x.id === itemMatch[1] && x.company_id === companyId);
+    if (!i) throw new ApiError(404, 'INVENTORY_ITEM_NOT_FOUND', 'Article introuvable');
+    if (payload.categoryId !== undefined) i.category_id = payload.categoryId;
+    if (payload.sku !== undefined) i.sku = String(payload.sku).trim();
+    if (payload.name !== undefined) i.name = String(payload.name).trim();
+    if (payload.unit !== undefined) i.unit = String(payload.unit);
+    if (payload.reorderLevel !== undefined) i.reorder_level = payload.reorderLevel || null;
+    if (payload.isActive !== undefined) i.is_active = Boolean(payload.isActive);
+    return { item: itemView(state, companyId, i) };
+  }
+  const bridgeMatch = /^\/movements\/from-billing\/([^/]+)$/.exec(rest);
+  if (bridgeMatch && method === 'POST') {
+    write();
+    const doc = state.billingDocuments.find((d) => d.id === bridgeMatch[1] && d.company_id === companyId);
+    if (!doc) throw new ApiError(404, 'INVENTORY_SOURCE_NOT_FOUND', 'Facture introuvable');
+    if (doc.kind !== 'invoice' || doc.status !== 'issued') throw new ApiError(409, 'INVENTORY_SOURCE_INVALID', 'Facture émise requise');
+    const docNo = doc.doc_no ?? doc.id.slice(0, 8);
+    const movements = (payload.lines ?? []).map((line: any) => createMovement(state, companyId, {
+      itemId: line.itemId, locationId: line.locationId, movementDate: doc.issue_date,
+      direction: 'out', sourceKind: 'issue', quantity: line.quantity, unitCost: null,
+      reference: docNo, description: `Sortie ${docNo}`, documentRef: `billing:${docNo}`,
+      journalId: payload.journalId, counterpartAccountId: null,
+    }));
+    return { document: { id: doc.id, docNo }, movements: movements.map((m: DemoInvMovement) => movementView(state, m)) };
   }
   if (rest === '/movements' && method === 'GET') {
     const list = s.movements.filter((m) => m.company_id === companyId

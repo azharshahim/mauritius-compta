@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../../api';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
@@ -7,6 +7,14 @@ import { Badge, Button, Card, EmptyState, ErrorBanner, Field, Modal, Spinner } f
 import { money, scaled4ToString, toScaled4 } from '../../format';
 import type { BillingDocument, BillingKind, Customer, DocumentLine, Item } from './types';
 import { emptyLine } from './types';
+
+interface StockItem { id: string; sku: string; name: string; isActive: boolean }
+interface StockLocation { id: string; code: string; name: string; isActive: boolean }
+interface StockJournal { id: string; code: string; name: string; is_active: boolean }
+interface StockLine {
+  billingLineId: string; description: string; invoicedQty: string;
+  itemId: string; locationId: string; quantity: string;
+}
 
 const TITLES: Record<BillingKind, string> = {
   quote: 'nav.billing.quotes',
@@ -34,6 +42,7 @@ const statusKind = (status: string): 'neutral' | 'success' | 'warning' | 'danger
 export default function BillingDocumentsPage({ kind }: { kind: BillingKind }) {
   const { t, locale } = useI18n();
   const { company } = useSession();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const targetDocument = searchParams.get('document');
   const targetOpened = useRef(false);
@@ -56,6 +65,14 @@ export default function BillingDocumentsPage({ kind }: { kind: BillingKind }) {
     notes: '',
   });
   const [lines, setLines] = useState<DocumentLine[]>([emptyLine()]);
+  const [stockOpen, setStockOpen] = useState(false);
+  const [stockBusy, setStockBusy] = useState(false);
+  const [stockItems, setStockItems] = useState<StockItem[]>([]);
+  const [stockLocations, setStockLocations] = useState<StockLocation[]>([]);
+  const [stockJournals, setStockJournals] = useState<StockJournal[]>([]);
+  const [stockJournalId, setStockJournalId] = useState('');
+  const [stockLines, setStockLines] = useState<StockLine[]>([]);
+  const [stockNotice, setStockNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!company) return;
@@ -95,6 +112,79 @@ export default function BillingDocumentsPage({ kind }: { kind: BillingKind }) {
     () => documents.filter((d) => d.kind === 'invoice' && ['issued', 'partially_paid'].includes(d.status)),
     [documents],
   );
+
+  const openStockBridge = async (doc: BillingDocument) => {
+    if (!company) return;
+    setStockBusy(true);
+    setError(null);
+    setStockNotice(null);
+    try {
+      const [invItems, invLocations, invJournals] = await Promise.all([
+        api.get<{ items: StockItem[] }>(`/companies/${company.id}/inventory/items`),
+        api.get<{ locations: StockLocation[] }>(`/companies/${company.id}/inventory/locations`),
+        api.get<{ journals: StockJournal[] }>(`/companies/${company.id}/journals`),
+      ]);
+      const activeItems = invItems.items.filter((i) => i.isActive);
+      const activeLocations = invLocations.locations.filter((l) => l.isActive);
+      const activeJournals = invJournals.journals.filter((j) => j.is_active);
+      if (activeItems.length === 0 || activeLocations.length === 0 || activeJournals.length === 0) {
+        setError(t('inventory.noStockMaster'));
+        return;
+      }
+      setStockItems(activeItems);
+      setStockLocations(activeLocations);
+      setStockJournals(activeJournals);
+      setStockJournalId(activeJournals[0]!.id);
+      setStockLines(doc.lines.filter((l) => l.id).map((l) => {
+        const billingItem = l.itemId ? items.find((i) => i.id === l.itemId) : undefined;
+        const reference = billingItem?.reference?.trim().toLowerCase();
+        const candidate = reference
+          ? activeItems.find((i) => i.sku.trim().toLowerCase() === reference)
+          : activeItems.find((i) => i.name.trim().toLowerCase() === l.description.trim().toLowerCase());
+        return {
+          billingLineId: l.id!,
+          description: l.description,
+          invoicedQty: l.quantity,
+          itemId: candidate?.id ?? '',
+          locationId: activeLocations[0]!.id,
+          quantity: l.quantity,
+        };
+      }));
+      setStockOpen(true);
+    } catch (err) {
+      setError(errorMessage(err, t('common.error')).message);
+    } finally {
+      setStockBusy(false);
+    }
+  };
+
+  const submitStockBridge = async () => {
+    if (!company || !detail) return;
+    const mapped = stockLines.filter((l) => l.itemId && l.locationId && Number(l.quantity) > 0);
+    if (mapped.length === 0 || !stockJournalId) return;
+    setStockBusy(true);
+    setError(null);
+    try {
+      const result = await api.post<{ movements: unknown[] }>(
+        `/companies/${company.id}/inventory/movements/from-billing/${detail.id}`,
+        {
+          journalId: stockJournalId,
+          lines: mapped.map((l) => ({
+            billingLineId: l.billingLineId,
+            itemId: l.itemId,
+            locationId: l.locationId,
+            quantity: l.quantity,
+          })),
+        },
+      );
+      setStockOpen(false);
+      setStockNotice(t('inventory.stockBridgeCreated').replace('{n}', String(result.movements.length)));
+    } catch (err) {
+      setError(errorMessage(err, t('common.error')).message);
+    } finally {
+      setStockBusy(false);
+    }
+  };
 
   if (!company) return <EmptyState title={t('dashboard.noCompanyHelp')} />;
 
@@ -291,6 +381,14 @@ export default function BillingDocumentsPage({ kind }: { kind: BillingKind }) {
 
       {notice && <div className="alert alert-info">{notice}</div>}
       <ErrorBanner message={error} />
+      {stockNotice && (
+        <div className="alert alert-info">
+          {stockNotice}{' '}
+          <Button variant="link" onClick={() => navigate('/accounting/inventory?tab=movements')}>
+            {t('inventory.openMovements')}
+          </Button>
+        </div>
+      )}
 
       <Card>
         {loading ? (
@@ -568,6 +666,11 @@ export default function BillingDocumentsPage({ kind }: { kind: BillingKind }) {
                   {t('lettering.open')}
                 </Link>
               )}
+              {detail.kind === 'invoice' && detail.status === 'issued' && detail.lines.some((l) => l.id) && (
+                <Button variant="ghost" onClick={() => void openStockBridge(detail)} disabled={stockBusy}>
+                  {t('inventory.stockBridge')}
+                </Button>
+              )}
               <Button variant="ghost" onClick={() => void pdf(detail)}>
                 {t('billing.documents.pdfButton')}
               </Button>
@@ -579,6 +682,62 @@ export default function BillingDocumentsPage({ kind }: { kind: BillingKind }) {
             </div>
           </>
         )}
+      </Modal>
+
+      <Modal open={stockOpen} title={t('inventory.stockBridge')} onClose={() => setStockOpen(false)} wide>
+        <p className="page-sub">{t('inventory.stockBridgeHint')}</p>
+        <Field label={t('docs.journal')}>
+          <select value={stockJournalId} onChange={(e) => setStockJournalId(e.target.value)}>
+            {stockJournals.map((j) => <option key={j.id} value={j.id}>{j.code} — {j.name}</option>)}
+          </select>
+        </Field>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>{t('inventory.billingLine')}</th>
+                <th className="num">{t('inventory.invoicedQty')}</th>
+                <th>{t('inventory.inventoryItem')}</th>
+                <th>{t('inventory.location')}</th>
+                <th className="num">{t('inventory.quantityToIssue')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stockLines.map((l, index) => (
+                <tr key={l.billingLineId}>
+                  <td>{l.description}</td>
+                  <td className="num">{l.invoicedQty}</td>
+                  <td>
+                    <select value={l.itemId} onChange={(e) => {
+                      const next = [...stockLines]; next[index] = { ...next[index]!, itemId: e.target.value }; setStockLines(next);
+                    }}>
+                      <option value="">{t('inventory.chooseItem')}</option>
+                      {stockItems.map((i) => <option key={i.id} value={i.id}>{i.sku} — {i.name}</option>)}
+                    </select>
+                  </td>
+                  <td>
+                    <select value={l.locationId} onChange={(e) => {
+                      const next = [...stockLines]; next[index] = { ...next[index]!, locationId: e.target.value }; setStockLines(next);
+                    }}>
+                      {stockLocations.map((loc) => <option key={loc.id} value={loc.id}>{loc.code} — {loc.name}</option>)}
+                    </select>
+                  </td>
+                  <td className="num">
+                    <input inputMode="decimal" value={l.quantity} onChange={(e) => {
+                      const next = [...stockLines]; next[index] = { ...next[index]!, quantity: e.target.value }; setStockLines(next);
+                    }} style={{ maxWidth: 100 }} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="modal-actions">
+          <Button variant="ghost" onClick={() => setStockOpen(false)}>{t('common.cancel')}</Button>
+          <Button variant="primary" disabled={stockBusy || !stockJournalId || !stockLines.some((l) => l.itemId && Number(l.quantity) > 0)} onClick={() => void submitStockBridge()}>
+            {t('inventory.stockBridge')}
+          </Button>
+        </div>
       </Modal>
     </>
   );

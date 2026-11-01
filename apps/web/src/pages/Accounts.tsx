@@ -224,6 +224,13 @@ export default function AccountsPage() {
     finally { setImportBusy(false); }
   };
 
+  const roleRows = ROLES.filter(Boolean).map((role) => ({
+    role,
+    account: accounts.find((a) => a.account_role === role && a.is_active) ?? null,
+  }));
+  const configuredRoles = roleRows.filter((r) => r.account).length;
+  const roleLabel = (role: string) => t(`chart.role.${role}`) === `chart.role.${role}` ? role : t(`chart.role.${role}`);
+
   const statusKind = profile?.status === 'CONFIRMED BY FIRM' ? 'success'
     : profile?.status === 'AWAITING FIRM CONFIRMATION' ? 'warning' : 'neutral';
 
@@ -258,6 +265,38 @@ export default function AccountsPage() {
         <p className="page-sub" style={{ marginTop: 8 }}>
           {t('chart.isolationNote')}
         </p>
+      </Card>
+      <Card title={t('chart.mappingTitle')}>
+        <div className="chart-status">
+          <p className="page-sub" style={{ margin: 0 }}>{t('chart.mappingHint')}</p>
+          <Badge kind={configuredRoles === roleRows.length ? 'success' : 'warning'}>
+            {configuredRoles} / {roleRows.length}
+          </Badge>
+        </div>
+        <div className="table-wrap" style={{ maxHeight: 260, overflow: 'auto', marginTop: 8 }}>
+          <table>
+            <thead>
+              <tr>
+                <th>{t('chart.mappingRole')}</th>
+                <th>{t('chart.mappingAccount')}</th>
+                <th>{t('chart.mappingState')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {roleRows.map((r) => (
+                <tr key={r.role}>
+                  <td>{roleLabel(r.role)}<div className="page-sub mono">{r.role}</div></td>
+                  <td>{r.account ? `${r.account.code} — ${labelOf(r.account)}` : '—'}</td>
+                  <td>
+                    <Badge kind={r.account ? 'success' : 'warning'}>
+                      {r.account ? t('common.yes') : t('chart.mappingMissing')}
+                    </Badge>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Card>
       <Card>
         <div className="form-row" style={{ marginBottom: 12 }}>
@@ -301,7 +340,7 @@ export default function AccountsPage() {
                     </td>
                     <td>{t(`accountType.${a.type}`)}</td>
                     <td className="mono">{a.parent_code ?? '—'}</td>
-                    <td className="page-sub">{a.account_role ?? '—'}</td>
+                    <td className="page-sub">{a.account_role ? roleLabel(a.account_role) : '—'}</td>
                     <td>{a.posting_allowed ? t('common.yes') : t('common.no')}</td>
                     <td>
                       <Badge kind={a.is_active ? 'success' : 'neutral'}>
@@ -356,7 +395,7 @@ export default function AccountsPage() {
             </Field>
             <Field label={t('chart.accountRole')}>
               <select value={form.accountRole} onChange={(e) => setForm({ ...form, accountRole: e.target.value })}>
-                {ROLES.map((r) => <option key={r || 'none'} value={r}>{r || '—'}</option>)}
+                {ROLES.map((r) => <option key={r || 'none'} value={r}>{r ? roleLabel(r) : '—'}</option>)}
               </select>
             </Field>
             <Field label={t('chart.vatDefault')}>

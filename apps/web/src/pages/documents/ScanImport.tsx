@@ -73,6 +73,7 @@ export default function ScanImportPage() {
   const [entryDate, setEntryDate] = useState('');
   const [exchangeRate, setExchangeRate] = useState('');
   const [message, setMessage] = useState<string | null>(null);
+  const [draftEntryNo, setDraftEntryNo] = useState<string | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState(false);
   const [partyId, setPartyId] = useState('');
@@ -208,6 +209,7 @@ export default function ScanImportPage() {
           entryDate: entryDate || undefined, exchangeRate: exchangeRate || null },
       );
       setMessage(t('docs.draftCreated').replace('{no}', result.draftEntry.entry_no));
+      setDraftEntryNo(result.draftEntry.entry_no);
       await loadDetail(detail.document.id);
       await reloadList();
     } catch (err) { setError(errorMessage(err, t('common.error')).message); }
@@ -478,7 +480,7 @@ export default function ScanImportPage() {
                   {proposal.status === 'APPROVED' && proposal.draft_entry_id && (
                     <div style={{ marginTop: 12 }}>
                       <p>{t('docs.draftCreated').replace('{no}', '')}</p>
-                      <Button onClick={() => navigate('/accounting/entries')}>{t('docs.openEntries')}</Button>
+                      <Button onClick={() => navigate(`/accounting/entries${draftEntryNo ? `?search=${encodeURIComponent(draftEntryNo)}` : ''}`)}>{t('docs.openEntries')}</Button>
                     </div>
                   )}
                 </Card>
