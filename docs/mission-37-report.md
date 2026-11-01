@@ -300,8 +300,8 @@ est donc documenté comme document source, pas comme libellé d'interface.
 | Typecheck API + web | `npm run typecheck` | **0 erreur** |
 | Tests web | `npm test -w @mc/web` | **329 réussis / 51 fichiers** |
 | Tests API | `npm test -w @mc/api` | **521 réussis, 11 ignorés / 36 fichiers** |
-| Build production | `npm run build` | **réussi** ; bundle web 1 256,88 kB (311,79 kB gzip) |
-| Build démonstration | `npm run build:demo` | **réussi** ; bundle démo 2 001,23 kB (519,90 kB gzip) |
+| Build production | `npm run build` | **réussi** ; bundle web 1 255,63 kB (311,47 kB gzip) |
+| Build démonstration | `npm run build:demo` | **réussi** ; démo 1 280,31 kB (319,36 kB gzip) + chunk runtime 717,98 kB (199,42 kB gzip) |
 | Tests M37 dédiés | `mission37-demo-coherence` + `mission37-guided-demo` | **11 réussis / 11** |
 
 Le build signale un chunk supérieur à 500 kB. C'est un avertissement de

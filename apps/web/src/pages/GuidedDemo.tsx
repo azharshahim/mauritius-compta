@@ -13,7 +13,6 @@ import { useI18n } from '../i18n';
 import { useSession } from '../store';
 import { Badge, Card, DemoNotice, EmptyState, ErrorBanner, Spinner } from '../components/ui';
 import { money } from '../format';
-import { resetDemo } from '../demo';
 
 type Locale = 'fr' | 'en';
 
@@ -464,8 +463,11 @@ export default function GuidedDemoPage() {
     return <EmptyState title={tr.noCompany} />;
   }
 
-  const reset = () => {
+  const reset = async () => {
     if (!window.confirm(tr.resetConfirm)) return;
+    // Keep the demo runtime in its own lazy chunk: importing `../demo`
+    // statically would pull the whole fictional backend into the main bundle.
+    const { resetDemo } = await import('../demo/runtime');
     resetDemo();
     localStorage.removeItem('mc.companyId');
     window.location.hash = '#/demo';

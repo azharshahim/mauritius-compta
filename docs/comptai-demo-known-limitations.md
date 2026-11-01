@@ -191,8 +191,9 @@ bilingual; user/source data is not translated.
 
 ### L14 — Bundle size warning
 
-The production build is 1,256.88 kB (311.79 kB gzip); the demo build is
-2,001.23 kB (519.90 kB gzip). Vite warns above 500 kB. No functional failure was
+The production build is 1,255.63 kB (311.47 kB gzip). The demo build is split
+into a 1,280.31 kB main bundle (319.36 kB gzip) and a 717.98 kB lazy runtime
+chunk (199.42 kB gzip). Vite warns above 500 kB. No functional failure was
 observed, but no performance optimisation was performed in this mission.
 
 ### L15 — No manual device or real-browser test
