@@ -15,6 +15,15 @@ import type { Locale } from '../../i18n/index.js';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
 
+/** An invited member's first password follows the same policy as registration. */
+const memberPassword = z
+  .string()
+  .min(10, 'Password must be at least 10 characters')
+  .max(200)
+  .refine((v) => /[A-Za-z]/.test(v) && /[0-9]/.test(v), {
+    message: 'Password must contain letters and digits',
+  });
+
 const companyBody = z.object({
   name: z.string().min(1).max(200),
   brn: z.string().max(40).nullish(),
@@ -105,6 +114,10 @@ export function companyRoutes(app: FastifyInstance, db: Db) {
     const body = parse(companyBody, req.body);
     const rules = loadCompanyRules();
     applyRules(body, rules.currencies, rules.accountingStandards);
+    // The company does not exist yet: only the creator can be its manager.
+    if (body.dossierManagerId && body.dossierManagerId !== user.id) {
+      throw badRequest('VALIDATION_ERROR', 'The dossier manager must be the creator or a member of the company');
+    }
 
     const duplicate = await db.query(
       `SELECT 1 FROM companies WHERE $1::text IS NOT NULL AND lower(brn) = lower($1::text)`,
@@ -215,6 +228,15 @@ export function companyRoutes(app: FastifyInstance, db: Db) {
           : ctx.company.dossier_manager_id,
     };
     applyRules(merged as CompanyBody, rules.currencies, rules.accountingStandards);
+    if (patch.dossierManagerId) {
+      const manager = await db.query(
+        'SELECT 1 FROM company_members WHERE company_id = $1 AND user_id = $2',
+        [companyId, patch.dossierManagerId],
+      );
+      if (manager.rowCount === 0) {
+        throw badRequest('VALIDATION_ERROR', 'The dossier manager must be a member of this company');
+      }
+    }
 
     if (merged.brn) {
       const dup = await db.query(
@@ -295,7 +317,7 @@ export function companyRoutes(app: FastifyInstance, db: Db) {
           'Use the ownership transfer endpoint for the owner role',
         ),
         fullName: z.string().min(2).max(120).optional(),
-        temporaryPassword: z.string().min(10).max(200).optional(),
+        temporaryPassword: memberPassword.optional(),
       }),
       req.body,
     );

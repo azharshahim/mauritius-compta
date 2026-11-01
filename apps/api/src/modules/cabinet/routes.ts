@@ -289,10 +289,16 @@ export function cabinetRoutes(app: FastifyInstance, db: Db) {
       [companyId],
     );
 
+    // Only a member of this dossier can be its manager. Joining on
+    // company_members also protects sheets whose manager id predates that
+    // rule: an unrelated account is never disclosed.
     const manager = company.dossier_manager_id
       ? await db.query<{ id: string; full_name: string; email: string }>(
-          'SELECT id, full_name, email FROM app_users WHERE id = $1',
-          [company.dossier_manager_id],
+          `SELECT u.id, u.full_name, u.email
+             FROM app_users u
+             JOIN company_members m ON m.user_id = u.id AND m.company_id = $2
+            WHERE u.id = $1`,
+          [company.dossier_manager_id, companyId],
         )
       : null;
 
@@ -378,7 +384,7 @@ export function cabinetRoutes(app: FastifyInstance, db: Db) {
   app.patch('/cabinet/companies/:companyId/members/:userId', async (req) => {
     const user = req.user!;
     const { companyId, userId } = req.params as { companyId: string; userId: string };
-    await requireModuleAccess(db, user.id, companyId, 'cabinet', 'admin');
+    const access = await requireModuleAccess(db, user.id, companyId, 'cabinet', 'admin');
     const body = parse(
       z.object({
         role: z.enum(COMPANY_ROLES as [CompanyRole, ...CompanyRole[]]).optional(),
@@ -395,49 +401,88 @@ export function cabinetRoutes(app: FastifyInstance, db: Db) {
       [companyId, userId],
     );
     if (!member.rows[0]) throw notFound('MEMBER_NOT_FOUND', 'Member not found');
-    if (member.rows[0].role === 'owner' && body.role && body.role !== 'owner') {
+    const targetRole = member.rows[0].role;
+    if (targetRole === 'owner' && body.role && body.role !== 'owner') {
       throw badRequest('VALIDATION_ERROR', 'The owner role cannot be changed here');
     }
-
-    if (body.role) {
-      await db.query('UPDATE company_members SET role = $3 WHERE company_id = $1 AND user_id = $2', [
-        companyId,
-        userId,
-        body.role,
-      ]);
+    // Ownership transfer is deliberately not implemented. Without this guard a
+    // company admin could promote themselves to owner, then reopen a closed
+    // period (an owner-only operation) or remove the historical owner.
+    if (body.role === 'owner' && targetRole !== 'owner') {
+      throw badRequest('VALIDATION_ERROR', 'Ownership transfer is not available: use a new dossier');
     }
+    // `app_users.is_active` is a global account flag, not a membership flag.
+    // Changing it must never let one dossier lock an account used elsewhere,
+    // nor let an admin lock the owner or their own account.
     if (body.isActive !== undefined) {
-      await db.query('UPDATE app_users SET is_active = $2, updated_at = now() WHERE id = $1', [
-        userId,
-        body.isActive,
-      ]);
-    }
-    if (body.modules) {
-      for (const [module, access] of Object.entries(body.modules)) {
-        if (access === 'none') {
-          await db.query(
-            'DELETE FROM company_module_access WHERE company_id = $1 AND user_id = $2 AND module = $3',
-            [companyId, userId, module],
-          );
-        } else {
-          await db.query(
-            `INSERT INTO company_module_access (company_id, user_id, module, access, granted_by)
-             VALUES ($1, $2, $3, $4, $5)
-             ON CONFLICT (company_id, user_id, module)
-             DO UPDATE SET access = EXCLUDED.access, granted_by = EXCLUDED.granted_by, updated_at = now()`,
-            [companyId, userId, module, access, user.id],
-          );
-        }
+      if (access.role !== 'owner') {
+        throw forbidden('Only the owner can change a global account status');
+      }
+      if (userId === user.id) {
+        throw badRequest('VALIDATION_ERROR', 'You cannot change your own account status');
+      }
+      if (targetRole === 'owner') {
+        throw badRequest('VALIDATION_ERROR', 'The owner account cannot be disabled here');
+      }
+      const others = await db.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM company_members
+          WHERE user_id = $1 AND company_id <> $2`,
+        [userId, companyId],
+      );
+      if (Number(others.rows[0]?.count ?? 0) > 0) {
+        throw conflict(
+          'CONFLICT',
+          'This account belongs to another dossier: its global status cannot be changed here',
+        );
       }
     }
-    await writeAudit(db, {
-      companyId,
-      userId: user.id,
-      action: 'cabinet.member.update',
-      entityType: 'user',
-      entityId: userId,
-      details: { role: body.role, modules: body.modules, isActive: body.isActive },
-      ip: clientIp(req),
+
+    await db.transaction(async (tx) => {
+      if (body.role) {
+        await tx.query('UPDATE company_members SET role = $3 WHERE company_id = $1 AND user_id = $2', [
+          companyId,
+          userId,
+          body.role,
+        ]);
+      }
+      if (body.isActive !== undefined) {
+        await tx.query('UPDATE app_users SET is_active = $2, updated_at = now() WHERE id = $1', [
+          userId,
+          body.isActive,
+        ]);
+        // Disabling an account revokes every live session: a later
+        // reactivation must require a fresh login, never resurrect a cookie.
+        if (body.isActive === false) {
+          await tx.query('DELETE FROM sessions WHERE user_id = $1', [userId]);
+        }
+      }
+      if (body.modules) {
+        for (const [module, granted] of Object.entries(body.modules)) {
+          if (granted === 'none') {
+            await tx.query(
+              'DELETE FROM company_module_access WHERE company_id = $1 AND user_id = $2 AND module = $3',
+              [companyId, userId, module],
+            );
+          } else {
+            await tx.query(
+              `INSERT INTO company_module_access (company_id, user_id, module, access, granted_by)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (company_id, user_id, module)
+               DO UPDATE SET access = EXCLUDED.access, granted_by = EXCLUDED.granted_by, updated_at = now()`,
+              [companyId, userId, module, granted, user.id],
+            );
+          }
+        }
+      }
+      await writeAudit(tx, {
+        companyId,
+        userId: user.id,
+        action: 'cabinet.member.update',
+        entityType: 'user',
+        entityId: userId,
+        details: { role: body.role, modules: body.modules, isActive: body.isActive },
+        ip: clientIp(req),
+      });
     });
 
     const updated = await db.query<{ role: CompanyRole }>(
@@ -815,6 +860,15 @@ export function cabinetRoutes(app: FastifyInstance, db: Db) {
       }),
       req.body,
     );
+    if (body.dossierManagerId) {
+      const manager = await db.query(
+        'SELECT 1 FROM company_members WHERE company_id = $1 AND user_id = $2',
+        [companyId, body.dossierManagerId],
+      );
+      if (manager.rowCount === 0) {
+        throw badRequest('VALIDATION_ERROR', 'The dossier manager must be a member of this company');
+      }
+    }
     const updated = await db.query<CompanyRow>(
       `UPDATE companies SET
          dossier_manager_id = COALESCE($2, dossier_manager_id),

@@ -593,6 +593,12 @@ export function mapDatabaseError(err: unknown): AppError | null {
   if (e.code === '23503') {
     return badRequest('VALIDATION_ERROR', 'Referenced record does not exist');
   }
+  // A malformed UUID or cast value must never surface as an internal error:
+  // object identifiers are user input. Answer with the same generic validation
+  // error so a manipulated identifier cannot probe the database layer.
+  if (e.code === '22P02') {
+    return badRequest('VALIDATION_ERROR', 'Malformed identifier or value');
+  }
   if (e.code === '23514' || e.code === 'check_violation' || e.message?.includes('check_violation')) {
     const msg = e.message ?? '';
     if (msg.includes('POSTED_ENTRY_IMMUTABLE')) {

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { Db } from '../../db/index.js';
-import { badRequest, conflict, notFound } from '../../lib/errors.js';
+import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { writeAudit } from '../../lib/audit.js';
 import { formatAmount, parseAmount } from '../../lib/money.js';
 import {
@@ -145,7 +145,7 @@ const sha256 = (value: string) => createHash('sha256').update(value).digest('hex
 
 const requireWriter = (actor: PayrollActor) => {
   if (!['owner', 'admin', 'cabinet_admin', 'payroll_manager'].includes(actor.role)) {
-    throw conflict('MODULE_FORBIDDEN', 'A payroll manager role is required');
+    throw forbidden('A payroll manager role is required', 'MODULE_FORBIDDEN');
   }
 };
 
