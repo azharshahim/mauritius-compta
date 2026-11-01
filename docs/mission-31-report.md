@@ -3,7 +3,7 @@
 Date : 2026-11-01  
 Branche : `arena/56497d31-mauritius-compta` (branche de session dédiée à la mission 31)  
 Base : `main` = `803f0580109293536a5da9d80eeb21be16a72512`  
-PR : **nº 12 — brouillon** (à confirmer après création)  
+PR : [**nº 12 — brouillon**](https://github.com/azharshahim/mauritius-compta/pull/12)  
 Statut : **corrigé localement et poussé en brouillon ; aucune fusion, aucun déploiement manuel.**
 
 ## 1. Cause exacte de l’échec du workflow nº 72
@@ -100,19 +100,27 @@ La suite comptable complète n’a **pas** été relancée inutilement : cette m
 
 ## 6. Numéro de la nouvelle PR
 
-**PR nº 12**, ouverte en **brouillon** vers `main` : à confirmer par l’URL GitHub après création.
+[**PR nº 12**](https://github.com/azharshahim/mauritius-compta/pull/12), ouverte en **brouillon** vers `main`. Elle contient le commit `a5587bb` (`fix(pages): verify COMPTAI demo and dynamic chunks after deployment`).
 
 ## 7. Statut des contrôles GitHub Actions
 
-| Contrôle | Statut attendu |
+Exécution de la PR : [run 41303704674](https://github.com/azharshahim/mauritius-compta/actions/runs/41303704674), commit `a5587bb`.
+
+| Contrôle | Statut constaté |
 |---|---|
-| `Build demo bundle` | à vérifier après le push de la PR |
-| `Verify the demo bundle` | à vérifier |
-| `Build real bundle for demo/real separation check` | à vérifier |
-| `Verify the real bundle excludes demo data` | à vérifier |
-| `Scan the demo bundle for secrets` | à vérifier |
-| `Deploy to GitHub Pages` | **ignoré** sur PR/branche Arena |
-| `API tests against real PostgreSQL` | hors périmètre de cette PR (workflow séparé) ; ne doit pas être relancé inutilement |
+| `Build demo bundle` | ✅ succès (1 min 43 s) |
+| `Typecheck web` | ✅ succès |
+| `Web tests (demo backend + screens, jsdom)` | ✅ succès |
+| `Build demo (base=/mauritius-compta/)` | ✅ succès |
+| `Verify the demo bundle` | ✅ succès |
+| `Build real bundle for demo/real separation check` | ✅ succès |
+| `Verify the real bundle excludes demo data` | ✅ succès |
+| `Scan the demo bundle for secrets` | ✅ succès |
+| `Run actions/upload-pages-artifact@v3` | ⏭️ ignoré (branche non-main) |
+| `Deploy to GitHub Pages` | ⏭️ ignoré sur PR/branche Arena |
+| `API tests against real PostgreSQL` | ✅ succès (2 min 6 s, workflow séparé) |
+| `Migrations against real PostgreSQL` | ✅ succès (28 s) |
+| `Typecheck, tests and build` | ✅ succès (2 min 11 s) |
 
 Le job de déploiement ne sera réellement vérifié qu’après fusion autorisée dans `main`. D’ici là, le contrôle HTTPS distant n’est pas exécuté par la PR, conformément à la restriction « seule `main` publie ».
 
