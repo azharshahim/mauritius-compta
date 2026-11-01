@@ -12,7 +12,7 @@ import type { CompanyRow, EntryRow, UserRow } from '../types.js';
 
 export const DEMO_EMAIL = 'demo@mauritius-compta.test';
 export const DEMO_PASSWORD = 'DemoPassw0rd2026';
-export const DEMO_COMPANY_NAME = 'Lagon Bleu Trading Ltd (DEMO)';
+export const DEMO_COMPANY_NAME = 'Island Trading Ltd — DEMO COMPANY';
 
 interface DemoLine {
   code: string;
@@ -242,7 +242,7 @@ export async function seedDemo(db: Db, options: { force?: boolean } = {}): Promi
          VALUES ($1,'DEMO-BRN-0001','DEMO-VAT-0001',
                  '12, Royal Road, Port Louis, Mauritius (fictitious address)',
                  'Wholesale of household goods (fictitious activity)',
-                 '2025-07-01','2026-06-30','MUR','MUR','IFRS','active','fr',$2)
+                 '2025-07-01','2026-06-30','MUR','MUR','Other','active','fr',$2)
          RETURNING *`,
         [DEMO_COMPANY_NAME, user.id],
       )

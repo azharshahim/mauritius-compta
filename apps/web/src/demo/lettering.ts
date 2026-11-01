@@ -1070,19 +1070,19 @@ export function seedDemoLettering(state: DemoState): void {
   };
 
   // A - full customer scenario, 100,000 = 40,000 + 35,000 + 25,000.
-  const aInv = seedEntry(state, company.id, 'SAL', '2026-01-05', 'FAC-DEMO-A', 'Facture cliente fictive A (DEMO)', [
+  const aInv = seedEntry(state, company.id, 'SAL', '2026-01-05', 'FAC-DEMO-A', 'Fictitious customer invoice A (DEMO)', [
     { code: '1100', debit: '100000' },
     { code: '4010', credit: '100000' },
   ]);
-  const aP1 = seedEntry(state, company.id, 'BQ', '2026-01-10', 'REG-DEMO-A1', 'Règlement fictif A1 (DEMO)', [
+  const aP1 = seedEntry(state, company.id, 'BQ', '2026-01-10', 'REG-DEMO-A1', 'Fictitious receipt A1 (DEMO)', [
     { code: '1010', debit: '40000' },
     { code: '1100', credit: '40000' },
   ]);
-  const aP2 = seedEntry(state, company.id, 'BQ', '2026-01-12', 'REG-DEMO-A2', 'Règlement fictif A2 (DEMO)', [
+  const aP2 = seedEntry(state, company.id, 'BQ', '2026-01-12', 'REG-DEMO-A2', 'Fictitious receipt A2 (DEMO)', [
     { code: '1010', debit: '35000' },
     { code: '1100', credit: '35000' },
   ]);
-  const aP3 = seedEntry(state, company.id, 'BQ', '2026-01-15', 'REG-DEMO-A3', 'Règlement fictif A3 (DEMO)', [
+  const aP3 = seedEntry(state, company.id, 'BQ', '2026-01-15', 'REG-DEMO-A3', 'Fictitious receipt A3 (DEMO)', [
     { code: '1010', debit: '25000' },
     { code: '1100', credit: '25000' },
   ]);
@@ -1094,11 +1094,11 @@ export function seedDemoLettering(state: DemoState): void {
   ], { reason: 'Scénario A — lettrage complet (DEMO)' });
 
   // B - partial customer scenario, 50,000 invoice / 20,000 payment.
-  const bInv = seedEntry(state, company.id, 'SAL', '2026-02-02', 'FAC-DEMO-B', 'Facture cliente fictive B (DEMO)', [
+  const bInv = seedEntry(state, company.id, 'SAL', '2026-02-02', 'FAC-DEMO-B', 'Fictitious customer invoice B (DEMO)', [
     { code: '1100', debit: '50000' },
     { code: '4010', credit: '50000' },
   ]);
-  const bPay = seedEntry(state, company.id, 'BQ', '2026-02-08', 'REG-DEMO-B1', 'Règlement partiel fictif B (DEMO)', [
+  const bPay = seedEntry(state, company.id, 'BQ', '2026-02-08', 'REG-DEMO-B1', 'Fictitious partial receipt B (DEMO)', [
     { code: '1010', debit: '20000' },
     { code: '1100', credit: '20000' },
   ]);
@@ -1108,11 +1108,11 @@ export function seedDemoLettering(state: DemoState): void {
   ], { reason: 'Scénario B — lettrage partiel client (DEMO)' });
 
   // C - supplier 80,000 / 30,000.
-  const cInv = seedEntry(state, company.id, 'PUR', '2026-02-10', 'ACH-DEMO-C', 'Facture fournisseur fictive C (DEMO)', [
+  const cInv = seedEntry(state, company.id, 'PUR', '2026-02-10', 'ACH-DEMO-C', 'Fictitious supplier bill C (DEMO)', [
     { code: '6100', debit: '80000' },
     { code: '2000', credit: '80000' },
   ]);
-  const cPay = seedEntry(state, company.id, 'BQ', '2026-02-15', 'REG-DEMO-C1', 'Règlement fournisseur fictif C (DEMO)', [
+  const cPay = seedEntry(state, company.id, 'BQ', '2026-02-15', 'REG-DEMO-C1', 'Fictitious supplier payment C (DEMO)', [
     { code: '2000', debit: '30000' },
     { code: '1010', credit: '30000' },
   ]);
@@ -1122,15 +1122,15 @@ export function seedDemoLettering(state: DemoState): void {
   ], { reason: 'Scénario C — 80 000 / 30 000, restant 50 000 (DEMO)' });
 
   // D - several invoices against one supplier payment.
-  const d1 = seedEntry(state, company.id, 'PUR', '2026-03-01', 'ACH-DEMO-D1', 'Facture fournisseur fictive D1 (DEMO)', [
+  const d1 = seedEntry(state, company.id, 'PUR', '2026-03-01', 'ACH-DEMO-D1', 'Fictitious supplier bill D1 (DEMO)', [
     { code: '6100', debit: '60000' },
     { code: '2000', credit: '60000' },
   ]);
-  const d2 = seedEntry(state, company.id, 'PUR', '2026-03-02', 'ACH-DEMO-D2', 'Facture fournisseur fictive D2 (DEMO)', [
+  const d2 = seedEntry(state, company.id, 'PUR', '2026-03-02', 'ACH-DEMO-D2', 'Fictitious supplier bill D2 (DEMO)', [
     { code: '6100', debit: '40000' },
     { code: '2000', credit: '40000' },
   ]);
-  const dPay = seedEntry(state, company.id, 'BQ', '2026-03-10', 'REG-DEMO-D', 'Règlement groupé fictif D (DEMO)', [
+  const dPay = seedEntry(state, company.id, 'BQ', '2026-03-10', 'REG-DEMO-D', 'Fictitious grouped payment D (DEMO)', [
     { code: '2000', debit: '100000' },
     { code: '1010', credit: '100000' },
   ]);
@@ -1141,7 +1141,7 @@ export function seedDemoLettering(state: DemoState): void {
   ], { reason: 'Scénario D — plusieurs factures, un règlement (DEMO)' });
 
   // E - supplier invoice + credit note + balance.
-  const eInv = seedEntry(state, company.id, 'PUR', '2026-04-01', 'ACH-DEMO-E', 'Facture fournisseur fictive E (DEMO)', [
+  const eInv = seedEntry(state, company.id, 'PUR', '2026-04-01', 'ACH-DEMO-E', 'Fictitious supplier bill E (DEMO)', [
     { code: '6100', debit: '45000' },
     { code: '2000', credit: '45000' },
   ]);
@@ -1149,7 +1149,7 @@ export function seedDemoLettering(state: DemoState): void {
     { code: '2000', debit: '5000' },
     { code: '6100', credit: '5000' },
   ]);
-  const ePay = seedEntry(state, company.id, 'BQ', '2026-04-10', 'REG-DEMO-E', 'Règlement solde fictif E (DEMO)', [
+  const ePay = seedEntry(state, company.id, 'BQ', '2026-04-10', 'REG-DEMO-E', 'Fictitious balance payment E (DEMO)', [
     { code: '2000', debit: '40000' },
     { code: '1010', credit: '40000' },
   ]);
@@ -1162,11 +1162,11 @@ export function seedDemoLettering(state: DemoState): void {
   // F - intentionally left lettered: attempting it again is refused by the demo API.
 
   // G - an already reversed group, with its reason and full history.
-  const gInv = seedEntry(state, company.id, 'SAL', '2026-05-02', 'FAC-DEMO-G', 'Facture cliente fictive G (DEMO)', [
+  const gInv = seedEntry(state, company.id, 'SAL', '2026-05-02', 'FAC-DEMO-G', 'Fictitious customer invoice G (DEMO)', [
     { code: '1100', debit: '30000' },
     { code: '4010', credit: '30000' },
   ]);
-  const gPay = seedEntry(state, company.id, 'BQ', '2026-05-08', 'REG-DEMO-G', 'Règlement fictif G (DEMO)', [
+  const gPay = seedEntry(state, company.id, 'BQ', '2026-05-08', 'REG-DEMO-G', 'Fictitious receipt G (DEMO)', [
     { code: '1010', debit: '30000' },
     { code: '1100', credit: '30000' },
   ]);

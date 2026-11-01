@@ -19,7 +19,7 @@ async function loginAndSelect() {
   fireEvent.click(await screen.findByRole('button', { name: /Se connecter/i }));
   await screen.findByRole('heading', { name: /Tableau de bord Cabinet/i });
   const select = screen.getByRole('combobox', { name: /Société/i }) as HTMLSelectElement;
-  const option = [...select.options].find((item) => /Lagon Bleu/i.test(item.textContent ?? ''))!;
+  const option = [...select.options].find((item) => /Island Trading/i.test(item.textContent ?? ''))!;
   fireEvent.change(select, { target: { value: option.value } });
 }
 
@@ -71,12 +71,12 @@ describe('mission 24 — démonstration finale', () => {
     fireEvent.click(within(row).getByRole('button', { name: /^Modifier$/ }));
     const dialog = await screen.findByRole('dialog', { name: /Modifier l’article/i });
     const name = within(dialog).getByLabelText('Nom') as HTMLInputElement;
-    expect(name.value).toBe('Article FIFO fictif');
-    fireEvent.change(name, { target: { value: 'Article FIFO fictif modifié' } });
+    expect(name.value).toBe('Fictitious FIFO item');
+    fireEvent.change(name, { target: { value: 'Fictitious FIFO item updated' } });
     fireEvent.click(within(dialog).getByRole('button', { name: /^Enregistrer$/ }));
 
     await waitFor(() => expect(screen.queryByRole('dialog', { name: /Modifier l’article/i })).toBeNull());
-    expect((await screen.findAllByText('Article FIFO fictif modifié')).length).toBeGreaterThanOrEqual(1);
+    expect((await screen.findAllByText('Fictitious FIFO item updated')).length).toBeGreaterThanOrEqual(1);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

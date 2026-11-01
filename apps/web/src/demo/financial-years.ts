@@ -850,7 +850,7 @@ export function seedDemoFinancialYears(state: DemoState): void {
   // Documented, already posted correction of a fictitious omission in the
   // closed 2024/2025 exercise. The original entries are never modified.
   const posted = pushEntry(state, companyId, journal.id, '2025-08-20',
-    'Ajustement fictif sur exercice antérieur — charge omise', 'prior_year_adjustment', 'PYA-DEMO-2025-001', [
+    'Fictitious prior-year adjustment — omitted expense', 'prior_year_adjustment', 'PYA-DEMO-2025-001', [
       { accountId: retained.id, description: 'Report à nouveau fictif', debit: '4000.0000' },
       { accountId: payable.id, description: 'Charge fictive à payer', credit: '4000.0000' },
     ]);

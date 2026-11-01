@@ -244,40 +244,40 @@ export function seedDemoEquity(state: DemoState): void {
     state.periods.push(period);
     return period;
   };
-  const lossYear = ensurePeriod('FY 2023/2024 (démo)', '2023-07-01', '2024-06-30');
-  const profitYear = ensurePeriod('FY 2024/2025 (démo)', '2024-07-01', '2025-06-30');
+  const lossYear = ensurePeriod('FY 2023/2024 (DEMO)', '2023-07-01', '2024-06-30');
+  const profitYear = ensurePeriod('FY 2024/2025 (DEMO)', '2024-07-01', '2025-06-30');
 
   // 2023/2024 — fictitious loss of 15,000.
-  pushEntry(state, companyId, journal.id, journal.code, '2023-08-10', 'Ventes fictives 2023/2024', 'manual', 'DEMO-2324-SAL', [
+  pushEntry(state, companyId, journal.id, journal.code, '2023-08-10', 'Fictitious sales 2023/2024', 'manual', 'DEMO-2324-SAL', [
     { accountId: bank.id, description: 'Encaissement fictif', debit: '80000.0000' },
     { accountId: revenue.id, description: 'Produits fictifs', credit: '80000.0000' },
   ]);
-  pushEntry(state, companyId, journal.id, journal.code, '2023-09-15', 'Charges fictives 2023/2024', 'manual', 'DEMO-2324-PUR', [
-    { accountId: expense.id, description: 'Charges fictives', debit: '95000.0000' },
+  pushEntry(state, companyId, journal.id, journal.code, '2023-09-15', 'Fictitious expenses 2023/2024', 'manual', 'DEMO-2324-PUR', [
+    { accountId: expense.id, description: 'Fictitious expenses', debit: '95000.0000' },
     { accountId: bank.id, description: 'Paiement fictif', credit: '95000.0000' },
   ]);
-  const lossClosing = pushEntry(state, companyId, journal.id, journal.code, '2024-06-30', 'Clôture fictive 2023/2024', 'closing', 'CLOSE-2024-06-30', [
+  const lossClosing = pushEntry(state, companyId, journal.id, journal.code, '2024-06-30', 'Fictitious closing 2023/2024', 'closing', 'CLOSE-2024-06-30', [
     { accountId: revenue.id, description: 'Solde des produits', debit: '80000.0000' },
     { accountId: expense.id, description: 'Solde des charges', credit: '95000.0000' },
     { accountId: retained.id, description: 'Perte de l’exercice fictive', debit: '15000.0000' },
   ]);
 
   // 2024/2025 — fictitious profit of 30,000, allocated by a fictional decision.
-  pushEntry(state, companyId, journal.id, journal.code, '2024-08-12', 'Ventes fictives 2024/2025', 'manual', 'DEMO-2425-SAL', [
+  pushEntry(state, companyId, journal.id, journal.code, '2024-08-12', 'Fictitious sales 2024/2025', 'manual', 'DEMO-2425-SAL', [
     { accountId: bank.id, description: 'Encaissement fictif', debit: '120000.0000' },
     { accountId: revenue.id, description: 'Produits fictifs', credit: '120000.0000' },
   ]);
-  pushEntry(state, companyId, journal.id, journal.code, '2024-09-20', 'Charges fictives 2024/2025', 'manual', 'DEMO-2425-PUR', [
-    { accountId: expense.id, description: 'Charges fictives', debit: '90000.0000' },
+  pushEntry(state, companyId, journal.id, journal.code, '2024-09-20', 'Fictitious expenses 2024/2025', 'manual', 'DEMO-2425-PUR', [
+    { accountId: expense.id, description: 'Fictitious expenses', debit: '90000.0000' },
     { accountId: bank.id, description: 'Paiement fictif', credit: '90000.0000' },
   ]);
-  const profitClosing = pushEntry(state, companyId, journal.id, journal.code, '2025-06-30', 'Clôture fictive 2024/2025', 'closing', 'CLOSE-2025-06-30', [
+  const profitClosing = pushEntry(state, companyId, journal.id, journal.code, '2025-06-30', 'Fictitious closing 2024/2025', 'closing', 'CLOSE-2025-06-30', [
     { accountId: revenue.id, description: 'Solde des produits', debit: '120000.0000' },
     { accountId: expense.id, description: 'Solde des charges', credit: '90000.0000' },
     { accountId: retained.id, description: 'Résultat de l’exercice fictif', credit: '30000.0000' },
   ]);
-  const allocationEntry = pushEntry(state, companyId, journal.id, journal.code, '2025-09-15', 'Affectation fictive du résultat 2024/2025', 'equity_allocation', 'PV-AFF-2025-001', [
-    { accountId: retained.id, description: 'Résultat affecté (fictif)', debit: '30000.0000' },
+  const allocationEntry = pushEntry(state, companyId, journal.id, journal.code, '2025-09-15', 'Fictitious allocation of the 2024/2025 result', 'equity_allocation', 'PV-AFF-2025-001', [
+    { accountId: retained.id, description: 'Allocated result (fictitious)', debit: '30000.0000' },
     { accountId: reserves.id, description: 'Réserve fictive', credit: '10000.0000' },
     { accountId: retained.id, description: 'Report à nouveau fictif', credit: '20000.0000' },
   ]);

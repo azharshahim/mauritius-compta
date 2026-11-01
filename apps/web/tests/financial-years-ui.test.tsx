@@ -23,7 +23,7 @@ async function loginAndSelect() {
   fireEvent.click(await screen.findByRole('button', { name: /Se connecter/i }));
   await screen.findByRole('heading', { name: /Tableau de bord Cabinet/i });
   const companySelect = screen.getByRole('combobox', { name: /Société/i }) as HTMLSelectElement;
-  const option = [...companySelect.options].find((item) => /Lagon Bleu/i.test(item.textContent ?? ''));
+  const option = [...companySelect.options].find((item) => /Island Trading/i.test(item.textContent ?? ''));
   expect(option).toBeTruthy();
   fireEvent.change(companySelect, { target: { value: option!.value } });
 }
@@ -46,8 +46,8 @@ describe('exercices & archives (interface démonstration)', () => {
     window.location.hash = '#/accounting/financial-years';
     expect(await screen.findByRole('heading', { name: /Exercices & archives/i })).toBeTruthy();
     expect(await screen.findByText(/Continuité pluriannuelle/i)).toBeTruthy();
-    expect(await screen.findByText(/FY 2024\/2025 \(démo\)/)).toBeTruthy();
-    expect(await screen.findByText(/FY 2023\/2024 \(démo\)/)).toBeTruthy();
+    expect(await screen.findByText(/FY 2024\/2025 \(DEMO\)/)).toBeTruthy();
+    expect(await screen.findByText(/FY 2023\/2024 \(DEMO\)/)).toBeTruthy();
     expect((await screen.findAllByText(/Clôturé/i)).length).toBeGreaterThanOrEqual(2);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -84,7 +84,7 @@ describe('exercices & archives (interface démonstration)', () => {
     fireEvent.click(selects[1]!);
     fireEvent.click(screen.getByRole('tab', { name: 'Archives' }));
     expect((await screen.findAllByRole('button', { name: /Vérifier/i })).length).toBeGreaterThanOrEqual(1);
-    expect((await screen.findAllByText(/2024\/2025 \(démo\)/)).length).toBeGreaterThanOrEqual(1);
+    expect((await screen.findAllByText(/2024\/2025 \(DEMO\)/)).length).toBeGreaterThanOrEqual(1);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

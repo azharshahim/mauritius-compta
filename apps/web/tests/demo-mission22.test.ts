@@ -11,7 +11,7 @@ const call = <T>(method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE', path: stri
 function login() {
   call('POST', '/auth/login', { email: DEMO_EMAIL, password: DEMO_PASSWORD });
   const companies = call<{ companies: { id: string; name: string }[] }>('GET', '/companies').companies;
-  const company = companies.find((c) => /Lagon Bleu/i.test(c.name))!;
+  const company = companies.find((c) => /Island Trading/i.test(c.name))!;
   const second = companies.find((c) => c.id !== company.id && !/archived/i.test(c.name))!;
   return { company, second, base: `/companies/${company.id}`, baseB: `/companies/${second.id}` };
 }

@@ -986,12 +986,12 @@ function seedState(): DemoState {
     id: uid(),
     email: DEMO_EMAIL,
     password: DEMO_PASSWORD,
-    full_name: 'Comptable de démonstration',
-    locale: 'fr',
+    full_name: 'Demo accountant',
+    locale: 'en',
   };
   const company: DemoCompany = {
     id: uid(),
-    name: DEMO_SEED.company.name ?? 'Lagon Bleu Trading Ltd (DEMO)',
+    name: DEMO_SEED.company.name ?? 'Island Trading Ltd — DEMO COMPANY',
     brn: DEMO_SEED.company.brn ?? null,
     crn: 'CRN-DEMO-0001',
     client_code: 'DEMO-001',
@@ -1006,12 +1006,12 @@ function seedState(): DemoState {
     presentation_currency: DEMO_SEED.company.presentation_currency ?? 'MUR',
     accounting_standard: DEMO_SEED.company.accounting_standard ?? 'IFRS',
     status: (DEMO_SEED.company.status as DemoCompany['status']) ?? 'active',
-    locale: (DEMO_SEED.company.locale as 'fr' | 'en') ?? 'fr',
+    locale: (DEMO_SEED.company.locale as 'fr' | 'en') ?? 'en',
     created_at: created,
-    trade_name: 'Lagon Bleu (enseigne fictive)',
-    contact_name: 'Contact Fictif Démo',
-    contact_email: 'contact@lagon-bleu.example.test',
-    contact_phone: '+230 0000 0000 (fictif)',
+    trade_name: 'Island Trading (fictitious trading name)',
+    contact_name: 'Fictitious demo contact',
+    contact_email: 'contact@island-trading.example.test',
+    contact_phone: '+230 0000 0000 (fictitious)',
   };
 
   const accounts: DemoAccount[] = [];
@@ -1022,6 +1022,7 @@ function seedState(): DemoState {
       company_id: company.id,
       code: a.code,
       name: a.name,
+      name_fr: a.name_fr ?? null,
       type: a.type as DemoAccount['type'],
       parent_id: null,
       currency: a.currency,
@@ -1178,7 +1179,7 @@ function seedState(): DemoState {
       vat: 'DEMO-VAT-0002',
       crn: 'CRN-DEMO-0002',
       code: 'DEMO-002',
-      activity: 'Commerce de détail (fictif)',
+      activity: 'Retail trade (fictitious)',
       address: '12, Royal Road, Case Noyale (fictif)',
       manager: collaborators[0]!.id,
       status: 'active' as const,
@@ -1189,7 +1190,7 @@ function seedState(): DemoState {
       vat: 'DEMO-VAT-0003',
       crn: 'CRN-DEMO-0003',
       code: 'DEMO-003',
-      activity: 'Hôtellerie et restauration (fictif)',
+      activity: 'Hospitality and catering (fictitious)',
       address: '3, Coastal Road, Belle Mare (fictif)',
       manager: collaborators[1]!.id,
       status: 'active' as const,
@@ -1200,7 +1201,7 @@ function seedState(): DemoState {
       vat: null,
       crn: 'CRN-DEMO-0004',
       code: 'DEMO-004',
-      activity: 'Transit et logistique (fictif)',
+      activity: 'Freight forwarding and logistics (fictitious)',
       address: '8, Harbour Street, Vieux Grand Port (fictif)',
       manager: null as string | null,
       status: 'archived' as const,
@@ -1211,7 +1212,7 @@ function seedState(): DemoState {
       vat: 'DEMO-VAT-0016',
       crn: 'CRN-DEMO-0016',
       code: 'DEMO-016',
-      activity: 'Services administratifs (fictif)',
+      activity: 'Administrative services (fictitious)',
       address: 'Level 3, Fictitious Tower, Port Louis (fictif)',
       manager: collaborators[0]!.id,
       status: 'active' as const,
@@ -1219,17 +1220,17 @@ function seedState(): DemoState {
   ];
 
   const minimalChart: [string, string, DemoAccount['type']][] = [
-    ['1010', 'Banque (MUR)', 'asset'],
-    ['2010', 'Fournisseurs', 'liability'],
-    ['2210', 'Salaires nets à payer (démo)', 'liability'],
-    ['2220', 'PAYE à payer (démo)', 'liability'],
-    ['2230', 'CSG, NSF et levy à payer (démo)', 'liability'],
-    ['3010', 'Capital social', 'equity'],
-    ['4000', 'Ventes', 'revenue'],
-    ['5000', 'Achats', 'expense'],
-    ['6010', 'Charges externes', 'expense'],
-    ['6020', 'Charges de personnel (démo)', 'expense'],
-    ['6030', 'Charges sociales patronales (démo)', 'expense'],
+    ['1010', 'Bank (MUR)', 'asset'],
+    ['2010', 'Trade payables', 'liability'],
+    ['2210', 'Net salaries payable (DEMO)', 'liability'],
+    ['2220', 'PAYE payable (DEMO)', 'liability'],
+    ['2230', 'CSG, NSF and levy payable (DEMO)', 'liability'],
+    ['3010', 'Share capital', 'equity'],
+    ['4000', 'Sales', 'revenue'],
+    ['5000', 'Purchases', 'expense'],
+    ['6010', 'External charges', 'expense'],
+    ['6020', 'Staff costs (DEMO)', 'expense'],
+    ['6030', 'Employer social contributions (DEMO)', 'expense'],
   ];
 
   const extraCompanies: DemoCompany[] = [];
@@ -1250,9 +1251,9 @@ function seedState(): DemoState {
       financial_year_end: '2026-06-30',
       functional_currency: 'MUR',
       presentation_currency: 'MUR',
-      accounting_standard: 'IFRS for SMEs',
+      accounting_standard: 'Other',
       status: seed.status,
-      locale: 'fr',
+      locale: 'en',
       created_at: created,
     };
     extraCompanies.push(extra);
@@ -1462,7 +1463,7 @@ function seedState(): DemoState {
     {
       id: uid(),
       company_id: company.id,
-      name: 'Rivière Noire Supplies Ltd (fictif)',
+      name: 'Rivière Noire Supplies Ltd (fictitious)',
       legal_name: 'Rivière Noire Supplies Ltd',
       brn: 'DEMO-CL-0001',
       vat_number: null,
@@ -1484,7 +1485,7 @@ function seedState(): DemoState {
     {
       id: uid(),
       company_id: company.id,
-      name: 'Mahébourg Consulting Ltd (fictif)',
+      name: 'Mahébourg Consulting Ltd (fictitious)',
       legal_name: 'Mahébourg Consulting Ltd',
       brn: 'DEMO-CL-0002',
       vat_number: null,
@@ -5073,10 +5074,10 @@ function demoAssistantAnswer(companyId: string, text: string, locale: 'fr' | 'en
     const net = amount(raw);
     const accounts = accountsOf(companyId);
     const purchase =
-      accounts.find((a) => a.type === 'expense' && /achat|marchandise/i.test(a.name)) ??
+      accounts.find((a) => a.type === 'expense' && /achat|marchandise|purchase|goods/i.test(a.name)) ??
       accounts.find((a) => a.type === 'expense');
-    const vat = accounts.find((a) => /tva r[ée]cup[ée]rable/i.test(a.name));
-    const bank = accounts.find((a) => /banque/i.test(a.name) && a.type === 'asset');
+    const vat = accounts.find((a) => /tva r[ée]cup[ée]rable|vat recoverable/i.test(a.name));
+    const bank = accounts.find((a) => /banque|bank/i.test(a.name) && a.type === 'asset');
     const vatRate = s.taxRates.find((r) => r.company_id === companyId && r.treatment === 'taxable');
     if (!purchase || !vat || !bank || !vatRate) {
       return {
@@ -6051,6 +6052,7 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
           company_id: company.id,
           code: template.code,
           name: template.name,
+          name_fr: template.name_fr ?? null,
           type: template.type as DemoAccount['type'],
           parent_id: null,
           currency: template.currency,

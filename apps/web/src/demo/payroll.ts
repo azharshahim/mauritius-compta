@@ -477,7 +477,7 @@ export function seedMission16Payroll(state: DemoState): void {
   period.status = calculated.some((c) => c.status === 'rules_incomplete') ? 'blocked' : 'calculated';
   if (!state.periods.some((p) => p.company_id === company.id && p.start_date <= '2026-10-31' && p.end_date >= '2026-10-31')) {
     state.periods.push({
-      id: uid(), company_id: company.id, name: 'FY 2026/2027 (fictif)',
+      id: uid(), company_id: company.id, name: 'FY 2026/2027 (fictitious)',
       start_date: '2026-07-01', end_date: '2027-06-30', status: 'open',
     });
   }

@@ -9,7 +9,7 @@ function login() {
   call('POST', '/auth/login', { email: DEMO_EMAIL, password: DEMO_PASSWORD });
   const companies = call<{ companies: { id: string; name: string }[] }>('GET', '/companies').companies;
   const mds = companies.find((company) => /Mauritius Demo Services/i.test(company.name))!;
-  const lagon = companies.find((company) => /Lagon Bleu/i.test(company.name))!;
+  const lagon = companies.find((company) => /Island Trading/i.test(company.name))!;
   const period = call<any>('GET', `/companies/${mds.id}/payroll/periods`).periods
     .find((p: any) => p.period_year === 2026 && p.period_month === 10);
   return { companies, mds, lagon, period };

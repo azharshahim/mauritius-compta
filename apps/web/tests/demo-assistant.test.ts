@@ -88,7 +88,7 @@ describe('démonstration — assistant IA universel', () => {
     const { conversation } = openConversation(company, 'accounting');
     const res = ask(company, conversation.id, 'Recherche le compte 1200');
     expect(res.toolRuns[0]!.tool).toBe('accounting.accounts.search');
-    expect(res.messages[1]!.content).toContain('TVA récupérable');
+    expect(res.messages[1]!.content).toContain('VAT recoverable');
   });
 
   it('prépare l’exemple 3 250 / 487,50 / 3 737,50 sans comptabiliser', () => {
@@ -188,7 +188,7 @@ describe('démonstration — paramètres société et TVA', () => {
       chartOfAccounts: any[];
       permissions: { canEditIdentification: boolean };
     }>('GET', `/companies/${company}/settings/company`);
-    expect(view.identification.name).toContain('Lagon Bleu');
+    expect(view.identification.name).toContain('Island Trading');
     expect(view.accounting.functionalCurrency).toBe('MUR');
     expect(view.billing.invoicePrefix).toBe('FAC');
     expect(view.chartOfAccounts.length).toBeGreaterThan(10);

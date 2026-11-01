@@ -23,6 +23,7 @@ import DataManagementPage from './pages/settings/DataManagement';
 import CompaniesPage from './pages/Companies';
 import DossierPage from './pages/cabinet/Dossier';
 import CabinetDashboardPage from './pages/cabinet/CabinetDashboard';
+import GuidedDemoPage from './pages/GuidedDemo';
 import TasksPage from './pages/cabinet/Tasks';
 import TeamPage from './pages/cabinet/Team';
 import PreparedPage from './pages/prepared/Prepared';
@@ -53,6 +54,7 @@ import { DemoBanner } from './components/DemoBanner';
 import { AssistantLauncher } from './components/AssistantLauncher';
 import { AppIcon } from './components/AppIcon';
 import { BrandMark } from './components/BrandMark';
+import { demoEnabled } from './demo/mode';
 
 const ACCESS_WEIGHT: Record<string, number> = { none: 0, read: 1, write: 2, admin: 3 };
 
@@ -276,6 +278,7 @@ export default function App() {
 
             {/* Cabinet */}
             <Route path="/cabinet" element={<CabinetDashboardPage />} />
+            {demoEnabled && <Route path="/demo" element={<GuidedDemoPage />} />}
             <Route path="/cabinet/companies" element={<CompaniesPage />} />
             <Route path="/cabinet/companies/:companyId" element={<DossierPage />} />
             <Route path="/cabinet/companies/:companyId/settings" element={<CompanySettingsPage />} />
