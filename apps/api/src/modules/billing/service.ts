@@ -316,6 +316,7 @@ export interface CompanyBillingContext {
     legal_footer_fr: string | null;
     legal_footer_en: string | null;
     bank_details: string | null;
+    advance_to_supplier_account_id?: string | null;
   };
   accounts: { id: string; code: string; name: string; type: string; is_active: boolean }[];
   accountsByCode: Map<string, { id: string; code: string; name: string; type: string; is_active: boolean }>;
@@ -403,6 +404,15 @@ export function accountForRole(
                   : role === 'prepayment'
                     ? '1150'
                     : '2100';
+  if (role === 'prepayment' && ctx.settings.advance_to_supplier_account_id) {
+    // Explicit per-company configuration wins over the provisional 1150 code.
+    // An archived or non-asset choice is refused instead of silently falling
+    // back to another asset account.
+    const configured = ctx.accounts.find(
+      (a) => a.id === ctx.settings.advance_to_supplier_account_id && a.is_active && a.type === 'asset',
+    );
+    return configured ?? null;
+  }
   const direct = ctx.accountsByCode.get(code);
   if (direct && direct.is_active) return direct;
   // Supplier advances must land on a dedicated prepayment account. Never fall

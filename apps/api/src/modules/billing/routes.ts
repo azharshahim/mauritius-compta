@@ -136,6 +136,7 @@ const settingsBody = z
     legalFooterFr: z.string().trim().max(600).nullable().optional(),
     legalFooterEn: z.string().trim().max(600).nullable().optional(),
     bankDetails: z.string().trim().max(600).nullable().optional(),
+    advanceToSupplierAccountId: z.string().uuid().nullable().optional(),
   })
   .strict();
 
@@ -742,6 +743,7 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
         legalFooterFr: ctx.settings.legal_footer_fr,
         legalFooterEn: ctx.settings.legal_footer_en,
         bankDetails: ctx.settings.bank_details,
+        advanceToSupplierAccountId: ctx.settings.advance_to_supplier_account_id ?? null,
       },
       capabilities: {
         numbering: true,
@@ -765,6 +767,16 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
     await requireCompany(db, user.id, companyId, 'admin', 'billing');
     const body = parse(settingsBody, req.body);
     await loadBillingContext(db, companyId);
+    if (body.advanceToSupplierAccountId) {
+      const account = await db.query<{ type: string; is_active: boolean }>(
+        'SELECT type, is_active FROM accounts WHERE id = $1 AND company_id = $2',
+        [body.advanceToSupplierAccountId, companyId],
+      );
+      const row = account.rows[0];
+      if (!row || !row.is_active || row.type !== 'asset') {
+        throw badRequest('ACCOUNT_INACTIVE', 'The supplier advance account must be an active asset account');
+      }
+    }
     await db.query(
       `UPDATE billing_settings SET
          quote_prefix = COALESCE($2, quote_prefix),
@@ -778,6 +790,7 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
          legal_footer_fr = $10,
          legal_footer_en = $11,
          bank_details = $12,
+         advance_to_supplier_account_id = CASE WHEN $14::boolean THEN $15::uuid ELSE advance_to_supplier_account_id END,
          updated_by = $13,
          updated_at = now()
        WHERE company_id = $1`,
@@ -795,6 +808,8 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
         body.legalFooterEn === undefined ? undefined : nullable(body.legalFooterEn),
         body.bankDetails === undefined ? undefined : nullable(body.bankDetails),
         user.id,
+        body.advanceToSupplierAccountId !== undefined,
+        body.advanceToSupplierAccountId ?? null,
       ],
     );
     await writeAudit(db, {

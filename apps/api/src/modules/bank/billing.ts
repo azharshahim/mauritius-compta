@@ -2,6 +2,12 @@ import type { Db } from '../../db/index.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { formatAmount, parseAmount } from '../../lib/money.js';
 import { cabinetOfCompany } from '../../lib/cabinets.js';
+import { writeAudit } from '../../lib/audit.js';
+import {
+  formatDocumentNumber,
+  nextBillingNumber,
+  refreshInvoiceBalance,
+} from '../billing/service.js';
 
 /**
  * Mission 10 - bank statement <-> billing payments.
@@ -653,4 +659,317 @@ export async function unlinkBankBillingPayment(
     ],
   );
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Mission 43, C-04: turn a bank receipt into a customer payment.
+// ---------------------------------------------------------------------------
+
+export interface CreateBillingPaymentFromBankInput {
+  confirm: true;
+  customerId: string;
+  allocations: { invoiceId: string; amount: string }[];
+  paymentDate?: string | null;
+  reference?: string | null;
+  exchangeRate?: string | null;
+  note?: string | null;
+}
+
+/**
+ * Creates a customer payment **from the existing billing tables** and links it
+ * to the bank transaction in the same database transaction.
+ *
+ * - The payment is never posted automatically: accounting stays a separate
+ *   human action through the existing proposal engine (`entryCreated: false`).
+ * - A transaction already linked to a confirmed customer payment is returned
+ *   as an idempotent result, never duplicated.
+ * - Allocations are checked against the live invoice outstanding and the
+ *   remaining amount of the bank transaction.
+ */
+export async function createBillingPaymentFromBankTransaction(
+  db: Db,
+  actor: { userId: string; companyId: string; ip?: string },
+  transactionId: string,
+  input: CreateBillingPaymentFromBankInput,
+): Promise<{
+  payment: BillingPaymentCandidate;
+  transaction: TxnRow;
+  match: Record<string, unknown>;
+  allocations: BillingAllocationView[];
+  idempotent: boolean;
+  entryCreated: false;
+}> {
+  if (!input.confirm) {
+    throw badRequest('BANK_CONFIRMATION_REQUIRED', 'Explicit human confirmation is required');
+  }
+  const requested = input.allocations ?? [];
+  if (requested.length === 0) {
+    throw badRequest('PAYMENT_NOT_ALLOCATED', 'At least one invoice allocation is required');
+  }
+  if (new Set(requested.map((a) => a.invoiceId)).size !== requested.length) {
+    throw badRequest('ALLOCATION_INVALID', 'The same invoice is allocated twice in one payment');
+  }
+  const allocationAmounts = requested.map((a) => {
+    const value = parseAmount(a.amount);
+    if (value === null || value <= 0n) throw badRequest('ALLOCATION_INVALID', 'An allocation must be greater than zero');
+    return { invoiceId: a.invoiceId, amount: value };
+  });
+  const total = allocationAmounts.reduce((sum, a) => sum + a.amount, 0n);
+  const result = await db.transaction(async (tx) => {
+    const txn = await loadTransaction(tx, actor.companyId, transactionId, true);
+    if (txn.status === 'cancelled' || txn.status === 'excluded') {
+      throw conflict('BANK_TRANSACTION_CLOSED', 'This transaction is closed');
+    }
+    if (amountOf(txn.amount) <= 0n) {
+      throw conflict('BANK_DIRECTION_MISMATCH', 'A bank debit cannot become a customer receipt');
+    }
+
+    const already = await tx.query<{ payment_id: string }>(
+      `SELECT billing_payment_id AS payment_id FROM bank_matches
+        WHERE transaction_id = $1 AND status = 'confirmed' AND billing_payment_id IS NOT NULL
+        ORDER BY created_at LIMIT 1`,
+      [txn.id],
+    );
+    if (already.rows[0]) {
+      const existing = await tx.query<PaymentRow>(
+        `SELECT p.*, c.name AS customer_name FROM billing_payments p
+           JOIN billing_customers c ON c.id = p.customer_id AND c.company_id = p.company_id
+          WHERE p.id = $1 AND p.company_id = $2`,
+        [already.rows[0].payment_id, actor.companyId],
+      );
+      if (!existing.rows[0]) throw conflict('BANK_LINK_ALREADY_EXISTS', 'This transaction is already linked');
+      return {
+        paymentRow: existing.rows[0]!,
+        allocations: await loadPaymentAllocations(tx, actor.companyId, already.rows[0].payment_id),
+        transaction: txn,
+        idempotent: true,
+      };
+    }
+
+    const customer = await tx.query<any>(
+      `SELECT * FROM billing_customers WHERE id = $1 AND company_id = $2 FOR UPDATE`,
+      [input.customerId, actor.companyId],
+    );
+    const customerRow = customer.rows[0];
+    if (!customerRow) throw notFound('CUSTOMER_NOT_FOUND', 'Customer not found');
+    if (!customerRow.is_active) throw conflict('DOCUMENT_STATUS_INVALID', 'This customer is archived');
+
+    const currency = txn.currency;
+    const company = await tx.query<{ functional_currency: string }>(
+      `SELECT functional_currency FROM companies WHERE id = $1`,
+      [actor.companyId],
+    );
+    const functional = company.rows[0]?.functional_currency ?? 'MUR';
+
+    const invoiceLocked: { id: string; docNo: string | null }[] = [];
+    for (const allocation of [...allocationAmounts].sort((a, b) => a.invoiceId.localeCompare(b.invoiceId))) {
+      const invoice = await tx.query<any>(
+        `SELECT * FROM billing_documents
+          WHERE id = $1 AND company_id = $2 AND kind = 'invoice' FOR UPDATE`,
+        [allocation.invoiceId, actor.companyId],
+      );
+      const row = invoice.rows[0];
+      if (!row) throw notFound('DOCUMENT_NOT_FOUND', 'Invoice not found');
+      if (row.customer_id !== customerRow.id) {
+        throw badRequest('ALLOCATION_INVALID', 'The invoice belongs to another customer');
+      }
+      if (!['issued', 'partially_paid'].includes(row.status)) {
+        throw conflict('ALLOCATION_INVALID', `Invoice ${row.doc_no ?? ''} is not open for payment`);
+      }
+      if (row.currency !== currency) {
+        throw badRequest('CURRENCY_MISMATCH', 'The payment currency must match the invoice currency');
+      }
+      const outstanding =
+        amountOf(row.total_amount) - amountOf(row.amount_paid) - amountOf(row.credited_amount);
+      if (allocation.amount > outstanding) {
+        throw conflict('ALLOCATION_EXCEEDS_INVOICE', 'The allocation exceeds the outstanding amount', {
+          invoiceId: row.id,
+          outstanding: formatAmount(outstanding > 0n ? outstanding : 0n),
+          requested: formatAmount(allocation.amount),
+        });
+      }
+      invoiceLocked.push({ id: row.id, docNo: row.doc_no });
+    }
+
+    let exchangeRate = '1';
+    if (currency !== functional) {
+      if (!input.exchangeRate) {
+        throw badRequest('EXCHANGE_RATE_REQUIRED', `An exchange rate is required for a payment in ${currency}`);
+      }
+      const rate = parseAmount(input.exchangeRate);
+      if (rate <= 0n) {
+        throw badRequest('EXCHANGE_RATE_REQUIRED', `An exchange rate is required for a payment in ${currency}`);
+      }
+      exchangeRate = input.exchangeRate;
+    }
+
+    const txnAllocated = await transactionAllocatedAmount(tx, txn.id);
+    const txnRemaining = amountOf(txn.amount) - txnAllocated;
+    if (total > txnRemaining) {
+      throw conflict(
+        'BANK_AMOUNT_EXCEEDS_TRANSACTION',
+        `Requested ${formatAmount(total)}, transaction remaining ${formatAmount(txnRemaining > 0n ? txnRemaining : 0n)}`,
+      );
+    }
+
+    const paymentDate = input.paymentDate ? String(input.paymentDate).slice(0, 10) : txn.txn_date;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) {
+      throw badRequest('VALIDATION_ERROR', 'paymentDate must be an ISO date');
+    }
+    const settings = await tx.query<any>('SELECT * FROM billing_settings WHERE company_id = $1', [actor.companyId]);
+    const policy: 'yearly' | 'continuous' = settings.rows[0]?.numbering_policy ?? 'yearly';
+    const year = policy === 'continuous' ? 0 : Number(paymentDate.slice(0, 4));
+    const no = await nextBillingNumber(tx, actor.companyId, 'payment', year);
+    const paymentNo = formatDocumentNumber('REC', year, no, policy === 'continuous');
+
+    const inserted = await tx.query<PaymentRow>(
+      `INSERT INTO billing_payments
+         (company_id, customer_id, payment_no, payment_date, value_date, amount, currency,
+          exchange_rate, method, reference, unallocated_amount, status, sequence_year, sequence_no, created_by)
+       VALUES ($1,$2,$3,$4,NULL,$5,$6,$7,'bank_transfer',$8,'0.0000','recorded',$9,$10,$11)
+       RETURNING *`,
+      [
+        actor.companyId,
+        customerRow.id,
+        paymentNo,
+        paymentDate,
+        formatAmount(total),
+        currency,
+        exchangeRate,
+        input.reference?.trim() || txn.reference || txn.label,
+        year,
+        no,
+        actor.userId,
+      ],
+    );
+    const payment = inserted.rows[0]!;
+    for (const allocation of allocationAmounts) {
+      await tx.query(
+        `INSERT INTO billing_payment_allocations (payment_id, invoice_id, company_id, amount, allocated_date)
+         VALUES ($1,$2,$3,$4,$5)`,
+        [payment.id, allocation.invoiceId, actor.companyId, formatAmount(allocation.amount), paymentDate],
+      );
+      await refreshInvoiceBalance(tx, actor.companyId, allocation.invoiceId);
+    }
+
+    const cabinetId = await cabinetOfCompany(tx, actor.companyId);
+    if (!cabinetId) throw badRequest('BANK_COMPANY_NOT_IN_CABINET', 'This company is not attached to a cabinet');
+    const singleInvoice = invoiceLocked.length === 1 ? invoiceLocked[0]!.id : null;
+    const match = await tx.query<Record<string, unknown>>(
+      `INSERT INTO bank_matches
+         (cabinet_id, company_id, bank_account_id, transaction_id, entry_id, entry_line_id,
+          billing_payment_id, billing_invoice_id, amount, status, kind, confidence, reasons,
+          note, created_by, decided_by, decided_at)
+       VALUES ($1,$2,$3,$4,NULL,NULL,$5,$6,$7,'confirmed','invoice',1,$8::jsonb,$9,$10,$10,now())
+       RETURNING *`,
+      [
+        cabinetId,
+        actor.companyId,
+        txn.bank_account_id,
+        txn.id,
+        payment.id,
+        singleInvoice,
+        formatAmount(total),
+        JSON.stringify([
+          {
+            code: 'HUMAN_CONFIRMATION',
+            fr: 'Règlement créé et rapproché après confirmation humaine explicite.',
+            en: 'Payment created and reconciled after explicit human confirmation.',
+          },
+          {
+            code: 'ACCOUNTING_SEPARATE',
+            fr: 'Aucune écriture comptable automatique : la comptabilisation reste une action séparée via le moteur existant.',
+            en: 'No automatic journal entry: posting remains a separate action through the existing engine.',
+          },
+        ]),
+        input.note ?? null,
+        actor.userId,
+      ],
+    );
+
+    const newAllocated = txnAllocated + total;
+    const txnTotal = amountOf(txn.amount);
+    const status = newAllocated >= txnTotal ? 'matched' : 'partially_matched';
+    const updatedTxn = await tx.query<TxnRow>(
+      `UPDATE bank_transactions SET status = $2, updated_at = now() WHERE id = $1 RETURNING *`,
+      [txn.id, status],
+    );
+    return {
+      paymentRow: { ...payment, customer_name: customerRow.name },
+      allocations: await loadPaymentAllocations(tx, actor.companyId, payment.id),
+      transaction: updatedTxn.rows[0]!,
+      idempotent: false,
+      match: match.rows[0]!,
+    };
+  });
+
+  await db.query(
+    `INSERT INTO bank_events (cabinet_id, company_id, entity, entity_id, event, actor_id, ip, metadata)
+     VALUES ((SELECT cabinet_id FROM bank_transactions WHERE id = $1), $2, 'bank_transaction', $1,
+             $3, $4, $5, $6::jsonb)`,
+    [
+      transactionId,
+      actor.companyId,
+      result.idempotent ? 'billing.payment.idempotent' : 'billing.payment.created',
+      actor.userId,
+      actor.ip ?? null,
+      JSON.stringify({
+        paymentId: result.paymentRow.id,
+        amount: result.paymentRow.amount,
+        entryCreated: false,
+      }),
+    ],
+  );
+  await writeAudit(db, {
+    companyId: actor.companyId,
+    userId: actor.userId,
+    action: result.idempotent ? 'bank.billing-payment.idempotent' : 'bank.billing-payment.create',
+    entityType: 'billing_payment',
+    entityId: result.paymentRow.id,
+    details: {
+      transactionId,
+      amount: result.paymentRow.amount,
+      currency: result.paymentRow.currency,
+      entryCreated: false,
+    },
+    ip: actor.ip ?? null,
+  });
+
+  const matchedAmount = await paymentMatchedAmount(db, result.paymentRow.id);
+  const candidate: BillingPaymentCandidate = {
+    paymentId: result.paymentRow.id,
+    paymentNumber: result.paymentRow.payment_no,
+    paymentDate: result.paymentRow.payment_date,
+    amount: result.paymentRow.amount,
+    currency: result.paymentRow.currency,
+    method: result.paymentRow.method,
+    reference: result.paymentRow.reference,
+    customerId: result.paymentRow.customer_id,
+    customerName: result.paymentRow.customer_name ?? '',
+    unallocatedAmount: result.paymentRow.unallocated_amount,
+    accountingEntryId: result.paymentRow.accounting_entry_id,
+    accountingPosted: false,
+    matchedAmount: formatAmount(matchedAmount),
+    availableAmount: formatAmount(amountOf(result.paymentRow.amount) - matchedAmount),
+    suggestedAmount: formatAmount(matchedAmount),
+    confidence: 1,
+    reasons: [
+      {
+        code: 'CREATED_FROM_BANK',
+        fr: 'Règlement créé depuis un encaissement bancaire confirmé.',
+        en: 'Payment created from a confirmed bank receipt.',
+      },
+    ],
+    issues: [],
+    allocations: result.allocations,
+    alreadyLinkedToTransaction: true,
+  };
+  return {
+    payment: candidate,
+    transaction: result.transaction,
+    match: result.idempotent ? ({} as Record<string, unknown>) : (result as any).match,
+    allocations: result.allocations,
+    idempotent: result.idempotent,
+    entryCreated: false,
+  };
 }

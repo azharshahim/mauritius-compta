@@ -366,3 +366,72 @@ M42 et M42.1 sont implémentés et vérifiés localement : typecheck, 531 tests 
 Limites restantes : D-02 (rescannage), D-03 (séparation multi-factures), E-03 (carte ventes des documents non comptabilisés) et C-01 à C-04 (banque, M43). Aucun test navigateur réel (Playwright) n’a été exécuté. **P0-03 reste ouvert** : aucune mise en production n’est autorisée.
 
 **Recommandation explicite** : effectuer l’**audit final avant fusion** sur les points sensibles — migration `0025`, compte provisoire `1150`, signes et libellés des écarts de rapprochement, contrat `billing/summary`, autorisations serveur et absence de comptabilisation automatique. Après validation de l’audit, la PR nº23 pourra être fusionnée sur autorisation explicite. **Ne pas fusionner et ne pas déployer en l’état sans cette autorisation.**
+
+---
+
+## 10. Final Accounting & Technical Review (Phase A, 2026-11-01)
+
+Cette section clôt l’audit final demandé avant fusion de la PR nº23. Elle ne remplace pas une validation par un expert-comptable mauricien : elle documente ce qui a été vérifié, corrigé et ce qui reste hors de portée de cette mission.
+
+### 10.1 Migration `0025` — conservation des données
+
+- **Test ajouté** : `apps/api/tests/mission43-migrations.test.ts` applique d’abord `0001` à `0024`, insère des **données fictives** (deux sociétés, plan comptable dont un `1150` personnalisé, client et règlement `1234.5678 MUR`), puis applique `0025` et `0026`.
+- **Résultat** : le règlement conserve exactement `1234.5678`, sa référence et `unallocated_amount = 0.0000` ; le libellé personnalisé du `1150` existant n’est pas réécrit ; un `1150` est ajouté uniquement à la société qui n’en avait pas ; les colonnes additives (`allocated_date`, `cancelled_at`, `reclass_entry_id`, `reclass_amount`) sont présentes ; une seconde exécution de `migrate()` retourne `[]` (idempotence).
+- **Portée** : test PGlite, pas PostgreSQL réel. Le job CI « API PostgreSQL » reste la vérification serveur. Aucun accès à la production, au VPS ou à une sauvegarde réelle n’a été effectué.
+
+### 10.2 Compte `1150 — Advances to Suppliers`
+
+- Le plan provisoire (`apps/api/src/modules/accounts/chart.ts`) contient `1150` avec `accountRole = 'prepayment'`.
+- `accountForRole(..., 'prepayment')` ne retombait **jamais** sur un autre actif : un compte absent ou inactif produisait `AI_HUMAN_REQUIRED`. Ce comportement sûr est conservé.
+- **Correction** : `billing_settings.advance_to_supplier_account_id` (migration `0026`, additive) permet de choisir un compte d’avance fournisseur dédié. Le compte choisi doit être un actif **actif** ; sinon `accountForRole` renvoie `null` plutôt qu’un autre actif. Sans configuration, le comportement historique (`1150`) est inchangé.
+- **Collision de libellé documentée** : le plan de démonstration (`apps/web/src/demo/seed-data.ts`, `apps/api/src/seed/chart-of-accounts.ts`) nomme `1150` « Autres débiteurs et charges payées d’avance / Other receivables and prepayments », alors que le plan provisoire l’utilise pour les avances fournisseurs. Le libellé n’a pas été renommé car `1150` peut légitimement couvrir plusieurs natures ; une société qui veut un compte dédié doit le configurer.
+- **Point expert-comptable** : la nature, le libellé et l’usage de `1150` ne sont **pas validés pour Maurice**. Aucune règle fiscale n’a été modifiée.
+
+### 10.3 Rapprochements clients / fournisseurs
+
+- Les soldes restent calculés par différence débit − crédit (créances) et crédit − débit (dettes), par devise, sans addition inter-devises.
+- Les documents comptabilisés et non comptabilisés restent distingués (`difference` vs `unexplainedDifference` dans le contrôle transverse).
+- Les écarts ne sont jamais forcés à zéro : le rapport bancaire M43 expose désormais ouverture, mouvements et clôture des deux côtés (voir `docs/mission-43-report.md`).
+- **Non couvert** : aucun test de « solde créditeur client » ou « solde débiteur fournisseur » spécifique n’a été ajouté dans cette phase ; les contrôles existants les affichent sans les corriger.
+
+### 10.4 Contrat `billing/summary`
+
+- `openReceivables` et `payments.unallocated` peuvent être `null` dès que plusieurs devises sont ouvertes ; `openReceivablesByCurrency` et `payments.byCurrency` restent la source détaillée.
+- **Correction Web** : `GuidedDemo.tsx` typait `openReceivables` comme `string` et affichait directement la valeur. Le type accepte désormais `null`, et l’écran affiche le détail par devise ou « aucune créance ouverte » au lieu d’un tiret ambigu.
+- `billing/Overview.tsx` utilisait déjà `openReceivablesByCurrency` et `payments.byCurrency`. `prepared/Prepared.tsx` a été vérifié : il n’additionne pas les devises.
+- Les tests API existants (`billing.test.ts`, `cabinet.test.ts`, `mission42.test.ts`) couvrent le contrat ; aucun total inter-devises n’est calculé.
+
+### 10.5 Sécurité et intégrité
+
+- Les nouvelles routes M43 utilisent `requireCompany` (`viewer` en lecture, `accountant` pour ouvrir/valider/réouvrir une période et créer un règlement), l’isolation par `company_id`, des transactions SQL et des contraintes uniques.
+- La création d’un règlement depuis la banque écrit le règlement, ses affectations et le lien bancaire dans **une seule transaction**, sans posting : `entryCreated: false`. Le double appel retourne `idempotent: true` et ne crée pas de second règlement.
+- La validation d’une période ne crée **aucune écriture** ; toute correction reste une proposition séparée.
+- Aucune comptabilisation automatique, aucune suppression d’historique, aucun rôle inventé.
+
+### 10.6 Tests exécutés (2026-11-01)
+
+| Vérification | Résultat |
+| --- | --- |
+| Typecheck racine (API + Web + Web tests) | **exit 0** |
+| Suite API | **538 réussis / 11 ignorés** (38 fichiers + 1 ignoré) |
+| Nouveaux tests API M43 | **5/5** (`mission43.test.ts`) |
+| Nouveaux tests migrations M42.1/M43 | **2/2** (`mission43-migrations.test.ts`) |
+| Suite Web | **388 réussis / 388** (59 fichiers) |
+| Nouveaux tests démo M43 | **3/3** (`mission43-demo.test.ts`) |
+| `npm run build` | **exit 0** |
+| `npm run build:demo` | **exit 0** |
+| `verify-demo --dist apps/web/dist --base /mauritius-compta/` | **50/50** |
+
+**Non exécuté** : navigateur réel/Playwright (absent de l’environnement), tests de charge, PostgreSQL réel local (`psql`/`docker` indisponibles — couvert par la CI). Aucun échec n’a été masqué et aucun montant attendu n’a été modifié pour verdir les tests.
+
+### 10.7 Risques résiduels
+
+1. `1150` reste un compte **provisoire** ; la configuration dédiée est disponible mais non validée réglementairement.
+2. Le libellé de `1150` diffère entre le plan provisoire et le plan de démonstration (documenté, non renommé).
+3. Les parcours visuels M42.1 (immobilisation, reclassement, OCR) ne sont pas couverts par un E2E navigateur.
+4. Les soldes créditeurs clients / débiteurs fournisseurs ne font pas l’objet d’un test dédié.
+5. **P0-03 reste ouvert** : aucune mise en production.
+
+### 10.8 Recommandation
+
+**Recommandation : fusion de la PR nº23 possible après autorisation explicite de l’utilisateur, sous réserve de l’acceptation des risques ci-dessus et d’une validation par un expert-comptable mauricien pour `1150` et les règles fiscales.** Aucune fusion, aucun déploiement, aucune modification du VPS n’a été effectuée. La PR reste en **brouillon**.
