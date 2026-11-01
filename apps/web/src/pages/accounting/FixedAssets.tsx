@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api, downloadExport, qs } from '../../api';
 import { useI18n } from '../../i18n';
 import { useSession } from '../../store';
@@ -71,7 +72,31 @@ const emptyAsset = (categoryId: string) => ({
 export default function FixedAssetsPage() {
   const { t, locale } = useI18n();
   const { company } = useSession();
-  const [tab, setTab] = useState<Tab>('register');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = (['register', 'depreciation', 'categories', 'reports'] as string[]).includes(
+    searchParams.get('tab') ?? '',
+  )
+    ? (searchParams.get('tab') as Tab)
+    : 'register';
+  const [tab, setTabState] = useState<Tab>(initialTab);
+
+  // Mission 39: a report tab is a real history entry, so Back returns to the
+  // register. Old links without ?tab= still open the register.
+  const setTab = (next: Tab) => {
+    setTabState(next);
+    const params = new URLSearchParams(searchParams);
+    if (next === 'register') params.delete('tab');
+    else params.set('tab', next);
+    setSearchParams(params);
+  };
+  useEffect(() => {
+    const requested = searchParams.get('tab') ?? '';
+    setTabState(
+      (['register', 'depreciation', 'categories', 'reports'] as string[]).includes(requested)
+        ? (requested as Tab)
+        : 'register',
+    );
+  }, [searchParams]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [journals, setJournals] = useState<Journal[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);

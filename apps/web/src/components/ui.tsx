@@ -133,6 +133,7 @@ export function Modal({
   const { t } = useI18n();
   const dialogRef = useRef<HTMLDivElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
+  const dirtyRef = useRef(false);
 
   // The close handler is usually an inline arrow: keep it in a ref so that a
   // parent re-render (one per keystroke in a controlled field) does not re-run
@@ -144,12 +145,61 @@ export function Modal({
     onCloseRef.current = onClose;
   }, [onClose]);
 
+  // Keep the translator current without re-running the focus/dirty effect when
+  // the interface language changes while a dialog is open.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
+
+  const requestCloseRef = useRef<() => void>(() => undefined);
+  requestCloseRef.current = () => {
+    if (dirtyRef.current) {
+      if (typeof window.confirm === 'function' && !window.confirm(tRef.current('nav.unsavedConfirm'))) return;
+      dirtyRef.current = false;
+    }
+    onCloseRef.current();
+  };
+
   // Runs once per open/close. Escape closes; focus enters the dialog only if it
   // is not already inside it, and returns to the triggering element on close.
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      dirtyRef.current = false;
+      return;
+    }
+    dirtyRef.current = false;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onCloseRef.current();
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        requestCloseRef.current();
+        return;
+      }
+      // Keyboard trap: keep Tab and Shift+Tab inside the dialog. Native focus
+      // still works on Android and with assistive technologies.
+      if (event.key !== 'Tab') return;
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus({ preventScroll: true });
+        return;
+      }
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !dialog.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !dialog.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener('keydown', onKey);
 
@@ -169,20 +219,29 @@ export function Modal({
   }, [open]);
 
   if (!open) return null;
+  const markDirty = (event: React.SyntheticEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+    if (target.matches('input, select, textarea')) {
+      dirtyRef.current = true;
+      dialogRef.current?.setAttribute('data-nav-dirty', 'true');
+    }
+  };
   return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
+    <div className="modal-backdrop" onClick={() => requestCloseRef.current()} role="presentation">
       <div
         ref={dialogRef}
         tabIndex={-1}
         className={`modal ${wide ? 'modal-wide' : ''}`}
         onClick={(e) => e.stopPropagation()}
+        onChangeCapture={markDirty}
         role="dialog"
         aria-modal="true"
         aria-label={title}
       >
         <header className="modal-head">
           <h2>{title}</h2>
-          <button className="icon-btn" onClick={onClose} aria-label={t('common.close')}>
+          <button className="icon-btn" onClick={() => requestCloseRef.current()} aria-label={t('common.close')}>
             ×
           </button>
         </header>

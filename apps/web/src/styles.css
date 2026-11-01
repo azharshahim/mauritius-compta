@@ -1792,3 +1792,317 @@ table { font-size: 0.865rem; }
   .demo-tour-facts { grid-template-columns: 1fr 1fr; }
   .demo-health-row { padding: 8px; }
 }
+
+/* =========================================================================
+ * Mission 39 — global contextual navigation and responsive shell
+ *
+ * Breakpoints: <900 phone/portrait tablet, 900–1279 compact icon rail,
+ * >=1280 full sidebar. The DOM is identical in all three modes.
+ * ====================================================================== */
+#root, .app-shell, .main, .page { min-width: 0; max-width: 100%; }
+#root { overflow-x: clip; }
+
+/* Topbar: the menu button is needed on phone and compact desktop. */
+.nav-toggle { display: none; }
+@media (max-width: 1279px) {
+  .nav-toggle { display: inline-flex; }
+}
+
+/* Wide sidebar: manual collapse is persisted in localStorage. */
+.sidebar-tools { display: none; }
+@media (min-width: 1280px) {
+  .sidebar-tools {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 6px 6px;
+  }
+  .sidebar-collapse { display: inline-flex; color: #dbe8f5; }
+}
+.sidebar-close { display: none; }
+.sidebar-collapse .flip { transform: rotate(180deg); }
+
+.app-shell.view-wide { grid-template-columns: 264px minmax(0, 1fr); }
+.app-shell.view-wide.nav-rail,
+.app-shell.view-compact { grid-template-columns: 72px minmax(0, 1fr); }
+.app-shell.view-mobile {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    'topbar'
+    'main';
+}
+
+/* The 72 px rail keeps the module orientation visible at all times. */
+.sidebar.compact,
+.sidebar.collapsed {
+  width: 72px;
+  flex-basis: 72px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.sidebar.compact .sidebar-brand,
+.sidebar.collapsed .sidebar-brand {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+.sidebar.compact:not(.open) .sidebar-brand-text,
+.sidebar.compact:not(.open) .sidebar-title,
+.sidebar.compact:not(.open) .sidebar-foot,
+.sidebar.compact:not(.open) .nav-label,
+.sidebar.compact:not(.open) .nav-chevron,
+.sidebar.compact:not(.open) .nav-group-items,
+.sidebar.collapsed .sidebar-brand-text,
+.sidebar.collapsed .sidebar-title,
+.sidebar.collapsed .sidebar-foot,
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .nav-chevron,
+.sidebar.collapsed .nav-group-items {
+  display: none;
+}
+.sidebar.compact:not(.open) .nav-group-toggle,
+.sidebar.collapsed .nav-group-toggle {
+  justify-content: center;
+  padding: 10px 0;
+  min-height: 44px;
+}
+.sidebar.compact:not(.open) .nav-group-icon,
+.sidebar.collapsed .nav-group-icon { width: 24px; flex-basis: 24px; }
+.sidebar.compact:not(.open) .nav,
+.sidebar.collapsed .nav { overflow-y: auto; overflow-x: hidden; }
+.sidebar.compact:not(.open) .nav-group.active-group > .nav-group-toggle,
+.sidebar.collapsed .nav-group.active-group > .nav-group-toggle {
+  box-shadow: inset 3px 0 0 #70a7ff;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+/* Icon rail labels: native title tooltip plus the accessible name kept in
+   the DOM; no pseudo-element tooltip that would be clipped by the nav scroll
+   container. */
+
+/* Compact mode: opening the rail creates a temporary accessible overlay. */
+.sidebar.compact.open {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 52;
+  width: min(320px, 92vw);
+  max-width: 92vw;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
+  padding: max(14px, env(safe-area-inset-top)) 10px max(12px, env(safe-area-inset-bottom));
+  overflow: hidden;
+  box-shadow: 12px 0 30px rgba(11, 37, 69, 0.25);
+  visibility: visible;
+}
+.sidebar.compact.open .nav {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.sidebar.compact.open .sidebar-brand,
+.sidebar.compact.open .sidebar-foot { flex: 0 0 auto; }
+.sidebar.compact.open .sidebar-close { display: inline-flex; }
+.sidebar.compact.open .nav-label { display: block; }
+.sidebar.compact.open .sidebar-brand-text { display: block; }
+.sidebar.compact.open .sidebar-title { display: block; }
+
+/* Context bar: Back + breadcrumb, plus guided-tour controls when relevant. */
+.context-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  min-height: 46px;
+  padding: 7px 20px;
+  background: color-mix(in srgb, var(--surface) 92%, var(--bg));
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: 12;
+  min-width: 0;
+}
+.context-nav-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 280px;
+}
+.context-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.context-back:hover { border-color: var(--accent); color: var(--accent); }
+.context-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.breadcrumbs {
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.breadcrumbs::-webkit-scrollbar { display: none; }
+.breadcrumbs ol {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.breadcrumbs li { display: inline-flex; align-items: center; gap: 6px; }
+.breadcrumbs li + li::before { content: '›'; color: var(--muted); }
+.breadcrumbs a { color: var(--accent); font-weight: 600; }
+.breadcrumbs [aria-current='page'] { color: var(--text); font-weight: 600; }
+.tour-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.tour-progress {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.tour-progress strong { color: var(--accent); }
+.tour-nav .btn { min-height: 34px; padding: 5px 9px; font-size: 0.78rem; }
+.tour-exit { color: var(--muted); min-height: 34px; }
+
+/* Persistent phone navigation. It is below the assistant layer on purpose. */
+.mobile-quick-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 35;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 5px max(6px, env(safe-area-inset-right))
+    calc(5px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -6px 18px rgba(15, 32, 54, 0.08);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.quick-link {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px 2px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.64rem;
+  font-weight: 600;
+  line-height: 1.15;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+.quick-link span { max-width: 100%; overflow-wrap: anywhere; }
+.quick-link.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.quick-link:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.quick-menu { appearance: none; }
+
+@media (max-width: 900px) {
+  .page { padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
+  .assistant-fab { bottom: calc(68px + env(safe-area-inset-bottom)); }
+  .assistant-panel { bottom: calc(68px + env(safe-area-inset-bottom)); }
+  .context-nav { padding: 6px 12px; }
+  .tour-nav { width: 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .tour-nav::-webkit-scrollbar { display: none; }
+  .tour-nav .btn, .tour-progress { flex: 0 0 auto; }
+}
+@media (max-width: 640px) {
+  .topbar { gap: 6px; }
+  .brand-inline { gap: 6px; }
+  .brand-inline .brand-tag { display: none; }
+  .brand-inline .brand-name { font-size: 0.85rem; }
+  .company-select { max-width: 108px; min-width: 0; }
+  .topbar .btn-label { display: none; }
+  .topbar .theme-toggle { padding-left: 7px; padding-right: 7px; }
+  .context-back span { display: none; }
+  .context-back { width: 36px; justify-content: center; padding: 5px; }
+  .breadcrumbs ol { font-size: 0.76rem; }
+  .quick-link { font-size: 0.61rem; }
+  .quick-link svg { flex: 0 0 auto; }
+}
+@media (max-width: 900px) and (orientation: landscape) and (max-height: 520px) {
+  .mobile-quick-nav { padding-top: 2px; }
+  .quick-link { min-height: 40px; }
+  .quick-link span { display: none; }
+  .page { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+  .assistant-fab { bottom: calc(52px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 720px) {
+  /* The assistant sheet is full-screen above the phone navigation. */
+  .assistant-panel { inset: 0; bottom: 0; }
+}
+
+/* Mission 39 — Guided Demo step position and Previous/Next controls. */
+.demo-tour-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  margin: 12px 0 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm, 8px);
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+.demo-tour-position { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.demo-tour-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.demo-tour-buttons .btn { min-height: 36px; }
+.demo-step.is-current {
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+.demo-step.is-current .demo-step-body > strong { color: var(--accent); }
+@media (max-width: 640px) {
+  .demo-tour-controls { align-items: flex-start; }
+  .demo-tour-buttons { width: 100%; }
+  .demo-tour-buttons .btn { flex: 1 1 auto; }
+}
+
+/* Mission 39 ordering guard: the close control is visible whenever the drawer
+   is an off-canvas panel (phone) or a temporary compact overlay. */
+@media (max-width: 900px) {
+  .sidebar-close { display: inline-flex; }
+}
+
+/* Mission 39 stacking order: menu/backdrop above the phone quick bar,
+   dialogs above every navigation surface, assistant between them. */
+.modal-backdrop { z-index: 90; }
