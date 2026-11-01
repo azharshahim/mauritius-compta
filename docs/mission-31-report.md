@@ -1,10 +1,10 @@
 # Mission 31 — correction du workflow GitHub Pages
 
-Date : 2026-11-01  
-Branche : `arena/56497d31-mauritius-compta` (branche de session dédiée à la mission 31)  
-Base : `main` = `803f0580109293536a5da9d80eeb21be16a72512`  
-PR : [**nº 12 — brouillon**](https://github.com/azharshahim/mauritius-compta/pull/12)  
-Statut : **corrigé localement et poussé en brouillon ; aucune fusion, aucun déploiement manuel.**
+- **Date** : 2026-11-01
+- **Branche** : `arena/56497d31-mauritius-compta` (branche de session dédiée à la mission 31)
+- **Base** : `main` = `803f0580109293536a5da9d80eeb21be16a72512`
+- **PR** : [**nº 12 — brouillon**](https://github.com/azharshahim/mauritius-compta/pull/12)
+- **Statut** : corrigé et poussé en brouillon ; aucune fusion, aucun déploiement manuel.
 
 ## 1. Cause exacte de l’échec du workflow nº 72
 
