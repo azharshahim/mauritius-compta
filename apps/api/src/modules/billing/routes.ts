@@ -5,10 +5,13 @@ import { AppError, badRequest, conflict, notFound } from '../../lib/errors.js';
 import { clientIp, parse } from '../../lib/http.js';
 import { writeAudit } from '../../lib/audit.js';
 import { requireCompany } from '../../lib/tenant.js';
+import { cabinetForCompanyUser } from '../../lib/cabinets.js';
 import { parseIsoDate } from '../../lib/dates.js';
 import { formatAmount, parseAmount } from '../../lib/money.js';
 import {
+  allocateBillingPayment,
   buildAging,
+  cancelBillingPaymentAllocation,
   computeDocument,
   customerBalance,
   formatDocumentNumber,
@@ -28,6 +31,7 @@ import {
   type VatTreatment,
 } from './service.js';
 import { findDuplicates } from './duplicates.js';
+import { proposeBillingAllocationReclass } from '../ai/proposals.js';
 import { billingDocumentPdf, paymentReceiptPdf } from './pdf.js';
 
 /**
@@ -132,6 +136,7 @@ const settingsBody = z
     legalFooterFr: z.string().trim().max(600).nullable().optional(),
     legalFooterEn: z.string().trim().max(600).nullable().optional(),
     bankDetails: z.string().trim().max(600).nullable().optional(),
+    advanceToSupplierAccountId: z.string().uuid().nullable().optional(),
   })
   .strict();
 
@@ -356,6 +361,11 @@ function paymentView(row: any, allocations: any[] = []) {
       amount: a.amount,
       invoiceNumber: a.doc_no ?? null,
       customerName: a.customer_name ?? null,
+      allocatedDate: a.allocated_date ?? null,
+      cancelledAt: a.cancelled_at ?? null,
+      cancellationReason: a.cancellation_reason ?? null,
+      reclassEntryId: a.reclass_entry_id ?? null,
+      reclassAmount: a.reclass_amount ?? '0.0000',
     })),
     createdAt: row.created_at,
   };
@@ -733,6 +743,7 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
         legalFooterFr: ctx.settings.legal_footer_fr,
         legalFooterEn: ctx.settings.legal_footer_en,
         bankDetails: ctx.settings.bank_details,
+        advanceToSupplierAccountId: ctx.settings.advance_to_supplier_account_id ?? null,
       },
       capabilities: {
         numbering: true,
@@ -756,6 +767,16 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
     await requireCompany(db, user.id, companyId, 'admin', 'billing');
     const body = parse(settingsBody, req.body);
     await loadBillingContext(db, companyId);
+    if (body.advanceToSupplierAccountId) {
+      const account = await db.query<{ type: string; is_active: boolean }>(
+        'SELECT type, is_active FROM accounts WHERE id = $1 AND company_id = $2',
+        [body.advanceToSupplierAccountId, companyId],
+      );
+      const row = account.rows[0];
+      if (!row || !row.is_active || row.type !== 'asset') {
+        throw badRequest('ACCOUNT_INACTIVE', 'The supplier advance account must be an active asset account');
+      }
+    }
     await db.query(
       `UPDATE billing_settings SET
          quote_prefix = COALESCE($2, quote_prefix),
@@ -769,6 +790,7 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
          legal_footer_fr = $10,
          legal_footer_en = $11,
          bank_details = $12,
+         advance_to_supplier_account_id = CASE WHEN $14::boolean THEN $15::uuid ELSE advance_to_supplier_account_id END,
          updated_by = $13,
          updated_at = now()
        WHERE company_id = $1`,
@@ -786,6 +808,8 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
         body.legalFooterEn === undefined ? undefined : nullable(body.legalFooterEn),
         body.bankDetails === undefined ? undefined : nullable(body.bankDetails),
         user.id,
+        body.advanceToSupplierAccountId !== undefined,
+        body.advanceToSupplierAccountId ?? null,
       ],
     );
     await writeAudit(db, {
@@ -1202,8 +1226,20 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
     const { companyId, customerId } = req.params as { companyId: string; customerId: string };
     await requireCompany(db, user.id, companyId, 'viewer', 'billing');
     const customer = await loadCustomer(db, companyId, customerId);
-    const balance = await customerBalance(db, companyId, customerId, today());
+    const query = req.query as Record<string, string | undefined>;
+    const asOf = query.asOf ? parseIsoDate(query.asOf, 'asOf') : today();
+    const balance = await customerBalance(db, companyId, customerId, asOf);
     return { customer: customerView(customer), balance };
+  });
+
+  app.get('/companies/:companyId/billing/customers/:customerId/balance', async (req) => {
+    const user = req.user!;
+    const { companyId, customerId } = req.params as { companyId: string; customerId: string };
+    await requireCompany(db, user.id, companyId, 'viewer', 'billing');
+    await loadCustomer(db, companyId, customerId);
+    const query = req.query as Record<string, string | undefined>;
+    const asOf = query.asOf ? parseIsoDate(query.asOf, 'asOf') : today();
+    return { balance: await customerBalance(db, companyId, customerId, asOf) };
   });
 
   app.patch('/companies/:companyId/billing/customers/:customerId', async (req) => {
@@ -2006,8 +2042,25 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
         ORDER BY p.payment_date DESC, p.created_at DESC LIMIT 300`,
       params,
     );
+    const ids = res.rows.map((row: any) => row.id);
+    const allocationRows = ids.length === 0
+      ? []
+      : (await db.query(
+          `SELECT a.*, d.doc_no, d.customer_name
+             FROM billing_payment_allocations a
+             JOIN billing_documents d ON d.id = a.invoice_id
+            WHERE a.payment_id = ANY($1::uuid[])
+            ORDER BY a.created_at, a.id`,
+          [ids],
+        )).rows;
+    const allocationsByPayment = new Map<string, any[]>();
+    for (const allocation of allocationRows) {
+      const list = allocationsByPayment.get(allocation.payment_id) ?? [];
+      list.push(allocation);
+      allocationsByPayment.set(allocation.payment_id, list);
+    }
     return {
-      payments: res.rows.map((row: any) => paymentView(row)),
+      payments: res.rows.map((row: any) => paymentView(row, allocationsByPayment.get(row.id) ?? [])),
       methods: ['bank_transfer', 'cheque', 'cash', 'card', 'other'],
     };
   });
@@ -2111,9 +2164,10 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
       const payment = inserted.rows[0]!;
       for (const allocation of allocations) {
         await tx.query(
-          `INSERT INTO billing_payment_allocations (payment_id, invoice_id, company_id, amount)
-           VALUES ($1,$2,$3,$4)`,
-          [payment.id, allocation.invoiceId, companyId, formatAmount(allocation.amount)],
+          `INSERT INTO billing_payment_allocations
+             (payment_id, invoice_id, company_id, amount, allocated_date)
+           VALUES ($1,$2,$3,$4,$5)`,
+          [payment.id, allocation.invoiceId, companyId, formatAmount(allocation.amount), paymentDate],
         );
         await refreshInvoiceBalance(tx, companyId, allocation.invoiceId);
       }
@@ -2195,6 +2249,49 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
     return { payment: paymentView(payment.rows[0], allocations.rows) };
   });
 
+  app.post('/companies/:companyId/billing/payments/:paymentId/allocations', async (req, reply) => {
+    const user = req.user!;
+    const { companyId, paymentId } = req.params as { companyId: string; paymentId: string };
+    await requireCompany(db, user.id, companyId, 'billing_clerk', 'billing');
+    const body = parse(
+      z
+        .object({
+          invoiceId: z.string().uuid(),
+          amount: z.union([z.string().min(1).max(30), z.number()]),
+          allocationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+          reason: z.string().trim().max(1000).optional(),
+          confirm: z.literal(true),
+        })
+        .strict(),
+      req.body,
+    );
+    const result = await allocateBillingPayment(db, companyId, user.id, paymentId, body);
+    return reply.code(201).send({
+      ...result,
+      note: result.reclassRequired
+        ? 'The payment is already posted: prepare the separate reclassification proposal before closing the period.'
+        : 'The over-payment is now allocated; no revenue or VAT amount was changed.',
+    });
+  });
+
+  app.delete(
+    '/companies/:companyId/billing/payments/:paymentId/allocations/:allocationId',
+    async (req) => {
+      const user = req.user!;
+      const { companyId, paymentId, allocationId } = req.params as {
+        companyId: string;
+        paymentId: string;
+        allocationId: string;
+      };
+      await requireCompany(db, user.id, companyId, 'billing_clerk', 'billing');
+      const body = parse(
+        z.object({ reason: z.string().trim().min(1).max(1000) }).strict(),
+        req.body,
+      );
+      return cancelBillingPaymentAllocation(db, companyId, user.id, paymentId, allocationId, body.reason);
+    },
+  );
+
   app.post('/companies/:companyId/billing/payments/:paymentId/cancel', async (req) => {
     const user = req.user!;
     const { companyId, paymentId } = req.params as { companyId: string; paymentId: string };
@@ -2246,6 +2343,27 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
     });
     return { cancelled: true, invoicesRefreshed: result.invoices };
   });
+
+  app.post(
+    '/companies/:companyId/billing/payments/:paymentId/allocations/:allocationId/reclass-proposal',
+    async (req, reply) => {
+      const user = req.user!;
+      const { companyId, allocationId } = req.params as {
+        companyId: string;
+        paymentId: string;
+        allocationId: string;
+      };
+      await requireCompany(db, user.id, companyId, 'accountant', 'billing');
+      const { cabinetId } = await cabinetForCompanyUser(db, companyId, user.id);
+      const result = await proposeBillingAllocationReclass(db, {
+        cabinetId,
+        companyId,
+        userId: user.id,
+        allocationId,
+      });
+      return reply.code(result.reused ? 200 : 201).send({ ...result, entryCreated: false });
+    },
+  );
 
   app.get('/companies/:companyId/billing/payments/:paymentId/receipt.pdf', async (req, reply) => {
     const user = req.user!;
@@ -2337,31 +2455,53 @@ export function billingRoutes(app: FastifyInstance, db: Db): void {
       [companyId],
     );
     const open = await db.query<any>(
-      `SELECT COALESCE(SUM(total_amount - amount_paid - credited_amount), 0) AS outstanding
+      `SELECT currency, COALESCE(SUM(total_amount - amount_paid - credited_amount), 0) AS outstanding
          FROM billing_documents
-        WHERE company_id = $1 AND kind = 'invoice' AND status IN ('issued', 'partially_paid')`,
+        WHERE company_id = $1 AND kind = 'invoice' AND status IN ('issued', 'partially_paid')
+        GROUP BY currency ORDER BY currency`,
       [companyId],
     );
+    const openByCurrency = open.rows.map((r: any) => ({
+      currency: r.currency,
+      amount: formatAmount(parseAmount(r.outstanding)),
+    }));
     const aging = await buildAging(db, companyId, today());
     const entries = await db.query<any>(
       `SELECT COUNT(*)::int AS posted FROM billing_documents
         WHERE company_id = $1 AND accounting_entry_id IS NOT NULL`,
       [companyId],
     );
-    const payments = await db.query<any>(
-      `SELECT COUNT(*)::int AS count, COALESCE(SUM(unallocated_amount), 0) AS unallocated
-         FROM billing_payments WHERE company_id = $1 AND status = 'recorded'`,
+    const awaiting = await db.query<any>(
+      `SELECT COUNT(*)::int AS count FROM billing_documents
+        WHERE company_id = $1 AND kind IN ('invoice', 'credit_note')
+          AND status NOT IN ('draft', 'cancelled') AND accounting_entry_id IS NULL`,
       [companyId],
     );
+    const payments = await db.query<any>(
+      `SELECT currency, COUNT(*)::int AS count, COALESCE(SUM(unallocated_amount), 0) AS unallocated
+         FROM billing_payments WHERE company_id = $1 AND status = 'recorded'
+        GROUP BY currency ORDER BY currency`,
+      [companyId],
+    );
+    const paymentsByCurrency = payments.rows.map((r: any) => ({
+      currency: r.currency,
+      count: Number(r.count),
+      unallocated: formatAmount(parseAmount(r.unallocated)),
+    }));
     return {
       available: true,
       counts: counts.rows.map((r: any) => ({ kind: r.kind, status: r.status, count: Number(r.count) })),
-      openReceivables: formatAmount(parseAmount(open.rows[0]?.outstanding ?? '0')),
+      // A single amount only when one currency is open: never add MUR and EUR.
+      openReceivables: openByCurrency.length === 1 ? openByCurrency[0]!.amount : null,
+      openReceivablesByCurrency: openByCurrency,
       aging: aging.totals,
+      agingByCurrency: aging.totalsByCurrency,
       postedDocuments: Number(entries.rows[0]?.posted ?? 0),
+      awaitingAccounting: Number(awaiting.rows[0]?.count ?? 0),
       payments: {
-        count: Number(payments.rows[0]?.count ?? 0),
-        unallocated: formatAmount(parseAmount(payments.rows[0]?.unallocated ?? '0')),
+        count: paymentsByCurrency.reduce((sum: number, p: any) => sum + p.count, 0),
+        unallocated: paymentsByCurrency.length === 1 ? paymentsByCurrency[0]!.unallocated : null,
+        byCurrency: paymentsByCurrency,
       },
       capabilities: {
         numbering: true,

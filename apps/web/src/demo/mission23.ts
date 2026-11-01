@@ -7,6 +7,7 @@
  * mutate localStorage so the workflow can be followed end to end.
  */
 import { ApiError } from '../errors';
+import { formatScaled, parseAmount } from '../../../api/src/modules/migration/normalize';
 import type { DemoState, DemoAccount, DemoBankTransaction, DemoBankImport } from './runtime';
 
 export interface DemoDocument {
@@ -28,6 +29,9 @@ export interface DemoDocument {
   field_confidence?: Record<string, number>;
   uncertain_fields?: string[];
   extraction_quality?: Record<string, unknown>;
+  purchase_document_id?: string | null;
+  purchase_document_no?: string | null;
+  posting_status?: 'not_ready' | 'ready' | 'linked' | 'posted' | null;
   created_at: string; approved_at?: string | null;
 }
 export interface DemoDocumentLine {
@@ -556,7 +560,17 @@ export function handleDemoMission23(
   }
   if (rest === '/documents' && method === 'GET') {
     return { documents: state.documents.filter((d) => d.company_id === companyId)
-      .sort((a, b) => b.created_at.localeCompare(a.created_at)) };
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .map((document) => ({
+        ...document,
+        posting_status:
+          document.posting_status ??
+          (document.purchase_document_id
+            ? 'linked'
+            : document.status === 'APPROVED'
+              ? 'ready'
+              : 'not_ready'),
+      })) };
   }
   if (rest === '/documents' && method === 'POST') {
     const seq = ++state.seq;
@@ -622,6 +636,68 @@ export function handleDemoMission23(
     }
     if (suffix === '/party-candidates' && method === 'GET') return { candidates: [] };
   }
+  const purchaseInvoiceMatch = /^\/documents\/proposals\/([^/]+)\/purchase-invoice$/.exec(rest);
+  if (purchaseInvoiceMatch && method === 'POST') {
+    const proposal = state.proposals.find((p) => p.id === purchaseInvoiceMatch[1] && p.company_id === companyId);
+    if (!proposal) throw new ApiError(404, 'PROPOSAL_NOT_FOUND', 'Proposition OCR introuvable');
+    if (proposal.kind !== 'purchase') throw new ApiError(400, 'PROPOSAL_KIND_INVALID', 'Seule une proposition d’achat peut devenir une facture fournisseur');
+    if (proposal.status !== 'APPROVED') throw new ApiError(409, 'PROPOSAL_NOT_APPROVED', 'La proposition doit être approuvée par un humain');
+    const document = state.documents.find((d) => d.id === proposal.document_id && d.company_id === companyId);
+    if (!document) throw new ApiError(404, 'DOCUMENT_NOT_FOUND', 'Document OCR introuvable');
+    if (document.purchase_document_id) {
+      const existing = s.purchaseDocuments.find((d) => d.id === document.purchase_document_id);
+      return {
+        purchaseDocument: existing ?? { id: document.purchase_document_id, doc_no: document.purchase_document_no ?? null, status: 'validated' },
+        existing: true,
+      };
+    }
+    if (!s.purchaseDocuments) throw new ApiError(500, 'DEMO_STATE_INVALID', 'État de démonstration incomplet');
+    const supplierName = (document.party_name ?? 'FOURNISSEUR DÉMO SARL').trim();
+    let supplier = s.purchaseSuppliers.find(
+      (candidate) => candidate.company_id === companyId && candidate.name.trim().toLowerCase() === supplierName.toLowerCase(),
+    );
+    if (!supplier) {
+      supplier = {
+        id: crypto.randomUUID(), company_id: companyId, name: supplierName, reference: null,
+        country: 'MU', address_line1: null, city: null, contact_name: null, contact_phone: null,
+        contact_email: null, registration_number: null, tax_number: null, preferred_currency: document.currency,
+        payment_terms_days: null, payable_account_id: accountOf(s, companyId, '2000')?.id ?? null,
+        notes: 'Créé depuis une proposition OCR de démonstration.', is_active: true,
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      };
+      s.purchaseSuppliers.push(supplier);
+    }
+    const net = parseAmount(document.subtotal ?? document.total_amount ?? '0') ?? 0n;
+    const vat = parseAmount(document.vat_total ?? '0') ?? 0n;
+    const total = parseAmount(document.total_amount ?? formatScaled(net + vat)) ?? net + vat;
+    const purchaseDocument = {
+      id: crypto.randomUUID(), company_id: companyId, supplier_id: supplier.id, kind: 'invoice' as const,
+      doc_no: `FF-DEMO-${state.seq + 1}`, supplier_reference: document.invoice_number ?? '',
+      issue_date: document.invoice_date ?? '2026-10-31', received_date: null, due_date: document.due_date ?? null,
+      currency: document.currency ?? 'MUR', exchange_rate: '1.00000000',
+      subtotal: formatScaled(net), tax_total: formatScaled(vat), total_amount: formatScaled(total),
+      amount_paid: '0.0000', credited_amount: '0.0000', status: 'validated' as const, payment_status: 'unpaid' as const,
+      source_document_id: null, reason: null, notes: 'Créée depuis une proposition OCR approuvée. Aucune écriture comptabilisée.',
+      sequence_year: Number((document.invoice_date ?? '2026').slice(0, 4)), sequence_no: state.seq + 1,
+      accounting_entry_id: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    };
+    s.purchaseDocuments.push(purchaseDocument);
+    const expenseAccount = accountOf(s, companyId, '5000') ?? s.accounts.find((a) => a.company_id === companyId && a.type === 'expense');
+    if (!expenseAccount) throw new ApiError(409, 'ACCOUNT_MISSING', 'Aucun compte de charge actif');
+    s.purchaseLines.push({
+      id: crypto.randomUUID(), document_id: purchaseDocument.id, company_id: companyId, line_no: 1,
+      description: `Document OCR ${document.original_name}`.slice(0, 300), quantity: '1.0000',
+      unit_price: formatScaled(net), account_id: expenseAccount.id,
+      vat_treatment: vat > 0n ? 'standard' : 'zero_rated', vat_rate: null, vat_rate_id: null,
+      vat_recoverable: vat > 0n, net_amount: formatScaled(net), tax_amount: formatScaled(vat),
+      line_total: formatScaled(net + vat),
+    });
+    document.purchase_document_id = purchaseDocument.id;
+    document.purchase_document_no = purchaseDocument.doc_no;
+    document.posting_status = 'linked';
+    return { purchaseDocument, existing: false, entryCreated: false };
+  }
+
   const proposalMatch = /^\/documents\/proposals\/([^/]+)\/(approve|reject)$/.exec(rest);
   if (proposalMatch) {
     const proposal = state.proposals.find((p) => p.id === proposalMatch[1] && p.company_id === companyId);

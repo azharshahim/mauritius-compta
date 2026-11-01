@@ -86,6 +86,45 @@ const L = {
     statusUnmatched: 'Non rapproché',
     statusPartial: 'Partiellement affectée',
     billingTitle: 'Règlements clients liés',
+    createPaymentTitle: 'Créer un règlement client depuis cet encaissement',
+    createPaymentHint: 'Le règlement est enregistré et rapproché, mais aucune écriture comptable n’est créée : la comptabilisation reste une action séparée via le moteur existant.',
+    selectCustomer: 'Client',
+    selectInvoice: 'Facture à régler',
+    invoiceOutstanding: 'Restant dû',
+    createPayment: 'Créer le règlement et rapprocher',
+    paymentCreated: 'Règlement créé, facture mise à jour et transaction rapprochée.',
+    paymentIdempotent: 'Un règlement existe déjà pour cette transaction : aucun doublon créé.',
+    noCustomer: 'Aucun client actif.',
+    noOpenInvoice: 'Aucune facture ouverte dans la devise de cette transaction.',
+    loadInvoices: 'Charger les factures',
+    accountingSeparate: 'Aucune comptabilisation automatique.',
+    openingBank: 'Solde bancaire d’ouverture',
+    openingLedger: 'Solde comptable d’ouverture',
+    closingBank: 'Solde bancaire de clôture',
+    closingLedger: 'Solde comptable de clôture',
+    bankMovement: 'Mouvement bancaire de la période',
+    ledgerMovement: 'Mouvement comptable de la période',
+    partialCount: 'partiellement rapprochées',
+    excludedCount: 'exclues',
+    totalCount: 'opérations dans la période',
+    priorCount: 'opérations antérieures reprises à l’ouverture',
+    periodsTitle: 'Validation de période de relevé',
+    periodsHint: 'La validation fige les soldes et l’empreinte du relevé. Elle ne crée aucune écriture et ne force jamais un écart à zéro.',
+    openPeriod: 'Ouvrir / actualiser la période',
+    validatePeriod: 'Valider la période',
+    reopenPeriod: 'Réouvrir la période',
+    periodStatus: 'Statut de la période',
+    periodNote: 'Note de validation (obligatoire si écart)',
+    periodReason: 'Motif de réouverture',
+    periodHash: 'Empreinte du relevé',
+    periodDifference: 'Écart de clôture',
+    periodAccepted: 'Écart accepté',
+    periodCsv: 'CSV de la période validée (montants figés)',
+    periodOpen: 'Ouverte',
+    periodValidated: 'Validée',
+    periodReopened: 'Réouverte',
+    periodHistory: 'Historique des décisions',
+    noPeriod: 'Aucune période enregistrée sur ces dates.',
     billingEmpty: 'Aucun règlement client enregistré pour cette devise.',
     billingRemaining: 'Restant à affecter sur la transaction',
     billingAmount: 'Montant à affecter',
@@ -231,6 +270,45 @@ const L = {
     statusUnmatched: 'Unreconciled',
     statusPartial: 'Partially allocated',
     billingTitle: 'Linked customer payments',
+    createPaymentTitle: 'Create a customer payment from this receipt',
+    createPaymentHint: 'The payment is recorded and reconciled, but no journal entry is created: posting remains a separate action through the existing engine.',
+    selectCustomer: 'Customer',
+    selectInvoice: 'Invoice to settle',
+    invoiceOutstanding: 'Outstanding',
+    createPayment: 'Create payment and reconcile',
+    paymentCreated: 'Payment created, invoice updated and transaction reconciled.',
+    paymentIdempotent: 'A payment already exists for this transaction: no duplicate was created.',
+    noCustomer: 'No active customer.',
+    noOpenInvoice: 'No open invoice in this transaction currency.',
+    loadInvoices: 'Load invoices',
+    accountingSeparate: 'No automatic posting.',
+    openingBank: 'Opening bank balance',
+    openingLedger: 'Opening ledger balance',
+    closingBank: 'Closing bank balance',
+    closingLedger: 'Closing ledger balance',
+    bankMovement: 'Bank movement in period',
+    ledgerMovement: 'Ledger movement in period',
+    partialCount: 'partially matched',
+    excludedCount: 'excluded',
+    totalCount: 'transactions in period',
+    priorCount: 'transactions before the period included in opening',
+    periodsTitle: 'Statement period validation',
+    periodsHint: 'Validation freezes balances and the statement hash. It never posts an entry and never forces a difference to zero.',
+    openPeriod: 'Open / refresh period',
+    validatePeriod: 'Validate period',
+    reopenPeriod: 'Reopen period',
+    periodStatus: 'Period status',
+    periodNote: 'Validation note (required when a difference exists)',
+    periodReason: 'Reopening reason',
+    periodHash: 'Statement hash',
+    periodDifference: 'Closing difference',
+    periodAccepted: 'Accepted difference',
+    periodCsv: 'Validated period CSV (frozen amounts)',
+    periodOpen: 'Open',
+    periodValidated: 'Validated',
+    periodReopened: 'Reopened',
+    periodHistory: 'Decision history',
+    noPeriod: 'No period recorded for these dates.',
     billingEmpty: 'No customer payment recorded in this currency.',
     billingRemaining: 'Remaining to allocate on the transaction',
     billingAmount: 'Amount to allocate',
@@ -476,16 +554,50 @@ interface Rule {
 
 interface Report {
   bankAccount: { id: string; name: string; bankName: string; currency: string; maskedReference: string | null };
+  openingBankBalance: string | null;
+  openingLedgerBalance: string;
+  bankMovement: string;
+  ledgerMovement: string;
+  closingBankBalance: string | null;
+  closingLedgerBalance: string;
   bankBalance: string | null;
   ledgerBalance: string;
   difference: string;
   matchedCount: number;
+  partiallyMatchedCount: number;
   unmatchedCount: number;
+  excludedCount: number;
+  totalCount: number;
   ledgerUnmatchedCount: number;
+  priorTransactionCount: number;
   status: string;
   explanations: { code: string; fr: string; en: string }[];
   validatedAt: string | null;
   validatedBy: string | null;
+}
+
+interface ReconciliationPeriod {
+  id: string;
+  period_from: string;
+  period_to: string;
+  currency: string;
+  opening_bank: string | null;
+  closing_bank: string | null;
+  opening_ledger: string;
+  closing_ledger: string;
+  difference: string;
+  accepted_difference: string;
+  status: 'open' | 'validated' | 'reopened';
+  statement_hash: string;
+  matched_count: number;
+  partial_count: number;
+  unmatched_count: number;
+  excluded_count: number;
+  note: string | null;
+  validated_at: string | null;
+  reopened_at: string | null;
+  reopen_reason: string | null;
+  events: { id: string; event: string; actor_name: string | null; note: string | null; created_at: string }[];
 }
 
 interface AdvancedReport {
@@ -653,6 +765,17 @@ export default function BankPage() {
   const [busy, setBusy] = useState(false);
   const [reviewed, setReviewed] = useState(false);
   const [exchangeRate, setExchangeRate] = useState('');
+  const [periods, setPeriods] = useState<ReconciliationPeriod[]>([]);
+  const [periodNote, setPeriodNote] = useState('');
+  const [periodReason, setPeriodReason] = useState('');
+  const [periodAccepted, setPeriodAccepted] = useState('');
+  const [customers, setCustomers] = useState<{ id: string; name: string; isActive: boolean }[]>([]);
+  const [createCustomerId, setCreateCustomerId] = useState('');
+  const [openInvoices, setOpenInvoices] = useState<
+    { id: string; number: string | null; currency: string; outstanding: string; issueDate: string }[]
+  >([]);
+  const [createInvoiceId, setCreateInvoiceId] = useState('');
+  const [createAmount, setCreateAmount] = useState('');
   const [importSummary, setImportSummary] = useState<string | null>(null);
   const [selectedLines, setSelectedLines] = useState<string[]>([]);
   const [from, setFrom] = useState('');
@@ -712,6 +835,14 @@ export default function BankPage() {
       if (to) params.set('to', to);
       const res = await api.get<{ report: Report | null }>(`/companies/${companyId}/bank/report?${params}`);
       setReport(res.report);
+      try {
+        const listed = await api.get<{ periods: ReconciliationPeriod[] }>(
+          `/companies/${companyId}/bank/periods?${params}`,
+        );
+        setPeriods(listed.periods);
+      } catch {
+        setPeriods([]);
+      }
       try {
         const detailed = await api.get<{ report: AdvancedReport | null }>(
           `/companies/${companyId}/bank/reconciliation-report?${params}`,
@@ -1090,6 +1221,154 @@ export default function BankPage() {
       });
       await loadRules();
       setNotice(`${tr.saveRule} ✓`);
+    } catch (err) {
+      setError(errorMessage(err, tr.loadError).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openPeriod = async () => {
+    if (!accountId || !from || !to) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/companies/${companyId}/bank/periods`, {
+        bankAccountId: accountId,
+        from,
+        to,
+        note: periodNote.trim() || null,
+      });
+      setNotice(`${tr.openPeriod} ✓`);
+      await loadReport();
+    } catch (err) {
+      setError(errorMessage(err, tr.loadError).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const validatePeriod = async (period: ReconciliationPeriod) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const note = periodNote.trim();
+      await api.post(`/companies/${companyId}/bank/periods/${period.id}/validate`, {
+        confirm: true,
+        note: note || null,
+        acceptedDifference: period.difference !== '0.0000' ? periodAccepted.trim() || period.difference : null,
+      });
+      setNotice(`${tr.validatePeriod} ✓`);
+      setPeriodNote('');
+      setPeriodAccepted('');
+      await loadReport();
+    } catch (err) {
+      setError(errorMessage(err, tr.loadError).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reopenPeriod = async (period: ReconciliationPeriod) => {
+    if (periodReason.trim().length < 3) {
+      setError(tr.periodReason);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/companies/${companyId}/bank/periods/${period.id}/reopen`, {
+        confirm: true,
+        reason: periodReason.trim(),
+      });
+      setNotice(`${tr.reopenPeriod} ✓`);
+      setPeriodReason('');
+      await loadReport();
+    } catch (err) {
+      setError(errorMessage(err, tr.loadError).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const downloadPeriod = async (period: ReconciliationPeriod) => {
+    try {
+      const text = await api.get<string>(
+        `/companies/${companyId}/bank/periods/${period.id}/report.csv?lang=${locale === 'fr' ? 'fr' : 'en'}`,
+      );
+      const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `bank-period-${period.period_from}-${period.period_to}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(errorMessage(err, tr.loadError).message);
+    }
+  };
+
+  const loadCustomers = async () => {
+    try {
+      const res = await api.get<{ customers: { id: string; name: string; isActive: boolean }[] }>(
+        `/companies/${companyId}/billing/customers`,
+      );
+      setCustomers(res.customers.filter((c) => c.isActive));
+    } catch (err) {
+      setError(errorMessage(err, tr.loadError).message);
+    }
+  };
+
+  const loadOpenInvoices = async (customerId: string) => {
+    setCreateCustomerId(customerId);
+    setCreateInvoiceId('');
+    setCreateAmount('');
+    if (!customerId) {
+      setOpenInvoices([]);
+      return;
+    }
+    try {
+      const suffix = `kind=invoice&customerId=${customerId}`;
+      const [issued, partial] = await Promise.all([
+        api.get<{ documents: any[] }>(`/companies/${companyId}/billing/documents?${suffix}&status=issued`),
+        api.get<{ documents: any[] }>(`/companies/${companyId}/billing/documents?${suffix}&status=partially_paid`),
+      ]);
+      const currency = detail?.transaction.currency;
+      setOpenInvoices(
+        [...issued.documents, ...partial.documents]
+          .filter((d) => d.currency === currency)
+          .map((d) => ({
+            id: d.id,
+            number: d.number,
+            currency: d.currency,
+            outstanding: d.outstanding,
+            issueDate: d.issueDate,
+          })),
+      );
+    } catch (err) {
+      setError(errorMessage(err, tr.loadError).message);
+    }
+  };
+
+  const createPaymentFromReceipt = async () => {
+    if (!detail || !createCustomerId || !createInvoiceId || !reviewed) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.post<{ idempotent: boolean; payment: { paymentNumber: string } }>(
+        `/companies/${companyId}/bank/transactions/${detail.transaction.id}/billing-payment`,
+        {
+          confirm: true,
+          customerId: createCustomerId,
+          allocations: [{ invoiceId: createInvoiceId, amount: createAmount.trim() }],
+          note: 'Règlement créé depuis un encaissement bancaire, confirmé par un humain',
+        },
+      );
+      setNotice(`${res.idempotent ? tr.paymentIdempotent : tr.paymentCreated} (${res.payment.paymentNumber})`);
+      setReviewed(false);
+      setCreateInvoiceId('');
+      setCreateAmount('');
+      await Promise.all([openTxn(detail.transaction.id), loadTxns(), loadReport()]);
     } catch (err) {
       setError(errorMessage(err, tr.loadError).message);
     } finally {
@@ -1557,6 +1836,69 @@ export default function BankPage() {
 
               {detail.internalTransfer && (
                 <div className="alert alert-warning">{tr.transfer}</div>
+              )}
+
+              {Number(detail.transaction.amount) > 0 && (
+                <div className="bank-create-payment">
+                  <h4>{tr.createPaymentTitle}</h4>
+                  <p className="muted small">{tr.createPaymentHint}</p>
+                  <div className="bank-form">
+                    <Field label={tr.selectCustomer}>
+                      <select
+                        value={createCustomerId}
+                        onChange={(e) => void loadOpenInvoices(e.target.value)}
+                        onFocus={() => {
+                          if (customers.length === 0) void loadCustomers();
+                        }}
+                      >
+                        <option value="">—</option>
+                        {customers.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    {createCustomerId && (
+                      <Field label={tr.selectInvoice}>
+                        <select
+                          value={createInvoiceId}
+                          onChange={(e) => {
+                            setCreateInvoiceId(e.target.value);
+                            const invoice = openInvoices.find((i) => i.id === e.target.value);
+                            setCreateAmount(invoice?.outstanding ?? '');
+                          }}
+                        >
+                          <option value="">—</option>
+                          {openInvoices.map((i) => (
+                            <option key={i.id} value={i.id}>
+                              {i.number ?? i.id} · {tr.invoiceOutstanding} {money(i.outstanding)} {i.currency}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    )}
+                    {createCustomerId && openInvoices.length === 0 && (
+                      <p className="muted small">{tr.noOpenInvoice}</p>
+                    )}
+                    {createInvoiceId && (
+                      <Field label={tr.billingAmount}>
+                        <input
+                          inputMode="decimal"
+                          value={createAmount}
+                          onChange={(e) => setCreateAmount(e.target.value)}
+                          placeholder="0.0000"
+                        />
+                      </Field>
+                    )}
+                  </div>
+                  <Button
+                    variant="primary"
+                    onClick={() => void createPaymentFromReceipt()}
+                    disabled={busy || !reviewed || !createCustomerId || !createInvoiceId || !createAmount.trim()}
+                  >
+                    {tr.createPayment}
+                  </Button>
+                  <p className="muted small">{tr.accountingSeparate}</p>
+                </div>
               )}
 
               <h4>{tr.billingTitle}</h4>
@@ -2048,12 +2390,30 @@ export default function BankPage() {
               </h3>
               <div className="bank-counts">
                 <div className="bank-count">
-                  <strong>{report.bankBalance ?? '—'}</strong>
-                  <span>{tr.bankBalance}</span>
+                  <strong>{report.openingBankBalance ?? '—'}</strong>
+                  <span>{tr.openingBank}</span>
                 </div>
                 <div className="bank-count">
-                  <strong>{report.ledgerBalance}</strong>
-                  <span>{tr.ledgerBalance}</span>
+                  <strong>{report.bankMovement}</strong>
+                  <span>{tr.bankMovement}</span>
+                </div>
+                <div className="bank-count">
+                  <strong>{report.closingBankBalance ?? '—'}</strong>
+                  <span>{tr.closingBank}</span>
+                </div>
+              </div>
+              <div className="bank-counts">
+                <div className="bank-count">
+                  <strong>{report.openingLedgerBalance}</strong>
+                  <span>{tr.openingLedger}</span>
+                </div>
+                <div className="bank-count">
+                  <strong>{report.ledgerMovement}</strong>
+                  <span>{tr.ledgerMovement}</span>
+                </div>
+                <div className="bank-count">
+                  <strong>{report.closingLedgerBalance}</strong>
+                  <span>{tr.closingLedger}</span>
                 </div>
                 <div className={`bank-count ${report.difference === '0.0000' ? 'ok' : 'danger'}`}>
                   <strong>{report.difference}</strong>
@@ -2061,9 +2421,13 @@ export default function BankPage() {
                 </div>
               </div>
               <p className="muted">
-                {report.matchedCount} {tr.matched} · {report.unmatchedCount} {tr.unmatched} ·{' '}
-                {report.ledgerUnmatchedCount} {tr.ledgerUnmatched}
+                {report.matchedCount} {tr.matched} · {report.partiallyMatchedCount} {tr.partialCount} ·{' '}
+                {report.unmatchedCount} {tr.unmatched} · {report.excludedCount} {tr.excludedCount} ·{' '}
+                {report.totalCount} {tr.totalCount} · {report.ledgerUnmatchedCount} {tr.ledgerUnmatched}
               </p>
+              {report.priorTransactionCount > 0 && (
+                <p className="muted small">{report.priorTransactionCount} {tr.priorCount}</p>
+              )}
               <p className="muted small">
                 {tr.validated} :{' '}
                 {report.validatedAt
@@ -2076,6 +2440,84 @@ export default function BankPage() {
                   <li key={e.code}>{locale === 'fr' ? e.fr : e.en}</li>
                 ))}
               </ul>
+              <div className="bank-periods">
+                <h4>{tr.periodsTitle}</h4>
+                <p className="muted small">{tr.periodsHint}</p>
+                <div className="bank-form">
+                  <Button onClick={() => void openPeriod()} disabled={busy || !from || !to}>{tr.openPeriod}</Button>
+                </div>
+                <Field label={tr.periodNote}>
+                  <input value={periodNote} onChange={(e) => setPeriodNote(e.target.value)} maxLength={2000} />
+                </Field>
+                {periods.length === 0 && <p className="muted">{tr.noPeriod}</p>}
+                {periods.map((period) => (
+                  <div key={period.id} className="bank-billing-card">
+                    <div className="bank-txn-card-head">
+                      <strong>{period.period_from} → {period.period_to}</strong>
+                      <Badge
+                        kind={
+                          period.status === 'validated'
+                            ? 'success'
+                            : period.status === 'reopened'
+                              ? 'warning'
+                              : 'info'
+                        }
+                      >
+                        {period.status === 'validated'
+                          ? tr.periodValidated
+                          : period.status === 'reopened'
+                            ? tr.periodReopened
+                            : tr.periodOpen}
+                      </Badge>
+                    </div>
+                    <p className="muted small">
+                      {tr.openingBank} {period.opening_bank ?? '—'} · {tr.closingBank} {period.closing_bank ?? '—'} ·{' '}
+                      {tr.openingLedger} {period.opening_ledger} · {tr.closingLedger} {period.closing_ledger}
+                    </p>
+                    <p className={period.difference === '0.0000' ? 'muted small' : 'small finding-warning'}>
+                      {tr.periodDifference} : {period.difference} · {tr.periodAccepted} : {period.accepted_difference}
+                      {period.difference !== '0.0000' ? ` · ${tr.periodNote}` : ''}
+                    </p>
+                    <p className="muted small">
+                      {tr.periodHash} : {period.statement_hash}
+                    </p>
+                    {period.status === 'validated' && (
+                      <>
+                        <p className="muted small">
+                          {tr.validated} : {period.validated_at ?? '—'}
+                        </p>
+                        <Field label={tr.periodReason}>
+                          <input value={periodReason} onChange={(e) => setPeriodReason(e.target.value)} maxLength={2000} />
+                        </Field>
+                      </>
+                    )}
+                    {period.difference !== '0.0000' && period.status !== 'validated' && (
+                      <Field label={tr.periodAccepted}>
+                        <input
+                          inputMode="decimal"
+                          value={periodAccepted}
+                          onChange={(e) => setPeriodAccepted(e.target.value)}
+                          placeholder={period.difference}
+                        />
+                      </Field>
+                    )}
+                    <div className="bank-actions">
+                      {(period.status === 'open' || period.status === 'reopened') && (
+                        <Button variant="primary" onClick={() => void validatePeriod(period)} disabled={busy}>
+                          {tr.validatePeriod}
+                        </Button>
+                      )}
+                      {period.status === 'validated' && (
+                        <Button variant="danger" onClick={() => void reopenPeriod(period)} disabled={busy}>
+                          {tr.reopenPeriod}
+                        </Button>
+                      )}
+                      <Button onClick={() => void downloadPeriod(period)}>{tr.periodCsv}</Button>
+                    </div>
+                    <p className="muted small">{tr.periodHistory} : {period.events.map((e) => `${e.event} (${e.created_at.slice(0, 10)})`).join(' · ')}</p>
+                  </div>
+                ))}
+              </div>
               {advanced && (
                 <div className="bank-advanced-report">
                   <h4>{tr.advancedReport}</h4>

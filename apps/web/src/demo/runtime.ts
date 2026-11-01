@@ -52,6 +52,7 @@ import {
   type DemoFiscalClosing,
 } from './equity';
 import { fixedAssetCsv, handleDemoFixedAssets, seedDemoFixedAssets } from './fixed-assets';
+import { computeSubledgerControl, computeVatControl } from './controls';
 import { demoMission22Csv, handleDemoMission22, seedDemoMission22 } from './inventory';
 import {
   handleDemoFinancialYears,
@@ -483,6 +484,11 @@ export interface DemoBillingAllocation {
   invoice_id: string;
   company_id: string;
   amount: string;
+  allocated_date?: string;
+  cancelled_at?: string | null;
+  cancellation_reason?: string | null;
+  reclass_entry_id?: string | null;
+  reclass_amount?: string;
 }
 
 export interface DemoEntryProposal {
@@ -759,7 +765,9 @@ export interface DemoPurchaseAllocation {
   payment_id: string;
   invoice_id: string;
   amount: string;
+  allocated_date?: string;
   cancelled_at: string | null;
+  reclass_entry_id?: string | null;
 }
 
 export interface DemoPurchaseCreditAllocation {
@@ -3392,6 +3400,11 @@ function billingPaymentView(p: DemoBillingPayment) {
         amount: a.amount,
         invoiceNumber: invoice?.doc_no ?? null,
         customerName: invoice?.customer_name ?? null,
+        allocatedDate: a.allocated_date ?? null,
+        cancelledAt: a.cancelled_at ?? null,
+        cancellationReason: a.cancellation_reason ?? null,
+        reclassEntryId: a.reclass_entry_id ?? null,
+        reclassAmount: a.reclass_amount ?? '0.0000',
       };
     });
   return {
@@ -3574,7 +3587,7 @@ function refreshInvoiceBalance(companyId: string, invoiceId: string): void {
   const invoice = s.billingDocuments.find((d) => d.id === invoiceId && d.company_id === companyId);
   if (!invoice) return;
   const paid = s.billingAllocations
-    .filter((a) => a.invoice_id === invoiceId)
+    .filter((a) => a.invoice_id === invoiceId && !a.cancelled_at)
     .filter((a) => s.billingPayments.find((p) => p.id === a.payment_id && p.status === 'recorded'))
     .reduce((acc, a) => acc + amount(a.amount), 0n);
   const credited = s.billingDocuments
@@ -3912,60 +3925,70 @@ function issueBillingDocumentDemo(companyId: string, documentId: string): Record
 
 function billingAgingDemo(companyId: string, asOf: string, customerId?: string | null) {
   const s = loadState();
-  const buckets = { current: 0n, days1to30: 0n, days31to60: 0n, days61to90: 0n, over90: 0n, total: 0n };
-  const rows = new Map<string, { customerId: string; customerName: string; currency: string; raw: typeof buckets; invoiceCount: number }>();
+  const rows = new Map<
+    string,
+    { customerId: string; customerName: string; currency: string; raw: {
+      current: bigint; days1to30: bigint; days31to60: bigint; days61to90: bigint; over90: bigint; total: bigint;
+    }; invoiceCount: number }
+  >();
+  const byCurrency = new Map<string, {
+    current: bigint; days1to30: bigint; days31to60: bigint; days61to90: bigint; over90: bigint; total: bigint;
+  }>();
   for (const doc of s.billingDocuments.filter(
     (d) => d.company_id === companyId && d.kind === 'invoice' && ['issued', 'partially_paid'].includes(d.status) && d.issue_date <= asOf,
   )) {
     if (customerId && doc.customer_id !== customerId) continue;
     const outstanding = billingOutstanding(doc);
     if (outstanding === 0n) continue;
-    const key = doc.customer_id ?? 'unknown';
+    const key = `${doc.customer_id ?? 'unknown'}|${doc.currency}`;
     const entry = rows.get(key) ?? {
-      customerId: key,
+      customerId: doc.customer_id ?? 'unknown',
       customerName: doc.customer_name,
       currency: doc.currency,
       raw: { current: 0n, days1to30: 0n, days31to60: 0n, days61to90: 0n, over90: 0n, total: 0n },
       invoiceCount: 0,
     };
+    const currencyTotal = byCurrency.get(doc.currency) ?? {
+      current: 0n, days1to30: 0n, days31to60: 0n, days61to90: 0n, over90: 0n, total: 0n,
+    };
     const late = Math.floor(
       (Date.parse(`${asOf}T00:00:00Z`) - Date.parse(`${doc.due_date ?? doc.issue_date}T00:00:00Z`)) / 86_400_000,
     );
-    const bucket: keyof typeof buckets =
+    const bucket: keyof typeof currencyTotal =
       late <= 0 ? 'current' : late <= 30 ? 'days1to30' : late <= 60 ? 'days31to60' : late <= 90 ? 'days61to90' : 'over90';
     entry.raw[bucket] += outstanding;
     entry.raw.total += outstanding;
     entry.invoiceCount += 1;
-    buckets[bucket] += outstanding;
-    buckets.total += outstanding;
+    currencyTotal[bucket] += outstanding;
+    currencyTotal.total += outstanding;
+    byCurrency.set(doc.currency, currencyTotal);
     rows.set(key, entry);
   }
+  const bucketView = (raw: { current: bigint; days1to30: bigint; days31to60: bigint; days61to90: bigint; over90: bigint; total: bigint }) => ({
+    current: fmt(raw.current),
+    days1to30: fmt(raw.days1to30),
+    days31to60: fmt(raw.days31to60),
+    days61to90: fmt(raw.days61to90),
+    over90: fmt(raw.over90),
+    total: fmt(raw.total),
+  });
+  const totalsByCurrency = [...byCurrency.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([currency, raw]) => ({ currency, buckets: bucketView(raw) }));
   return {
     asOf,
     rows: [...rows.values()]
-      .sort((a, b) => a.customerName.localeCompare(b.customerName))
+      .sort((a, b) => a.customerName.localeCompare(b.customerName) || a.currency.localeCompare(b.currency))
       .map((r) => ({
         customerId: r.customerId,
         customerName: r.customerName,
         currency: r.currency,
         invoiceCount: r.invoiceCount,
-        buckets: {
-          current: fmt(r.raw.current),
-          days1to30: fmt(r.raw.days1to30),
-          days31to60: fmt(r.raw.days31to60),
-          days61to90: fmt(r.raw.days61to90),
-          over90: fmt(r.raw.over90),
-          total: fmt(r.raw.total),
-        },
+        buckets: bucketView(r.raw),
       })),
-    totals: {
-      current: fmt(buckets.current),
-      days1to30: fmt(buckets.days1to30),
-      days31to60: fmt(buckets.days31to60),
-      days61to90: fmt(buckets.days61to90),
-      over90: fmt(buckets.over90),
-      total: fmt(buckets.total),
-    },
+    // Never add two currencies: a single total exists only for one currency.
+    totals: totalsByCurrency.length === 1 ? totalsByCurrency[0]!.buckets : null,
+    totalsByCurrency,
   };
 }
 
@@ -3979,21 +4002,39 @@ function billingCustomerBalanceDemo(companyId: string, customerId: string, asOf:
       !['draft', 'cancelled'].includes(d.status) &&
       d.issue_date <= asOf,
   );
-  const invoiced = invoices.reduce((acc, d) => acc + amount(d.total_amount), 0n);
-  const paid = invoices.reduce((acc, d) => acc + amount(d.amount_paid), 0n);
-  const credited = invoices.reduce((acc, d) => acc + amount(d.credited_amount), 0n);
-  const unallocated = s.billingPayments
-    .filter((p) => p.company_id === companyId && p.customer_id === customerId && p.status === 'recorded' && p.payment_date <= asOf)
-    .reduce((acc, p) => acc + amount(p.unallocated_amount), 0n);
-  const outstanding = invoiced - paid - credited;
+  const payments = s.billingPayments.filter(
+    (p) => p.company_id === companyId && p.customer_id === customerId && p.status === 'recorded' && p.payment_date <= asOf,
+  );
+  const currencies = new Set<string>([
+    ...invoices.map((d) => d.currency),
+    ...payments.map((p) => p.currency),
+  ]);
+  const balances = [...currencies].sort().map((currency) => {
+    const currencyInvoices = invoices.filter((d) => d.currency === currency);
+    const invoiced = currencyInvoices.reduce((acc, d) => acc + amount(d.total_amount), 0n);
+    const paid = currencyInvoices.reduce((acc, d) => acc + amount(d.amount_paid), 0n);
+    const credited = currencyInvoices.reduce((acc, d) => acc + amount(d.credited_amount), 0n);
+    const unallocated = payments
+      .filter((p) => p.currency === currency)
+      .reduce((acc, p) => acc + amount(p.unallocated_amount), 0n);
+    const outstanding = invoiced - paid - credited;
+    return {
+      currency,
+      invoiced: fmt(invoiced),
+      paid: fmt(paid),
+      credited: fmt(credited),
+      outstanding: fmt(outstanding > 0n ? outstanding : 0n),
+      unallocated: fmt(unallocated),
+      balance: fmt(outstanding - unallocated),
+    };
+  });
   return {
-    currency: invoices[0]?.currency ?? 'MUR',
-    invoiced: fmt(invoiced),
-    paid: fmt(paid),
-    credited: fmt(credited),
-    outstanding: fmt(outstanding > 0n ? outstanding : 0n),
-    unallocated: fmt(unallocated),
-    balance: fmt(outstanding - unallocated),
+    ...(balances[0] ?? {
+      currency: 'MUR', invoiced: '0.0000', paid: '0.0000', credited: '0.0000',
+      outstanding: '0.0000', unallocated: '0.0000', balance: '0.0000',
+    }),
+    asOf,
+    balances,
   };
 }
 
@@ -7381,18 +7422,37 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
       }
       const aging = billingAgingDemo(companyId, todayIso());
       const payments = s.billingPayments.filter((p) => p.company_id === companyId && p.status === 'recorded');
+      const openByCurrency = [...new Set(
+        s.billingDocuments
+          .filter((d) => d.company_id === companyId && d.kind === 'invoice' && ['issued', 'partially_paid'].includes(d.status))
+          .map((d) => d.currency),
+      )].sort().map((currency) => ({
+        currency,
+        amount: fmt(s.billingDocuments
+          .filter((d) => d.company_id === companyId && d.kind === 'invoice' && ['issued', 'partially_paid'].includes(d.status) && d.currency === currency)
+          .reduce((acc, d) => acc + billingOutstanding(d), 0n)),
+      }));
+      const paymentsByCurrency = [...new Set(payments.map((p) => p.currency))].sort().map((currency) => ({
+        currency,
+        count: payments.filter((p) => p.currency === currency).length,
+        unallocated: fmt(payments.filter((p) => p.currency === currency)
+          .reduce((acc, p) => acc + amount(p.unallocated_amount), 0n)),
+      }));
       return {
         available: true,
         counts: [...countMap.entries()].map(([key, count]) => {
           const [kind, status] = key.split('|');
           return { kind, status, count };
         }),
-        openReceivables: aging.totals.total,
+        openReceivables: openByCurrency.length === 1 ? openByCurrency[0]!.amount : null,
+        openReceivablesByCurrency: openByCurrency,
         aging: aging.totals,
+        agingByCurrency: aging.totalsByCurrency,
         postedDocuments: s.billingDocuments.filter((d) => d.company_id === companyId && d.accounting_entry_id).length,
         payments: {
           count: payments.length,
-          unallocated: fmt(payments.reduce((acc, p) => acc + amount(p.unallocated_amount), 0n)),
+          unallocated: paymentsByCurrency.length === 1 ? paymentsByCurrency[0]!.unallocated : null,
+          byCurrency: paymentsByCurrency,
         },
         capabilities: {
           numbering: true,
@@ -7675,6 +7735,97 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
         payment: billingPaymentView(payment),
         warnings: unallocated > 0n ? ['UNALLOCATED_PAYMENT: montant non affecté, à traiter.'] : [],
         duplicates: { level: 'none', matches: [] },
+        entryCreated: false,
+      } as T;
+    }
+
+    const billingAllocationDelete = /^\/billing\/payments\/([0-9a-f-]{36})\/allocations\/([0-9a-f-]{36})$/.exec(rest);
+    if (billingAllocationDelete) {
+      requireModule(companyId, 'billing', 'write');
+      const payment = s.billingPayments.find((p) => p.id === billingAllocationDelete[1] && p.company_id === companyId);
+      if (!payment) throw new ApiError(404, 'PAYMENT_NOT_FOUND', 'Encaissement introuvable');
+      const allocation = s.billingAllocations.find(
+        (a) => a.id === billingAllocationDelete[2] && a.payment_id === payment.id,
+      );
+      if (!allocation) throw new ApiError(404, 'ALLOCATION_NOT_FOUND', 'Affectation introuvable');
+      if (method !== 'DELETE') throw new ApiError(404, 'NOT_FOUND', 'Route inconnue');
+      if (allocation.cancelled_at) throw new ApiError(409, 'ALLOCATION_CANCELLED', 'Cette affectation est déjà annulée');
+      const reason = String(payload.reason ?? '').trim();
+      if (reason.length < 1) throw new ApiError(400, 'VALIDATION_ERROR', 'Motif requis');
+      allocation.cancelled_at = now();
+      allocation.cancellation_reason = reason;
+      payment.unallocated_amount = fmt(amount(payment.unallocated_amount) + amount(allocation.amount));
+      refreshInvoiceBalance(companyId, allocation.invoice_id);
+      audit(companyId, 'billing.payment.allocation.cancel', 'billing_payment', payment.id, {
+        allocationId: allocation.id,
+        reason,
+      });
+      persist();
+      return { cancelled: true, payment: billingPaymentView(payment) } as T;
+    }
+
+    const billingAllocationCreate = /^\/billing\/payments\/([0-9a-f-]{36})\/allocations$/.exec(rest);
+    if (billingAllocationCreate && method === 'POST') {
+      requireModule(companyId, 'billing', 'write');
+      const payment = s.billingPayments.find((p) => p.id === billingAllocationCreate[1] && p.company_id === companyId);
+      if (!payment) throw new ApiError(404, 'PAYMENT_NOT_FOUND', 'Encaissement introuvable');
+      if (payment.status !== 'recorded') throw new ApiError(409, 'PAYMENT_STATUS_INVALID', 'Encaissement annulé');
+      if (payload.confirm !== true) throw new ApiError(400, 'CONFIRMATION_REQUIRED', 'Confirmation humaine requise');
+      const invoice = s.billingDocuments.find(
+        (d) => d.id === payload.invoiceId && d.company_id === companyId && d.kind === 'invoice',
+      );
+      if (!invoice) throw new ApiError(404, 'DOCUMENT_NOT_FOUND', 'Facture introuvable');
+      if (invoice.customer_id !== payment.customer_id) {
+        throw new ApiError(400, 'ALLOCATION_INVALID', 'La facture appartient à un autre client');
+      }
+      if (invoice.currency !== payment.currency) {
+        throw new ApiError(400, 'CURRENCY_MISMATCH', 'La devise de l’encaissement doit être celle de la facture');
+      }
+      if (!['issued', 'partially_paid'].includes(invoice.status)) {
+        throw new ApiError(409, 'ALLOCATION_INVALID', `La facture ${invoice.doc_no ?? ''} n’est pas ouverte au règlement`);
+      }
+      const value = amount(payload.amount);
+      if (value <= 0n) throw new ApiError(400, 'ALLOCATION_INVALID', 'Affectation strictement positive');
+      if (value > amount(payment.unallocated_amount)) {
+        throw new ApiError(409, 'ALLOCATION_EXCEEDS_PAYMENT', 'L’affectation dépasse le restant non affecté');
+      }
+      if (value > billingOutstanding(invoice)) {
+        throw new ApiError(409, 'ALLOCATION_EXCEEDS_INVOICE', 'L’affectation dépasse le solde dû');
+      }
+      const allocationDate = String(payload.allocationDate ?? todayIso());
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(allocationDate)) {
+        throw new ApiError(400, 'VALIDATION_ERROR', 'Date d’affectation invalide');
+      }
+      if (allocationDate < payment.payment_date) {
+        throw new ApiError(400, 'ALLOCATION_DATE_BEFORE_PAYMENT', 'La date d’affectation précède le règlement');
+      }
+      const duplicate = s.billingAllocations.find(
+        (a) => a.payment_id === payment.id && a.invoice_id === invoice.id && !a.cancelled_at,
+      );
+      if (duplicate) throw new ApiError(409, 'ALLOCATION_EXISTS', 'Cette facture est déjà affectée à ce règlement');
+      const allocation: DemoBillingAllocation = {
+        id: uid(),
+        payment_id: payment.id,
+        invoice_id: invoice.id,
+        company_id: companyId,
+        amount: fmt(value),
+        allocated_date: allocationDate,
+        cancelled_at: null,
+      };
+      s.billingAllocations.push(allocation);
+      payment.unallocated_amount = fmt(amount(payment.unallocated_amount) - value);
+      refreshInvoiceBalance(companyId, invoice.id);
+      audit(companyId, 'billing.payment.allocation.create', 'billing_payment', payment.id, {
+        allocationId: allocation.id,
+        invoiceId: invoice.id,
+        amount: fmt(value),
+        allocationDate,
+      });
+      persist();
+      return {
+        allocationId: allocation.id,
+        reclassRequired: payment.accounting_entry_id !== null,
+        payment: billingPaymentView(payment),
         entryCreated: false,
       } as T;
     }
@@ -8309,6 +8460,19 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
       }
       if (rest === '/reports/trial-balance') {
         return computeTrialBalance(companyId, company.functional_currency, from, to) as T;
+      }
+      if (rest === '/reports/subledger-reconciliation') {
+        requireModule(companyId, 'accounting', 'read');
+        const asOf = query.get('asOf') || new Date().toISOString().slice(0, 10);
+        return {
+          asOf,
+          receivable: computeSubledgerControl(s, companyId, asOf, 'receivable'),
+          payable: computeSubledgerControl(s, companyId, asOf, 'payable'),
+        } as T;
+      }
+      if (rest === '/reports/vat-control') {
+        requireModule(companyId, 'accounting', 'read');
+        return computeVatControl(s, companyId, from, to) as T;
       }
       if (rest === '/reports/statements') {
         return computeStatements(

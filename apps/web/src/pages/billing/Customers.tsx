@@ -14,6 +14,9 @@ interface Balance {
   outstanding: string;
   unallocated: string;
   balance: string;
+  asOf?: string;
+  /** One entry per currency: amounts are never added across currencies. */
+  balances?: Balance[];
 }
 
 interface HistoryDocument {
@@ -81,7 +84,9 @@ export default function BillingCustomersPage() {
     setDocuments([]);
     try {
       const [b, h] = await Promise.all([
-        api.get<{ balance: Balance }>(`/companies/${company.id}/billing/customers/${customer.id}/balance`),
+        api.get<{ balance: Balance }>(
+          `/companies/${company.id}/billing/customers/${customer.id}/balance?asOf=${new Date().toISOString().slice(0, 10)}`,
+        ),
         api.get<{ documents: HistoryDocument[] }>(
           `/companies/${company.id}/billing/customers/${customer.id}/history`,
         ),
@@ -267,30 +272,37 @@ export default function BillingCustomersPage() {
 
       <Modal open={detail !== null} title={detail?.name ?? ''} onClose={() => setDetail(null)} wide>
         {balance ? (
-          <div className="kpi-grid">
-            <div className="kpi">
-              <div className="kpi-label">{t('billing.customers.invoiced')}</div>
-              <div className="kpi-value">{money(balance.invoiced, locale, balance.currency)}</div>
-            </div>
-            <div className="kpi">
-              <div className="kpi-label">{t('billing.customers.paid')}</div>
-              <div className="kpi-value positive">{money(balance.paid, locale, balance.currency)}</div>
-            </div>
-            <div className="kpi">
-              <div className="kpi-label">{t('billing.customers.credited')}</div>
-              <div className="kpi-value">{money(balance.credited, locale, balance.currency)}</div>
-            </div>
-            <div className="kpi">
-              <div className="kpi-label">{t('billing.customers.outstanding')}</div>
-              <div className={`kpi-value ${money(balance.outstanding, locale) !== '0,00' ? 'negative' : 'positive'}`}>
-                {money(balance.outstanding, locale, balance.currency)}
+          (balance.balances && balance.balances.length > 0 ? balance.balances : [balance]).map((currencyBalance, index) => (
+            <div key={`${currencyBalance.currency}-${index}`} style={{ marginBottom: 16 }}>
+              {(balance.balances?.length ?? 0) > 1 && (
+                <h3 style={{ margin: '0 0 8px' }}>{currencyBalance.currency}</h3>
+              )}
+              <div className="kpi-grid">
+                <div className="kpi">
+                  <div className="kpi-label">{t('billing.customers.invoiced')}</div>
+                  <div className="kpi-value">{money(currencyBalance.invoiced, locale, currencyBalance.currency)}</div>
+                </div>
+                <div className="kpi">
+                  <div className="kpi-label">{t('billing.customers.paid')}</div>
+                  <div className="kpi-value positive">{money(currencyBalance.paid, locale, currencyBalance.currency)}</div>
+                </div>
+                <div className="kpi">
+                  <div className="kpi-label">{t('billing.customers.credited')}</div>
+                  <div className="kpi-value">{money(currencyBalance.credited, locale, currencyBalance.currency)}</div>
+                </div>
+                <div className="kpi">
+                  <div className="kpi-label">{t('billing.customers.outstanding')}</div>
+                  <div className={`kpi-value ${money(currencyBalance.outstanding, locale, currencyBalance.currency) !== '0,00' ? 'negative' : 'positive'}`}>
+                    {money(currencyBalance.outstanding, locale, currencyBalance.currency)}
+                  </div>
+                </div>
+                <div className="kpi">
+                  <div className="kpi-label">{t('billing.customers.unallocated')}</div>
+                  <div className="kpi-value">{money(currencyBalance.unallocated, locale, currencyBalance.currency)}</div>
+                </div>
               </div>
             </div>
-            <div className="kpi">
-              <div className="kpi-label">{t('billing.customers.unallocated')}</div>
-              <div className="kpi-value">{money(balance.unallocated, locale, balance.currency)}</div>
-            </div>
-          </div>
+          ))
         ) : (
           <Spinner label={t('common.loading')} />
         )}

@@ -8,6 +8,8 @@ import { money, scaled4ToString, toScaled4 } from '../../format';
 import type { BillingDocument, Customer, Payment } from './types';
 import { PAYMENT_METHODS } from './types';
 
+const today = () => new Date().toISOString().slice(0, 10);
+
 export default function BillingPaymentsPage() {
   const { t, locale } = useI18n();
   const { company } = useSession();
@@ -30,6 +32,10 @@ export default function BillingPaymentsPage() {
     reference: '',
   });
   const [allocations, setAllocations] = useState<Record<string, string>>({});
+  const [allocateFor, setAllocateFor] = useState<Payment | null>(null);
+  const [allocateForm, setAllocateForm] = useState({ invoiceId: '', amount: '', allocationDate: today() });
+  const [cancelTarget, setCancelTarget] = useState<{ payment: Payment; allocationId: string; invoiceNumber: string } | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
 
   const load = useCallback(async () => {
     if (!company) return;
@@ -61,6 +67,19 @@ export default function BillingPaymentsPage() {
     () => documents.filter((d) => d.customerId === form.customerId),
     [documents, form.customerId],
   );
+
+  const paymentInvoices = useMemo(() => {
+    if (!allocateFor) return [];
+    return documents.filter(
+      (d) =>
+        d.customerId === allocateFor.customerId &&
+        d.currency === allocateFor.currency &&
+        ['issued', 'partially_paid'].includes(d.status) &&
+        (toScaled4(d.outstanding) ?? 0n) > 0n,
+    );
+  }, [documents, allocateFor]);
+
+  const availableToAllocate = toScaled4(allocateFor?.unallocatedAmount ?? '0') ?? 0n;
 
   const visiblePayments = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -117,6 +136,80 @@ export default function BillingPaymentsPage() {
           res.payment.currency,
         )}`,
       );
+      await load();
+    } catch (err) {
+      setError(errorMessage(err, t('common.error')).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startAllocate = (payment: Payment, allocation?: Payment['allocations'][number]) => {
+    setAllocateFor(payment);
+    setAllocateForm({
+      invoiceId: allocation?.invoiceId ?? '',
+      amount: allocation?.amount ?? '',
+      allocationDate: today(),
+    });
+    setError(null);
+    setNotice(null);
+  };
+
+  const allocate = async () => {
+    if (!allocateFor) return;
+    const value = toScaled4(allocateForm.amount) ?? 0n;
+    if (!allocateForm.invoiceId || value <= 0n || value > availableToAllocate) {
+      setError(t('billing.payments.allocateInvalid'));
+      return;
+    }
+    if (!window.confirm(t('billing.payments.allocateConfirm'))) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.post<{ allocationId: string; reclassRequired: boolean; payment: Payment }>(
+        `/companies/${company.id}/billing/payments/${allocateFor.id}/allocations`,
+        {
+          invoiceId: allocateForm.invoiceId,
+          amount: allocateForm.amount,
+          allocationDate: allocateForm.allocationDate,
+          confirm: true,
+        },
+      );
+      setAllocateFor(null);
+      setNotice(
+        res.reclassRequired
+          ? t('billing.payments.allocatedReclass')
+          : t('billing.payments.allocated'),
+      );
+      await load();
+    } catch (err) {
+      setError(errorMessage(err, t('common.error')).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startCancelAllocation = (payment: Payment, allocation: Payment['allocations'][number]) => {
+    setCancelTarget({
+      payment,
+      allocationId: allocation.id ?? '',
+      invoiceNumber: allocation.invoiceNumber ?? '—',
+    });
+    setCancelReason('');
+    setError(null);
+  };
+
+  const cancelAllocation = async () => {
+    if (!cancelTarget || cancelReason.trim().length < 3) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.del(
+        `/companies/${company.id}/billing/payments/${cancelTarget.payment.id}/allocations/${cancelTarget.allocationId}`,
+        { reason: cancelReason.trim() },
+      );
+      setCancelTarget(null);
+      setNotice(t('billing.payments.allocationCancelled'));
       await load();
     } catch (err) {
       setError(errorMessage(err, t('common.error')).message);
@@ -187,17 +280,49 @@ export default function BillingPaymentsPage() {
                     <td className="num">{money(p.amount, locale, p.currency)}</td>
                     <td className="num">{money(p.unallocatedAmount, locale, p.currency)}</td>
                     <td className="page-sub">
-                      {p.allocations.length === 0
-                        ? t('billing.payments.none')
-                        : p.allocations
-                            .map((a) => a.invoiceNumber ?? (a as { doc_no?: string }).doc_no ?? '—')
-                            .join(', ')}
+                      {p.allocations.length === 0 ? (
+                        t('billing.payments.none')
+                      ) : (
+                        <div className="allocation-list">
+                          {p.allocations.map((a, index) => (
+                            <div key={a.id ?? `${a.invoiceId}-${index}`} className="allocation-item">
+                              <span>
+                                {a.invoiceNumber ?? (a as { doc_no?: string }).doc_no ?? '—'}
+                                {' · '}
+                                {money(a.amount, locale, p.currency)}
+                                {a.allocatedDate ? ` · ${a.allocatedDate}` : ''}
+                              </span>
+                              {a.cancelledAt ? (
+                                <>
+                                  <Badge kind="neutral">{t('billing.payments.allocationCancelledBadge')}</Badge>
+                                  {p.status === 'recorded' && a.id && (
+                                    <Button variant="ghost" onClick={() => startAllocate(p, a)} disabled={busy}>
+                                      {t('billing.payments.reactivate')}
+                                    </Button>
+                                  )}
+                                </>
+                              ) : (
+                                p.status === 'recorded' && a.id && (
+                                  <Button variant="ghost" onClick={() => startCancelAllocation(p, a)} disabled={busy}>
+                                    {t('billing.payments.cancelAllocation')}
+                                  </Button>
+                                )
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <Badge kind={p.status === 'recorded' ? 'success' : 'neutral'}>{p.status}</Badge>
                       {p.accountingEntryId && <div className="page-sub">{t('billing.documents.posted')}</div>}
                     </td>
                     <td className="row-actions">
+                      {p.status === 'recorded' && (toScaled4(p.unallocatedAmount) ?? 0n) > 0n && (
+                        <Button variant="ghost" onClick={() => startAllocate(p)} disabled={busy}>
+                          {t('billing.payments.allocate')}
+                        </Button>
+                      )}
                       <Link
                         className="btn btn-ghost"
                         to={`/accounting/lettering?search=${encodeURIComponent(p.number ?? p.reference ?? '')}`}
@@ -317,6 +442,82 @@ export default function BillingPaymentsPage() {
             disabled={busy || !form.customerId || received <= 0n || unallocated < 0n}
           >
             {t('common.create')}
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={allocateFor !== null}
+        title={t('billing.payments.allocateTitle')}
+        onClose={() => setAllocateFor(null)}
+        wide
+      >
+        {allocateFor && (
+          <>
+            <div className="detail-grid">
+              <div><span className="muted">{t('common.reference')}</span><strong>{allocateFor.number ?? '—'}</strong></div>
+              <div><span className="muted">{t('billing.payments.unallocated')}</span><strong>{money(allocateFor.unallocatedAmount, locale, allocateFor.currency)}</strong></div>
+              <div><span className="muted">{t('common.currency')}</span><strong>{allocateFor.currency}</strong></div>
+            </div>
+            <div className="form-grid">
+              <Field label={t('billing.payments.invoiceToAllocate')}>
+                <select
+                  value={allocateForm.invoiceId}
+                  onChange={(e) => {
+                    const invoice = paymentInvoices.find((d) => d.id === e.target.value);
+                    setAllocateForm({
+                      ...allocateForm,
+                      invoiceId: e.target.value,
+                      amount: invoice && (toScaled4(invoice.outstanding) ?? 0n) < availableToAllocate
+                        ? invoice.outstanding
+                        : allocateForm.amount,
+                    });
+                  }}
+                >
+                  <option value="">{t('billing.payments.chooseInvoice')}</option>
+                  {paymentInvoices.map((invoice) => (
+                    <option key={invoice.id} value={invoice.id}>
+                      {invoice.number ?? '—'} · {invoice.currency} · {t('billing.documents.outstanding')} {money(invoice.outstanding, locale, invoice.currency)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label={t('common.amount')}>
+                <input inputMode="decimal" value={allocateForm.amount}
+                  onChange={(e) => setAllocateForm({ ...allocateForm, amount: e.target.value })} />
+              </Field>
+              <Field label={t('billing.payments.allocationDate')}>
+                <input type="date" value={allocateForm.allocationDate}
+                  onChange={(e) => setAllocateForm({ ...allocateForm, allocationDate: e.target.value })} />
+              </Field>
+            </div>
+            {paymentInvoices.length === 0 && <p className="muted">{t('billing.payments.noOpenInvoiceSameCurrency')}</p>}
+            <p className="muted">{t('billing.payments.allocateDateRule')}</p>
+            <div className="modal-actions">
+              <Button variant="ghost" onClick={() => setAllocateFor(null)}>{t('common.cancel')}</Button>
+              <Button variant="primary" onClick={() => void allocate()}
+                disabled={busy || !allocateForm.invoiceId || (toScaled4(allocateForm.amount) ?? 0n) <= 0n}>
+                {t('billing.payments.allocateAction')}
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
+
+      <Modal
+        open={cancelTarget !== null}
+        title={t('billing.payments.cancelAllocationTitle')}
+        onClose={() => setCancelTarget(null)}
+      >
+        <p>{t('billing.payments.cancelAllocationHelp').replace('{invoice}', cancelTarget?.invoiceNumber ?? '—')}</p>
+        <Field label={t('billing.payments.cancelReason')}>
+          <input value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} />
+        </Field>
+        <div className="modal-actions">
+          <Button variant="ghost" onClick={() => setCancelTarget(null)}>{t('common.cancel')}</Button>
+          <Button variant="danger" onClick={() => void cancelAllocation()}
+            disabled={busy || cancelReason.trim().length < 3}>
+            {t('billing.payments.cancelAllocationConfirm')}
           </Button>
         </div>
       </Modal>

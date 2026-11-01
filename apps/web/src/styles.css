@@ -2151,3 +2151,5 @@ table { font-size: 0.865rem; }
 /* Mission 39 stacking order: menu/backdrop above the phone quick bar,
    dialogs above every navigation surface, assistant between them. */
 .modal-backdrop { z-index: 90; }
+
+.allocation-item { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

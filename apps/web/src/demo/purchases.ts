@@ -7,6 +7,7 @@
  * a proposal, which the human validates and posts in the proposals screen.
  */
 import { ApiError } from '../errors';
+import { handleDemoFixedAssets } from './fixed-assets';
 import type {
   DemoAccount,
   DemoEntry,
@@ -250,20 +251,32 @@ function createDocumentLines(
 
 function documentView(state: DemoState, document: DemoPurchaseDocument) {
   const supplier = state.purchaseSuppliers.find((s) => s.id === document.supplier_id);
+  const linkedAssets = ((state as any).fixedAssets?.assets ?? []) as {
+    id: string;
+    asset_code: string;
+    company_id: string;
+    purchase_document_line_id?: string | null;
+  }[];
   const lines = state.purchaseLines
     .filter((l) => l.document_id === document.id)
     .sort((a, b) => a.line_no - b.line_no)
     .map((l) => {
       const account = state.accounts.find((a) => a.id === l.account_id);
+      const fixedAsset = linkedAssets.find(
+        (a) => a.purchase_document_line_id === l.id && a.company_id === document.company_id,
+      );
       return {
         ...l,
         accountCode: account?.code ?? '',
         accountName: account?.name ?? '',
+        accountType: account?.type ?? '',
         netAmount: l.net_amount,
         taxAmount: l.tax_amount,
         lineTotal: l.line_total,
         vatRate: l.vat_rate,
         vatRecoverable: l.vat_recoverable,
+        fixedAssetId: fixedAsset?.id ?? null,
+        fixedAssetCode: fixedAsset?.asset_code ?? null,
       };
     });
   return {
@@ -291,7 +304,9 @@ function paymentView(state: DemoState, payment: DemoPurchasePayment) {
         invoiceTotal: invoice?.total_amount ?? '0.0000',
         invoiceOutstanding: invoice ? fmt(outstandingOf(state, invoice)) : '0.0000',
         currency: invoice?.currency ?? payment.currency,
+        allocatedDate: a.allocated_date ?? null,
         cancelledAt: a.cancelled_at,
+        reclassEntryId: a.reclass_entry_id ?? null,
       };
     });
   return { ...payment, supplier_name: supplier?.name ?? '', allocations };
@@ -944,10 +959,126 @@ export function handleDemoPurchases(
     return { document: documentView(state, document) };
   }
 
+  const purchaseFixedAssetMatch = /^\/documents\/([0-9a-f-]{36})\/lines\/([0-9a-f-]{36})\/fixed-asset$/.exec(path);
+  if (purchaseFixedAssetMatch && method === 'POST') {
+    const document = documentOf(state, companyId, purchaseFixedAssetMatch[1]!);
+    if (document.status !== 'validated') {
+      throw new ApiError(409, 'PURCHASE_DOCUMENT_NOT_VALIDATED', 'Validez la facture avant de créer son immobilisation');
+    }
+    const line = state.purchaseLines.find(
+      (l) => l.id === purchaseFixedAssetMatch[2] && l.document_id === document.id,
+    );
+    if (!line) throw new ApiError(404, 'PURCHASE_LINE_NOT_FOUND', 'Ligne d’achat introuvable');
+    const account = state.accounts.find((a) => a.id === line.account_id && a.company_id === companyId);
+    if (!account || account.type !== 'asset') {
+      throw new ApiError(409, 'PURCHASE_LINE_NOT_ELIGIBLE', 'La ligne n’est pas imputée à un compte d’immobilisation');
+    }
+    const existing = ((state as any).fixedAssets?.assets ?? []).find(
+      (a: any) => a.purchase_document_line_id === line.id && a.company_id === companyId,
+    );
+    if (existing) throw new ApiError(409, 'FIXED_ASSET_ALREADY_LINKED', 'Cette ligne possède déjà une immobilisation');
+    const categoryId = String(payload.categoryId ?? '');
+    const result = handleDemoFixedAssets(state, companyId, 'POST', '', {}, {
+      categoryId,
+      description: payload.description ?? line.description,
+      serialNumber: payload.serialNumber ?? null,
+      location: payload.location ?? null,
+      acquisitionDate: document.issue_date,
+      inServiceDate: payload.inServiceDate ?? null,
+      cost: line.line_total,
+      attributableCosts: '0',
+      residualValue: payload.residualValue ?? '0',
+      method: payload.method ?? null,
+      usefulLifeMonths: payload.usefulLifeMonths ?? null,
+      reducingRate: null,
+      supplierName: supplierOf(state, companyId, document.supplier_id).name,
+      invoiceRef: document.doc_no ?? document.supplier_reference,
+      documentRef: document.doc_no ?? null,
+      notes: payload.notes ?? null,
+      currency: document.currency,
+      exchangeRate: document.exchange_rate ?? '1',
+    }) as { asset: any };
+    const assets = ((state as any).fixedAssets?.assets ?? []) as any[];
+    const created = assets.find((a) => a.id === result.asset.id);
+    if (created) created.purchase_document_line_id = line.id;
+    return { asset: result.asset, document: documentView(state, document) };
+  }
+
+  const purchaseAllocationDelete = /^\/payments\/([0-9a-f-]{36})\/allocations\/([0-9a-f-]{36})$/.exec(path);
+  if (purchaseAllocationDelete) {
+    throw new ApiError(501, 'DEMO_NOT_IMPLEMENTED', 'Annulation d’affectation fournisseur non exposée : utilisez la réactivation par nouvelle affectation.');
+  }
+
+  const purchaseAllocationCreate = /^\/payments\/([0-9a-f-]{36})\/allocations$/.exec(path);
+  if (purchaseAllocationCreate && method === 'POST') {
+    const payment = paymentOf(state, companyId, purchaseAllocationCreate[1]!);
+    if (payment.status !== 'recorded') throw new ApiError(409, 'PURCHASE_PAYMENT_CANCELLED', 'Règlement annulé');
+    if (payload.confirm !== true) throw new ApiError(400, 'CONFIRMATION_REQUIRED', 'Confirmation humaine requise');
+    const invoice = documentOf(state, companyId, String(payload.invoiceId ?? ''));
+    if (invoice.kind !== 'invoice') throw new ApiError(400, 'VALIDATION_ERROR', 'Seule une facture peut être affectée');
+    if (invoice.status !== 'validated') throw new ApiError(409, 'PURCHASE_DOCUMENT_NOT_VALIDATED', 'La facture doit être validée');
+    if (invoice.supplier_id !== payment.supplier_id) {
+      throw new ApiError(409, 'PURCHASE_SUPPLIER_MISMATCH', 'Le règlement et la facture doivent appartenir au même fournisseur');
+    }
+    if (invoice.currency !== payment.currency) {
+      throw new ApiError(409, 'PURCHASE_CURRENCY_MISMATCH', 'Le règlement et la facture doivent avoir la même devise');
+    }
+    const value = amt(payload.amount);
+    const active = state.purchaseAllocations.filter((a) => a.payment_id === payment.id && !a.cancelled_at);
+    const available = amt(payment.amount) - active.reduce((sum, a) => sum + amt(a.amount), 0n);
+    if (value <= 0n) throw new ApiError(400, 'PURCHASE_ALLOCATION_INVALID', 'Affectation strictement positive');
+    if (value > available) throw new ApiError(409, 'PURCHASE_ALLOCATION_EXCEEDS_PAYMENT', 'Montant supérieur au restant à affecter');
+    if (value > outstandingOf(state, invoice)) {
+      throw new ApiError(409, 'PURCHASE_ALLOCATION_EXCEEDS_OUTSTANDING', 'Montant supérieur au restant dû');
+    }
+    if (active.some((a) => a.invoice_id === invoice.id)) {
+      throw new ApiError(409, 'PURCHASE_ALLOCATION_DUPLICATE', 'Cette facture est déjà affectée à ce règlement');
+    }
+    const allocationDate = String(payload.allocationDate ?? payment.payment_date);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(allocationDate) || allocationDate < payment.payment_date) {
+      throw new ApiError(400, 'PURCHASE_ALLOCATION_DATE_INVALID', 'La date d’affectation ne peut précéder le règlement');
+    }
+    const allocation: DemoPurchaseAllocation = {
+      id: uid(),
+      company_id: companyId,
+      payment_id: payment.id,
+      invoice_id: invoice.id,
+      amount: fmt(value),
+      allocated_date: allocationDate,
+      cancelled_at: null,
+      reclass_entry_id: null,
+    };
+    state.purchaseAllocations.push(allocation);
+    event(state, companyId, 'payment.allocated', payment.id, invoice.id, { amount: fmt(value), allocationDate }, actor);
+    return {
+      payment: paymentView(state, payment),
+      invoice: documentView(state, invoice),
+      allocationId: allocation.id,
+      reclassRequired: payment.accounting_entry_id !== null,
+      entryCreated: false,
+    };
+  }
+
+  const purchaseReclassMatch = /^\/payments\/([0-9a-f-]{36})\/allocations\/([0-9a-f-]{36})\/reclass-proposal$/.exec(path);
+  if (purchaseReclassMatch && method === 'POST') {
+    const payment = paymentOf(state, companyId, purchaseReclassMatch[1]!);
+    const allocation = state.purchaseAllocations.find(
+      (a) => a.id === purchaseReclassMatch[2] && a.payment_id === payment.id && !a.cancelled_at,
+    );
+    if (!allocation) throw new ApiError(404, 'PURCHASE_ALLOCATION_NOT_FOUND', 'Affectation introuvable');
+    return {
+      proposal: { id: uid(), status: 'proposed' },
+      allocationId: allocation.id,
+      entryCreated: false,
+      reused: false,
+      note: 'Aucune écriture créée : la proposition doit être validée par un humain.',
+    };
+  }
+
   const documentMatch = /^\/documents\/([0-9a-f-]{36})(\/validate|\/cancel|\/proposal|\/events)?$/.exec(path);
   if (documentMatch) {
     const document = documentOf(state, companyId, documentMatch[1]!);
-    const action = documentMatch[2];
+    const action = documentMatch[2] ?? '';
     if (action === '/events' && method === 'GET') {
       return { events: state.purchaseEvents.filter((e) => e.company_id === companyId && e.document_id === document.id) };
     }

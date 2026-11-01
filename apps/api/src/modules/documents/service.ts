@@ -147,6 +147,38 @@ export async function uploadDocument(
   const extraWarnings = [...warnings];
   if (invoiceDuplicate && !duplicateOf) extraWarnings.push('The same invoice number and party already exist; check for a duplicate before approving.');
 
+  // Mission 42 / M41 D-02: a rescanned or re-compressed copy has a different
+  // hash. We surface a deterministic similarity score; nothing is deleted or
+  // blocked, a human decides.
+  const recent = await db.query<any>(
+    `SELECT id, party_name, invoice_number, total_amount, invoice_date, original_name
+       FROM document_imports
+      WHERE company_id = $1 AND status <> 'FAILED' AND created_at >= now() - INTERVAL '365 days'
+      ORDER BY created_at DESC LIMIT 300`,
+    [actor.companyId],
+  );
+  const similarDocuments = recent.rows
+    .map((row) => {
+      let score = 0;
+      if (parsed.supplierName && row.party_name
+          && normalise(parsed.supplierName) === normalise(row.party_name)) score += 0.45;
+      if (parsed.invoiceNumber && row.invoice_number
+          && normalise(parsed.invoiceNumber) === normalise(row.invoice_number)) score += 0.3;
+      if (parsed.total && row.total_amount
+          && parseAmount(parsed.total) === parseAmount(row.total_amount)) score += 0.15;
+      if (parsed.invoiceDate && row.invoice_date
+          && Math.abs(Date.parse(parsed.invoiceDate) - Date.parse(row.invoice_date)) <= 3 * 86_400_000) score += 0.1;
+      return { id: row.id, originalName: row.original_name, score: Math.round(score * 100) / 100 };
+    })
+    .filter((row) => row.score >= 0.7)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+  if (similarDocuments.length > 0 && !duplicateOf) {
+    extraWarnings.push(
+      `POSSIBLE_RESCAN: ${similarDocuments.length} previously imported document(s) look similar. Review before approving; nothing was deleted.`,
+    );
+  }
+
   const inserted = await db.query<DocumentRow>(
     `INSERT INTO document_imports
        (id, cabinet_id, company_id, created_by, kind, status, original_name, mime_type, size_bytes,
@@ -175,6 +207,7 @@ export async function uploadDocument(
         })),
         invoiceCountSuspected: parsed.invoiceCountSuspected,
         multipleInvoicesSuspected: parsed.warningCodes.includes('MULTIPLE_INVOICES_SUSPECTED'),
+        similarDocuments,
         extractionWarnings: extraction.warnings,
       }),
       duplicateOf ?? invoiceDuplicate]);
@@ -278,21 +311,52 @@ export async function reextractDocument(
 
 export async function listDocuments(db: Db, companyId: string, status?: string) {
   const params: unknown[] = [companyId];
-  let where = 'company_id=$1';
-  if (status) { params.push(status); where += ` AND status=$${params.length}`; }
+  let where = 'd.company_id=$1';
+  if (status) { params.push(status); where += ` AND d.status=$${params.length}`; }
   const res = await db.query(
-    `SELECT id, kind, status, original_name, mime_type, size_bytes, page_count, extraction_method,
-            confidence, party_name, invoice_number, invoice_date, due_date, currency, subtotal,
-            vat_total, total_amount, document_type, discount_total, tax_ids, purchase_order,
-            payment_terms, field_confidence, uncertain_fields, extraction_quality,
-            warnings, duplicate_of, created_at
-       FROM document_imports WHERE ${where} ORDER BY created_at DESC LIMIT 200`, params);
+    `SELECT d.id, d.kind, d.status, d.original_name, d.mime_type, d.size_bytes, d.page_count,
+            d.extraction_method, d.confidence, d.party_name, d.invoice_number, d.invoice_date,
+            d.due_date, d.currency, d.subtotal, d.vat_total, d.total_amount, d.document_type,
+            d.discount_total, d.tax_ids, d.purchase_order, d.payment_terms, d.field_confidence,
+            d.uncertain_fields, d.extraction_quality, d.warnings, d.duplicate_of, d.created_at,
+            d.purchase_document_id, pd.doc_no AS purchase_document_no,
+            pd.accounting_entry_id AS purchase_accounting_entry_id,
+            p.status AS proposal_status, p.draft_entry_id,
+            je.status AS draft_entry_status,
+            CASE
+              WHEN pd.accounting_entry_id IS NOT NULL THEN 'posted'
+              WHEN je.status = 'posted' THEN 'posted'
+              WHEN p.draft_entry_id IS NOT NULL THEN 'draft'
+              WHEN p.status = 'PROPOSED' THEN 'proposed'
+              ELSE 'not_prepared'
+            END AS posting_status
+       FROM document_imports d
+       LEFT JOIN purchase_documents pd ON pd.id = d.purchase_document_id
+       LEFT JOIN document_proposals p ON p.document_id = d.id
+       LEFT JOIN journal_entries je ON je.id = p.draft_entry_id
+      WHERE ${where}
+      ORDER BY d.created_at DESC LIMIT 200`, params);
   return res.rows;
 }
 
 export async function getDocument(db: Db, companyId: string, documentId: string) {
   const res = await db.query<any>(
-    `SELECT * FROM document_imports WHERE id=$1 AND company_id=$2`, [documentId, companyId]);
+    `SELECT d.*, pd.doc_no AS purchase_document_no,
+            pd.accounting_entry_id AS purchase_accounting_entry_id,
+            p.status AS proposal_status, p.draft_entry_id,
+            je.status AS draft_entry_status,
+            CASE
+              WHEN pd.accounting_entry_id IS NOT NULL THEN 'posted'
+              WHEN je.status = 'posted' THEN 'posted'
+              WHEN p.draft_entry_id IS NOT NULL THEN 'draft'
+              WHEN p.status = 'PROPOSED' THEN 'proposed'
+              ELSE 'not_prepared'
+            END AS posting_status
+       FROM document_imports d
+       LEFT JOIN purchase_documents pd ON pd.id = d.purchase_document_id
+       LEFT JOIN document_proposals p ON p.document_id = d.id
+       LEFT JOIN journal_entries je ON je.id = p.draft_entry_id
+      WHERE d.id=$1 AND d.company_id=$2`, [documentId, companyId]);
   const document = res.rows[0];
   if (!document) throw notFound('DOCUMENT_NOT_FOUND', 'Document not found');
   const lines = await db.query<any>(
@@ -459,12 +523,24 @@ function line(account: Account | null, description: string, debit: string, credi
 }
 
 export async function generateProposal(
-  db: Db, actor: { userId: string; companyId: string }, documentId: string,
+  db: Db,
+  actor: { userId: string; companyId: string },
+  documentId: string,
+  options: { confirmMultipleInvoices?: boolean } = {},
 ) {
   const detail = await getDocument(db, actor.companyId, documentId);
   const document = detail.document;
   if (document.status === 'DUPLICATE') throw conflict('DOCUMENT_DUPLICATE', 'A duplicate document cannot be proposed');
   if (['APPROVED', 'REJECTED'].includes(document.status)) throw conflict('DOCUMENT_FINAL', 'This document is already finalised');
+  const quality = document.extraction_quality ?? {};
+  if ((quality.multipleInvoicesSuspected === true || Number(quality.invoiceCountSuspected ?? 0) > 1)
+      && options.confirmMultipleInvoices !== true) {
+    throw conflict(
+      'DOCUMENT_MULTIPLE_INVOICES_CONFIRMATION_REQUIRED',
+      'Several invoices were detected in this file. Split the file or confirm explicitly that the proposal covers exactly one invoice.',
+      { invoiceCountSuspected: quality.invoiceCountSuspected ?? null },
+    );
+  }
   const kind: 'purchase' | 'sale' = document.kind === 'sale' ? 'sale' : 'purchase';
   const absolute = (value: string | null) => value === null ? null : formatAmount((() => {
     const parsed = parseAmount(value);
@@ -800,4 +876,229 @@ export async function updateDocumentRule(
   }
   const all = await listDocumentRules(db, companyId);
   return all.find((row) => row.id === ruleId)!;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Mission 42 — explicit OCR document -> supplier invoice conversion          */
+/* -------------------------------------------------------------------------- */
+
+export interface OcrPurchaseConversionInput {
+  supplierId?: string | null;
+  supplierReference?: string | null;
+  issueDate?: string | null;
+  dueDate?: string | null;
+  exchangeRate?: string | number | null;
+  vatRecoverable?: boolean;
+  confirm: true;
+}
+
+/**
+ * Converts an APPROVED purchase proposal into a real supplier invoice.
+ *
+ * The conversion is deliberately a separate human action:
+ *  - approval already produced a draft journal entry (never posted);
+ *  - this action creates and validates the purchase subledger document;
+ *  - posting remains a distinct action through the existing proposal engine.
+ *
+ * One document import can produce at most one purchase document (database
+ * unique index). A second call returns the existing link instead of creating a
+ * duplicate.
+ */
+export async function createPurchaseFromOcr(
+  db: Db,
+  actor: { userId: string; companyId: string },
+  proposalId: string,
+  input: OcrPurchaseConversionInput,
+): Promise<{
+  purchaseDocument: any;
+  alreadyCreated: boolean;
+  draftEntryId: string | null;
+  note: string;
+}> {
+  const { createPurchaseDocument, validatePurchaseDocumentTx } = await import('../purchases/service.js');
+  const result = await db.transaction(async (tx) => {
+    const found = await tx.query<any>(
+      `SELECT p.*, d.id AS document_import_id, d.purchase_document_id AS existing_purchase_id,
+              d.document_type, d.invoice_number, d.invoice_date, d.due_date, d.currency,
+              d.total_amount AS document_total, d.vat_total AS document_vat,
+              d.subtotal AS document_subtotal, d.party_name, d.original_name, d.status AS document_status
+         FROM document_proposals p
+         JOIN document_imports d ON d.id = p.document_id
+        WHERE p.id = $1 AND p.company_id = $2
+        FOR UPDATE`,
+      [proposalId, actor.companyId],
+    );
+    const proposal = found.rows[0];
+    if (!proposal) throw notFound('PROPOSAL_NOT_FOUND', 'Proposal not found');
+    if (proposal.kind !== 'purchase') {
+      throw badRequest('OCR_NOT_PURCHASE', 'Only a purchase document can become a supplier invoice');
+    }
+    if (proposal.status !== 'APPROVED') {
+      throw conflict('OCR_PROPOSAL_NOT_APPROVED', 'Approve the OCR proposal before creating a supplier invoice');
+    }
+    if (proposal.existing_purchase_id) {
+      const existing = await tx.query<any>(
+        'SELECT * FROM purchase_documents WHERE id = $1 AND company_id = $2',
+        [proposal.existing_purchase_id, actor.companyId],
+      );
+      return { purchaseDocument: existing.rows[0], alreadyCreated: true, draftEntryId: proposal.draft_entry_id ?? null };
+    }
+    if (proposal.document_type === 'unknown') {
+      throw conflict('OCR_DOCUMENT_TYPE_REQUIRED', 'Correct the document type (invoice or credit note) first');
+    }
+    if (Array.isArray(proposal.rationale?.multipleInvoices) && proposal.rationale.multipleInvoices.length > 0) {
+      // Kept for forward compatibility; the quality guard lives in the route.
+    }
+
+    const issueDate = input.issueDate ?? (proposal.invoice_date ? String(proposal.invoice_date).slice(0, 10) : null);
+    if (!issueDate) throw conflict('OCR_ISSUE_DATE_REQUIRED', 'Enter the invoice date before creating a supplier invoice');
+    const dueDate = input.dueDate ?? (proposal.due_date ? String(proposal.due_date).slice(0, 10) : null) ?? issueDate;
+    const currency = String(input.exchangeRate ? proposal.currency : proposal.currency ?? '').toUpperCase();
+    if (!/^[A-Z]{3}$/.test(currency)) throw conflict('OCR_CURRENCY_REQUIRED', 'Choose the document currency first');
+    const supplierReference =
+      input.supplierReference?.trim() ||
+      (proposal.invoice_number ? String(proposal.invoice_number).trim() : '');
+    if (!supplierReference) {
+      throw conflict('OCR_SUPPLIER_REFERENCE_REQUIRED', 'Enter the supplier invoice number first');
+    }
+
+    let supplierId = input.supplierId ?? (proposal.party_id as string | null);
+    if (supplierId) {
+      const supplier = await tx.query<any>(
+        'SELECT id FROM purchase_suppliers WHERE id = $1 AND company_id = $2 AND is_active = true',
+        [supplierId, actor.companyId],
+      );
+      if (!supplier.rows[0]) supplierId = null;
+    }
+    if (!supplierId && proposal.party_name) {
+      const matched = await tx.query<any>(
+        `SELECT id FROM purchase_suppliers
+          WHERE company_id = $1 AND is_active = true AND lower(btrim(name)) = lower(btrim($2))
+          ORDER BY created_at LIMIT 1`,
+        [actor.companyId, proposal.party_name],
+      );
+      supplierId = matched.rows[0]?.id ?? null;
+    }
+    if (!supplierId) {
+      throw conflict(
+        'OCR_SUPPLIER_REQUIRED',
+        'Choose an active supplier before creating the purchase invoice; no supplier is created automatically',
+      );
+    }
+
+    const proposalLines: any[] = Array.isArray(proposal.lines) ? proposal.lines : [];
+    if (proposalLines.length === 0) throw conflict('OCR_PROPOSAL_EMPTY', 'The approved proposal has no lines');
+    const accountIds = [...new Set(proposalLines.map((line) => line.accountId).filter(Boolean))];
+    const accounts = await tx.query<any>(
+      `SELECT id, account_role, type FROM accounts WHERE company_id = $1 AND id = ANY($2::uuid[])`,
+      [actor.companyId, accountIds],
+    );
+    const accountById = new Map(accounts.rows.map((a) => [a.id, a]));
+    const isVat = (line: any) => {
+      const account = accountById.get(line.accountId);
+      return account?.account_role === 'vat_input' || /vat|tva/i.test(String(line.description ?? ''));
+    };
+    const isPayable = (line: any) => accountById.get(line.accountId)?.account_role === 'payable';
+    const creditNote = proposal.document_type === 'credit_note';
+    const tradingLines = proposalLines.filter((line) => {
+      if (!line.accountId || isVat(line) || isPayable(line)) return false;
+      return creditNote ? parseAmount(line.credit ?? '0') > 0n : parseAmount(line.debit ?? '0') > 0n;
+    });
+    if (tradingLines.length === 0) {
+      throw conflict('OCR_PURCHASE_LINES_REQUIRED', 'The proposal has no expense or asset line to convert');
+    }
+    const importLines = await tx.query<any>(
+      `SELECT * FROM document_import_lines WHERE document_id = $1 ORDER BY line_no`,
+      [proposal.document_import_id],
+    );
+    const vatTotal = parseAmount(proposal.document_vat ?? '0');
+    const rates = vatTotal > 0n
+      ? (await tx.query<any>(
+          `SELECT id, rate::text FROM billing_tax_rates
+            WHERE company_id = $1 AND verified = true AND effective_from <= $2
+              AND (effective_to IS NULL OR effective_to >= $2)
+            ORDER BY effective_from DESC`,
+          [actor.companyId, issueDate],
+        )).rows
+      : [];
+
+    const lines: any[] = [];
+    for (const [index, trading] of tradingLines.entries()) {
+      const source = importLines.rows[index];
+      const net = source
+        ? parseAmount(source.net_amount ?? '0')
+        : parseAmount(creditNote ? trading.credit ?? '0' : trading.debit ?? '0');
+      const tax = source ? parseAmount(source.vat_amount ?? '0') : 0n;
+      if (net <= 0n) throw conflict('OCR_PURCHASE_LINES_REQUIRED', 'A purchase line has no positive net amount');
+      let vatRateId: string | null = null;
+      if (tax > 0n) {
+        const match = rates.find((rate: any) => {
+          const rateValue = parseAmount(rate.rate);
+          const computed = (net * rateValue + 50n * 10n ** 4n) / (100n * 10n ** 4n);
+          return computed === tax;
+        });
+        if (!match) {
+          throw conflict(
+            'OCR_VAT_RATE_REQUIRED',
+            'No verified tax rate exactly reproduces the extracted VAT: correct the line or choose a verified rate',
+          );
+        }
+        vatRateId = match.id;
+      }
+      const quantity = source?.quantity && parseAmount(source.quantity) > 0n ? source.quantity : '1';
+      const unitPrice = source?.unit_price && parseAmount(source.unit_price) >= 0n
+        ? source.unit_price
+        : formatAmount(net);
+      lines.push({
+        description: String(source?.description ?? trading.description ?? 'Document line').slice(0, 500),
+        quantity,
+        unitPrice,
+        accountId: trading.accountId,
+        vatTreatment: tax > 0n ? 'standard' : 'out_of_scope',
+        vatRateId,
+        vatRecoverable: tax > 0n ? input.vatRecoverable !== false : null,
+      });
+    }
+
+    const created = await createPurchaseDocument(tx, actor.companyId, actor.userId, {
+      kind: creditNote ? 'credit_note' : 'invoice',
+      supplierId,
+      supplierReference,
+      issueDate,
+      dueDate,
+      currency,
+      exchangeRate: input.exchangeRate ?? null,
+      description: `Document OCR — ${proposal.original_name}`.slice(0, 2000),
+      lines,
+    });
+    if (parseAmount(created.total_amount) !== parseAmount(proposal.document_total ?? '0')) {
+      throw conflict(
+        'OCR_TOTAL_MISMATCH',
+        'The converted purchase total does not match the approved document total; no invoice was created',
+        { expected: proposal.document_total, converted: created.total_amount },
+      );
+    }
+    const validated = await validatePurchaseDocumentTx(tx, actor.companyId, actor.userId, created.id);
+    await tx.query(
+      `UPDATE document_imports SET purchase_document_id = $2, updated_at = now()
+        WHERE id = $1 AND company_id = $3 AND purchase_document_id IS NULL`,
+      [proposal.document_import_id, validated.id, actor.companyId],
+    );
+    await tx.query(
+      `UPDATE document_proposals SET purchase_document_id = $2, updated_at = now()
+        WHERE id = $1 AND company_id = $3 AND purchase_document_id IS NULL`,
+      [proposalId, validated.id, actor.companyId],
+    );
+    return {
+      purchaseDocument: validated,
+      alreadyCreated: false,
+      draftEntryId: proposal.draft_entry_id ?? null,
+    };
+  });
+  return {
+    ...result,
+    note: result.alreadyCreated
+      ? 'This document was already converted; no second purchase invoice was created.'
+      : 'A supplier invoice was created and validated. The OCR draft entry is still unposted; posting remains a separate human action.',
+  };
 }
