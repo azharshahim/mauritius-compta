@@ -72,7 +72,7 @@ Aucune rubrique n’est déclarée entièrement conforme. Les deux rubriques **N
 ### 3.6 Provisions
 
 - **Statut : Partiellement conforme**
-- **Preuves :** `apps/api/tests/mission22.test.ts` (13) et `apps/web/tests/provisions` via la suite mission 22 passent ; les provisions et échéanciers sont couverts par des fixtures.
+- **Preuves :** `apps/api/tests/mission22.test.ts` (13) et `apps/web/tests/mission22-ui.test.tsx` (3) passent ; les provisions et échéanciers sont couverts par des fixtures.
 - **Écarts / actions :** pas de scénario de reprise, d’ajustement ou de provision fiscalement non déductible validé ; pas de test de clôture réelle.
 - **Preuve manquante bloquante :** revue métier des règles de provisionnement.
 
