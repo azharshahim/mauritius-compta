@@ -28,7 +28,7 @@ stated as `available` / `partial` / `prepared`.
 | --- | --- |
 | Base | `main` @ `cc5698457061dc2618a3b9b83967098840bb87ec` |
 | Working branch | `arena/b8889b50-mauritius-compta` |
-| Final code commit | `71247a676064b215ce9fb5478d3f2ae1a7e065c6` |
+| Final code commit | `71c4201` (Mission 44.1 audit) — first functional commit `71247a6` |
 | This report | committed immediately after the code commit (branch head) |
 
 Nothing was merged into `main`, no production deployment was performed, the
@@ -191,8 +191,8 @@ Executed in this sandbox on the branch head's parent (identical source):
 | `npm run typecheck -w @mc/api` | exit 0 (no error) |
 | `npx tsc -p apps/web/tsconfig.json --noEmit` | exit 0 |
 | `npx tsc -p apps/web/tsconfig.test.json --noEmit` | exit 0 |
-| `npm run test -w @mc/api` | **37 files passed, 1 skipped; 546 tests passed, 11 skipped** |
-| `npx vitest run tests/mission44-progress.test.ts tests/mission44-onboarding.test.ts --root apps/api` | 2 files, **25 tests passed** |
+| `npm run test -w @mc/api` | **38 files passed, 1 skipped; 552 tests passed, 11 skipped** (re-run during 44.1) |
+| `npx vitest run tests/mission44-progress.test.ts tests/mission44-onboarding.test.ts --root apps/api` | 2 files, **26 tests passed** (25 + the 44.1 double-submission case) |
 | `npm run test -w @mc/web` | **58 files, 390 tests passed** |
 | `npx vitest run tests/mission44-workspace.test.tsx` | **8 tests passed** |
 | `npm run typecheck -w @mc/web` (both tsconfigs) | exit 0 |
@@ -344,3 +344,238 @@ Pages workflow only builds and verifies for `arena/**` and deploys from `main`.
    remove the `apps/web → apps/api/src` import.
 6. **Then merge** — after a green CI run on the branch and an owner review of
    this report.
+
+---
+
+## 16. Mission 44.1 — Final Pre-Merge Compatibility Audit
+
+Executed on 2026-11-01/02 on `arena/b8889b50-mauritius-compta`, without
+merging anything, without touching `main`, PR #23, the Mission 42 branch or the
+Mission 43 work, and without any VPS access.
+
+### 16.1 How migrations are discovered, ordered and tracked
+
+`apps/api/src/db/index.ts` (`migrate`) is the only runner:
+
+1. `readdir('apps/api/sql/migrations')`, keep `*.sql`, **sort lexicographically**.
+2. `CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY,
+   checksum text NOT NULL, applied_at timestamptz)`.
+3. For each file: `version = <full filename>`, `checksum = sha256(content)`.
+   Already recorded → **only** a checksum mismatch aborts (`checksum mismatch`);
+   otherwise skipped.
+4. Not recorded → executed in its own transaction with its `INSERT` of the
+   version row.
+
+Three properties follow and are now pinned by tests:
+
+* **The version is the filename, not the number.** Two branches can therefore
+  ship different files with the same numeric prefix without a primary-key
+  clash — `0025_cabinet_onboarding.sql` and
+  `0025_mission42_purchase_sales_integrity.sql` would both have applied, sorted
+  `cabinet…` before `mission42…`.
+* **There is no "out of order" refusal.** A migration added later with a lower
+  number still runs, because the loop only looks at files that are not yet
+  recorded. Merging M42/M43 *after* M44 is therefore safe at runtime.
+* **A recorded version whose file disappeared is ignored.** A stale row is
+  inert, never an error.
+
+### 16.2 Collision analysis and the renumbering decision
+
+| Branch | File | Number |
+| --- | --- | --- |
+| Mission 42 | `0025_mission42_purchase_sales_integrity.sql` | 0025 |
+| Mission 43 (same branch head) | `0026_mission43_bank_reconciliation_periods.sql` | 0026 |
+| Mission 44 before the audit | `0025_cabinet_onboarding.sql` | **0025 (duplicate)** |
+| Mission 44 after the audit | `0027_cabinet_onboarding.sql` | **0027** |
+
+The duplicate number could not fail at runtime, but it made the shared sequence
+ambiguous: the next feature would not know whether 0026 was free, and two files
+claiming 0025 invite a future reader to assume they are alternatives.
+
+**Correction applied:** `git mv` from `0025_cabinet_onboarding.sql` to
+`0027_cabinet_onboarding.sql`. The SQL body is **byte-identical** (rename only,
+plus a header comment recording the reason), so no operation, column, index or
+constraint changed. References updated in `docs/cabinet-onboarding.md` and this
+report; no test, script or CI file referenced the filename.
+
+Why renaming an applied migration is safe here:
+
+* Mission 44 has never been merged, deployed or applied to a shared database:
+  only draft-PR environments exist, where a rename cannot break a release.
+* The migration is fully idempotent (`ADD COLUMN IF NOT EXISTS`,
+  `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`), so an
+  environment that applied it under the old name simply applies it again under
+  the new name without effect.
+* The old row, if present, stays in `schema_migrations` and is ignored by the
+  runner (property 3 above). No tracking row is ever deleted or rewritten.
+
+### 16.3 Migration tests actually executed
+
+`apps/api/tests/mission44-migration-compat.test.ts` (new, 5 cases):
+
+1. One unique numeric prefix per file; 0025/0026 are not ours; files are
+   already in lexicographic order.
+2. Fresh database: the whole chain applies, `0027_cabinet_onboarding.sql` is
+   last in version order and the three tables exist.
+3. Database already migrated by **Mission 42 + Mission 43** (their versions
+   recorded, all our other migrations applied): the merge applies **exactly**
+   `0027_cabinet_onboarding.sql`, leaves the foreign rows untouched, creates the
+   M44 objects next to theirs, and a second run applies nothing.
+4. Database that applied the **old 0025 M44 filename**: the renumbering applies
+   `0027` again (idempotent), the stale row stays inert, second run no-op.
+5. Checksum guard: a modified applied migration still aborts with
+   `checksum mismatch` (documented behaviour preserved).
+
+Result: **5/5 passing.** The existing `migrations.test.ts` (6 cases, fresh
+database + idempotence + recorded checksums) still passes, and CI's
+"Migrations against real PostgreSQL" job applies the chain on PostgreSQL 16 —
+**pass (30 s)** on commit `71c4201`.
+
+### 16.4 Git compatibility with `main`, Mission 42 and Mission 43
+
+Compared with `git merge-tree --write-tree` (read-only simulation, no merge
+performed) against `origin/arena/e8400c4a-mauritius-compta` (whose head
+`9dd1477` already contains the Mission 43 bank-period commit):
+
+* **Migrations:** the simulated merge tree contains
+  `0025_mission42…`, `0026_mission43…` and `0027_cabinet_onboarding` — three
+  distinct versions, no path conflict, no duplicate number.
+* **Common files:** 5 (`apps/api/src/lib/errors.ts`, `apps/web/src/App.tsx`,
+  `apps/web/src/demo/runtime.ts`, `apps/web/src/i18n.tsx`,
+  `apps/web/src/styles.css`) out of 30 M44 files and 45 M42/M43 files.
+* **Only conflict:** `apps/web/src/styles.css` — both branches append a block
+  at end of file (M42: one `.allocation-item` rule; M44: ~332 lines). The
+  resolution is the union of both blocks; neither side touches the other's
+  selectors (M44 defines no `.allocation-item`).
+* **Auto-merged files verified semantically** on the simulated tree:
+  `errors.ts` keeps all M42 error codes **and** `ONBOARDING_INCOMPLETE`; the
+  `ErrorCode` union gains no duplicate member (`DOCUMENT_NOT_FOUND` is a
+  pre-existing duplicate, unchanged); `App.tsx` keeps both route sets with no
+  duplicate `path`; `i18n.tsx` keeps M42's keys and both `M44_FR`/`M44_EN`
+  spreads with no key appearing more than once per language object;
+  `runtime.ts` keeps both dispatch paths and no duplicate top-level identifier
+  is introduced in any of the four files.
+* **Demo schema:** `main` and the M42 branch are at demo schema 17, M44 at 18.
+  M44's `17 → 18` upgrade keeps the parsed state by reference (`state =
+  parsed`) and only adds `cabinetWorkspace`, so Mission 42's new fields survive
+  the upgrade; M42's demo additions rely on `??` defaults rather than a schema
+  bump.
+
+### 16.5 Risks of integrating Mission 43
+
+* No shared table, column, index or constraint: M43 owns
+  `bank_reconciliation_periods`; M44 owns `companies` descriptive columns +
+  `client_onboarding`, `client_kyc_checks`, `cabinet_client_drafts`.
+* No shared API module, no shared route, no shared web page. The client
+  workspace only deep-links to the existing bank screens.
+* Ordering: if M43 merges **after** M44, its `0025`/`0026` are applied out of
+  numeric order — supported by the runner (16.1) and asserted by test 3.
+* The M42 branch head currently also carries a Mission 43 commit (`9dd1477`).
+  It was read only, never modified. If M42 and M43 are eventually split into
+  two PRs, the migration numbers 0025/0026 remain unique with respect to M44.
+
+### 16.6 Corrections made by this audit
+
+| Correction | Reason |
+| --- | --- |
+| Migration `0025_…` → `0027_cabinet_onboarding.sql` | duplicate number with Mission 42, ambiguous shared sequence |
+| `SELECT … FOR UPDATE` + re-read inside the activation transaction | two concurrent activations of one draft could create two client files |
+| Report/doc wording on activation permissions | the API does not apply an "admin-only" rule to creating a *new* file; it mirrors `POST /companies` (authenticated caller + draft ownership). Cabinet `write` is required to configure an existing file, cabinet `admin` to approve/assign/verify KYC |
+| `.gitignore` gains `apps/web/dist-real/` | the CI real-bundle build left an untracked directory |
+| New tests | 5 migration-coexistence cases + 1 double-submission case |
+
+Nothing else was changed: no accounting module, no calculation, no route
+signature, no UI behaviour.
+
+### 16.7 Functional verification of the Mission 44 journeys
+
+Automated (jsdom, in-browser demo backend, no network call) unless stated:
+
+| # | Journey | Result |
+| --- | --- | --- |
+| 1 | Cabinet dashboard | pass — 8 indicators, portfolio, drafts, context |
+| 2 | `Create New Client` | pass — sidebar entry + header button + empty-state button |
+| 3 | Company information + validation | pass — required fields block the step, errors rendered |
+| 4 | KYC checklist | pass — 12 items, statuses, "checklist only" disclaimer |
+| 5 | Sector selection | pass — 9 sectors, mode apply/modify |
+| 6 | Accounting setup | pass — accrual-only statement, defaults pre-filled |
+| 7 | Module selection | pass — availability badges, at least one required |
+| 8 | Draft save + resume | pass — save, cancel, resume, values restored |
+| 9 | Activation with the right permissions | pass — API 201 for the draft owner, 403 for a viewer on an existing file, admin required to approve |
+| 10 | Open the new client workspace | pass — redirected to `/workspace`, company listed, draft consumed |
+| 11 | Navigate the eight domains | pass — 14-section nav + 8 domain cards, deep links |
+| 12 | English and French | pass — full journey switched to EN in the test; FR default |
+| 13 | Android/mobile display | pass in jsdom (card list replaces the table at 390 px, wizard single column). **No real browser rendering was executed** — see 16.8 |
+| 14 | Rights and multi-company isolation | pass — API tests: two firms, no cross-visibility; drafts private (404) |
+
+Error paths: empty name/address blocked client-side; incomplete draft →
+`400` with the missing field; duplicate BRN → `409`; unknown sector/module →
+`400`; viewer write → `403`; foreign draft → `404`; double submission → one
+`201` + one `404` (new). Not exercised: simultaneous activation from two
+different browser tabs in a real browser (covered at the API level only).
+
+### 16.8 Tests and builds actually executed during this audit
+
+| Command | Result |
+| --- | --- |
+| `npm run typecheck -w @mc/api` | pass |
+| `tsc -p apps/web/tsconfig.json --noEmit` | pass |
+| `tsc -p apps/web/tsconfig.test.json --noEmit` | pass |
+| `npm run test -w @mc/api` | **552 passed, 11 skipped (38 files passed, 1 skipped)** |
+| `npx vitest run tests/mission44-onboarding.test.ts` (API) | **14 passed** (incl. double submission) |
+| `npx vitest run tests/mission44-migration-compat.test.ts` (API) | **5 passed** |
+| `npm run test -w @mc/web` | **390 passed (58 files)** |
+| `npm run build -w @mc/api` | pass |
+| `npm run build -w @mc/web` | pass |
+| `npm run build:demo -w @mc/web` + `verify-demo.mjs --dist` | **50 controls, 0 failures** |
+| real bundle + `verify-demo.mjs --real-dist` | **5 controls, 0 failures** |
+| Playwright (`e2e/mission44-workspace.spec.ts`) | **NOT EXECUTED** — no Chromium binary, no browser-download network access. The spec exists for desktop 1440×900 and Pixel 7 and its header lists the commands. |
+
+### 16.9 CI on PR #24
+
+Commit `71c4201` (code + tests + docs):
+
+| Check | Result |
+| --- | --- |
+| Typecheck, tests and build | **pass** (4m5s) |
+| API tests against real PostgreSQL | **pass** (2m43s) — includes the double-submission case on real PostgreSQL |
+| Migrations against real PostgreSQL | **pass** (30s) |
+| Build demo bundle | **pass** (1m46s) |
+| Deploy to GitHub Pages | skipped — expected, `main` only |
+
+### 16.10 Residual risks
+
+1. **The real browser suite has never run**: CSS/Android behaviour is asserted
+   in jsdom only. The first merge candidate should run Playwright somewhere a
+   Chromium download is possible.
+2. **Web → API source import** (`apps/api/src/modules/cabinet-onboarding/*`
+   from `apps/web`): pure data and pure functions today (no `node:*`, no `pg`,
+   verified in the built bundles), and the repository already does this for
+   `bank`/`migration` types. It couples the two builds; extracting a shared
+   package is the clean fix.
+3. **Draft retention**: drafts hold prospect contact data and are kept until
+   activated or deleted by their author. There is no purge. A retention rule
+   (e.g. delete after 90 days, or on firm request) needs a product decision.
+4. **KYC references are free text**: no upload exists, so nothing can leak, but
+   a reference can be meaningless. Secure deposit is explicitly not built.
+5. **Styles conflict on merge** (16.4) is a two-minute manual resolution; it is
+   the only expected conflict.
+6. **UI permission hints** come from `cabinet_access` computed server-side; the
+   server remains the authority (tested), the UI is only cosmetic.
+7. **No `main` deployment of the demo** from this branch, so the published
+   GitHub Pages site still shows the pre-M44 build until this PR merges.
+
+### 16.11 Verdict
+
+**READY FOR MERGE**, with two conditions:
+
+1. the merge itself resolves the single `styles.css` conflict by keeping both
+   appended blocks (16.4), and
+2. the Playwright suite (16.8) is run once in an environment with a browser,
+   as an explicit pre-merge gate.
+
+No blocking defect was found in the accounting engine, the migrations, the
+permissions or the demo/production separation. The one functional defect found
+by the audit (double submission) is fixed and covered by a test that also runs
+against real PostgreSQL in CI. Merging and publishing remain the owner's
+decision: this branch did neither.
