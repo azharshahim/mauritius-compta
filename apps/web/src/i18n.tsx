@@ -209,6 +209,51 @@ const fr: Dict = {
     'Devise de présentation configurée non appliquée à ces états :',
   'st.disclaimer':
     'Présentation provisoire calculée à partir des écritures validées. Non conforme IFRS en l’état : voir docs/mauritius-regulations/accounting.md.',
+  'settings.dataManagement.link': 'Gestion des données : sauvegarde, export, intégrité',
+  'data.title': 'Gestion des données',
+  'data.subtitle':
+    'Sauvegarde chiffrée, export complet d’une société et vérification d’intégrité. La restauration reste une opération hors ligne.',
+  'data.back': 'Retour aux paramètres',
+  'data.securityNotice':
+    'Les archives sont chiffrées (AES-256-GCM) hors de la base et ne sont jamais publiées. La phrase de chiffrement n’est stockée ni dans l’archive, ni en base, ni dans les journaux.',
+  'data.demoUnavailable':
+    'Démonstration : aucune sauvegarde réelle n’est créée. Ces commandes nécessitent le serveur COMPTAI et une phrase de chiffrement configurée.',
+  'data.notConfigured':
+    'La sauvegarde n’est pas configurée sur ce serveur. Aucune archive ne peut être créée.',
+  'data.backup': 'Sauvegarde',
+  'data.createBackup': 'Créer une sauvegarde',
+  'data.backupHint':
+    'Inclut les données PostgreSQL et les documents stockés hors base. Chaque table et chaque fichier reçoit une empreinte SHA-256 dans le manifeste.',
+  'data.backupForbidden':
+    'Votre compte ne figure pas dans la liste des administrateurs de sauvegarde. La création est désactivée.',
+  'data.noBackups': 'Aucune sauvegarde enregistrée.',
+  'data.startedAt': 'Date',
+  'data.size': 'Taille',
+  'data.verify': 'Vérifier l’intégrité',
+  'data.download': 'Télécharger',
+  'data.downloaded': 'Téléchargement préparé.',
+  'data.created': 'Sauvegarde créée :',
+  'data.exportCreated': 'Export créé :',
+  'data.verified': 'Intégrité vérifiée :',
+  'data.tables': 'tables',
+  'data.rows': 'lignes',
+  'data.exportCompany': 'Exporter les données de la société',
+  'data.createExport': 'Créer l’export',
+  'data.exportHint':
+    'Archive portable par société : JSON complet, CSV comptables, documents originaux et manifeste d’intégrité. Les mots de passe et sessions sont exclus.',
+  'data.exportNotRestorable':
+    'Un export de société n’est pas une sauvegarde restaurable et ne s’importe pas automatiquement dans une autre société.',
+  'data.noExports': 'Aucun export enregistré pour cette société.',
+  'data.restore': 'Restauration',
+  'data.restoreCliOnly':
+    'La restauration est volontairement absente de cette interface. Elle s’exécute uniquement avec la commande hors ligne, sur une base vide et après double confirmation.',
+  'data.restoreDisabled': 'Restauration désactivée dans l’interface',
+  'data.restoreWarning':
+    'Aucune restauration destructive ne peut être déclenchée depuis le navigateur. La production reste bloquée jusqu’à autorisation explicite.',
+  'data.status.running': 'En cours',
+  'data.status.completed': 'Terminée',
+  'data.status.verified': 'Vérifiée',
+  'data.status.failed': 'Échec',
   'settings.title': 'Paramètres',
   'settings.profile': 'Profil utilisateur',
   'settings.company': 'Société',
@@ -2181,6 +2226,51 @@ const en: Dict = {
     'Configured presentation currency not applied to these statements:',
   'st.disclaimer':
     'Provisional presentation computed from posted entries. Not IFRS compliant as-is: see docs/mauritius-regulations/accounting.md.',
+  'settings.dataManagement.link': 'Data management: backup, export, integrity',
+  'data.title': 'Data Management',
+  'data.subtitle':
+    'Encrypted backup, full company export and integrity verification. Restore remains an offline operation.',
+  'data.back': 'Back to settings',
+  'data.securityNotice':
+    'Archives are encrypted (AES-256-GCM) outside the database and are never published. The encryption passphrase is stored neither in the archive, nor in the database, nor in the logs.',
+  'data.demoUnavailable':
+    'Demonstration: no real backup is created. These commands require the COMPTAI server and a configured encryption passphrase.',
+  'data.notConfigured':
+    'Backup is not configured on this server. No archive can be created.',
+  'data.backup': 'Backup',
+  'data.createBackup': 'Create backup',
+  'data.backupHint':
+    'Includes PostgreSQL data and documents stored outside the database. Every table and file receives a SHA-256 fingerprint in the manifest.',
+  'data.backupForbidden':
+    'Your account is not in the backup administrator allowlist. Creation is disabled.',
+  'data.noBackups': 'No backup recorded.',
+  'data.startedAt': 'Date',
+  'data.size': 'Size',
+  'data.verify': 'Verify integrity',
+  'data.download': 'Download',
+  'data.downloaded': 'Download prepared.',
+  'data.created': 'Backup created:',
+  'data.exportCreated': 'Export created:',
+  'data.verified': 'Integrity verified:',
+  'data.tables': 'tables',
+  'data.rows': 'rows',
+  'data.exportCompany': 'Export Company Data',
+  'data.createExport': 'Create export',
+  'data.exportHint':
+    'Portable archive for one company: complete JSON, accounting CSV, original documents and integrity manifest. Passwords and sessions are excluded.',
+  'data.exportNotRestorable':
+    'A company export is not a restorable backup and is not imported automatically into another company.',
+  'data.noExports': 'No export recorded for this company.',
+  'data.restore': 'Restore',
+  'data.restoreCliOnly':
+    'Restore is deliberately absent from this screen. It runs only through the offline command, against an empty database and after double confirmation.',
+  'data.restoreDisabled': 'Restore disabled in the interface',
+  'data.restoreWarning':
+    'No destructive restore can be triggered from the browser. Production remains blocked until explicit authorisation.',
+  'data.status.running': 'Running',
+  'data.status.completed': 'Completed',
+  'data.status.verified': 'Verified',
+  'data.status.failed': 'Failed',
   'settings.title': 'Settings',
   'settings.profile': 'User profile',
   'settings.company': 'Company',

@@ -119,3 +119,30 @@ export function qs(params: Record<string, string | number | undefined | null>): 
   const s = search.toString();
   return s ? `?${s}` : '';
 }
+
+/** Downloads an authenticated binary file (backup, export). Never stores a token. */
+export async function downloadProtectedFile(path: string, filename: string): Promise<void> {
+  if (demoEnabled) {
+    throw new ApiError(501, 'DEMO_UNSUPPORTED', 'Téléchargement indisponible en démonstration');
+  }
+  const res = await fetch(`/api${path}`, { credentials: 'include', headers: { 'x-locale': locale } });
+  if (!res.ok) {
+    let code = 'DOWNLOAD_FAILED';
+    let message = `${res.status}`;
+    try {
+      const data = (await res.json()) as { error?: { code?: string; message?: string } };
+      code = data.error?.code ?? code;
+      message = data.error?.message ?? message;
+    } catch {
+      /* keep the HTTP status */
+    }
+    throw new ApiError(res.status, code, message);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}

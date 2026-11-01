@@ -228,6 +228,11 @@ SESSION_PURGE_ON_LOGIN=true
 STORAGE_DIR=./storage
 MAX_UPLOAD_BYTES=10485760
 
+BACKUP_DIR=./backups
+# BACKUP_ENCRYPTION_KEY=          # au moins 16 caractères, jamais commité
+BACKUP_ADMIN_EMAILS=admin@example.test
+BACKUP_RESTORE_ENABLED=false      # true seulement pour un exercice isolé
+
 DEFAULT_LOCALE=fr
 ```
 
@@ -239,12 +244,29 @@ npm run db:seed         # jeu de démonstration fictif (refusé en production)
 npm run db:seed -- --force   # recrée la société de démonstration
 ```
 
-Sauvegarde / restauration (à la charge de l'exploitation) :
+Sauvegarde, export et restauration (mission 34) :
 
 ```bash
-pg_dump -Fc mauritius_compta > sauvegarde.dump
-pg_restore -d mauritius_compta --clean --if-exists sauvegarde.dump
+# Sauvegarde globale chiffrée (PostgreSQL + documents hors base)
+npm run backup -w @mc/api -- create-global --actor-email admin@example.test
+
+# Export portable d'une société (JSON + CSV + documents + manifeste)
+npm run backup -w @mc/api -- export-company --company <uuid> --actor-email admin@example.test
+
+# Vérification d'intégrité hors ligne
+npm run backup -w @mc/api -- verify ./backups/<archive>.mcbackup
+
+# Restauration hors ligne : base VIDE, répertoire de stockage VIDE,
+# confirmation par l'identifiant du manifeste, BACKUP_RESTORE_ENABLED=true
+npm run backup -w @mc/api -- restore ./backups/<archive>.mcbackup \
+  --target postgresql://mc_user:...@localhost:5432/mauritius_compta_restore \
+  --storage /tmp/mauritius-compta-restore --confirm <backup-id>
 ```
+
+Une sauvegarde PostgreSQL seule (`pg_dump`) **ne couvre pas** les pièces jointes et documents
+importés. La procédure complète, les limites et la conduite d'un exercice de restauration sont
+documentées dans [`docs/backup-restore-guide.md`](docs/backup-restore-guide.md). La restauration
+n'est jamais exposée par l'API HTTP et reste bloquée par défaut.
 
 ## 7. Mode démonstration (sans PostgreSQL)
 
