@@ -37,12 +37,11 @@ Request #23 (Mission 42) was neither modified nor integrated.
 
 ## 3. Pull request
 
-A **draft** pull request was opened from
-`arena/b8889b50-mauritius-compta` targeting `main`. Its number, URL and check
-status are given in the delivery message of the session and on the branch
-itself (`gh pr list --head arena/b8889b50-mauritius-compta`). The pull request
-stays in draft: merging is an owner decision after the review listed in
-section 15.
+**PR #24** — https://github.com/azharshahim/mauritius-compta/pull/24
+(`draft`, `arena/b8889b50-mauritius-compta` → `main`, opened 2026-11-01).
+The pull request stays in draft: merging is an owner decision after the review
+listed in section 15. Its status is visible on the PR page; a check that is
+still running is not reported as passing here.
 
 ## 4. Features — done, partial, missing
 
