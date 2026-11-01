@@ -37,9 +37,9 @@ renommage anglais. Le registre et le grand livre concordent désormais à
 
 Les résultats reproductibles sont : **web 329 tests / 51 fichiers**, **API 521
 tests réussis + 11 ignorés**, **typecheck 0 erreur**, **build de production et
-build de démonstration réussis**. La suite PostgreSQL réelle et les migrations
-sont vérifiées par les jobs GitHub Actions de la PR ; le résultat final de la CI
-est reporté dans la section 10 après exécution.
+build de démonstration réussis**. La suite PostgreSQL réelle, les migrations et
+la vérification du bundle de démonstration sont **vertes** dans la CI de la PR
+nº18 (section 10).
 
 **La démonstration n'est pas déclarée prête pour la production.** Les points
 P0-03, P0-04, P0-05 et P1-16 restent ouverts.
@@ -371,8 +371,9 @@ Le détail est dans `docs/comptai-demo-known-limitations.md`.
 - Branche : `arena/30ab1cd1-mauritius-compta`, créée depuis `main` `87894b1`.
 - Commit de fusion PR nº17 confirmé ancêtre de la branche.
 - PR : **brouillon**, nº18 — https://github.com/azharshahim/mauritius-compta/pull/18.
-- CI : à vérifier après le push (jobs typecheck/tests/build, PostgreSQL réel et
-  migrations). Le résultat sera reporté ici avant toute demande de fusion.
+- CI de la PR nº18 au commit `a75119a` : **4/4 jobs verts** — typecheck/tests/build,
+  tests API sur PostgreSQL réel, migrations PostgreSQL et bundle de démonstration.
+  Le déploiement GitHub Pages est volontairement `skipped` sur une PR.
 - **Aucune fusion, aucune publication, aucun déploiement** sans autorisation
   explicite.
 - P0-03 reste **ouvert** ; P0-04, P0-05 et P1-16 ne sont pas clos.
