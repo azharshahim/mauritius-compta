@@ -162,11 +162,13 @@ Ajouts :
 ## 12. Livraison GitHub
 
 - Branche : `arena/1f7e6933-mauritius-compta`
-- PR : **à compléter après création**
-- HEAD : **à compléter après commit**
-- CI : **à compléter après exécution**
+- PR : **nº20**, en **brouillon** — https://github.com/azharshahim/mauritius-compta/pull/20
+- Commit de contenu : **`a689c96`** (`feat(web): add global contextual navigation and responsive shell (M39)`)
+- CI : **run `41341576294` vert** (typecheck, tests et build ; migrations PostgreSQL ; tests API PostgreSQL)
+- Démo : **run `41341576351` vert** (build du bundle ; déploiement GitHub Pages ignoré)
+- Les éventuels commits documentaires suivants ne modifient pas le code validé ci-dessus.
 
-La PR sera créée **en brouillon**, sans fusion ni publication.
+La PR reste **en brouillon** : aucune fusion, aucune publication, aucun déploiement.
 
 ## 13. Critères d’acceptation
 
