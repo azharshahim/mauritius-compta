@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useI18n } from './i18n';
 import { useSession } from './store';
+import { api } from './api';
 import LoginPage from './pages/Login';
 import DashboardPage from './pages/Dashboard';
 import AccountsPage from './pages/Accounts';
@@ -31,6 +32,8 @@ import AiAssistantPage from './pages/cabinet/AiAssistant';
 import AiProposalsPage from './pages/cabinet/AiProposals';
 import MigrationPage from './pages/cabinet/Migration';
 import BankPage from './pages/accounting/Bank';
+import BankMcbPage from './pages/accounting/BankMcb';
+import ScanImportPage from './pages/documents/ScanImport';
 import BillingOverviewPage from './pages/billing/Overview';
 import BillingCustomersPage from './pages/billing/Customers';
 import BillingDocumentsPage from './pages/billing/Documents';
@@ -129,12 +132,7 @@ export default function App() {
           onChange={(e) => {
             const next = e.target.value as 'fr' | 'en';
             setLocale(next);
-            void fetch('/api/auth/me', {
-              method: 'PATCH',
-              credentials: 'include',
-              headers: { 'content-type': 'application/json', 'x-locale': next },
-              body: JSON.stringify({ locale: next }),
-            });
+            void api.patch('/auth/me', { locale: next }).catch(() => undefined);
           }}
           style={{ maxWidth: 110 }}
         >
@@ -207,6 +205,9 @@ export default function App() {
             <Route path="/cabinet/ai-proposals" element={<AiProposalsPage />} />
             <Route path="/cabinet/settings/ai" element={<AiSettingsPage />} />
 
+            {/* Documents (mission 23): native intake and OCR proposals */}
+            <Route path="/documents" element={<ScanImportPage />} />
+
             {/* Accounting (existing V0.1 screens, unchanged behaviour) */}
             <Route path="/accounting" element={<DashboardPage />} />
             <Route path="/accounting/accounts" element={<AccountsPage />} />
@@ -224,6 +225,7 @@ export default function App() {
             <Route path="/accounting/lettering" element={<LetteringPage />} />
             <Route path="/accounting/multi-currency" element={<MultiCurrencyPage />} />
             <Route path="/accounting/banking" element={<BankPage />} />
+            <Route path="/accounting/banking/mcb" element={<BankMcbPage />} />
             <Route path="/accounting/assets" element={<FixedAssetsPage />} />
             <Route path="/accounting/financial-years" element={<FinancialYearsPage />} />
             <Route path="/accounting/inventory" element={<InventoryPage />} />

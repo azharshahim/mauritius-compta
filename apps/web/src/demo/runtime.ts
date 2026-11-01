@@ -33,6 +33,7 @@ import {
   type DemoMigrationTemplate,
 } from './migration';
 import { handleDemoBank, seedDemoBank } from './bank';
+import { handleDemoMission23, seedDemoMission23, type DemoMission23State } from './mission23';
 import { handleDemoPurchases, seedDemoPurchases } from './purchases';
 import { handleDemoLettering, seedDemoLettering } from './lettering';
 import { handleDemoFx, seedDemoFx } from './fx';
@@ -108,6 +109,11 @@ export interface DemoAccount {
   is_active: boolean;
   fs_mapping: string | null;
   description: string | null;
+  name_en?: string | null;
+  name_fr?: string | null;
+  posting_allowed?: boolean;
+  account_role?: string | null;
+  vat_default?: string | null;
 }
 
 export interface DemoJournal {
@@ -874,6 +880,8 @@ export interface DemoState {
   letteringSequences: Record<string, number>;
   /** Mission 13 — fictional multi-currency state (demo only). */
   fx?: unknown;
+  /** Mission 23 — documents, OCR proposals and bilingual chart metadata. */
+  mission23?: DemoMission23State;
   /** Mission 19 — equity register, annual closing and documented allocation. */
   equitySequences?: Record<string, number>;
   equityMovements?: DemoEquityMovement[];
@@ -1883,7 +1891,7 @@ function seedState(): DemoState {
   });
 
   const seeded: DemoState = {
-    schema: 16,
+    schema: 17,
     users: [demoUser, ...collaborators],
     session: null,
     companies: [company, ...extraCompanies],
@@ -1973,6 +1981,7 @@ function seedState(): DemoState {
   seedDemoFixedAssets(seeded);
   seedDemoFinancialYears(seeded);
   seedDemoMission22(seeded);
+  seedDemoMission23(seeded);
   return seeded;
 }
 
@@ -1998,22 +2007,32 @@ export function loadState(): DemoState {
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as DemoState;
+        if (parsed && parsed.schema === 17) {
+          state = parsed;
+          if (!state.mission23) seedDemoMission23(state);
+          return state;
+        }
         if (parsed && parsed.schema === 16) {
           state = parsed;
+          state.schema = 17;
+          seedDemoMission23(state);
+          persist();
           return state;
         }
         if (parsed && parsed.schema === 15) {
           state = parsed;
-          state.schema = 16;
+          state.schema = 17;
           seedDemoMission22(state);
+          seedDemoMission23(state);
           persist();
           return state;
         }
         if (parsed && parsed.schema === 14) {
           state = parsed;
-          state.schema = 16;
+          state.schema = 17;
           seedDemoFinancialYears(state);
           seedDemoMission22(state);
+          seedDemoMission23(state);
           persist();
           return state;
         }
@@ -6301,6 +6320,25 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
       return result as T;
     }
 
+    // -------------------- documents, charts, MCB (mission 23)
+    if (rest.startsWith('/documents') || rest.startsWith('/chart-of-accounts') || rest.startsWith('/bank/mcb')) {
+      const member = s.members.find(
+        (m) => m.company_id === companyId && m.user_id === requireUser().id,
+      );
+      const writers = ['owner', 'admin', 'accountant', 'manager', 'cabinet_admin'];
+      if (!member) throw new ApiError(404, 'COMPANY_NOT_FOUND', 'Société introuvable');
+      if (method !== 'GET' && !writers.includes(member.role)) {
+        throw new ApiError(403, 'FORBIDDEN', 'Rôle comptable requis pour les documents');
+      }
+      const result = handleDemoMission23(s, companyId, method, rest, payload);
+      if (result === undefined) throw new ApiError(404, 'NOT_FOUND', 'Route documents inconnue');
+      if (method !== 'GET') {
+        audit(companyId, 'mission23.request', 'document', null, { path: rest, method });
+        persist();
+      }
+      return result as T;
+    }
+
     // ------------------------------------------- bank & reconciliation (9)
     if (rest.startsWith('/bank')) {
       const member = s.members.find(
@@ -7886,7 +7924,7 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
       const search = (query.get('search') ?? '').toLowerCase();
       const list = accountsOf(companyId)
         .filter((a) => (includeInactive ? true : a.is_active))
-        .filter((a) => (search ? `${a.code} ${a.name}`.toLowerCase().includes(search) : true))
+        .filter((a) => (search ? `${a.code} ${a.name} ${a.name_en ?? ''} ${a.name_fr ?? ''}`.toLowerCase().includes(search) : true))
         .sort((a, b) => a.code.localeCompare(b.code))
         .map((a) => ({
           ...a,
@@ -7912,6 +7950,11 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
         is_active: payload.isActive ?? true,
         fs_mapping: payload.fsMapping ?? null,
         description: payload.description ?? null,
+        name_en: payload.nameEn ?? null,
+        name_fr: payload.nameFr ?? null,
+        posting_allowed: payload.postingAllowed ?? true,
+        account_role: payload.accountRole ?? null,
+        vat_default: payload.vatDefault ?? null,
       };
       s.accounts.push(account);
       audit(companyId, 'account.create', 'account', account.id, { code });
@@ -7934,6 +7977,11 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
           is_active: payload.isActive ?? account.is_active,
           fs_mapping: payload.fsMapping !== undefined ? payload.fsMapping : account.fs_mapping,
           description: payload.description !== undefined ? payload.description : account.description,
+          name_en: payload.nameEn !== undefined ? payload.nameEn : account.name_en,
+          name_fr: payload.nameFr !== undefined ? payload.nameFr : account.name_fr,
+          posting_allowed: payload.postingAllowed ?? account.posting_allowed,
+          account_role: payload.accountRole !== undefined ? payload.accountRole : account.account_role,
+          vat_default: payload.vatDefault !== undefined ? payload.vatDefault : account.vat_default,
         });
         audit(companyId, 'account.update', 'account', account.id, { fields: Object.keys(payload) });
         persist();

@@ -12,6 +12,8 @@ import { buildAuthGuards } from './modules/auth/routes.js';
 import { companyRoutes } from './modules/companies/routes.js';
 import { companySettingsRoutes } from './modules/companies/settings.js';
 import { accountRoutes } from './modules/accounts/routes.js';
+import { chartRoutes } from './modules/accounts/chart.js';
+import { documentRoutes } from './modules/documents/routes.js';
 import { journalRoutes } from './modules/journals/routes.js';
 import { entryRoutes } from './modules/entries/routes.js';
 import { settingsRoutes } from './modules/settings/routes.js';
@@ -181,6 +183,8 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
       companyRoutes(secured, db);
       companySettingsRoutes(secured, db);
       accountRoutes(secured, db);
+      chartRoutes(secured, db);
+      documentRoutes(secured, db, config);
       journalRoutes(secured, db);
       entryRoutes(secured, db, config);
       settingsRoutes(secured, db);

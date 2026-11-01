@@ -485,13 +485,14 @@ données, **ni** secret, **ni** donnée réelle.
 
 ## 14. Mauritius Business Suite
 
-Quatre espaces partagent un seul référentiel de sociétés et une seule base PostgreSQL, avec
+Cinq espaces partagent un seul référentiel de sociétés et une seule base PostgreSQL, avec
 des permissions et des tables séparées par module :
 
 | Espace | Route | État |
 |---|---|---|
 | Cabinet | `/cabinet` | **opérationnel** : tableau de bord, dossiers clients, fiche dossier, tâches & échéances, collaborateurs |
-| Comptabilité | `/accounting` | **opérationnel** : fonctions V0.1.1 (plan comptable, écritures, grand livre, balance, états financiers, périodes, devises, audit) + **Banque & rapprochement** (import CSV/TSV/XLSX, rapprochement humain, propositions, rapport) + **Achats & Fournisseurs** (fournisseurs, factures d'achat, avoirs, règlements, échéancier par devise) |
+| Documents | `/documents` | **opérationnel** : import PDF/JPG/PNG, extraction PDF native, **OCR réel** sur images et PDF scannés, corrections, propositions d’écriture équilibrées, validation humaine, historique ; aucune comptabilisation automatique |
+| Comptabilité | `/accounting` | **opérationnel** : fonctions V0.1.1 (plan comptable bilingue, écritures, grand livre, balance, états financiers, périodes, devises, audit) + **Banque & rapprochement** (import CSV/TSV/XLSX, **import MCB PDF dédié**, rapprochement humain, propositions, rapport) + **Achats & Fournisseurs** (fournisseurs, factures d'achat, avoirs, règlements, échéancier par devise) |
 | Facturation | `/billing` | **opérationnel** : clients, devis, factures, avoirs, encaissements, balance âgée, PDF serveur ; e-invoicing MRA désactivé |
 | Paie & RH | `/payroll` | **préparation et simulation** : salariés, contrats, temps, congés, variables, périodes, PAYE/CSG/NSF/levy sourcés, EDF, AR 2026, bulletins de simulation imprimables un par un, déclarations MRA en préparation interne ; revue experte en attente, aucun bulletin final, aucune soumission MRA |
 
@@ -499,6 +500,11 @@ des permissions et des tables séparées par module :
   `viewer` (+ `owner`/`admin` historiques) — voir
   [`docs/permissions-matrix.md`](docs/permissions-matrix.md).
 - Les anciennes URL (`/entries`, `/companies`, …) redirigent : aucun signet n'est cassé.
+- **Mission 23** : plan comptable bilingue avec trois profils (`PENDING PROFESSIONAL VALIDATION`,
+  `AWAITING FIRM CONFIRMATION`, plan propre à la société), import CSV/XLSX avec mapping et
+  prévisualisation, OCR natif (Tesseract local, sans service externe) et importeur MCB
+  Savings Regular Account limité au jeu fictif initial. Aucun numéro de compte mauricien n’est
+  présenté comme obligatoire. Voir [`docs/mission-23-report.md`](docs/mission-23-report.md).
 - Documentation : [`docs/suite-architecture.md`](docs/suite-architecture.md),
   [`docs/cabinet-module.md`](docs/cabinet-module.md),
   [`docs/module-integration.md`](docs/module-integration.md).

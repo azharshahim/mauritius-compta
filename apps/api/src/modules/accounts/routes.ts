@@ -10,7 +10,12 @@ import { requireCompany } from '../../lib/tenant.js';
 const accountBody = z.object({
   code: z.string().min(1).max(30),
   name: z.string().min(1).max(200),
+  nameEn: z.string().trim().max(200).nullish(),
+  nameFr: z.string().trim().max(200).nullish(),
   type: z.enum(ACCOUNT_TYPES),
+  postingAllowed: z.boolean().optional(),
+  accountRole: z.string().trim().max(60).nullish(),
+  vatDefault: z.string().trim().max(30).nullish(),
   parentId: z.string().uuid().nullish(),
   currency: z.enum(SUPPORTED_CURRENCIES).optional(),
   isActive: z.boolean().optional(),
@@ -34,7 +39,8 @@ export function accountRoutes(app: FastifyInstance, db: Db) {
     }
     if (q.search) {
       params.push(`%${q.search.toLowerCase()}%`);
-      where.push(`(lower(a.code) LIKE $${params.length} OR lower(a.name) LIKE $${params.length})`);
+      where.push(`(lower(a.code) LIKE $${params.length} OR lower(a.name) LIKE $${params.length}
+        OR lower(coalesce(a.name_en,'')) LIKE $${params.length} OR lower(coalesce(a.name_fr,'')) LIKE $${params.length})`);
     }
 
     const res = await db.query(
@@ -71,17 +77,23 @@ export function accountRoutes(app: FastifyInstance, db: Db) {
     try {
       const created = await db.query<AccountRow>(
         `INSERT INTO accounts
-           (company_id, code, name, type, parent_id, currency, is_active, fs_mapping, description)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+           (company_id, code, name, name_en, name_fr, type, parent_id, currency, is_active,
+            posting_allowed, account_role, vat_default, fs_mapping, description)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
          RETURNING *`,
         [
           companyId,
           body.code.trim(),
           body.name.trim(),
+          body.nameEn ?? null,
+          body.nameFr ?? null,
           body.type,
           body.parentId ?? null,
           body.currency ?? ctx.company.functional_currency,
           body.isActive ?? true,
+          body.postingAllowed ?? true,
+          body.accountRole ?? null,
+          body.vatDefault ?? null,
           body.fsMapping ?? null,
           body.description ?? null,
         ],
@@ -157,6 +169,11 @@ export function accountRoutes(app: FastifyInstance, db: Db) {
          is_active = COALESCE($8, is_active),
          fs_mapping = CASE WHEN $9::boolean THEN $10::text ELSE fs_mapping END,
          description = CASE WHEN $11::boolean THEN $12::text ELSE description END,
+         name_en = CASE WHEN $14::boolean THEN $15::text ELSE name_en END,
+         name_fr = CASE WHEN $16::boolean THEN $17::text ELSE name_fr END,
+         posting_allowed = COALESCE($18, posting_allowed),
+         account_role = CASE WHEN $19::boolean THEN $20::text ELSE account_role END,
+         vat_default = CASE WHEN $21::boolean THEN $22::text ELSE vat_default END,
          updated_at = now()
        WHERE id = $1 AND company_id = $13
    RETURNING *`,
@@ -174,6 +191,15 @@ export function accountRoutes(app: FastifyInstance, db: Db) {
         body.description !== undefined,
         body.description ?? null,
         companyId,
+        body.nameEn !== undefined,
+        body.nameEn ?? null,
+        body.nameFr !== undefined,
+        body.nameFr ?? null,
+        body.postingAllowed ?? null,
+        body.accountRole !== undefined,
+        body.accountRole ?? null,
+        body.vatDefault !== undefined,
+        body.vatDefault ?? null,
       ],
     );
     await writeAudit(db, {

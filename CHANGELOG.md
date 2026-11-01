@@ -1,5 +1,42 @@
 # Journal des versions
 
+## Mission 23 — OCR natif, import bancaire MCB et plan comptable bilingue (1er novembre 2026)
+
+> Aucune fusion, aucun déploiement, aucune donnée réelle, aucun paiement, aucune déclaration
+> MRA, aucun appel à ScanPro AI. Aucun numéro de compte mauricien n’est présenté comme
+> obligatoire. PR en brouillon ; `main` intact.
+
+### Ajouté
+
+- Migration `0021_documents_charts_mcb.sql` : profils de plan comptable, libellés FR/EN,
+  `posting_allowed`, rôle comptable et code TVA optionnels, documents importés, lignes,
+  propositions, affectations mémorisées. Aucun compte existant n’est renommé ni renuméroté.
+- Module `documents` : import PDF/JPEG/PNG, extraction texte PDF (pdf.js), **OCR réel local**
+  (Tesseract `eng+fra`, images et PDF scannés), parsing déterministe des factures, corrections,
+  détection de doublons par empreinte et par numéro/tiers, propositions d’écriture équilibrées
+  limitées aux comptes actifs, validation humaine créant un **brouillon** (jamais une
+  comptabilisation), refus motivé, mémorisation des affectations **après approbation seulement**.
+- Plan comptable : modèle mauricien provisoire explicitement `PENDING PROFESSIONAL VALIDATION`,
+  import du plan du cabinet CSV/XLSX avec mapping, aperçu, détection des doublons et statut
+  `AWAITING FIRM CONFIRMATION`, confirmation par le cabinet, profil société personnalisable.
+- Banque : importeur MCB PDF natif (`/bank/mcb/preview`, `/bank/mcb/import`) réutilisant le
+  moteur bancaire existant, descriptions multi-lignes, signes déduits du mouvement des soldes,
+  contrôle d’ouverture/clôture, doublons par empreinte, aperçu et validation humaine.
+  Périmètre annoncé : mise en page initiale Savings Regular Account, pas tous les formats MCB.
+- Écrans **Documents → Scan & Import**, **Comptabilité → Plan comptable** enrichi et
+  **Banque → Importer un relevé MCB**, FR/EN, responsive, avec agitation de fichiers et aperçu.
+- Démonstration navigateur schéma 17 : deux profils de plan, six documents fictifs (deux achats,
+  deux ventes, une photo, un doublon), une proposition corrigée/approuvée, un relevé MCB fictif
+  équilibré. Les résultats d’OCR affichés sont **préenregistrés** et signalés comme tels.
+- Tests : 13 tests API mission 23 (dont OCR réel image et PDF scanné) et 10 tests web
+  (backend démo et écrans). Documentation [`docs/mission-23-report.md`](docs/mission-23-report.md).
+
+### Dépendances ajoutées
+
+- `pdfjs-dist` (Apache-2.0), `pdf-to-img` (MIT), `tesseract.js` (Apache-2.0) et jeux de données
+  `eng`/`fra` (MIT). Aucun service payant, aucune clé API, aucun appel réseau au moment de
+  l’extraction. Audit complet des licences/métadonnées toujours reporté.
+
 ## Mission 22 — Stocks, charges à payer/avances et provisions (1er novembre 2026)
 
 > Aucune fusion, aucun déploiement, aucune donnée réelle, aucun paiement, aucune déclaration

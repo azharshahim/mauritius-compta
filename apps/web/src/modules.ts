@@ -6,7 +6,7 @@
  * drives navigation and labels: authorisation is always enforced by the API
  * (`requireModuleAccess`), never by hiding a tab.
  */
-export type ModuleKey = 'cabinet' | 'accounting' | 'billing' | 'payroll';
+export type ModuleKey = 'cabinet' | 'documents' | 'accounting' | 'billing' | 'payroll';
 
 export interface ModuleItem {
   to: string;
@@ -43,6 +43,15 @@ export const MODULES: ModuleDefinition[] = [
     ],
   },
   {
+    key: 'documents',
+    icon: '📄',
+    labelKey: 'module.documents',
+    base: '/documents',
+    items: [
+      { to: '/documents', key: 'nav.documents.scan', icon: '⇪', end: true },
+    ],
+  },
+  {
     key: 'accounting',
     icon: '📒',
     labelKey: 'module.accounting',
@@ -60,6 +69,7 @@ export const MODULES: ModuleDefinition[] = [
       { to: '/accounting/lettering', key: 'nav.accounting.lettering', icon: '🔗' },
       { to: '/accounting/multi-currency', key: 'nav.accounting.multiCurrency', icon: '💱' },
       { to: '/accounting/banking', key: 'nav.accounting.banking', icon: '🏦' },
+      { to: '/accounting/banking/mcb', key: 'nav.accounting.mcb', icon: '🇲🇺' },
       { to: '/accounting/assets', key: 'nav.accounting.assets', icon: '🏢' },
       { to: '/accounting/financial-years', key: 'nav.accounting.financialYears', icon: '🗓️' },
       { to: '/accounting/inventory', key: 'nav.accounting.inventory', icon: '📦' },

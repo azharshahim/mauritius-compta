@@ -72,9 +72,10 @@ describe('demo build (jsdom)', () => {
     expect(password.value).toBe('DemoPassw0rd2026');
   });
 
-  it('exposes the four suite modules and keeps the accounting screens', async () => {
+  it('exposes the suite modules and keeps the accounting screens', async () => {
     await login();
     expect(moduleTab(/Cabinet/)).toBeTruthy();
+    expect(moduleTab(/Documents/)).toBeTruthy();
     expect(moduleTab(/Comptabilité/)).toBeTruthy();
     expect(moduleTab(/Facturation/)).toBeTruthy();
     expect(moduleTab(/Paie & RH/)).toBeTruthy();
