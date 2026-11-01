@@ -55,7 +55,7 @@ fonctionnelle documentée**, pas la qualité métier ni la conformité.
 | A08 | Import du plan comptable du cabinet (CSV/XLSX) avec aperçu, hash et confirmation | IPT | `accounts/chart.ts`, `apps/web/src/pages/Accounts.tsx`, `mission23.test.ts` | Le CSV est testé ; le XLSX est annoncé et parsé par le même lecteur mais n'a pas de cas dédié. La confirmation finale n'est pas couverte par un test de bout en bout. |
 | A09 | Journaux configurables (ventes, achats, banque, caisse, OD) | IPT | `journals/routes.ts`, `provisioning.ts`, `entries.test.ts` | Les cinq journaux par défaut sont utilisés partout ; la création d'un journal personnalisé n'a pas de test dédié. |
 | A10 | Écritures multi-lignes, brouillon puis validée | IT | `entries/routes.ts`, `entries.test.ts` (12 cas), `regressions.test.ts` | Le moteur est un moteur unique réutilisé par les modules. |
-| A11 | Numérotation atomique et renumérotation d'un brouillon | IT | `entries/service.ts`, `entries.test.ts`, `concurrency.test.ts` (ignoré sans PostgreSQL réel) | La concurrence est prouvée en CI PostgreSQL, pas dans cette exécution locale. |
+| A11 | Numérotation atomique et renumérotation d'un brouillon | IT | `entries/service.ts`, `entries.test.ts`, `concurrency.test.ts` (ignoré localement, exécuté en CI PostgreSQL) | La concurrence est prouvée par le job CI PostgreSQL, pas par l'exécution locale. |
 | A12 | Contrôles d'équilibre, montants nuls, comptes inactifs, période, société | IT | `entries/service.ts`, `entries.test.ts`, `regressions.test.ts` | Aucun test ne couvre toutes les combinaisons de champs facultatifs. |
 | A13 | Verrouillage des écritures validées, API et PostgreSQL | IT | `entries/service.ts`, triggers `0003_hardening.sql`, `regressions.test.ts` | L'immutabilité est technique, pas une piste d'audit signée. |
 | A14 | Contrepassation unique, datée et motivée | IT | `entries/routes.ts`, `entries.test.ts`, `concurrency.test.ts` | La contrepassation crée une écriture inverse, elle ne modifie pas l'originale. |
@@ -66,7 +66,7 @@ fonctionnelle documentée**, pas la qualité métier ni la conformité.
 | A19 | Sous-registre clients, historique et solde | IT | `billing/routes.ts`, `billing.test.ts` (17 cas), `Aging.tsx` | Le solde est par client et devise, jamais additionné entre devises. |
 | A20 | Sous-registre fournisseurs, historique, balance et échéancier | IT | `purchases/routes.ts`, `purchases.test.ts` (31 cas) | Le sous-registre est indépendant du grand livre ; le rapprochement de contrôle n'est pas automatique. |
 | A21 | Rapprochement automatisé comptes auxiliaires ↔ grand livre | PI | `lettering/report`, `billing/aging`, `purchases/aging` | Des balances auxiliaires existent, mais aucun contrôle signé ne compare le total clients/fournisseurs au compte collectif du grand livre. |
-| A22 | Lettrage partiel, multiple, N↔1, suggestions et délettrage | IT | `lettering/routes.ts`, `lettering.test.ts` (29 passés, 1 ignoré) | Le test de concurrence est ignoré sans PostgreSQL réel. |
+| A22 | Lettrage partiel, multiple, N↔1, suggestions et délettrage | IT | `lettering/routes.ts`, `lettering.test.ts` (29 passés, 1 ignoré localement) | Le test de concurrence est exécuté par le job CI PostgreSQL. |
 | A23 | Charges à payer, produits à recevoir, charges/produits constatés d'avance | IT | `accruals/routes.ts`, `mission22.test.ts` (13 cas) | Allocation mensuelle à montant égal ; pas de prorata journalier. |
 | A24 | Provisions (reconnaissance, révision, utilisation, reprise) | IT | `provisions/routes.ts`, `mission22.test.ts` | Aucun seuil IAS 37, aucune actualisation, aucune conformité affirmée. |
 | A25 | Ajustements d'exercices antérieurs et retraitement | IT | `financial-years/routes.ts`, `financial-years.test.ts` (5 cas) | Les écritures d'origine restent conservées ; la période source reste clôturée. |
@@ -119,7 +119,7 @@ fonctionnelle documentée**, pas la qualité métier ni la conformité.
 | C12 | Calcul de TVA et quatre traitements distincts | IT | `billing/service.ts` (`prepareTax`, `computeDocument`), `billing.test.ts` | Aucun taux par défaut ; `standard` exige un taux vérifié et applicable. |
 | C13 | Factures et règlements en devise avec taux documenté | IT | `billing/service.ts`, `fx.test.ts`, `billing.test.ts` | Aucune conversion implicite ; le taux est fourni par l'utilisateur. |
 | C14 | Transfert vers la comptabilité | IPT | `ai/entry-proposals/from-billing`, `ai-proposals.test.ts`, `billing.test.ts` | Ce n'est pas un transfert automatique : proposition, validation humaine, puis comptabilisation distincte. |
-| C15 | Protection contre la double comptabilisation | IT | index uniques, `ai-proposals.test.ts` (16 cas), `billing.test.ts` | Tests de concurrence réels dépendants de PostgreSQL. |
+| C15 | Protection contre la double comptabilisation | IT | index uniques, `ai-proposals.test.ts` (16 cas), `billing.test.ts`, `concurrency.test.ts` | Tests de concurrence exécutés par le job CI PostgreSQL. |
 | C16 | Détection déterministe des doublons de facture | IT | `billing/duplicates.ts`, `billing.test.ts`, `duplicates/check` | Empreinte normative ; pas de détection floue ou IA. |
 | C17 | Historique d'événements, acceptation et refus d'un devis | IT | `billing/documents/:id/events`, `accept`, `refuse`, `billing.test.ts` | L'acceptation/refus est un état commercial, pas une signature électronique. |
 | C18 | Export de la balance âgée clients (CSV/PDF) | ABS | `billing/aging` renvoie JSON ; `Aging.tsx` n'appelle aucun export | L'échéancier fournisseur possède un CSV, pas le client. |
@@ -240,10 +240,14 @@ fonctionnelle documentée**, pas la qualité métier ni la conformité.
 | Tests web | `npm run test -w @mc/web` avec rapport JSON | **287 réussis, 0 échec**, 44 fichiers |
 | Typecheck | `npm run typecheck` | **0 erreur** API + web + tests |
 | Build | `npm run build` | **succès** API et web ; avertissement de chunk web 1 238 kB |
-| Tests non exécutés | PostgreSQL réel et Playwright | 11 tests ignorés faute de `TEST_DATABASE_URL` ; aucun test navigateur réel |
+| PostgreSQL réel | Job CI `API tests against real PostgreSQL` | **réussi** (2 min 9 s), étape « Vitest suite on PostgreSQL (includes concurrency tests) » |
+| Migrations PostgreSQL | Job CI `Migrations against real PostgreSQL` | **réussi** (32 s) : application, ré-application idempotente, seed fictif, contrôle du schéma et de l'audit |
+| Tests non exécutés localement | PostgreSQL local et Playwright | 11 tests ignorés faute de `TEST_DATABASE_URL` ; aucun test navigateur réel |
 
-Les 11 tests ignorés sont 10 tests de concurrence (`concurrency.test.ts`) et 1 test de lettrage
-concurrent. Ils ne doivent pas être comptés comme validés dans cette session.
+Les 11 tests ignorés **localement** sont 10 tests de concurrence (`concurrency.test.ts`) et 1 test
+de lettrage concurrent. Ils ont été exécutés par le job CI PostgreSQL du run
+[41307964829](https://github.com/azharshahim/mauritius-compta/actions/runs/41307964829) ; cette
+preuve CI ne remplace pas un test de charge ni un test de reprise.
 
 ## 12. Limites de cet audit
 

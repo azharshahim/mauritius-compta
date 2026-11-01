@@ -40,8 +40,9 @@ matrice QuickBooks est dans [`comptai-quickbooks-test-matrix.md`](comptai-quickb
 - Il ne remplace ni une revue d'expert-comptable mauricien, ni un avis juridique, ni un test
   d'intrusion, ni un test de restauration, ni un test de charge.
 - Il n'a traité aucune facture, aucun relevé bancaire et aucune donnée de paie réels.
-- Il n'a pas exécuté les tests sur PostgreSQL réel, ni les tests Playwright, ni un appareil
-  Android ou Windows physique.
+- Il n'a pas exécuté localement les tests sur PostgreSQL réel, ni les tests Playwright, ni un
+  appareil Android ou Windows physique. Le job CI PostgreSQL a toutefois été exécuté et a réussi
+  (voir section 6).
 - Il n'a effectué aucun import ou export QuickBooks réel.
 
 ## 2. Résultat d'ensemble
@@ -251,12 +252,15 @@ distincts, et l'e-invoicing est explicitement désactivé.
 | Total | **779 réussis, 11 ignorés, 0 échec** sur 790 |
 | Typecheck — `npm run typecheck` | **0 erreur** (API + web + tests) |
 | Build — `npm run build` | **succès** ; chunk web 1 238 kB (307 kB gzip) |
-| PostgreSQL réel | **non exécuté** : 10 tests de concurrence et 1 test de lettrage ignorés faute de `TEST_DATABASE_URL` |
+| PostgreSQL réel (local) | **non exécuté localement** : 10 tests de concurrence et 1 test de lettrage ignorés faute de `TEST_DATABASE_URL` |
+| CI GitHub Actions — run [41307964829](https://github.com/azharshahim/mauritius-compta/actions/runs/41307964829) | **3 jobs réussis** : typecheck/tests/build (2 min 46 s), API sur PostgreSQL réel avec tests de concurrence (2 min 9 s), migrations + idempotence + seed + audit (32 s) |
 | Playwright / navigateur | **non exécuté** : aucun binaire Chromium ni appareil physique |
 
-Les 11 tests ignorés ne sont pas des réussites. Ils portent notamment sur la numérotation
-parallèle, la double contrepassation, deux rapprochements bancaires concurrents et le lettrage
-concurrent.
+Les 11 tests ignorés **dans l'exécution locale** ne sont pas des réussites locales. Ils portent
+notamment sur la numérotation parallèle, la double contrepassation, deux rapprochements bancaires
+concurrents et le lettrage concurrent. Le job CI « API tests against real PostgreSQL » les a
+exécutés avec `TEST_DATABASE_URL` et a réussi ; ils ne sont donc pas « non testés », mais ils ne
+constituent pas non plus une preuve de charge ou de disponibilité en production.
 
 ## 7. Écarts de préparation QuickBooks
 
