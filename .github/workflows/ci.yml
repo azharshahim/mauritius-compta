@@ -58,6 +58,7 @@ jobs:
     env:
       NODE_ENV: test
       TEST_DATABASE_URL: postgresql://mc_user:ci_only_password@127.0.0.1:5432/mauritius_compta_test
+      TEST_RESTORE_DATABASE_URL: postgresql://mc_user:ci_only_password@127.0.0.1:5432/mauritius_compta_restore
       DATABASE_SSL: 'false'
       COOKIE_SECURE: 'false'
       ALLOW_REGISTRATION: 'true'
@@ -69,6 +70,11 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - name: Prepare an empty restore database
+        run: |
+          PGPASSWORD=ci_only_password psql -h 127.0.0.1 -U mc_user -d postgres \
+            -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS mauritius_compta_restore" \
+            -c "CREATE DATABASE mauritius_compta_restore"
       - name: Vitest suite on PostgreSQL (includes concurrency tests)
         run: |
           set +e

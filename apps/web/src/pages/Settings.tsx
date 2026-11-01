@@ -128,6 +128,8 @@ export default function SettingsPage() {
       </div>
       <div className="alert alert-info">
         <Link to="/accounting/settings/company">{t('settings.company.link')}</Link>
+        {' · '}
+        <Link to="/accounting/settings/data">{t('settings.dataManagement.link')}</Link>
       </div>
       {message && <div className="alert alert-success">{message}</div>}
       <ErrorBanner message={error} />

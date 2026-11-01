@@ -34,6 +34,7 @@ import { financialYearRoutes } from './modules/financial-years/routes.js';
 import { inventoryRoutes } from './modules/inventory/routes.js';
 import { accrualRoutes } from './modules/accruals/routes.js';
 import { provisionRoutes } from './modules/provisions/routes.js';
+import { backupRoutes } from './backup/routes.js';
 import type { UserRow } from './types.js';
 
 declare module 'fastify' {
@@ -217,6 +218,8 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
       inventoryRoutes(secured, db);
       accrualRoutes(secured, db);
       provisionRoutes(secured, db);
+      // Mission 34: encrypted backup/export. Restore stays CLI-only.
+      backupRoutes(secured, db, config);
     });
   }, { prefix: '/api' });
 

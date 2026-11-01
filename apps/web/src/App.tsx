@@ -19,6 +19,7 @@ import AccrualsPage from './pages/accounting/Accruals';
 import ProvisionsPage from './pages/accounting/Provisions';
 import SettingsPage from './pages/Settings';
 import CompanySettingsPage from './pages/company/CompanySettings';
+import DataManagementPage from './pages/settings/DataManagement';
 import CompaniesPage from './pages/Companies';
 import DossierPage from './pages/cabinet/Dossier';
 import CabinetDashboardPage from './pages/cabinet/CabinetDashboard';
@@ -311,6 +312,7 @@ export default function App() {
             <Route path="/accounting/equity" element={<EquityPage />} />
             <Route path="/accounting/settings" element={<SettingsPage />} />
             <Route path="/accounting/settings/company" element={<CompanySettingsPage />} />
+            <Route path="/accounting/settings/data" element={<DataManagementPage />} />
 
             {/* Banking is operational (mission 9); the other routes remain
                 explicitly marked as prepared. */}

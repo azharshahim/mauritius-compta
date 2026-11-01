@@ -48,6 +48,21 @@ const EnvSchema = z.object({
   AI_ASSISTANT_MAX_TURNS: z.coerce.number().int().min(4).max(500).default(40),
   AI_CONVERSATION_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(30),
   AI_ALLOW_PRIVATE_BASE_URL: bool(false),
+
+  // ------------------------------------------------------- Backup and restore
+  /** Archives live outside STORAGE_DIR and are never served statically. */
+  BACKUP_DIR: z.string().min(1).default('./backups'),
+  /** Operator passphrase; never logged, never stored in an archive or in the DB. */
+  BACKUP_ENCRYPTION_KEY: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(16).optional(),
+  ),
+  /** Comma-separated allowlist of system administrators allowed to back up. */
+  BACKUP_ADMIN_EMAILS: z.string().optional(),
+  BACKUP_MAX_BYTES: z.coerce.number().int().positive().default(256 * 1024 * 1024),
+  BACKUP_MAX_UNCOMPRESSED_BYTES: z.coerce.number().int().positive().default(512 * 1024 * 1024),
+  /** Off by default: only the offline CLI checks this flag. */
+  BACKUP_RESTORE_ENABLED: bool(false),
 });
 
 export type Config = z.infer<typeof EnvSchema>;

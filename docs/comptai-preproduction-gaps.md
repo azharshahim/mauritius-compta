@@ -2,8 +2,11 @@
 
 **Mission 32 — audit fonctionnel**
 **Mise à jour mission 33 — statut de P0-01 : 1er novembre 2026**
-**Base auditée : `main` = `c9d20cf7a9e664b30b7e9bdd81fccdda0548acd0`, version 0.1.1**
-**Nature : constats d'audit et statut de la correction P0-01. La conversion multidevise complète n'est pas implémentée.**
+**Mise à jour mission 34 — statut de P0-02 : 1er novembre 2026**
+**Base auditée : `main` = `3a31f0639c16f631c3765057f15791a3629d6b70`, version 0.1.1**
+**Nature : constats d'audit, correction P0-01 et mécanisme de sauvegarde/restauration/export P0-02.
+La conversion multidevise complète n'est pas implémentée ; la preuve d'exploitation de la
+sauvegarde sur l'infrastructure cible reste à faire.**
 
 > **Règle de lecture.** Un P0 n'est pas une opinion de priorité : c'est un point qui bloque une
 > mise en production, peut produire une erreur comptable ou fiscale, ou expose à un risque de
@@ -11,7 +14,7 @@
 > améliorent l'exploitabilité ; les P3 sont du confort. Aucun P0 ne doit rester ouvert au moment
 > d'une décision de mise en service.
 
-**Documents liés :** [rapport d'audit](./mission-32-audit.md) · [couverture fonctionnelle](./comptai-functional-coverage.md) · [matrice QuickBooks](./comptai-quickbooks-test-matrix.md) · [rapport mission 33](./mission-33-report.md)
+**Documents liés :** [rapport d'audit](./mission-32-audit.md) · [couverture fonctionnelle](./comptai-functional-coverage.md) · [matrice QuickBooks](./comptai-quickbooks-test-matrix.md) · [rapport mission 33](./mission-33-report.md) · [rapport mission 34](./mission-34-report.md) · [guide sauvegarde/restauration](./backup-restore-guide.md)
 
 ## 1. Définitions
 
@@ -26,8 +29,8 @@
 
 | Priorité | Nombre | Objet dominant |
 |---|---:|---|
-| P0 | 4 | Perte de données, sécurité, conformité MRA, paie non payable |
-| P1 | 15 | États financiers, fiscalité, exports QuickBooks, preuves de production, exploitation |
+| P0 | 3 | Sécurité, conformité MRA, paie non payable |
+| P1 | 16 | États financiers, fiscalité, exports QuickBooks, preuves de production, exploitation et reprise |
 | P2 | 13 | Conversion multidevise, sous-registres, parcours utilisateur, cohérence, métadonnées, accessibilité |
 | P3 | 5 | Finition, documentation secondaire, impression |
 | **Total** | **37** | — |
@@ -40,6 +43,7 @@ propre numérotation ; la correspondance est donnée pour éviter toute confusio
 | Registre des écarts | Anomalie du rapport d'audit | Remarque |
 |---|---|---|
 | P0-01 (historique) | P0-01 | **Neutralisé en mission 33** pour le risque d'affichage ; la conversion complète devient P2-13. |
+| P0-02 (historique) | P0-02 | **Mécanisme livré en mission 34** ; la preuve d'exploitation sur l'infrastructure cible devient P1-16. |
 | P1-01 | P1-01 | Le registre ajoute l'absence de flux, de notes et de comparatif à l'aplatissement des groupes. |
 | P1-03 | P2-03 (AR Aging) | La priorité du registre est plus élevée car l'export bloque la recette QuickBooks. |
 | P1-05 | P2-04 | La priorité du registre est plus élevée car le contrôle conditionne des factures réelles. |
@@ -48,7 +52,7 @@ propre numérotation ; la correspondance est donnée pour éviter toute confusio
 | P2-01 | P2-01 | Messages de paie contradictoires. |
 | P2-08 | P3-01 | Métadonnées PDF à l'ancienne marque. |
 
-Les écarts P0-02, P0-03, P0-04, P0-05, P1-02, P1-04, P1-06 à P1-11, P1-13, P1-14 et
+Les écarts P0-03, P0-04, P0-05, P1-02, P1-04, P1-06 à P1-11, P1-13, P1-14 et
 l'ensemble des P2/P3 non listés ci-dessus sont des **constats de préparation** qui ne
 correspondent pas à une anomalie de calcul isolée dans le rapport.
 
@@ -63,9 +67,19 @@ appliquée**. Aucun taux de change, aucune méthode de conversion et aucun arron
 inventés. La conversion multidevise complète reste absente : elle est suivie en **P2-13**, et non
 plus comme un P0 d'affichage.
 
+### 3.2 P0-02 — mécanisme livré, preuve d'exploitation à faire
+
+La mission 34 a livré une sauvegarde chiffrée avec manifeste, une restauration hors ligne vérifiée
+sur base vide, un export complet par société, un registre `backup_runs` et les contrôles
+d'intégrité. Les tests couvrent deux sociétés, les documents hors base, l'altération, la troncature,
+le rollback et l'isolation multi-société. Le blocage **technique** de P0-02 est donc levé.
+
+Il reste une exigence d'exploitation : planification, copie hors site, supervision des échecs et
+exercice de restauration daté sur l'infrastructure cible, suivis en **P1-16**. Aucun VPS ni stockage
+réel n'a été configuré dans la mission.
+
 | ID | Écart | Impact | Preuve | Recommandation | Porte de sortie |
 |---|---|---|---|---|---|
-| **P0-02** | **Aucune sauvegarde/restauration testée et aucun export complet d'un dossier.** | Perte de données irréversible en cas d'incident ; impossibilité de migrer ou d'archiver un client. | `roadmap.md` D-11 ; aucun test de `pg_dump`/`pg_restore` ; aucun export complet par société | Mettre en place une sauvegarde chiffrée, une restauration testée sur une base vierge, un export complet par société et un registre des restaurations. | Test de restauration réussi, documenté et daté. |
 | **P0-03** | **Pas de revue de sécurité indépendante ni de test d'intrusion ; isolation multi-société non exhaustivement testée route par route.** | Risque de fuite entre dossiers clients, d'élévation de privilèges ou de compromission de données comptables. | `preproduction-audit-checklist.md` ; `permissions-matrix.md` ; tests ciblés mais pas d'audit exhaustif | Faire réaliser une revue indépendante, un test d'autorisation par route, un test d'intrusion et une revue de la journalisation. | Rapport de pentest et plan de remédiation clos ou accepté formellement. |
 | **P0-04** | **MRA e-Invoicing non intégré** alors que des jalons réglementaires sont publiés comme lancés. | Une société assujettie ne peut pas émettre de facture fiscale conforme par COMPTAI ; l'écran informatif ne doit pas être confondu avec une intégration. | `MraEInvoicing.tsx` ; `mra-e-invoicing-roadmap.md` ; textes MRA cités dans le rapport d'audit, section 5 | Trancher le périmètre clients, obtenir l'enregistrement éditeur EBS, les spécifications à jour et un environnement de test ; ne pas commercialiser l'e-invoicing avant auto-certification. | Décision écrite : hors périmètre pour un client donné, ou intégration testée et auto-certifiée. |
 | **P0-05** | **Paie non finalisable et non payable** : net payable nul, bulletin final bloqué, aucun paiement, déclarations internes. | Si la paie est vendue comme opérationnelle, risque de paiement erroné, de retard déclaratif et de responsabilité employeur. | `payroll/service.ts` (`netPayable`, `finalisePayslip`) ; `payroll-declarations.test.ts` ; `mission-15-report.md` | Soit exclure formellement la paie du périmètre de production, soit faire valider les règles par un expert, activer le net payable et les contrôles de paiement/déclaration. | Revue experte signée ; tests de finalisation et de déclaration officielle ; autorisation de paiement. |
@@ -89,6 +103,8 @@ plus comme un P0 d'affichage.
 | **P1-13** | **Capital allowances et amortissement fiscal absents.** | Le registre comptable ne permet pas de préparer la déduction fiscale mauricienne. | `mission-20-report.md` ; `i18n.tsx` `fa.calculationNote` | Attendre les règles officielles ; prévoir un registre fiscal séparé, sans pooling inventé. | Règles fournies et validées par le cabinet. |
 | **P1-14** | **Journal d'audit append-only mais non chaîné cryptographiquement et sans WORM.** | Altération locale par un administrateur base non détectable. | `0003_hardening.sql` ; `roadmap.md` D-12 | Ajouter un chaînage de hash et une exportation périodique vers un stockage immuable. | Preuve de vérification d'intégrité. |
 | **P1-15** | **Documentation d'audit obsolète.** | Fausses conclusions pendant la recette, perte de confiance, efforts gaspillés. | README, `permissions-matrix.md`, `bank-import.md`, `accounting-gaps-audit.md`, `roadmap.md` | Mettre à jour ou marquer « historique » les documents contredits par l'arbre courant. | Revue documentaire signée. |
+
+| **P1-16** | **Preuve d'exploitation de la sauvegarde absente sur l'infrastructure cible** : pas de planification, pas de copie hors site, pas d'exercice de reprise daté sur un serveur PostgreSQL réel. | Le mécanisme existe, mais une panne réelle ne serait pas couverte par une sauvegarde exploitée et surveillée. | `docs/backup-restore-guide.md` ; tests locaux PGlite et job CI PostgreSQL ; aucun VPS configuré | Planifier la commande, surveiller les échecs, copier l'archive chiffrée hors site et exécuter un exercice de restauration documenté. | Exercice daté sur environnement cible, durée et intégrité consignées, autorisation écrite. |
 
 ## 5. P2 — améliorations importantes
 
@@ -128,7 +144,7 @@ ci-dessous.
 | 1 | Validation par un cabinet mauricien | P0-05, P1-01, P1-05, P1-06, P1-13 | Rapport de revue signé, périmètre accepté. |
 | 2 | Conformité MRA e-Invoicing | P0-04 | Décision de périmètre ou auto-certification et test sandbox. |
 | 3 | Relevés réels anonymisés par banque | P1-04 | Corpus, taux de reconnaissance, cas bloqués documentés. |
-| 4 | Test de restauration | P0-02 | Restauration complète sur base vierge, durée et intégrité. |
+| 4 | Test de restauration | P0-02 (mécanisme), P1-16 (preuve) | Restauration hors ligne sur base vide et exercice daté sur l'infrastructure cible, durée et intégrité consignées. |
 | 5 | Revue de sécurité indépendante | P0-03, P1-07, P1-14 | Pentest, revue d'autorisation, remédiations. |
 | 6 | Test de charge | P1-09 | Volumétrie, temps de réponse, limites. |
 | 7 | Recette navigateur/mobile | P1-10 | Playwright + essai physique Android/Windows. |
@@ -136,7 +152,7 @@ ci-dessous.
 
 ## 8. Décision recommandée
 
-1. **Ne pas mettre en production** tant que P0-02 et P0-03 sont ouverts. P0-01 est neutralisé pour l'affichage, mais la conversion complète reste P2-13.
+1. **Ne pas mettre en production** tant que P0-03, P0-04 et P0-05 sont ouverts, et tant que P1-16 n'est pas clos. Le mécanisme P0-02 est livré, mais aucune sauvegarde exploitée sur l'infrastructure cible n'a encore été testée. P0-01 est neutralisé pour l'affichage, mais la conversion complète reste P2-13.
 2. **Ne pas vendre la paie comme opérationnelle** tant que P0-05 et P1-06 ne sont pas clos.
 3. **Ne pas vendre l'e-invoicing** tant que P0-04 n'est pas tranché ; l'écran actuel doit rester
    explicitement informatif.
