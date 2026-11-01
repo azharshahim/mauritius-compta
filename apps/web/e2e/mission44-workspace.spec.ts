@@ -32,14 +32,15 @@ async function openCabinet(page: Page, locale: 'fr' | 'en' = 'fr') {
 test.describe('mission 44 — cabinet portfolio and guided creation', () => {
   test('portfolio, filters and the seven indicators', async ({ page }) => {
     await openCabinet(page);
+    const portfolio = page.locator('.m44-table, .m44-client-cards').filter({ visible: true });
     await expect(page.getByText(/Clients au total|Total clients/)).toBeVisible();
-    await expect(page.getByText(/Case Noyale Retail Ltd \(DEMO\)/).filter({ visible: true })).toBeVisible();
+    await expect(portfolio.getByText(/Case Noyale Retail Ltd \(DEMO\)/).filter({ visible: true })).toBeVisible();
     await page.getByLabel(/Rechercher un client|Search a client/).fill('Belle Mare');
-    await expect(page.getByText(/Belle Mare Hospitality Ltd \(DEMO\)/).filter({ visible: true })).toBeVisible();
-    await expect(page.getByText(/Case Noyale Retail Ltd \(DEMO\)/).filter({ visible: true })).toHaveCount(0);
+    await expect(portfolio.getByText(/Belle Mare Hospitality Ltd \(DEMO\)/).filter({ visible: true })).toBeVisible();
+    await expect(portfolio.getByText(/Case Noyale Retail Ltd \(DEMO\)/).filter({ visible: true })).toHaveCount(0);
     await page.getByLabel(/Rechercher un client|Search a client/).fill('');
     await page.getByLabel(/Secteur d’activité|Business sector/).selectOption('trading_retail');
-    await expect(page.getByText(/Case Noyale Retail Ltd \(DEMO\)/).filter({ visible: true })).toBeVisible();
+    await expect(portfolio.getByText(/Case Noyale Retail Ltd \(DEMO\)/).filter({ visible: true })).toBeVisible();
   });
 
   test('six steps, draft save and resume', async ({ page }) => {
@@ -82,7 +83,7 @@ test.describe('mission 44 — cabinet portfolio and guided creation', () => {
   });
 
   for (const theme of ['light', 'dark']) {
-    test(`client context, accounting and bank modules in ${theme} theme`, async ({ page }) => {
+    test(`client context, accounting and bank modules in ${theme} theme`, async ({ page }, testInfo) => {
       await page.addInitScript(value => localStorage.setItem('mc.theme', value), theme);
       await openCabinet(page);
       const previous = await page.evaluate(() => localStorage.getItem('mc.companyId'));
@@ -104,6 +105,7 @@ test.describe('mission 44 — cabinet portfolio and guided creation', () => {
         expect(await page.evaluate(() => localStorage.getItem('mc.companyId'))).toBe(target);
         await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
         await expect(page.locator('main')).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath(`${theme}-${destination.section}.png`), fullPage: true });
         expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
       }
     });
