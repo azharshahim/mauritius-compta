@@ -67,6 +67,7 @@ test.describe('mission 44 — cabinet portfolio and guided creation', () => {
     await page.getByRole('button', { name: /Étape suivante|Next step/ }).click();
     // KYC — checklist only, never a legal validation.
     await expect(page.getByText(/Liste de contrôle uniquement|Checklist only/)).toBeVisible();
+    await page.getByLabel(/Registre des administrateurs|Directors register/).selectOption('verified');
     await page.getByRole('button', { name: /Étape suivante|Next step/ }).click();
     await page.getByRole('button', { name: /Commerce et distribution|Trading & Retail/ }).click();
     await page.getByRole('button', { name: /Étape suivante|Next step/ }).click();
@@ -79,6 +80,34 @@ test.describe('mission 44 — cabinet portfolio and guided creation', () => {
     await expect(page.getByRole('heading', { name: 'E2E Workspace Ltd' })).toBeVisible();
     await expect(page.getByText(/Les huit domaines fonctionnels|The eight functional domains/)).toBeVisible();
   });
+
+  for (const theme of ['light', 'dark']) {
+    test(`client context, accounting and bank modules in ${theme} theme`, async ({ page }) => {
+      await page.addInitScript(value => localStorage.setItem('mc.theme', value), theme);
+      await openCabinet(page);
+      const previous = await page.evaluate(() => localStorage.getItem('mc.companyId'));
+      const row = page.locator('tr, li.m44-client-card')
+        .filter({ hasText: 'Belle Mare Hospitality Ltd (DEMO)' }).filter({ visible: true });
+      await row.getByRole('link', { name: /Ouvrir le client|Open client/ }).click();
+      await expect(page.getByRole('heading', { name: /Belle Mare Hospitality/ })).toBeVisible();
+      const workspace = page.url();
+      const target = workspace.split('/clients/')[1]!.split('/')[0]!;
+      expect(target).not.toBe(previous);
+      for (const destination of [
+        { section: 'accounting', label: 'Plan comptable', path: '/accounting/accounts' },
+        { section: 'purchases', label: 'Tableau de bord Achats', path: '/accounting/purchases' },
+        { section: 'banking', label: 'Comptes bancaires', path: '/accounting/banking' },
+      ]) {
+        await page.goto(`${workspace}/${destination.section}`);
+        await page.getByRole('button', { name: destination.label, exact: true }).click();
+        await expect(page).toHaveURL(new RegExp(destination.path));
+        expect(await page.evaluate(() => localStorage.getItem('mc.companyId'))).toBe(target);
+        await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+        await expect(page.locator('main')).toBeVisible();
+        expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+      }
+    });
+  }
 
   test('no horizontal overflow on a phone', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile-chromium', 'mobile-only layout check');
