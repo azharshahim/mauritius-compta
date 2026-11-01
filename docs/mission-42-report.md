@@ -230,17 +230,20 @@ Tous les tests ci-dessous ont été exécutés le 1er novembre 2026, dans cet or
 | `npm run build` | **exit 0** — build Web et API |
 | `npm run build:demo` | **exit 0** |
 | `node scripts/verify-demo.mjs --dist apps/web/dist --base /mauritius-compta/` | **50 contrôles réussis, 0 échec** |
-| CI GitHub Actions — `Typecheck, tests and build` | **succès** — 4 min 57 s |
-| CI GitHub Actions — `API tests against real PostgreSQL` | **succès** — 2 min 51 s |
-| CI GitHub Actions — `Migrations against real PostgreSQL` | **succès** — 35 s, migrations réappliquées pour l’idempotence |
-| CI GitHub Actions — `Build demo bundle` | **succès** — 2 min 12 s |
+| CI GitHub Actions — `Typecheck, tests and build` | **succès** — 2 min 57 s |
+| CI GitHub Actions — `API tests against real PostgreSQL` | **succès** — 2 min 7 s |
+| CI GitHub Actions — `Migrations against real PostgreSQL` | **succès** — 28 s, migrations réappliquées pour l’idempotence |
+| CI GitHub Actions — `Build demo bundle` | **succès** — 1 min 32 s |
 | CI GitHub Actions — `Deploy to GitHub Pages` | **ignoré** (brouillon, aucun déploiement) |
 
 Exécutions CI du commit `b4f505f` :
 - CI : https://github.com/azharshahim/mauritius-compta/actions/runs/41354118075
 - Démo : https://github.com/azharshahim/mauritius-compta/actions/runs/41354117900
 
-La CI du commit M42.1 est relancée après le push et ses résultats sont reportés dans le corps de la PR nº23.
+Exécutions CI du commit de code M42.1 `77484d7` (toutes vertes) :
+- CI : https://github.com/azharshahim/mauritius-compta/actions/runs/41357484438
+- Démo : https://github.com/azharshahim/mauritius-compta/actions/runs/41357484353
+- `gh pr checks 23` : Typecheck/tests/build **pass**, API PostgreSQL **pass**, Migrations PostgreSQL **pass**, Build demo bundle **pass**, Deploy Pages **skipping**.
 
 ### Scénarios du fichier `apps/api/tests/mission42.test.ts`
 
@@ -348,7 +351,7 @@ Légende : **Corrigé** = comportement démontré par un test ou vérifié direc
 - **Aucun déploiement** effectué.
 - **Aucune modification du VPS OVH.**
 - **Aucune publication GitHub Pages.**
-- Branche poussée : `arena/e8400c4a-mauritius-compta` ; commit M42.1 à confirmer après push (le commit M42 précédent est `c0491b0`).
+- Branche poussée : `arena/e8400c4a-mauritius-compta` ; commit de code M42.1 `77484d7`, précédé de `c0491b0` (M42).
 - **PR nº23 en brouillon** : https://github.com/azharshahim/mauritius-compta/pull/23
 - La fusion reste à la décision de l’utilisateur, après audit.
 
