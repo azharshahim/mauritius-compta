@@ -99,6 +99,8 @@ Tous les couples texte/fond des tokens principaux atteignent 4,5:1 ou mieux ; le
 | `npm run build` | succès — JS 1 271,79 kB (316,08 gzip), CSS 77,92 kB (14,86 gzip) |
 | `npm run build:demo` | succès — JS 1 300,54 kB, CSS 77,92 kB |
 | `verify-demo --dist apps/web/dist --base /mauritius-compta/` | **50/50 contrôles réussis** |
+| GitHub Actions — CI nº`41346258209` | **succès** : typecheck, tests et build, migrations PostgreSQL, API PostgreSQL |
+| GitHub Actions — Demo nº`41346258179` | **succès** : build du bundle de démonstration ; déploiement GitHub Pages **ignoré** (PR brouillon) |
 | M39 | `mission36-ui`, `mission37-guided-demo`, `mission38-ui`, `mission39-*` et les contrats de navigation restent verts |
 
 Les tests dédiés sont :
