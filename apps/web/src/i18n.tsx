@@ -1218,6 +1218,15 @@ const fr: Dict = {
   'billing.documents.outstanding': 'Reste dû',
   'billing.documents.vat': 'TVA',
   'billing.documents.posted': 'Comptabilisé',
+  'billing.documents.prepareAccounting': 'Préparer l’écriture',
+  'billing.documents.proposalReady': 'Proposition comptable préparée. Aucune écriture créée.',
+  'billing.documents.proposalReused': 'Proposition comptable existante réutilisée. Aucune écriture créée.',
+  'billing.documents.validateProposal': 'Valider la proposition',
+  'billing.documents.proposalValidated': 'Proposition validée. Aucune écriture créée.',
+  'billing.documents.postEntry': 'Comptabiliser',
+  'billing.documents.postConfirm':
+    'Comptabiliser cette proposition ? Une écriture équilibrée sera créée dans le grand livre. Cette action est humaine et définitive.',
+  'billing.documents.postedNotice': 'Écriture comptabilisée :',
   'billing.documents.postedEntry': 'Une écriture comptable est rattachée à ce document.',
   'billing.documents.pdfButton': 'Tenter le PDF',
   'billing.documents.pdfDemo':
@@ -1898,6 +1907,14 @@ const fr: Dict = {
   'docs.rejectReason': 'Motif du refus',
   'docs.confirmReject': 'Confirmer le refus',
   'docs.draftCreated': 'Écriture brouillon {no} créée. Elle reste à comptabiliser.',
+  'docs.createPurchaseInvoice': 'Créer la facture fournisseur',
+  'docs.createPurchaseInvoiceConfirm':
+    'Créer une facture d’achat à partir de ce document approuvé ? Aucune écriture ne sera comptabilisée automatiquement.',
+  'docs.createPurchaseInvoiceDone': 'Facture fournisseur {no} créée et validée. La comptabilisation reste une action distincte.',
+  'docs.createPurchaseInvoiceExisting': 'Ce document est déjà lié à la facture fournisseur {no}. Aucun doublon n’a été créé.',
+  'docs.createPurchaseInvoiceHint':
+    'La proposition OCR approuvée peut devenir une facture d’achat. La conversion ne comptabilise rien.',
+  'docs.createPurchaseInvoiceLinked': 'Facture fournisseur liée : {no}',
   'docs.openEntries': 'Ouvrir les écritures',
   'docs.uploaded': 'Document importé et analysé.',
   'docs.saved': 'Corrections enregistrées.',
@@ -3277,6 +3294,15 @@ const en: Dict = {
   'billing.documents.outstanding': 'Outstanding',
   'billing.documents.vat': 'VAT',
   'billing.documents.posted': 'Posted',
+  'billing.documents.prepareAccounting': 'Prepare entry',
+  'billing.documents.proposalReady': 'Accounting proposal prepared. No entry created.',
+  'billing.documents.proposalReused': 'Existing accounting proposal reused. No entry created.',
+  'billing.documents.validateProposal': 'Validate proposal',
+  'billing.documents.proposalValidated': 'Proposal validated. No entry created.',
+  'billing.documents.postEntry': 'Post entry',
+  'billing.documents.postConfirm':
+    'Post this proposal? A balanced entry will be created in the general ledger. This is a human, final action.',
+  'billing.documents.postedNotice': 'Entry posted:',
   'billing.documents.postedEntry': 'An accounting entry is linked to this document.',
   'billing.documents.pdfButton': 'Try PDF',
   'billing.documents.pdfDemo':
@@ -3956,6 +3982,14 @@ const en: Dict = {
   'docs.rejectReason': 'Rejection reason',
   'docs.confirmReject': 'Confirm rejection',
   'docs.draftCreated': 'Draft entry {no} created. It still has to be posted.',
+  'docs.createPurchaseInvoice': 'Create supplier invoice',
+  'docs.createPurchaseInvoiceConfirm':
+    'Create a purchase invoice from this approved document? No accounting entry will be posted automatically.',
+  'docs.createPurchaseInvoiceDone': 'Supplier invoice {no} created and validated. Posting remains a separate action.',
+  'docs.createPurchaseInvoiceExisting': 'This document is already linked to supplier invoice {no}. No duplicate was created.',
+  'docs.createPurchaseInvoiceHint':
+    'The approved OCR proposal can become a purchase invoice. The conversion posts nothing.',
+  'docs.createPurchaseInvoiceLinked': 'Linked supplier invoice: {no}',
   'docs.openEntries': 'Open entries',
   'docs.uploaded': 'Document uploaded and analysed.',
   'docs.saved': 'Corrections saved.',

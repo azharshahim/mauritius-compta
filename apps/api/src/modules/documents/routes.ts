@@ -7,7 +7,7 @@ import { clientIp } from '../../lib/http.js';
 import { writeAudit } from '../../lib/audit.js';
 import { requireCompany } from '../../lib/tenant.js';
 import {
-  approveProposal, documentFile, generateProposal, getDocument, listDocumentRules,
+  approveProposal, createPurchaseFromOcr, documentFile, generateProposal, getDocument, listDocumentRules,
   listDocuments, partyCandidates, reextractDocument, rejectProposal, updateDocument,
   updateDocumentRule, uploadDocument,
 } from './service.js';
@@ -144,7 +144,11 @@ export function documentRoutes(app: FastifyInstance, db: Db, config: Config) {
   app.post(`${base}/:documentId/proposal`, async (req, reply) => {
     const { companyId, documentId } = req.params as { companyId: string; documentId: string };
     await requireCompany(db, req.user!.id, companyId, 'accountant');
-    const result = await generateProposal(db, { userId: req.user!.id, companyId }, documentId);
+    const body = parse(
+      z.object({ confirmMultipleInvoices: z.boolean().optional() }).strict(),
+      req.body ?? {},
+    );
+    const result = await generateProposal(db, { userId: req.user!.id, companyId }, documentId, body);
     await writeAudit(db, { companyId, userId: req.user!.id, action: 'document.propose',
       entityType: 'document', entityId: documentId, details: { balanced: result.proposal.balanced }, ip: clientIp(req) });
     return reply.code(201).send(result);
@@ -167,6 +171,45 @@ export function documentRoutes(app: FastifyInstance, db: Db, config: Config) {
       entityType: 'document_proposal', entityId: proposalId,
       details: { draftEntryId: result.draftEntry.id }, ip: clientIp(req) });
     return result;
+  });
+
+  app.post(`${base}/proposals/:proposalId/purchase-invoice`, async (req, reply) => {
+    const { companyId, proposalId } = req.params as { companyId: string; proposalId: string };
+    await requireCompany(db, req.user!.id, companyId, 'accountant');
+    const body = parse(
+      z
+        .object({
+          confirm: z.literal(true),
+          supplierId: z.string().uuid().nullish(),
+          supplierReference: z.string().trim().min(1).max(120).nullish(),
+          issueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+          dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+          exchangeRate: z.union([z.string(), z.number()]).nullish(),
+          vatRecoverable: z.boolean().optional(),
+        })
+        .strict(),
+      req.body,
+    );
+    const result = await createPurchaseFromOcr(
+      db,
+      { userId: req.user!.id, companyId },
+      proposalId,
+      body,
+    );
+    await writeAudit(db, {
+      companyId,
+      userId: req.user!.id,
+      action: 'document.proposal.purchase_invoice',
+      entityType: 'document_proposal',
+      entityId: proposalId,
+      details: {
+        purchaseDocumentId: result.purchaseDocument.id,
+        docNo: result.purchaseDocument.doc_no,
+        alreadyCreated: result.alreadyCreated,
+      },
+      ip: clientIp(req),
+    });
+    return reply.code(result.alreadyCreated ? 200 : 201).send(result);
   });
 
   app.post(`${base}/proposals/:proposalId/reject`, async (req) => {

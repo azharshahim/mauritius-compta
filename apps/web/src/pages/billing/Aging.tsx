@@ -16,7 +16,9 @@ interface AgingRow {
 interface AgingResponse {
   asOf: string;
   rows: AgingRow[];
-  totals: AgingRow['buckets'];
+  /** Null as soon as two currencies are present: no cross-currency total. */
+  totals: AgingRow['buckets'] | null;
+  totalsByCurrency: { currency: string; buckets: AgingRow['buckets'] }[];
 }
 
 export default function BillingAgingPage() {
@@ -76,6 +78,7 @@ export default function BillingAgingPage() {
               <thead>
                 <tr>
                   <th>{t('billing.documents.customer')}</th>
+                  <th>{t('common.currency')}</th>
                   <th className="num">{t('billing.aging.current')}</th>
                   <th className="num">1–30</th>
                   <th className="num">31–60</th>
@@ -93,6 +96,7 @@ export default function BillingAgingPage() {
                         {row.invoiceCount} {t('billing.aging.invoices')}
                       </div>
                     </td>
+                    <td>{row.currency}</td>
                     <td className="num">{money(row.buckets.current, locale, row.currency)}</td>
                     <td className="num">{money(row.buckets.days1to30, locale, row.currency)}</td>
                     <td className="num">{money(row.buckets.days31to60, locale, row.currency)}</td>
@@ -103,15 +107,22 @@ export default function BillingAgingPage() {
                     </td>
                   </tr>
                 ))}
-                <tr>
-                  <td>
-                    <strong>{t('common.total')}</strong>
-                  </td>
-                  <td className="num" colSpan={5} />
-                  <td className="num">
-                    <strong>{money(data.totals.total, locale)}</strong>
-                  </td>
-                </tr>
+                {(data.totalsByCurrency ?? []).map((total) => (
+                  <tr key={`total-${total.currency}`}>
+                    <td>
+                      <strong>{t('common.total')}</strong>
+                    </td>
+                    <td>{total.currency}</td>
+                    <td className="num">{money(total.buckets.current, locale, total.currency)}</td>
+                    <td className="num">{money(total.buckets.days1to30, locale, total.currency)}</td>
+                    <td className="num">{money(total.buckets.days31to60, locale, total.currency)}</td>
+                    <td className="num">{money(total.buckets.days61to90, locale, total.currency)}</td>
+                    <td className="num">{money(total.buckets.over90, locale, total.currency)}</td>
+                    <td className="num">
+                      <strong>{money(total.buckets.total, locale, total.currency)}</strong>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

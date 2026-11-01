@@ -8,6 +8,8 @@ import { formatMoney, parseAmount } from '../../lib/money.js';
 import { t, type Locale } from '../../i18n/index.js';
 import { computeLedger, computeStatements, computeTrialBalance, type ReportRange } from './service.js';
 import { ledgerPdf, statementsPdf, trialBalancePdf } from './pdf.js';
+import { subledgerReconciliation } from '../reconciliation/service.js';
+import { vatControl } from '../reconciliation/vat.js';
 
 function parseRange(
   query: Record<string, string | undefined>,
@@ -31,6 +33,28 @@ function pickLocale(query: Record<string, string | undefined>, fallback: Locale)
 }
 
 export function reportRoutes(app: FastifyInstance, db: Db) {
+  // Mission 42 — AR/AP subledger <-> general ledger control. Read-only: no
+  // amount is adjusted and an unexplained difference is never hidden.
+  app.get('/companies/:companyId/reports/vat-control', async (req) => {
+    const user = req.user!;
+    const { companyId } = req.params as { companyId: string };
+    const ctx = await requireCompany(db, user.id, companyId, 'viewer', 'accounting');
+    const query = req.query as Record<string, string | undefined>;
+    const from = query.from ? parseIsoDate(query.from, 'from') : ctx.company.financial_year_start;
+    const to = query.to ? parseIsoDate(query.to, 'to') : ctx.company.financial_year_end;
+    if (from > to) throw badRequest('INVALID_DATE_RANGE', 'The start date must be before the end date');
+    return vatControl(db, companyId, from, to);
+  });
+
+  app.get('/companies/:companyId/reports/subledger-reconciliation', async (req) => {
+    const user = req.user!;
+    const { companyId } = req.params as { companyId: string };
+    await requireCompany(db, user.id, companyId, 'viewer', 'accounting');
+    const query = req.query as Record<string, string | undefined>;
+    const asOf = query.asOf ? parseIsoDate(query.asOf, 'asOf') : new Date().toISOString().slice(0, 10);
+    return subledgerReconciliation(db, companyId, asOf);
+  });
+
   // -------------------------------------------------------------------------
   // General ledger
   // -------------------------------------------------------------------------

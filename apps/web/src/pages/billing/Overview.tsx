@@ -8,12 +8,16 @@ import type { BillingSettings } from './types';
 
 interface Summary {
   counts: { kind: string; status: string; count: number }[];
-  openReceivables: string;
-  aging: Record<'current' | 'days1to30' | 'days31to60' | 'days61to90' | 'over90' | 'total', string>;
+  /** Null as soon as several currencies are open: never add MUR and EUR. */
+  openReceivables: string | null;
+  openReceivablesByCurrency: { currency: string; amount: string }[];
+  aging: Record<'current' | 'days1to30' | 'days31to60' | 'days61to90' | 'over90' | 'total', string> | null;
+  agingByCurrency: { currency: string; buckets: Record<'current' | 'days1to30' | 'days31to60' | 'days61to90' | 'over90' | 'total', string> }[];
   postedDocuments: number;
-  payments: { count: number; unallocated: string };
+  awaitingAccounting?: number;
+  payments: { count: number; unallocated: string | null; byCurrency?: { currency: string; count: number; unallocated: string }[] };
   capabilities: BillingSettings['capabilities'];
-  currency: string;
+  currency?: string;
 }
 
 export default function BillingOverviewPage() {
@@ -43,6 +47,7 @@ export default function BillingOverviewPage() {
 
   if (!company) return <EmptyState title={t('dashboard.noCompanyHelp')} />;
   if (loading && !summary) return <Spinner label={t('common.loading')} />;
+  const receivables = summary?.openReceivablesByCurrency ?? [];
 
   return (
     <>
@@ -58,9 +63,23 @@ export default function BillingOverviewPage() {
           <div className="kpi-grid">
             <div className="kpi">
               <div className="kpi-label">{t('billing.summary.openReceivables')}</div>
-              <div className={`kpi-value ${Number(summary.openReceivables) > 0 ? 'negative' : 'positive'}`}>
-                {money(summary.openReceivables, locale, summary.currency)}
-              </div>
+              {receivables.length > 1 ? (
+                <div>
+                  {receivables.map((row) => (
+                    <div key={row.currency} className="kpi-value">
+                      {money(row.amount, locale, row.currency)}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className={`kpi-value ${summary.openReceivables && Number(summary.openReceivables) > 0 ? 'negative' : 'positive'}`}>
+                  {money(
+                    summary.openReceivables ?? '0',
+                    locale,
+                    receivables[0]?.currency ?? company.functional_currency,
+                  )}
+                </div>
+              )}
             </div>
             <div className="kpi">
               <div className="kpi-label">{t('billing.summary.posted')}</div>
@@ -81,6 +100,7 @@ export default function BillingOverviewPage() {
               <table>
                 <thead>
                   <tr>
+                    <th>{t('common.currency')}</th>
                     <th>{t('billing.aging.current')}</th>
                     <th className="num">1–30</th>
                     <th className="num">31–60</th>
@@ -90,16 +110,19 @@ export default function BillingOverviewPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td className="num">{money(summary.aging.current, locale)}</td>
-                    <td className="num">{money(summary.aging.days1to30, locale)}</td>
-                    <td className="num">{money(summary.aging.days31to60, locale)}</td>
-                    <td className="num">{money(summary.aging.days61to90, locale)}</td>
-                    <td className="num">{money(summary.aging.over90, locale)}</td>
-                    <td className="num">
-                      <strong>{money(summary.aging.total, locale)}</strong>
-                    </td>
-                  </tr>
+                  {(summary.agingByCurrency ?? []).map((row) => (
+                    <tr key={row.currency}>
+                      <td>{row.currency}</td>
+                      <td className="num">{money(row.buckets.current, locale, row.currency)}</td>
+                      <td className="num">{money(row.buckets.days1to30, locale, row.currency)}</td>
+                      <td className="num">{money(row.buckets.days31to60, locale, row.currency)}</td>
+                      <td className="num">{money(row.buckets.days61to90, locale, row.currency)}</td>
+                      <td className="num">{money(row.buckets.over90, locale, row.currency)}</td>
+                      <td className="num">
+                        <strong>{money(row.buckets.total, locale, row.currency)}</strong>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

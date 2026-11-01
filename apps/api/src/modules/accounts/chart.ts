@@ -50,6 +50,7 @@ export interface ProvisionalAccount {
 export const PROVISIONAL_TEMPLATE: ProvisionalAccount[] = [
   { code: '1010', nameEn: 'Cash and bank', nameFr: 'Caisse et banque', type: 'asset', parentCode: null, postingAllowed: true, accountRole: 'bank' },
   { code: '1100', nameEn: 'Trade receivables', nameFr: 'Clients', type: 'asset', parentCode: null, postingAllowed: true, accountRole: 'receivable' },
+  { code: '1150', nameEn: 'Advances to suppliers', nameFr: 'Avances aux fournisseurs', type: 'asset', parentCode: null, postingAllowed: true, accountRole: 'prepayment' },
   { code: '1200', nameEn: 'VAT recoverable', nameFr: 'TVA récupérable', type: 'asset', parentCode: null, postingAllowed: true, accountRole: 'vat_input' },
   { code: '1300', nameEn: 'Inventory', nameFr: 'Stocks', type: 'asset', parentCode: null, postingAllowed: true, accountRole: 'inventory' },
   { code: '1400', nameEn: 'Prepayments', nameFr: 'Charges constatées d’avance', type: 'asset', parentCode: null, postingAllowed: true, accountRole: 'prepaid_expense' },

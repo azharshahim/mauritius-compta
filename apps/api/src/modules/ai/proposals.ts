@@ -35,9 +35,11 @@ export type SourceKind =
   | 'billing_invoice'
   | 'billing_credit_note'
   | 'billing_payment'
+  | 'billing_allocation'
   | 'purchase_invoice'
   | 'purchase_credit_note'
-  | 'purchase_payment';
+  | 'purchase_payment'
+  | 'purchase_allocation';
 
 export interface ProposalRow {
   id: string;
@@ -327,6 +329,28 @@ async function sourceRow(tx: Db, proposal: ProposalRow) {
       [proposal.source_id, proposal.company_id],
     );
     return res.rows[0] ? { ...res.rows[0], table: 'purchase_documents' as const } : null;
+  }
+  if (proposal.source_kind === 'billing_allocation') {
+    const res = await tx.query<any>(
+      `SELECT a.id, NULL::text AS number, 'recorded'::text AS status, a.reclass_entry_id,
+              p.customer_id AS party_id, a.reclass_amount AS amount, p.currency
+         FROM billing_payment_allocations a
+         JOIN billing_payments p ON p.id = a.payment_id
+        WHERE a.id = $1 AND a.company_id = $2`,
+      [proposal.source_id, proposal.company_id],
+    );
+    return res.rows[0] ? { ...res.rows[0], table: 'billing_payment_allocations' as const } : null;
+  }
+  if (proposal.source_kind === 'purchase_allocation') {
+    const res = await tx.query<any>(
+      `SELECT a.id, NULL::text AS number, 'recorded'::text AS status, a.reclass_entry_id,
+              p.supplier_id AS party_id, a.reclass_amount AS amount, p.currency
+         FROM purchase_payment_allocations a
+         JOIN purchase_payments p ON p.id = a.payment_id
+        WHERE a.id = $1 AND a.company_id = $2`,
+      [proposal.source_id, proposal.company_id],
+    );
+    return res.rows[0] ? { ...res.rows[0], table: 'purchase_payment_allocations' as const } : null;
   }
   return null;
 }
@@ -1481,6 +1505,26 @@ export async function postProposal(
         if (payment.accounting_entry_id) {
           throw conflict('ACCOUNTING_ALREADY_POSTED', 'This payment is already posted to accounting');
         }
+      } else if (proposal.source_kind === 'billing_allocation') {
+        const locked = await tx.query<any>(
+          `SELECT * FROM billing_payment_allocations
+            WHERE id = $1 AND company_id = $2 FOR UPDATE`,
+          [proposal.source_id, params.companyId],
+        );
+        if (!locked.rows[0]) throw notFound('ALLOCATION_NOT_FOUND', 'Payment allocation not found');
+        if (locked.rows[0].reclass_entry_id) {
+          throw conflict('ACCOUNTING_ALREADY_POSTED', 'This allocation is already reclassified');
+        }
+      } else if (proposal.source_kind === 'purchase_allocation') {
+        const locked = await tx.query<any>(
+          `SELECT * FROM purchase_payment_allocations
+            WHERE id = $1 AND company_id = $2 FOR UPDATE`,
+          [proposal.source_id, params.companyId],
+        );
+        if (!locked.rows[0]) throw notFound('ALLOCATION_NOT_FOUND', 'Payment allocation not found');
+        if (locked.rows[0].reclass_entry_id) {
+          throw conflict('ACCOUNTING_ALREADY_POSTED', 'This allocation is already reclassified');
+        }
       } else if (proposal.source_kind === 'purchase_payment') {
         const locked = await tx.query<any>(
           'SELECT * FROM purchase_payments WHERE id = $1 AND company_id = $2 FOR UPDATE',
@@ -1564,6 +1608,19 @@ export async function postProposal(
     );
 
     if (proposal.source_kind !== 'manual' && proposal.source_id) {
+      if (proposal.source_kind === 'billing_allocation' || proposal.source_kind === 'purchase_allocation') {
+        const table = proposal.source_kind === 'billing_allocation'
+          ? 'billing_payment_allocations'
+          : 'purchase_payment_allocations';
+        const updated = await tx.query(
+          `UPDATE ${table} SET reclass_entry_id = $1
+            WHERE id = $2 AND company_id = $3 AND reclass_entry_id IS NULL`,
+          [posted.entry.id, proposal.source_id, params.companyId],
+        );
+        if (updated.rowCount === 0) {
+          throw conflict('ACCOUNTING_ALREADY_POSTED', 'This allocation is already reclassified');
+        }
+      } else {
       const table =
         proposal.source_kind === 'billing_payment'
           ? 'billing_payments'
@@ -1581,7 +1638,7 @@ export async function postProposal(
         // The unique link already existed: never leave an orphan entry behind.
         throw conflict('ACCOUNTING_ALREADY_POSTED', 'This source is already linked to an accounting entry');
       }
-      if (proposal.source_kind === 'purchase_payment') {
+  if (proposal.source_kind === 'purchase_payment') {
         // Mission 11: the bank link points at the one entry just posted; it
         // never creates a second one.
         await tx.query(
@@ -1612,6 +1669,7 @@ export async function postProposal(
         if (doc.rows[0]?.kind === 'credit_note' && doc.rows[0]?.source_document_id) {
           await refreshInvoiceBalance(tx, params.companyId, doc.rows[0].source_document_id);
         }
+      }
       }
     }
 
@@ -1671,4 +1729,216 @@ export async function proposalDuplicates(
     .filter((row) => normalise(row.description).split(' ').some((w: string) => words.has(w)))
     .map((row) => ({ id: row.id, description: row.description, status: row.status }));
   return { level: matches.length > 0 ? 'probable' : 'none', matches };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Mission 42 — explicit reclassification proposals for later allocations     */
+/* -------------------------------------------------------------------------- */
+
+async function existingReclass(
+  db: Db,
+  cabinetId: string,
+  companyId: string,
+  sourceKind: SourceKind,
+  sourceId: string,
+): Promise<ProposalView | null> {
+  const existing = await db.query<ProposalRow>(
+    `SELECT * FROM ai_entry_proposals
+      WHERE cabinet_id = $1 AND company_id = $2 AND source_kind = $3 AND source_id = $4
+      ORDER BY created_at DESC LIMIT 1`,
+    [cabinetId, companyId, sourceKind, sourceId],
+  );
+  const row = existing.rows[0];
+  if (!row) return null;
+  return viewProposal(db, cabinetId, companyId, row, await loadLines(db, row.id));
+}
+
+/**
+ * Purchase advance (already posted on the prepayment account) -> supplier
+ * payable. The original payment entry is never modified.
+ */
+export async function proposePurchaseAllocationReclass(
+  db: Db,
+  params: { cabinetId: string; companyId: string; userId: string; allocationId: string },
+): Promise<{ proposal: ProposalView; reused: boolean }> {
+  const existing = await existingReclass(
+    db,
+    params.cabinetId,
+    params.companyId,
+    'purchase_allocation',
+    params.allocationId,
+  );
+  if (existing) return { proposal: existing, reused: true };
+
+  const result = await db.transaction(async (tx) => {
+    const loaded = await tx.query<any>(
+      `SELECT a.*, p.payment_no, p.kind AS payment_kind, p.currency, p.exchange_rate,
+              p.supplier_id, p.accounting_entry_id, s.name AS supplier_name,
+              s.payable_account_id
+         FROM purchase_payment_allocations a
+         JOIN purchase_payments p ON p.id = a.payment_id
+         JOIN purchase_suppliers s ON s.id = p.supplier_id
+        WHERE a.id = $1 AND a.company_id = $2 FOR UPDATE`,
+      [params.allocationId, params.companyId],
+    );
+    const allocation = loaded.rows[0];
+    if (!allocation) throw notFound('ALLOCATION_NOT_FOUND', 'Purchase allocation not found');
+    if (allocation.cancelled_at) throw conflict('ALLOCATION_CANCELLED', 'The allocation is cancelled');
+    if (!allocation.accounting_entry_id) {
+      throw conflict('RECLASS_NOT_REQUIRED', 'The payment is not posted: nothing must be reclassified');
+    }
+    if (allocation.payment_kind !== 'advance') {
+      throw conflict('RECLASS_NOT_REQUIRED', 'A normal payment is already posted against supplier payable');
+    }
+    const amount = parseAmount(allocation.reclass_amount ?? '0');
+    if (amount <= 0n) throw conflict('RECLASS_NOT_REQUIRED', 'No posted advance amount remains to reclassify');
+    const ctx = await loadBillingContext(tx, params.companyId);
+    const payable = allocation.payable_account_id
+      ? { id: String(allocation.payable_account_id) }
+      : accountForRole(ctx, 'payable');
+    const prepayment = accountForRole(ctx, 'prepayment');
+    const missing: string[] = [];
+    if (!payable) missing.push('Aucun compte fournisseur actif.');
+    if (!prepayment) missing.push('Aucun compte d’acompte (1155/1150) actif.');
+    if (missing.length > 0) {
+      throw new AppError('AI_HUMAN_REQUIRED', 409, 'The chart of accounts is incomplete for the reclassification', {
+        missing,
+      });
+    }
+    const journal = await defaultJournal(tx, params.companyId, ['purchases', 'general']);
+    if (!journal) throw new AppError('AI_HUMAN_REQUIRED', 409, 'No active journal for the reclassification');
+    const proposal = await insertProposal(tx, {
+      cabinetId: params.cabinetId,
+      companyId: params.companyId,
+      userId: params.userId,
+      sourceKind: 'purchase_allocation',
+      sourceId: params.allocationId,
+      journalId: journal.id,
+      entryDate: allocation.allocated_date,
+      reference: `RCL-${allocation.payment_no}`.slice(0, 100),
+      description: `Reclassement acompte fournisseur ${allocation.payment_no} — ${allocation.supplier_name}`.slice(0, 300),
+      currency: allocation.currency,
+      exchangeRate: allocation.exchange_rate,
+      confidence: 1,
+      rationale:
+        'Reclassement déterministe d’un acompte déjà comptabilisé vers la dette fournisseur, après affectation à une facture. Aucune écriture initiale n’est modifiée.',
+      warnings: ['RECLASS_PREPAYMENT: verify that the original payment is still on the prepayment account.'],
+      missing: [],
+      ruleTrace: ['Aucune IA : reclassement déterministe lié à une affectation datée.'],
+      provider: 'deterministic',
+      model: null,
+      lines: [
+        { accountId: payable!.id, description: 'Dette fournisseur — acompte affecté', debit: amount, credit: 0n },
+        { accountId: prepayment!.id, description: 'Acompte fournisseur reclassé', debit: 0n, credit: amount },
+      ],
+    });
+    await writeAudit(tx, {
+      companyId: params.companyId,
+      userId: params.userId,
+      action: 'ai.proposal.reclass.create',
+      entityType: 'ai_entry_proposal',
+      entityId: proposal.id,
+      details: { sourceKind: 'purchase_allocation', sourceId: params.allocationId, amount: formatAmount(amount) },
+    });
+    return proposal;
+  });
+  const stored = await loadProposal(db, params.cabinetId, params.companyId, result.id);
+  return {
+    proposal: await viewProposal(db, params.cabinetId, params.companyId, stored.proposal, stored.lines),
+    reused: false,
+  };
+}
+
+/**
+ * Customer over-payment (already posted on a customer-advance liability) ->
+ * receivable. The original receipt entry is never modified.
+ */
+export async function proposeBillingAllocationReclass(
+  db: Db,
+  params: { cabinetId: string; companyId: string; userId: string; allocationId: string },
+): Promise<{ proposal: ProposalView; reused: boolean }> {
+  const existing = await existingReclass(
+    db,
+    params.cabinetId,
+    params.companyId,
+    'billing_allocation',
+    params.allocationId,
+  );
+  if (existing) return { proposal: existing, reused: true };
+
+  const result = await db.transaction(async (tx) => {
+    const loaded = await tx.query<any>(
+      `SELECT a.*, p.payment_no, p.currency, p.exchange_rate, p.customer_id,
+              p.accounting_entry_id, c.name AS customer_name, c.receivable_account_id
+         FROM billing_payment_allocations a
+         JOIN billing_payments p ON p.id = a.payment_id
+         JOIN billing_customers c ON c.id = p.customer_id
+        WHERE a.id = $1 AND a.company_id = $2 FOR UPDATE`,
+      [params.allocationId, params.companyId],
+    );
+    const allocation = loaded.rows[0];
+    if (!allocation) throw notFound('ALLOCATION_NOT_FOUND', 'Billing allocation not found');
+    if (allocation.cancelled_at) throw conflict('ALLOCATION_CANCELLED', 'The allocation is cancelled');
+    if (!allocation.accounting_entry_id) {
+      throw conflict('RECLASS_NOT_REQUIRED', 'The payment is not posted: nothing must be reclassified');
+    }
+    const amount = parseAmount(allocation.reclass_amount ?? '0');
+    if (amount <= 0n) {
+      throw conflict('RECLASS_NOT_REQUIRED', 'No posted over-payment remains to reclassify');
+    }
+    const ctx = await loadBillingContext(tx, params.companyId);
+    const receivable = allocation.receivable_account_id
+      ? { id: String(allocation.receivable_account_id) }
+      : accountForRole(ctx, 'receivable');
+    const advances = accountForRole(ctx, 'otherLiabilities');
+    const missing: string[] = [];
+    if (!receivable) missing.push('Aucun compte client actif.');
+    if (!advances) missing.push('Aucun compte de passif pour les avances clients.');
+    if (missing.length > 0) {
+      throw new AppError('AI_HUMAN_REQUIRED', 409, 'The chart of accounts is incomplete for the reclassification', {
+        missing,
+      });
+    }
+    const journal = await defaultJournal(tx, params.companyId, ['sales', 'general']);
+    if (!journal) throw new AppError('AI_HUMAN_REQUIRED', 409, 'No active journal for the reclassification');
+    const proposal = await insertProposal(tx, {
+      cabinetId: params.cabinetId,
+      companyId: params.companyId,
+      userId: params.userId,
+      sourceKind: 'billing_allocation',
+      sourceId: params.allocationId,
+      journalId: journal.id,
+      entryDate: allocation.allocated_date,
+      reference: `RCL-${allocation.payment_no}`.slice(0, 100),
+      description: `Reclassement trop-perçu client ${allocation.payment_no} — ${allocation.customer_name}`.slice(0, 300),
+      currency: allocation.currency,
+      exchangeRate: allocation.exchange_rate,
+      confidence: 1,
+      rationale:
+        'Reclassement déterministe d’un trop-perçu déjà comptabilisé vers la créance client, après affectation à une facture. Aucune écriture initiale n’est modifiée.',
+      warnings: ['RECLASS_CUSTOMER_ADVANCE: verify that the original receipt is still on the customer-advance liability.'],
+      missing: [],
+      ruleTrace: ['Aucune IA : reclassement déterministe lié à une affectation datée.'],
+      provider: 'deterministic',
+      model: null,
+      lines: [
+        { accountId: advances!.id, description: 'Trop-perçu client reclassé', debit: amount, credit: 0n },
+        { accountId: receivable!.id, description: 'Créance client — encaissement affecté', debit: 0n, credit: amount },
+      ],
+    });
+    await writeAudit(tx, {
+      companyId: params.companyId,
+      userId: params.userId,
+      action: 'ai.proposal.reclass.create',
+      entityType: 'ai_entry_proposal',
+      entityId: proposal.id,
+      details: { sourceKind: 'billing_allocation', sourceId: params.allocationId, amount: formatAmount(amount) },
+    });
+    return proposal;
+  });
+  const stored = await loadProposal(db, params.cabinetId, params.companyId, result.id);
+  return {
+    proposal: await viewProposal(db, params.cabinetId, params.companyId, stored.proposal, stored.lines),
+    reused: false,
+  };
 }

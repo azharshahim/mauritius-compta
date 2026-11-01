@@ -5,10 +5,12 @@ import { parse } from '../../lib/http.js';
 import { requireCompany } from '../../lib/tenant.js';
 import { cabinetForCompanyUser } from '../../lib/cabinets.js';
 import {
+  allocatePurchasePayment,
   allocateSupplierCredit,
   cancelPurchaseDocument,
   cancelPurchasePayment,
   cancelSupplierCreditAllocation,
+  createFixedAssetFromPurchaseLine,
   createPurchaseDocument,
   createPurchasePayment,
   createSupplier,
@@ -31,6 +33,7 @@ import {
   validatePurchaseDocument,
 } from './service.js';
 import { proposeFromPurchase } from './proposals.js';
+import { proposePurchaseAllocationReclass } from '../ai/proposals.js';
 
 const DateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const AmountSchema = z.union([z.string().min(1).max(30), z.number()]);
@@ -297,6 +300,44 @@ export function purchaseRoutes(app: FastifyInstance, db: Db) {
     return { events: await listPurchaseDocumentEvents(db, companyId, documentId) };
   });
 
+  app.post(
+    '/companies/:companyId/purchases/documents/:documentId/lines/:lineId/fixed-asset',
+    async (req, reply) => {
+      const user = req.user!;
+      const { companyId, documentId, lineId } = req.params as {
+        companyId: string;
+        documentId: string;
+        lineId: string;
+      };
+      await requireCompany(db, user.id, companyId, 'accountant', 'accounting');
+      const input = parse(
+        z
+          .object({
+            categoryId: z.string().uuid(),
+            description: z.string().trim().min(3).max(300).nullish(),
+            serialNumber: z.string().trim().max(120).nullish(),
+            location: z.string().trim().max(120).nullish(),
+            inServiceDate: DateSchema.nullish(),
+            usefulLifeMonths: z.number().int().positive().max(1200).nullish(),
+            method: z.enum(['straight_line', 'reducing_balance']).nullish(),
+            residualValue: AmountSchema.nullish(),
+            notes: z.string().trim().max(1000).nullish(),
+          })
+          .strict(),
+        req.body,
+      );
+      const result = await createFixedAssetFromPurchaseLine(
+        db,
+        companyId,
+        user.id,
+        documentId,
+        lineId,
+        input,
+      );
+      return reply.code(201).send(result);
+    },
+  );
+
   app.get('/companies/:companyId/purchases/documents/:documentId/credit-allocations', async (req) => {
     const user = req.user!;
     const { companyId, documentId } = req.params as { companyId: string; documentId: string };
@@ -385,6 +426,31 @@ export function purchaseRoutes(app: FastifyInstance, db: Db) {
     return { payment: await getPurchasePayment(db, companyId, paymentId) };
   });
 
+  app.post('/companies/:companyId/purchases/payments/:paymentId/allocations', async (req, reply) => {
+    const user = req.user!;
+    const { companyId, paymentId } = req.params as { companyId: string; paymentId: string };
+    await requireCompany(db, user.id, companyId, 'accountant', 'accounting');
+    const input = parse(
+      z
+        .object({
+          invoiceId: z.string().uuid(),
+          amount: AmountSchema,
+          allocationDate: DateSchema.optional(),
+          reason: z.string().trim().max(1000).nullish(),
+          confirm: z.literal(true),
+        })
+        .strict(),
+      req.body,
+    );
+    const result = await allocatePurchasePayment(db, companyId, user.id, paymentId, input);
+    return reply.code(201).send({
+      ...result,
+      note: result.reclassRequired
+        ? 'The payment is already posted: prepare the separate prepayment-to-payable reclassification before closing the period.'
+        : 'The payment is allocated; no purchase amount or VAT amount was changed.',
+    });
+  });
+
   app.post('/companies/:companyId/purchases/payments/:paymentId/cancel', async (req) => {
     const user = req.user!;
     const { companyId, paymentId } = req.params as { companyId: string; paymentId: string };
@@ -408,6 +474,27 @@ export function purchaseRoutes(app: FastifyInstance, db: Db) {
   });
 
   // ------------------------------------------------------------------ reports
+  app.post(
+    '/companies/:companyId/purchases/payments/:paymentId/allocations/:allocationId/reclass-proposal',
+    async (req, reply) => {
+      const user = req.user!;
+      const { companyId, allocationId } = req.params as {
+        companyId: string;
+        paymentId: string;
+        allocationId: string;
+      };
+      await requireCompany(db, user.id, companyId, 'accountant', 'accounting');
+      const { cabinetId } = await cabinetForCompanyUser(db, companyId, user.id);
+      const result = await proposePurchaseAllocationReclass(db, {
+        cabinetId,
+        companyId,
+        userId: user.id,
+        allocationId,
+      });
+      return reply.code(result.reused ? 200 : 201).send({ ...result, entryCreated: false });
+    },
+  );
+
   app.get('/companies/:companyId/purchases/aging', async (req) => {
     const user = req.user!;
     const { companyId } = req.params as { companyId: string };

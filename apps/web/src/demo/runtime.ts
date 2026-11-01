@@ -3912,60 +3912,70 @@ function issueBillingDocumentDemo(companyId: string, documentId: string): Record
 
 function billingAgingDemo(companyId: string, asOf: string, customerId?: string | null) {
   const s = loadState();
-  const buckets = { current: 0n, days1to30: 0n, days31to60: 0n, days61to90: 0n, over90: 0n, total: 0n };
-  const rows = new Map<string, { customerId: string; customerName: string; currency: string; raw: typeof buckets; invoiceCount: number }>();
+  const rows = new Map<
+    string,
+    { customerId: string; customerName: string; currency: string; raw: {
+      current: bigint; days1to30: bigint; days31to60: bigint; days61to90: bigint; over90: bigint; total: bigint;
+    }; invoiceCount: number }
+  >();
+  const byCurrency = new Map<string, {
+    current: bigint; days1to30: bigint; days31to60: bigint; days61to90: bigint; over90: bigint; total: bigint;
+  }>();
   for (const doc of s.billingDocuments.filter(
     (d) => d.company_id === companyId && d.kind === 'invoice' && ['issued', 'partially_paid'].includes(d.status) && d.issue_date <= asOf,
   )) {
     if (customerId && doc.customer_id !== customerId) continue;
     const outstanding = billingOutstanding(doc);
     if (outstanding === 0n) continue;
-    const key = doc.customer_id ?? 'unknown';
+    const key = `${doc.customer_id ?? 'unknown'}|${doc.currency}`;
     const entry = rows.get(key) ?? {
-      customerId: key,
+      customerId: doc.customer_id ?? 'unknown',
       customerName: doc.customer_name,
       currency: doc.currency,
       raw: { current: 0n, days1to30: 0n, days31to60: 0n, days61to90: 0n, over90: 0n, total: 0n },
       invoiceCount: 0,
     };
+    const currencyTotal = byCurrency.get(doc.currency) ?? {
+      current: 0n, days1to30: 0n, days31to60: 0n, days61to90: 0n, over90: 0n, total: 0n,
+    };
     const late = Math.floor(
       (Date.parse(`${asOf}T00:00:00Z`) - Date.parse(`${doc.due_date ?? doc.issue_date}T00:00:00Z`)) / 86_400_000,
     );
-    const bucket: keyof typeof buckets =
+    const bucket: keyof typeof currencyTotal =
       late <= 0 ? 'current' : late <= 30 ? 'days1to30' : late <= 60 ? 'days31to60' : late <= 90 ? 'days61to90' : 'over90';
     entry.raw[bucket] += outstanding;
     entry.raw.total += outstanding;
     entry.invoiceCount += 1;
-    buckets[bucket] += outstanding;
-    buckets.total += outstanding;
+    currencyTotal[bucket] += outstanding;
+    currencyTotal.total += outstanding;
+    byCurrency.set(doc.currency, currencyTotal);
     rows.set(key, entry);
   }
+  const bucketView = (raw: { current: bigint; days1to30: bigint; days31to60: bigint; days61to90: bigint; over90: bigint; total: bigint }) => ({
+    current: fmt(raw.current),
+    days1to30: fmt(raw.days1to30),
+    days31to60: fmt(raw.days31to60),
+    days61to90: fmt(raw.days61to90),
+    over90: fmt(raw.over90),
+    total: fmt(raw.total),
+  });
+  const totalsByCurrency = [...byCurrency.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([currency, raw]) => ({ currency, buckets: bucketView(raw) }));
   return {
     asOf,
     rows: [...rows.values()]
-      .sort((a, b) => a.customerName.localeCompare(b.customerName))
+      .sort((a, b) => a.customerName.localeCompare(b.customerName) || a.currency.localeCompare(b.currency))
       .map((r) => ({
         customerId: r.customerId,
         customerName: r.customerName,
         currency: r.currency,
         invoiceCount: r.invoiceCount,
-        buckets: {
-          current: fmt(r.raw.current),
-          days1to30: fmt(r.raw.days1to30),
-          days31to60: fmt(r.raw.days31to60),
-          days61to90: fmt(r.raw.days61to90),
-          over90: fmt(r.raw.over90),
-          total: fmt(r.raw.total),
-        },
+        buckets: bucketView(r.raw),
       })),
-    totals: {
-      current: fmt(buckets.current),
-      days1to30: fmt(buckets.days1to30),
-      days31to60: fmt(buckets.days31to60),
-      days61to90: fmt(buckets.days61to90),
-      over90: fmt(buckets.over90),
-      total: fmt(buckets.total),
-    },
+    // Never add two currencies: a single total exists only for one currency.
+    totals: totalsByCurrency.length === 1 ? totalsByCurrency[0]!.buckets : null,
+    totalsByCurrency,
   };
 }
 
@@ -3979,21 +3989,39 @@ function billingCustomerBalanceDemo(companyId: string, customerId: string, asOf:
       !['draft', 'cancelled'].includes(d.status) &&
       d.issue_date <= asOf,
   );
-  const invoiced = invoices.reduce((acc, d) => acc + amount(d.total_amount), 0n);
-  const paid = invoices.reduce((acc, d) => acc + amount(d.amount_paid), 0n);
-  const credited = invoices.reduce((acc, d) => acc + amount(d.credited_amount), 0n);
-  const unallocated = s.billingPayments
-    .filter((p) => p.company_id === companyId && p.customer_id === customerId && p.status === 'recorded' && p.payment_date <= asOf)
-    .reduce((acc, p) => acc + amount(p.unallocated_amount), 0n);
-  const outstanding = invoiced - paid - credited;
+  const payments = s.billingPayments.filter(
+    (p) => p.company_id === companyId && p.customer_id === customerId && p.status === 'recorded' && p.payment_date <= asOf,
+  );
+  const currencies = new Set<string>([
+    ...invoices.map((d) => d.currency),
+    ...payments.map((p) => p.currency),
+  ]);
+  const balances = [...currencies].sort().map((currency) => {
+    const currencyInvoices = invoices.filter((d) => d.currency === currency);
+    const invoiced = currencyInvoices.reduce((acc, d) => acc + amount(d.total_amount), 0n);
+    const paid = currencyInvoices.reduce((acc, d) => acc + amount(d.amount_paid), 0n);
+    const credited = currencyInvoices.reduce((acc, d) => acc + amount(d.credited_amount), 0n);
+    const unallocated = payments
+      .filter((p) => p.currency === currency)
+      .reduce((acc, p) => acc + amount(p.unallocated_amount), 0n);
+    const outstanding = invoiced - paid - credited;
+    return {
+      currency,
+      invoiced: fmt(invoiced),
+      paid: fmt(paid),
+      credited: fmt(credited),
+      outstanding: fmt(outstanding > 0n ? outstanding : 0n),
+      unallocated: fmt(unallocated),
+      balance: fmt(outstanding - unallocated),
+    };
+  });
   return {
-    currency: invoices[0]?.currency ?? 'MUR',
-    invoiced: fmt(invoiced),
-    paid: fmt(paid),
-    credited: fmt(credited),
-    outstanding: fmt(outstanding > 0n ? outstanding : 0n),
-    unallocated: fmt(unallocated),
-    balance: fmt(outstanding - unallocated),
+    ...(balances[0] ?? {
+      currency: 'MUR', invoiced: '0.0000', paid: '0.0000', credited: '0.0000',
+      outstanding: '0.0000', unallocated: '0.0000', balance: '0.0000',
+    }),
+    asOf,
+    balances,
   };
 }
 
@@ -7381,18 +7409,37 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
       }
       const aging = billingAgingDemo(companyId, todayIso());
       const payments = s.billingPayments.filter((p) => p.company_id === companyId && p.status === 'recorded');
+      const openByCurrency = [...new Set(
+        s.billingDocuments
+          .filter((d) => d.company_id === companyId && d.kind === 'invoice' && ['issued', 'partially_paid'].includes(d.status))
+          .map((d) => d.currency),
+      )].sort().map((currency) => ({
+        currency,
+        amount: fmt(s.billingDocuments
+          .filter((d) => d.company_id === companyId && d.kind === 'invoice' && ['issued', 'partially_paid'].includes(d.status) && d.currency === currency)
+          .reduce((acc, d) => acc + billingOutstanding(d), 0n)),
+      }));
+      const paymentsByCurrency = [...new Set(payments.map((p) => p.currency))].sort().map((currency) => ({
+        currency,
+        count: payments.filter((p) => p.currency === currency).length,
+        unallocated: fmt(payments.filter((p) => p.currency === currency)
+          .reduce((acc, p) => acc + amount(p.unallocated_amount), 0n)),
+      }));
       return {
         available: true,
         counts: [...countMap.entries()].map(([key, count]) => {
           const [kind, status] = key.split('|');
           return { kind, status, count };
         }),
-        openReceivables: aging.totals.total,
+        openReceivables: openByCurrency.length === 1 ? openByCurrency[0]!.amount : null,
+        openReceivablesByCurrency: openByCurrency,
         aging: aging.totals,
+        agingByCurrency: aging.totalsByCurrency,
         postedDocuments: s.billingDocuments.filter((d) => d.company_id === companyId && d.accounting_entry_id).length,
         payments: {
           count: payments.length,
-          unallocated: fmt(payments.reduce((acc, p) => acc + amount(p.unallocated_amount), 0n)),
+          unallocated: paymentsByCurrency.length === 1 ? paymentsByCurrency[0]!.unallocated : null,
+          byCurrency: paymentsByCurrency,
         },
         capabilities: {
           numbering: true,

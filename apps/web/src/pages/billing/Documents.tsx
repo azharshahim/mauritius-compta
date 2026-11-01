@@ -9,6 +9,14 @@ import { money, scaled4ToString, toScaled4 } from '../../format';
 import type { BillingDocument, BillingKind, Customer, DocumentLine, Item } from './types';
 import { emptyLine } from './types';
 
+interface AccountingProposal {
+  id: string;
+  sourceId: string | null;
+  sourceKind: string;
+  status: 'proposed' | 'validated' | 'posted' | 'rejected';
+  entryId: string | null;
+}
+
 interface StockItem { id: string; sku: string; name: string; isActive: boolean }
 interface StockLocation { id: string; code: string; name: string; isActive: boolean }
 interface StockJournal { id: string; code: string; name: string; is_active: boolean }
@@ -50,6 +58,7 @@ export default function BillingDocumentsPage({ kind }: { kind: BillingKind }) {
   const [documents, setDocuments] = useState<BillingDocument[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [items, setItems] = useState<Item[]>([]);
+  const [proposals, setProposals] = useState<AccountingProposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,14 +88,17 @@ export default function BillingDocumentsPage({ kind }: { kind: BillingKind }) {
     if (!company) return;
     setLoading(true);
     try {
-      const [docRes, customerRes, itemRes] = await Promise.all([
+      const [docRes, customerRes, itemRes, proposalRes] = await Promise.all([
         api.get<{ documents: BillingDocument[] }>(`/companies/${company.id}/billing/documents?kind=${kind}`),
         api.get<{ customers: Customer[] }>(`/companies/${company.id}/billing/customers`),
         api.get<{ items: Item[] }>(`/companies/${company.id}/billing/items`),
+        api.get<{ proposals: AccountingProposal[] }>(`/companies/${company.id}/ai/entry-proposals?limit=100`)
+          .catch(() => ({ proposals: [] })),
       ]);
       setDocuments(docRes.documents);
       setCustomers(customerRes.customers);
       setItems(itemRes.items.filter((i) => i.isActive));
+      setProposals(proposalRes.proposals);
       if (targetDocument && !targetOpened.current) {
         const found = docRes.documents.find((d) => d.number === targetDocument);
         if (found) {
@@ -258,6 +270,61 @@ export default function BillingDocumentsPage({ kind }: { kind: BillingKind }) {
     } catch (err) {
       const info = errorMessage(err, t('common.error'));
       setError(info.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const proposalFor = (doc: BillingDocument): AccountingProposal | null =>
+    proposals.find((p) => p.sourceId === doc.id && (p.status === 'proposed' || p.status === 'validated')) ?? null;
+
+  const prepareAccounting = async (doc: BillingDocument) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.post<{ proposal: AccountingProposal; reused: boolean }>(
+        `/companies/${company.id}/ai/entry-proposals/from-billing`,
+        { documentId: doc.id },
+      );
+      setNotice(`${t(res.reused ? 'billing.documents.proposalReused' : 'billing.documents.proposalReady')} : ${
+        res.proposal.id.slice(0, 8)
+      }`);
+      await load();
+    } catch (err) {
+      setError(errorMessage(err, t('common.error')).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const validateAccounting = async (proposal: AccountingProposal) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/companies/${company.id}/ai/entry-proposals/${proposal.id}/validate`, {
+        acceptWarnings: true,
+      });
+      setNotice(t('billing.documents.proposalValidated'));
+      await load();
+    } catch (err) {
+      setError(errorMessage(err, t('common.error')).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const postAccounting = async (proposal: AccountingProposal) => {
+    if (!window.confirm(t('billing.documents.postConfirm'))) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.post<{ entryNo: string }>(
+        `/companies/${company.id}/ai/entry-proposals/${proposal.id}/post`,
+      );
+      setNotice(`${t('billing.documents.postedNotice')} ${res.entryNo}`);
+      await load();
+    } catch (err) {
+      setError(errorMessage(err, t('common.error')).message);
     } finally {
       setBusy(false);
     }
@@ -448,6 +515,25 @@ export default function BillingDocumentsPage({ kind }: { kind: BillingKind }) {
                           {t('billing.documents.creditNote')}
                         </Button>
                       )}
+                      {doc.kind !== 'quote' && ['issued', 'partially_paid', 'paid'].includes(doc.status) && !doc.accountingEntryId && (() => {
+                        const proposal = proposalFor(doc);
+                        if (!proposal) {
+                          return (
+                            <Button variant="ghost" onClick={() => void prepareAccounting(doc)} disabled={busy}>
+                              {t('billing.documents.prepareAccounting')}
+                            </Button>
+                          );
+                        }
+                        return proposal.status === 'proposed' ? (
+                          <Button variant="ghost" onClick={() => void validateAccounting(proposal)} disabled={busy}>
+                            {t('billing.documents.validateProposal')}
+                          </Button>
+                        ) : (
+                          <Button variant="ghost" onClick={() => void postAccounting(proposal)} disabled={busy}>
+                            {t('billing.documents.postEntry')}
+                          </Button>
+                        );
+                      })()}
                     </td>
                   </tr>
                 ))}

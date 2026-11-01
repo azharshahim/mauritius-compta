@@ -10,6 +10,7 @@ import {
   type DocumentComputation,
   type VatTreatment,
 } from '../billing/service.js';
+import { createAsset, getAsset, type AssetInput } from '../fixed-assets/service.js';
 
 /**
  * Purchases & suppliers (mission 11).
@@ -978,6 +979,8 @@ export async function getPurchaseDocument(
       taxAmount: line.tax_amount,
       lineTotal: line.line_total,
       vatRecoverable: line.vat_recoverable,
+      fixedAssetId: line.fixed_asset_id,
+      fixedAssetCode: line.fixed_asset_code,
     })),
   };
 }
@@ -996,8 +999,11 @@ export async function listPurchaseDocuments(
     limit?: number;
   } = {},
 ): Promise<PurchaseDocumentView[]> {
-  const res = await db.query<PurchaseDocumentRow & { supplier_name: string; supplier_country: string; supplier_internal_reference: string | null }>(
-    `SELECT d.*, s.name AS supplier_name, s.country AS supplier_country, s.reference AS supplier_internal_reference
+  const res = await db.query<PurchaseDocumentRow & { supplier_name: string; supplier_country: string; supplier_internal_reference: string | null; credit_used: string }>(
+    `SELECT d.*, s.name AS supplier_name, s.country AS supplier_country,
+            s.reference AS supplier_internal_reference,
+            COALESCE((SELECT SUM(a.amount) FROM purchase_credit_allocations a
+                       WHERE a.credit_note_id = d.id AND a.cancelled_at IS NULL), 0)::text AS credit_used
        FROM purchase_documents d
        JOIN purchase_suppliers s ON s.id = d.supplier_id AND s.company_id = d.company_id
       WHERE d.company_id = $1
@@ -1033,7 +1039,14 @@ export async function listPurchaseDocuments(
           ? amount(row.total_amount) - amount(row.amount_paid) - amount(row.credited_amount)
           : 0n,
       ),
-      credit_available: '0.0000',
+      credit_available:
+        row.kind === 'credit_note'
+          ? formatAmount(
+              amount(row.total_amount) - amount(row.credit_used) > 0n
+                ? amount(row.total_amount) - amount(row.credit_used)
+                : 0n,
+            )
+          : '0.0000',
       lines: [],
     });
   }
@@ -1083,7 +1096,23 @@ export async function validatePurchaseDocument(
   userId: string,
   documentId: string,
 ): Promise<PurchaseDocumentView> {
-  const result = await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => validatePurchaseDocumentTx(tx, companyId, userId, documentId));
+  if (result.kind === 'invoice') await refreshPurchaseInvoiceBalance(db, companyId, result.id);
+  return getPurchaseDocument(db, companyId, result.id);
+}
+
+/**
+ * Validation body usable inside an existing transaction. Mission 42 needs it
+ * for the OCR conversion, which must stay atomic without opening a nested
+ * transaction (unsupported and deadlocking on some drivers).
+ */
+export async function validatePurchaseDocumentTx(
+  tx: Db,
+  companyId: string,
+  userId: string,
+  documentId: string,
+): Promise<PurchaseDocumentRow> {
+  {
     const locked = await tx.query<PurchaseDocumentRow>(
       'SELECT * FROM purchase_documents WHERE id = $1 AND company_id = $2 FOR UPDATE',
       [documentId, companyId],
@@ -1126,9 +1155,7 @@ export async function validatePurchaseDocument(
       details: { docNo: number, kind: doc.kind, total: doc.total_amount },
     });
     return updated.rows[0]!;
-  });
-  if (result.kind === 'invoice') await refreshPurchaseInvoiceBalance(db, companyId, result.id);
-  return getPurchaseDocument(db, companyId, result.id);
+  }
 }
 
 export async function cancelPurchaseDocument(
@@ -1236,6 +1263,8 @@ export interface PurchasePaymentAllocationView {
   invoiceCredited: string;
   invoiceOutstanding: string;
   currency: string;
+  allocatedDate: string | null;
+  reclassEntryId: string | null;
   cancelledAt: string | null;
 }
 
@@ -1264,7 +1293,8 @@ async function loadPaymentAllocations(
   paymentId: string,
 ): Promise<PurchasePaymentAllocationView[]> {
   const res = await db.query<any>(
-    `SELECT a.id, a.invoice_id, a.amount::text, a.cancelled_at, d.doc_no, d.supplier_reference,
+    `SELECT a.id, a.invoice_id, a.amount::text, a.allocated_date, a.cancelled_at,
+            a.reclass_entry_id, d.doc_no, d.supplier_reference,
             d.total_amount::text, d.amount_paid::text, d.credited_amount::text, d.currency
        FROM purchase_payment_allocations a
        JOIN purchase_documents d ON d.id = a.invoice_id AND d.company_id = $2
@@ -1288,6 +1318,8 @@ async function loadPaymentAllocations(
       invoiceCredited: row.credited_amount,
       invoiceOutstanding: formatAmount(outstanding > 0n ? outstanding : 0n),
       currency: row.currency,
+      allocatedDate: row.allocated_date,
+      reclassEntryId: row.reclass_entry_id,
       cancelledAt: row.cancelled_at,
     };
   });
@@ -1456,9 +1488,9 @@ export async function createPurchasePayment(
     for (const allocation of allocations) {
       await tx.query(
         `INSERT INTO purchase_payment_allocations
-           (payment_id, invoice_id, company_id, amount)
-         VALUES ($1,$2,$3,$4)`,
-        [payment.id, allocation.invoiceId, companyId, formatAmount(allocation.amount)],
+           (payment_id, invoice_id, company_id, amount, allocated_date)
+         VALUES ($1,$2,$3,$4,$5)`,
+        [payment.id, allocation.invoiceId, companyId, formatAmount(allocation.amount), paymentDate],
       );
     }
     for (const invoiceId of invoiceRows.keys()) {
@@ -1488,6 +1520,183 @@ export async function createPurchasePayment(
     return payment;
   });
   return getPurchasePayment(db, companyId, result.id);
+}
+
+/**
+ * Mission 42 — allocate a recorded advance (or a payment's remaining amount)
+ * to a later invoice.
+ *
+ * This is the explicit missing step of M41 A-03. It does not create a journal
+ * entry: if the advance is already posted on the prepayment account, a separate
+ * reclassification proposal is required (see proposePurchaseAllocationReclass).
+ */
+export async function allocatePurchasePayment(
+  db: Db,
+  companyId: string,
+  userId: string,
+  paymentId: string,
+  input: {
+    invoiceId: string;
+    amount: string | number;
+    allocationDate?: string | null;
+    reason?: string | null;
+  },
+): Promise<{
+  payment: PurchasePaymentView;
+  invoice: PurchaseDocumentView;
+  allocationId: string;
+  reclassRequired: boolean;
+}> {
+  const value = positiveMoney(input.amount, 'amount');
+  const result = await db.transaction(async (tx) => {
+    const paymentRes = await tx.query<PurchasePaymentRow>(
+      'SELECT * FROM purchase_payments WHERE id = $1 AND company_id = $2 FOR UPDATE',
+      [paymentId, companyId],
+    );
+    const payment = paymentRes.rows[0];
+    if (!payment) throw notFound('PURCHASE_PAYMENT_NOT_FOUND', 'Supplier payment not found');
+    if (payment.status !== 'recorded') {
+      throw conflict('PURCHASE_PAYMENT_CANCELLED', 'A cancelled payment cannot be allocated');
+    }
+    const invoiceRes = await tx.query<PurchaseDocumentRow>(
+      'SELECT * FROM purchase_documents WHERE id = $1 AND company_id = $2 FOR UPDATE',
+      [input.invoiceId, companyId],
+    );
+    const invoice = invoiceRes.rows[0];
+    if (!invoice) throw notFound('PURCHASE_DOCUMENT_NOT_FOUND', 'Invoice not found');
+    if (invoice.kind !== 'invoice') {
+      throw badRequest('VALIDATION_ERROR', 'A payment can only be allocated to an invoice');
+    }
+    if (invoice.status !== 'validated') {
+      throw conflict('PURCHASE_DOCUMENT_NOT_VALIDATED', 'The invoice must be validated first');
+    }
+    if (invoice.supplier_id !== payment.supplier_id) {
+      throw conflict('PURCHASE_SUPPLIER_MISMATCH', 'Payment and invoice must belong to the same supplier');
+    }
+    if (invoice.currency !== payment.currency) {
+      throw conflict('PURCHASE_CURRENCY_MISMATCH', 'Payment and invoice must use the same currency');
+    }
+    const allocationDate =
+      requireDate(input.allocationDate ?? today(), 'allocationDate')!;
+    if (allocationDate < payment.payment_date) {
+      throw badRequest('VALIDATION_ERROR', 'An allocation cannot predate the payment');
+    }
+
+    const active = await tx.query<{ total: string }>(
+      `SELECT COALESCE(SUM(amount), 0)::text AS total
+         FROM purchase_payment_allocations
+        WHERE payment_id = $1 AND cancelled_at IS NULL`,
+      [paymentId],
+    );
+    const available = amount(payment.amount) - amount(active.rows[0]?.total);
+    if (value > available) {
+      throw conflict(
+        'PURCHASE_PAYMENT_ALLOCATION_EXCEEDS_AVAILABLE',
+        `Requested ${formatAmount(value)}, payment available ${formatAmount(available > 0n ? available : 0n)}`,
+      );
+    }
+
+    const paid = await tx.query<{ total: string }>(
+      `SELECT COALESCE(SUM(amount), 0)::text AS total
+         FROM purchase_payment_allocations
+        WHERE invoice_id = $1 AND cancelled_at IS NULL`,
+      [invoice.id],
+    );
+    const credited = await tx.query<{ total: string }>(
+      `SELECT COALESCE(SUM(amount), 0)::text AS total
+         FROM purchase_credit_allocations
+        WHERE invoice_id = $1 AND cancelled_at IS NULL`,
+      [invoice.id],
+    );
+    const outstanding =
+      amount(invoice.total_amount) - amount(paid.rows[0]?.total) - amount(credited.rows[0]?.total);
+    if (value > outstanding) {
+      throw conflict(
+        'PURCHASE_ALLOCATION_EXCEEDS_INVOICE',
+        `Requested ${formatAmount(value)}, invoice outstanding ${formatAmount(outstanding > 0n ? outstanding : 0n)}`,
+      );
+    }
+
+    const existing = await tx.query<{ id: string; cancelled_at: string | null }>(
+      `SELECT id, cancelled_at FROM purchase_payment_allocations
+        WHERE payment_id = $1 AND invoice_id = $2 FOR UPDATE`,
+      [paymentId, invoice.id],
+    );
+    if (existing.rows[0]?.cancelled_at === null) {
+      throw conflict('PURCHASE_ALLOCATION_EXISTS', 'This payment is already allocated to this invoice');
+    }
+    let allocationId: string;
+    if (existing.rows[0]) {
+      const reactivated = await tx.query<{ id: string }>(
+        `UPDATE purchase_payment_allocations
+            SET amount = $2, allocated_date = $3, cancelled_at = NULL, cancelled_by = NULL,
+                cancellation_reason = NULL, reclass_amount = $4
+          WHERE id = $1 RETURNING id`,
+        [
+          existing.rows[0].id,
+          formatAmount(value),
+          allocationDate,
+          formatAmount(payment.accounting_entry_id && payment.kind === 'advance' ? value : 0n),
+        ],
+      );
+      allocationId = reactivated.rows[0]!.id;
+    } else {
+      const inserted = await tx.query<{ id: string }>(
+        `INSERT INTO purchase_payment_allocations
+           (payment_id, invoice_id, company_id, amount, allocated_date, reclass_amount)
+         VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+        [
+          paymentId,
+          invoice.id,
+          companyId,
+          formatAmount(value),
+          allocationDate,
+          formatAmount(payment.accounting_entry_id && payment.kind === 'advance' ? value : 0n),
+        ],
+      );
+      allocationId = inserted.rows[0]!.id;
+    }
+
+    const allocatedNow = amount(active.rows[0]?.total) + value;
+    await tx.query(
+      `UPDATE purchase_payments
+          SET unallocated_amount = $2, updated_at = now()
+        WHERE id = $1`,
+      [paymentId, formatAmount(amount(payment.amount) - allocatedNow > 0n ? amount(payment.amount) - allocatedNow : 0n)],
+    );
+    await refreshPurchaseInvoiceBalance(tx, companyId, invoice.id);
+    await recordPurchaseEvent(tx, companyId, 'allocation', allocationId, 'payment.allocated', userId, {
+      paymentId,
+      invoiceId: invoice.id,
+      amount: formatAmount(value),
+      allocationDate,
+      reason: input.reason ?? null,
+    });
+    await writeAudit(tx, {
+      companyId,
+      userId,
+      action: 'purchases.payment.allocate',
+      entityType: 'purchase_payment_allocation',
+      entityId: allocationId,
+      details: {
+        paymentId,
+        invoiceId: invoice.id,
+        amount: formatAmount(value),
+        allocationDate,
+      },
+    });
+    return {
+      allocationId,
+      invoiceId: invoice.id,
+      reclassRequired: Boolean(payment.accounting_entry_id && payment.kind === 'advance'),
+    };
+  });
+  return {
+    payment: await getPurchasePayment(db, companyId, paymentId),
+    invoice: await getPurchaseDocument(db, companyId, result.invoiceId),
+    allocationId: result.allocationId,
+    reclassRequired: result.reclassRequired,
+  };
 }
 
 export async function cancelPurchasePayment(
@@ -1636,9 +1845,10 @@ export async function allocateSupplierCredit(
       ]);
     } else {
       await tx.query(
-        `INSERT INTO purchase_credit_allocations (credit_note_id, invoice_id, company_id, amount)
-         VALUES ($1,$2,$3,$4)`,
-        [creditNoteId, invoiceId, companyId, formatAmount(value)],
+        `INSERT INTO purchase_credit_allocations
+           (credit_note_id, invoice_id, company_id, amount, allocated_date)
+         VALUES ($1,$2,$3,$4,$5)`,
+        [creditNoteId, invoiceId, companyId, formatAmount(value), note.issue_date],
       );
     }
     await refreshPurchaseInvoiceBalance(tx, companyId, invoiceId);
@@ -1737,8 +1947,21 @@ export async function supplierBalance(
   companyId: string,
   supplierId: string,
   asOf = today(),
-): Promise<{ supplier: SupplierRow; balances: CurrencyBalance[]; creditAvailable: { currency: string; amount: string }[] }> {
+): Promise<{
+  supplier: SupplierRow;
+  balances: CurrencyBalance[];
+  creditAvailable: { currency: string; amount: string }[];
+  advanceAvailable: { currency: string; amount: string }[];
+  position: {
+    currency: string;
+    outstanding: string;
+    creditAvailable: string;
+    advanceAvailable: string;
+    netPosition: string;
+  }[];
+}> {
   const supplier = await getSupplier(db, companyId, supplierId);
+  const asOfDate = requireDate(asOf, 'asOf')!;
   const res = await db.query<{
     currency: string;
     invoiced: string;
@@ -1750,20 +1973,39 @@ export async function supplierBalance(
     invoice_count: string;
     overdue_count: string;
   }>(
-    `SELECT currency,
+    `WITH calc AS (
+       SELECT d.id, d.currency, d.total_amount, d.due_date,
+              COALESCE((
+                SELECT SUM(a.amount) FROM purchase_payment_allocations a
+                  JOIN purchase_payments p ON p.id = a.payment_id
+                 WHERE a.invoice_id = d.id AND a.cancelled_at IS NULL AND p.status = 'recorded'
+                   AND COALESCE(a.allocated_date, p.payment_date) <= $3::date
+              ), 0) AS amount_paid,
+              COALESCE((
+                SELECT SUM(c.amount) FROM purchase_credit_allocations c
+                 WHERE c.invoice_id = d.id AND c.cancelled_at IS NULL
+                   AND COALESCE(c.allocated_date, d.issue_date) <= $3::date
+              ), 0) AS credited_amount
+         FROM purchase_documents d
+        WHERE d.company_id = $1 AND d.supplier_id = $2 AND d.kind = 'invoice'
+          AND d.status = 'validated' AND d.issue_date <= $3::date
+     )
+     SELECT currency,
             COALESCE(SUM(total_amount), 0)::text AS invoiced,
             COALESCE(SUM(amount_paid), 0)::text AS paid,
             COALESCE(SUM(credited_amount), 0)::text AS credited,
             COALESCE(SUM(GREATEST(total_amount - amount_paid - credited_amount, 0)), 0)::text AS outstanding,
-            COALESCE(SUM(CASE WHEN due_date IS NOT NULL AND due_date < $3::date THEN GREATEST(total_amount - amount_paid - credited_amount, 0) ELSE 0 END), 0)::text AS overdue,
-            COALESCE(SUM(CASE WHEN due_date IS NOT NULL AND due_date >= $3::date AND due_date <= ($3::date + INTERVAL '30 days') THEN GREATEST(total_amount - amount_paid - credited_amount, 0) ELSE 0 END), 0)::text AS due_soon,
+            COALESCE(SUM(CASE WHEN due_date IS NOT NULL AND due_date < $3::date
+                              THEN GREATEST(total_amount - amount_paid - credited_amount, 0) ELSE 0 END), 0)::text AS overdue,
+            COALESCE(SUM(CASE WHEN due_date IS NOT NULL AND due_date >= $3::date
+                               AND due_date <= ($3::date + INTERVAL '30 days')
+                              THEN GREATEST(total_amount - amount_paid - credited_amount, 0) ELSE 0 END), 0)::text AS due_soon,
             count(*)::text AS invoice_count,
             COALESCE(SUM(CASE WHEN due_date IS NOT NULL AND due_date < $3::date THEN 1 ELSE 0 END), 0)::text AS overdue_count
-       FROM purchase_documents
-      WHERE company_id = $1 AND supplier_id = $2 AND kind = 'invoice' AND status = 'validated'
+       FROM calc
       GROUP BY currency
       ORDER BY currency`,
-    [companyId, supplierId, asOf],
+    [companyId, supplierId, asOfDate],
   );
   const credits = await db.query<{ currency: string; amount: string }>(
     `SELECT d.currency,
@@ -1772,29 +2014,69 @@ export async function supplierBalance(
        LEFT JOIN (
          SELECT credit_note_id, SUM(amount) AS used
            FROM purchase_credit_allocations
-          WHERE cancelled_at IS NULL
+          WHERE cancelled_at IS NULL AND allocated_date <= $3::date
           GROUP BY credit_note_id
        ) a ON a.credit_note_id = d.id
-      WHERE d.company_id = $1 AND d.supplier_id = $2 AND d.kind = 'credit_note' AND d.status = 'validated'
+      WHERE d.company_id = $1 AND d.supplier_id = $2 AND d.kind = 'credit_note'
+        AND d.status = 'validated' AND d.issue_date <= $3::date
       GROUP BY d.currency
       HAVING SUM(d.total_amount - COALESCE(a.used, 0)) > 0
       ORDER BY d.currency`,
-    [companyId, supplierId],
+    [companyId, supplierId, asOfDate],
   );
+  const advances = await db.query<{ currency: string; amount: string }>(
+    `SELECT p.currency,
+            COALESCE(SUM(p.amount - COALESCE(a.used, 0)), 0)::text AS amount
+       FROM purchase_payments p
+       LEFT JOIN (
+         SELECT payment_id, SUM(amount) AS used
+           FROM purchase_payment_allocations
+          WHERE cancelled_at IS NULL AND allocated_date <= $3::date
+          GROUP BY payment_id
+       ) a ON a.payment_id = p.id
+      WHERE p.company_id = $1 AND p.supplier_id = $2 AND p.status = 'recorded'
+        AND p.kind = 'advance' AND p.payment_date <= $3::date
+      GROUP BY p.currency
+      HAVING SUM(p.amount - COALESCE(a.used, 0)) > 0
+      ORDER BY p.currency`,
+    [companyId, supplierId, asOfDate],
+  );
+  const balances: CurrencyBalance[] = res.rows.map((row) => ({
+    currency: row.currency,
+    invoiced: row.invoiced,
+    paid: row.paid,
+    credited: row.credited,
+    outstanding: row.outstanding,
+    overdue: row.overdue,
+    dueSoon: row.due_soon,
+    invoiceCount: Number(row.invoice_count),
+    overdueCount: Number(row.overdue_count),
+  }));
+  const positionCurrencies = new Set([
+    ...balances.map((b) => b.currency),
+    ...credits.rows.map((c) => c.currency),
+    ...advances.rows.map((a) => a.currency),
+  ]);
+  const creditByCurrency = new Map(credits.rows.map((c) => [c.currency, amount(c.amount)]));
+  const advanceByCurrency = new Map(advances.rows.map((a) => [a.currency, amount(a.amount)]));
+  const outstandingByCurrency = new Map(balances.map((b) => [b.currency, amount(b.outstanding)]));
   return {
     supplier,
-    balances: res.rows.map((row) => ({
-      currency: row.currency,
-      invoiced: row.invoiced,
-      paid: row.paid,
-      credited: row.credited,
-      outstanding: row.outstanding,
-      overdue: row.overdue,
-      dueSoon: row.due_soon,
-      invoiceCount: Number(row.invoice_count),
-      overdueCount: Number(row.overdue_count),
-    })),
+    balances,
     creditAvailable: credits.rows,
+    advanceAvailable: advances.rows,
+    position: [...positionCurrencies].sort().map((currency) => {
+      const outstanding = outstandingByCurrency.get(currency) ?? 0n;
+      const credit = creditByCurrency.get(currency) ?? 0n;
+      const advance = advanceByCurrency.get(currency) ?? 0n;
+      return {
+        currency,
+        outstanding: formatAmount(outstanding),
+        creditAvailable: formatAmount(credit),
+        advanceAvailable: formatAmount(advance),
+        netPosition: formatAmount(outstanding - credit - advance),
+      };
+    }),
   };
 }
 
@@ -1852,18 +2134,33 @@ export async function purchasesAging(
 ): Promise<PurchasesAging> {
   const asOf = requireDate(filters.asOf ?? today(), 'asOf')!;
   const res = await db.query<any>(
-    `SELECT d.id, d.doc_no, d.supplier_id, s.name AS supplier_name, d.supplier_reference,
-            d.issue_date, d.due_date, d.currency, d.total_amount::text, d.amount_paid::text,
-            d.credited_amount::text, d.accounting_entry_id,
-            (d.total_amount - d.amount_paid - d.credited_amount)::text AS outstanding
-       FROM purchase_documents d
-       JOIN purchase_suppliers s ON s.id = d.supplier_id AND s.company_id = d.company_id
-      WHERE d.company_id = $1 AND d.kind = 'invoice' AND d.status = 'validated'
-        AND d.total_amount - d.amount_paid - d.credited_amount > 0
-        AND ($2::uuid IS NULL OR d.supplier_id = $2::uuid)
-        AND ($3::text IS NULL OR d.currency = $3)
-      ORDER BY s.name, d.currency, d.due_date NULLS LAST, d.doc_no`,
-    [companyId, filters.supplierId ?? null, filters.currency ?? null],
+    `WITH calc AS (
+       SELECT d.id, d.doc_no, d.supplier_id, s.name AS supplier_name, d.supplier_reference,
+              d.issue_date, d.due_date, d.currency, d.total_amount,
+              COALESCE((
+                SELECT SUM(a.amount) FROM purchase_payment_allocations a
+                  JOIN purchase_payments p ON p.id = a.payment_id
+                 WHERE a.invoice_id = d.id AND a.cancelled_at IS NULL AND p.status = 'recorded'
+                   AND COALESCE(a.allocated_date, p.payment_date) <= $2::date
+              ), 0) AS amount_paid,
+              COALESCE((
+                SELECT SUM(c.amount) FROM purchase_credit_allocations c
+                 WHERE c.invoice_id = d.id AND c.cancelled_at IS NULL
+                   AND COALESCE(c.allocated_date, d.issue_date) <= $2::date
+              ), 0) AS credited_amount,
+              d.accounting_entry_id
+         FROM purchase_documents d
+         JOIN purchase_suppliers s ON s.id = d.supplier_id AND s.company_id = d.company_id
+        WHERE d.company_id = $1 AND d.kind = 'invoice' AND d.status = 'validated'
+          AND d.issue_date <= $2::date
+          AND ($3::uuid IS NULL OR d.supplier_id = $3::uuid)
+          AND ($4::text IS NULL OR d.currency = $4)
+     )
+     SELECT *, (total_amount - amount_paid - credited_amount)::text AS outstanding
+       FROM calc
+      WHERE total_amount - amount_paid - credited_amount > 0
+      ORDER BY supplier_name, currency, due_date NULLS LAST, doc_no`,
+    [companyId, asOf, filters.supplierId ?? null, filters.currency ?? null],
   );
   const details: AgingInvoice[] = res.rows.map((row) => {
     const daysOverdue = row.due_date ? daysBetween(row.due_date, asOf) : 0;
@@ -2045,4 +2342,97 @@ export function purchasesAgingCsv(report: PurchasesAging): string {
     ),
   ];
   return lines.join('\n');
+}
+
+/**
+ * Mission 42 — explicit link from a capitalised purchase line to the fixed
+ * asset register. No asset is created automatically: the human chooses the
+ * category and confirms. One purchase line can create at most one asset.
+ */
+export async function createFixedAssetFromPurchaseLine(
+  db: Db,
+  companyId: string,
+  userId: string,
+  documentId: string,
+  lineId: string,
+  input: {
+    categoryId: string;
+    description?: string | null;
+    serialNumber?: string | null;
+    location?: string | null;
+    inServiceDate?: string | null;
+    usefulLifeMonths?: number | null;
+    method?: 'straight_line' | 'reducing_balance' | null;
+    residualValue?: string | number | null;
+    notes?: string | null;
+  },
+): Promise<{ asset: any; document: PurchaseDocumentView }> {
+  const document = await getPurchaseDocument(db, companyId, documentId);
+  if (document.status !== 'validated') {
+    throw conflict('PURCHASE_DOCUMENT_NOT_VALIDATED', 'Validate the purchase invoice before creating its fixed asset');
+  }
+  const line = document.lines.find((l: any) => l.id === lineId) as any;
+  if (!line) throw notFound('PURCHASE_LINE_NOT_FOUND', 'Purchase line not found');
+  const account = await db.query<{ type: string }>(
+    'SELECT type FROM accounts WHERE id = $1 AND company_id = $2',
+    [line.accountId, companyId],
+  );
+  if (account.rows[0]?.type !== 'asset') {
+    throw conflict('PURCHASE_LINE_NOT_CAPITALISED', 'Only a purchase line posted to an asset account can create a fixed asset');
+  }
+  const existing = await db.query<any>(
+    `SELECT fa.* FROM fixed_assets fa
+      WHERE fa.company_id = $1 AND fa.purchase_document_line_id = $2`,
+    [companyId, lineId],
+  );
+  if (existing.rows[0]) {
+    return { asset: existing.rows[0], document };
+  }
+  const supplier = await getSupplier(db, companyId, document.supplier_id);
+  const assetInput: AssetInput = {
+    categoryId: input.categoryId,
+    description: input.description?.trim() || line.description,
+    serialNumber: input.serialNumber ?? null,
+    location: input.location ?? null,
+    acquisitionDate: document.issue_date,
+    inServiceDate: input.inServiceDate ?? null,
+    supplierName: supplier.name,
+    invoiceRef: document.doc_no ?? document.supplier_reference,
+    documentRef: `purchase:${document.id}`,
+    cost: line.netAmount,
+    currency: document.currency,
+    exchangeRate: document.exchange_rate,
+    method: input.method ?? null,
+    usefulLifeMonths: input.usefulLifeMonths ?? null,
+    residualValue: input.residualValue ?? null,
+    notes: input.notes ?? `Créé depuis la facture fournisseur ${document.doc_no ?? document.supplier_reference}`,
+  };
+  const createdAsset = await createAsset(db, { companyId, userId }, assetInput);
+  const asset = createdAsset.asset;
+  const updated = await db.query(
+    `UPDATE fixed_assets SET purchase_document_line_id = $2, updated_at = now()
+      WHERE id = $1 AND company_id = $3 AND purchase_document_line_id IS NULL`,
+    [asset.id, lineId, companyId],
+  );
+  if (updated.rowCount === 0) {
+    throw conflict('FIXED_ASSET_ALREADY_LINKED', 'This purchase line is already linked to a fixed asset');
+  }
+  await recordPurchaseEvent(db, companyId, 'document', documentId, 'document.fixed_asset.created', userId, {
+    lineId,
+    assetId: asset.id,
+    assetCode: asset.assetCode,
+  });
+  await writeAudit(db, {
+    companyId,
+    userId,
+    action: 'purchases.line.fixed_asset.create',
+    entityType: 'purchase_document_line',
+    entityId: lineId,
+    details: { documentId, assetId: asset.id, assetCode: asset.assetCode },
+  });
+  const assetView = await getAsset(db, companyId, asset.id);
+  return {
+    asset: assetView.asset,
+    document: await getPurchaseDocument(db, companyId, documentId),
+  };
 }

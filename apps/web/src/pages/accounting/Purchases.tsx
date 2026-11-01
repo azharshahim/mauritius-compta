@@ -403,6 +403,37 @@ export default function PurchasesPage() {
     }, L('Proposition préparée.', 'Proposal prepared.'));
   };
 
+  const validatePreparedProposal = async () => {
+    if (!proposal) return;
+    await call(async () => {
+      const res = await api.post<{ proposal: { status: string } }>(
+        `/companies/${company.id}/ai/entry-proposals/${proposal.id}/validate`,
+        { acceptWarnings: true },
+      );
+      setProposal({ ...proposal, status: res.proposal.status });
+      setNotice(L('Proposition validée. Aucune écriture créée.', 'Proposal validated. No entry created.'));
+    }, L('Proposition validée.', 'Proposal validated.'));
+  };
+
+  const postPreparedProposal = async () => {
+    if (!proposal) return;
+    if (!window.confirm(L(
+      'Comptabiliser cette proposition ? Une écriture équilibrée sera créée dans le grand livre. Cette action est humaine et définitive.',
+      'Post this proposal? A balanced entry will be created in the general ledger. This is a human, final action.',
+    ))) return;
+    await call(async () => {
+      const res = await api.post<{ entryNo: string; entryId: string; entryCreated: boolean }>(
+        `/companies/${company.id}/ai/entry-proposals/${proposal.id}/post`,
+      );
+      setProposal({ ...proposal, status: 'posted' });
+      setNotice(L(
+        `Écriture ${res.entryNo} comptabilisée depuis les Achats.`,
+        `Entry ${res.entryNo} posted from Purchases.`,
+      ));
+      await load();
+    }, L('Écriture comptabilisée.', 'Entry posted.'));
+  };
+
   const createPayment = async () => {
     await call(async () => {
       const allocations = payForm.kind === 'payment'
@@ -759,10 +790,28 @@ export default function PurchasesPage() {
               {proposal && (
                 <div className="alert alert-warn">
                   {L('Proposition', 'Proposal')} <code>{proposal.id.slice(0, 8)}</code> — {proposal.status}.{' '}
+                  {L(
+                    'La préparation ne crée aucune écriture ; la validation et la comptabilisation restent deux actions humaines distinctes.',
+                    'Preparing creates no entry; validation and posting remain two distinct human actions.',
+                  )}{' '}
                   <a href={`/cabinet/ai-proposals?proposal=${proposal.id}`}>
-                    {L('Vérifier et valider dans l’écran des propositions', 'Review and validate in the proposals screen')}
+                    {L('Ouvrir dans les propositions', 'Open in proposals')}
                   </a>
-                  . {L('Aucune écriture n’est créée par cet écran.', 'This screen creates no entry.')}
+                  <div className="page-actions" style={{ marginTop: 8 }}>
+                    {proposal.status === 'proposed' && (
+                      <Button variant="primary" disabled={busy} onClick={() => void validatePreparedProposal()}>
+                        {L('Valider la proposition', 'Validate proposal')}
+                      </Button>
+                    )}
+                    {proposal.status === 'validated' && (
+                      <Button variant="primary" disabled={busy} onClick={() => void postPreparedProposal()}>
+                        {L('Comptabiliser', 'Post entry')}
+                      </Button>
+                    )}
+                    {proposal.status === 'posted' && (
+                      <span className="muted">{L('Comptabilisée.', 'Posted.')}</span>
+                    )}
+                  </div>
                 </div>
               )}
             </Card>

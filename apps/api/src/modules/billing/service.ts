@@ -1,5 +1,7 @@
 import type { Db } from '../../db/index.js';
-import { badRequest, conflict, notFound } from '../../lib/errors.js';
+import { AppError, badRequest, conflict, notFound } from '../../lib/errors.js';
+import { writeAudit } from '../../lib/audit.js';
+import { parseIsoDate } from '../../lib/dates.js';
 import { decimalPlaces, formatAmount, parseAmount } from '../../lib/money.js';
 
 /**
@@ -403,8 +405,11 @@ export function accountForRole(
                     : '2100';
   const direct = ctx.accountsByCode.get(code);
   if (direct && direct.is_active) return direct;
+  // Supplier advances must land on a dedicated prepayment account. Never fall
+  // back to "any asset", which could silently post to the bank account.
+  if (role === 'prepayment') return null;
   const type =
-    role === 'receivable' || role === 'prepayment' || role === 'bank' || role === 'cash'
+    role === 'receivable' || role === 'bank' || role === 'cash'
     ? 'asset'
     : role === 'revenue'
       ? 'revenue'
@@ -576,7 +581,12 @@ export async function buildAging(
   companyId: string,
   asOf: string,
   options: { customerId?: string } = {},
-): Promise<{ asOf: string; rows: AgingRow[]; totals: Record<keyof AgingBuckets, string> }> {
+): Promise<{
+  asOf: string;
+  rows: AgingRow[];
+  totals: Record<keyof AgingBuckets, string> | null;
+  totalsByCurrency: { currency: string; buckets: Record<keyof AgingBuckets, string> }[];
+}> {
   const params: unknown[] = [companyId, asOf];
   let filter = '';
   if (options.customerId) {
@@ -584,27 +594,44 @@ export async function buildAging(
     filter = ` AND d.customer_id = $${params.length}`;
   }
   const res = await db.query<any>(
-    `SELECT d.id, d.customer_id, d.customer_name, d.currency, d.total_amount, d.amount_paid,
-            d.credited_amount, d.due_date, d.issue_date
-       FROM billing_documents d
-      WHERE d.company_id = $1 AND d.kind = 'invoice'
-        AND d.status IN ('issued', 'partially_paid')
-        AND d.issue_date <= $2${filter}
-      ORDER BY d.issue_date ASC`,
+    `WITH calc AS (
+       SELECT d.id, d.customer_id, d.customer_name, d.currency, d.total_amount, d.due_date,
+              d.issue_date,
+              COALESCE((
+                SELECT SUM(a.amount) FROM billing_payment_allocations a
+                  JOIN billing_payments p ON p.id = a.payment_id AND p.status = 'recorded'
+                 WHERE a.invoice_id = d.id
+                   AND (a.cancelled_at IS NULL OR a.cancelled_at::date > $2::date)
+                   AND COALESCE(a.allocated_date, p.payment_date) <= $2::date
+              ), 0) AS amount_paid,
+              COALESCE((
+                SELECT SUM(c.total_amount) FROM billing_documents c
+                 WHERE c.kind = 'credit_note' AND c.source_document_id = d.id
+                   AND c.status = 'issued' AND c.issue_date <= $2::date
+              ), 0) AS credited_amount
+         FROM billing_documents d
+        WHERE d.company_id = $1 AND d.kind = 'invoice'
+          AND d.status NOT IN ('draft', 'cancelled')
+          AND d.issue_date <= $2::date${filter}
+     )
+     SELECT *, (total_amount - amount_paid - credited_amount)::text AS outstanding
+       FROM calc
+      WHERE total_amount - amount_paid - credited_amount > 0
+      ORDER BY issue_date ASC`,
     params,
   );
 
   const byCustomer = new Map<string, AgingRow & { raw: AgingBuckets }>();
-  const totals = emptyBuckets();
+  const byCurrency = new Map<string, AgingBuckets>();
 
   for (const row of res.rows) {
-    const outstanding = outstandingOf(row);
+    const outstanding = parseAmount(row.outstanding);
     if (outstanding === 0n) continue;
-    const key = row.customer_id ?? 'unknown';
+    const key = `${row.customer_id ?? 'unknown'}|${row.currency}`;
     let entry = byCustomer.get(key);
     if (!entry) {
       entry = {
-        customerId: key,
+        customerId: row.customer_id ?? 'unknown',
         customerName: row.customer_name,
         currency: row.currency,
         buckets: {} as Record<keyof AgingBuckets, string>,
@@ -612,6 +639,11 @@ export async function buildAging(
         raw: emptyBuckets(),
       };
       byCustomer.set(key, entry);
+    }
+    let currencyTotals = byCurrency.get(row.currency);
+    if (!currencyTotals) {
+      currencyTotals = emptyBuckets();
+      byCurrency.set(row.currency, currencyTotals);
     }
     const due = row.due_date ?? row.issue_date;
     const daysLate = daysBetween(due, asOf);
@@ -628,12 +660,18 @@ export async function buildAging(
     entry.raw[bucket] += outstanding;
     entry.raw.total += outstanding;
     entry.invoiceCount += 1;
-    totals[bucket] += outstanding;
-    totals.total += outstanding;
+    currencyTotals[bucket] += outstanding;
+    currencyTotals.total += outstanding;
   }
 
   const rows: AgingRow[] = [...byCustomer.values()]
-    .sort((a, b) => (a.customerName > b.customerName ? 1 : -1))
+    .sort((a, b) =>
+      a.customerName === b.customerName
+        ? a.currency.localeCompare(b.currency)
+        : a.customerName > b.customerName
+          ? 1
+          : -1,
+    )
     .map((entry) => ({
       customerId: entry.customerId,
       customerName: entry.customerName,
@@ -649,26 +687,42 @@ export async function buildAging(
       },
     }));
 
+  const totalsByCurrency = [...byCurrency.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([currency, buckets]) => ({
+      currency,
+      buckets: {
+        current: formatAmount(buckets.current),
+        days1to30: formatAmount(buckets.days1to30),
+        days31to60: formatAmount(buckets.days31to60),
+        days61to90: formatAmount(buckets.days61to90),
+        over90: formatAmount(buckets.over90),
+        total: formatAmount(buckets.total),
+      },
+    }));
+
   return {
     asOf,
     rows,
-    totals: {
-      current: formatAmount(totals.current),
-      days1to30: formatAmount(totals.days1to30),
-      days31to60: formatAmount(totals.days31to60),
-      days61to90: formatAmount(totals.days61to90),
-      over90: formatAmount(totals.over90),
-      total: formatAmount(totals.total),
-    },
+    // A single total is only meaningful when every row shares one currency.
+    totals:
+      totalsByCurrency.length === 1
+        ? totalsByCurrency[0]!.buckets
+        : totalsByCurrency.length === 0
+          ? {
+              current: '0.0000',
+              days1to30: '0.0000',
+              days31to60: '0.0000',
+              days61to90: '0.0000',
+              over90: '0.0000',
+              total: '0.0000',
+            }
+          : null,
+    totalsByCurrency,
   };
 }
 
-export async function customerBalance(
-  db: Db,
-  companyId: string,
-  customerId: string,
-  asOf: string,
-): Promise<{
+export interface CurrencyCustomerBalance {
   currency: string;
   invoiced: string;
   paid: string;
@@ -676,40 +730,91 @@ export async function customerBalance(
   outstanding: string;
   unallocated: string;
   balance: string;
-}> {
+}
+
+export async function customerBalance(
+  db: Db,
+  companyId: string,
+  customerId: string,
+  asOf: string,
+): Promise<CurrencyCustomerBalance & { asOf: string; balances: CurrencyCustomerBalance[] }> {
   const invoices = await db.query<any>(
-    `SELECT total_amount, amount_paid, credited_amount, currency
-       FROM billing_documents
-      WHERE company_id = $1 AND customer_id = $2 AND kind = 'invoice'
-        AND status NOT IN ('draft', 'cancelled') AND issue_date <= $3`,
+    `WITH calc AS (
+       SELECT d.id, d.currency, d.total_amount::text,
+              COALESCE((
+                SELECT SUM(a.amount) FROM billing_payment_allocations a
+                  JOIN billing_payments p ON p.id = a.payment_id AND p.status = 'recorded'
+                 WHERE a.invoice_id = d.id
+                   AND (a.cancelled_at IS NULL OR a.cancelled_at::date > $3::date)
+                   AND COALESCE(a.allocated_date, p.payment_date) <= $3::date
+              ), 0)::text AS amount_paid,
+              COALESCE((
+                SELECT SUM(c.total_amount) FROM billing_documents c
+                 WHERE c.kind = 'credit_note' AND c.source_document_id = d.id
+                   AND c.status = 'issued' AND c.issue_date <= $3::date
+              ), 0)::text AS credited_amount
+         FROM billing_documents d
+        WHERE d.company_id = $1 AND d.customer_id = $2 AND d.kind = 'invoice'
+          AND d.status NOT IN ('draft', 'cancelled') AND d.issue_date <= $3::date
+     )
+     SELECT currency, total_amount, amount_paid, credited_amount FROM calc`,
     [companyId, customerId, asOf],
   );
-  let invoiced = 0n;
-  let paid = 0n;
-  let credited = 0n;
-  for (const row of invoices.rows) {
-    invoiced += parseAmount(row.total_amount);
-    paid += parseAmount(row.amount_paid);
-    credited += parseAmount(row.credited_amount);
-  }
-  const unallocated = await db.query<any>(
-    `SELECT COALESCE(SUM(unallocated_amount), 0) AS total
-       FROM billing_payments
-      WHERE company_id = $1 AND customer_id = $2 AND status = 'recorded' AND payment_date <= $3`,
+  const payments = await db.query<any>(
+    `WITH calc AS (
+       SELECT p.currency, p.amount::text,
+              COALESCE((
+                SELECT SUM(a.amount) FROM billing_payment_allocations a
+                 WHERE a.payment_id = p.id
+                   AND (a.cancelled_at IS NULL OR a.cancelled_at::date > $3::date)
+                   AND COALESCE(a.allocated_date, p.payment_date) <= $3::date
+              ), 0)::text AS allocated
+         FROM billing_payments p
+        WHERE p.company_id = $1 AND p.customer_id = $2 AND p.status = 'recorded'
+          AND p.payment_date <= $3::date
+     )
+     SELECT currency, amount, allocated FROM calc`,
     [companyId, customerId, asOf],
   );
-  const unallocatedTotal = parseAmount(unallocated.rows[0]?.total ?? '0');
-  const outstanding = invoiced - paid - credited;
-  const currency = invoices.rows[0]?.currency ?? 'MUR';
-  return {
-    currency,
-    invoiced: formatAmount(invoiced),
-    paid: formatAmount(paid),
-    credited: formatAmount(credited),
-    outstanding: formatAmount(outstanding > 0n ? outstanding : 0n),
-    unallocated: formatAmount(unallocatedTotal),
-    balance: formatAmount(outstanding - unallocatedTotal),
+
+  const currencies = new Set<string>([
+    ...invoices.rows.map((r) => r.currency),
+    ...payments.rows.map((r) => r.currency),
+  ]);
+  const balances: CurrencyCustomerBalance[] = [...currencies].sort().map((currency) => {
+    let invoiced = 0n;
+    let paid = 0n;
+    let credited = 0n;
+    for (const row of invoices.rows.filter((r) => r.currency === currency)) {
+      invoiced += parseAmount(row.total_amount);
+      paid += parseAmount(row.amount_paid);
+      credited += parseAmount(row.credited_amount);
+    }
+    let unallocated = 0n;
+    for (const row of payments.rows.filter((r) => r.currency === currency)) {
+      unallocated += parseAmount(row.amount) - parseAmount(row.allocated);
+    }
+    const outstanding = invoiced - paid - credited;
+    return {
+      currency,
+      invoiced: formatAmount(invoiced),
+      paid: formatAmount(paid),
+      credited: formatAmount(credited),
+      outstanding: formatAmount(outstanding > 0n ? outstanding : 0n),
+      unallocated: formatAmount(unallocated > 0n ? unallocated : 0n),
+      balance: formatAmount(outstanding - unallocated),
+    };
+  });
+  const primary = balances[0] ?? {
+    currency: 'MUR',
+    invoiced: '0.0000',
+    paid: '0.0000',
+    credited: '0.0000',
+    outstanding: '0.0000',
+    unallocated: '0.0000',
+    balance: '0.0000',
   };
+  return { ...primary, asOf, balances };
 }
 
 /** Recomputes the paid/credited aggregates of an invoice from its allocations. */
@@ -718,7 +823,8 @@ export async function refreshInvoiceBalance(tx: Db, companyId: string, invoiceId
     `SELECT COALESCE(SUM(a.amount), 0) AS total
        FROM billing_payment_allocations a
        JOIN billing_payments p ON p.id = a.payment_id AND p.status = 'recorded'
-      WHERE a.invoice_id = $1`,
+      WHERE a.invoice_id = $1
+        AND a.cancelled_at IS NULL`,
     [invoiceId],
   );
   const credited = await tx.query<any>(
@@ -754,6 +860,221 @@ export async function refreshInvoiceBalance(tx: Db, companyId: string, invoiceId
       WHERE id = $5 AND company_id = $6`,
     [formatAmount(paidTotal), formatAmount(creditedTotal), paymentStatus, status, invoiceId, companyId],
   );
+}
+
+async function refreshBillingPaymentUnallocated(
+  tx: Db,
+  companyId: string,
+  paymentId: string,
+): Promise<void> {
+  const payment = await tx.query<any>(
+    'SELECT amount FROM billing_payments WHERE id = $1 AND company_id = $2 FOR UPDATE',
+    [paymentId, companyId],
+  );
+  if (!payment.rows[0]) return;
+  const active = await tx.query<any>(
+    `SELECT COALESCE(SUM(amount), 0) AS total
+       FROM billing_payment_allocations
+      WHERE payment_id = $1 AND cancelled_at IS NULL`,
+    [paymentId],
+  );
+  const remaining = parseAmount(payment.rows[0].amount) - parseAmount(active.rows[0]?.total ?? '0');
+  await tx.query(
+    `UPDATE billing_payments SET unallocated_amount = $2, updated_at = now()
+      WHERE id = $1 AND company_id = $3`,
+    [paymentId, formatAmount(remaining > 0n ? remaining : 0n), companyId],
+  );
+}
+
+/**
+ * Mission 42 — allocate an existing customer over-payment to a later invoice.
+ * The payment entry is never rewritten. If it is already posted, the caller
+ * receives `reclassRequired` and prepares a separate, validated proposal.
+ */
+export async function allocateBillingPayment(
+  db: Db,
+  companyId: string,
+  userId: string,
+  paymentId: string,
+  input: {
+    invoiceId: string;
+    amount: string | number;
+    allocationDate?: string | null;
+    reason?: string | null;
+  },
+): Promise<{
+  payment: any;
+  invoice: any;
+  allocationId: string;
+  reclassRequired: boolean;
+}> {
+  const value = parseAmount(String(input.amount));
+  if (value <= 0n) throw badRequest('ALLOCATION_INVALID', 'An allocation must be greater than zero');
+  const allocationDate = input.allocationDate
+    ? parseIsoDate(input.allocationDate, 'allocationDate')
+    : new Date().toISOString().slice(0, 10);
+  const result = await db.transaction(async (tx) => {
+    const paymentRes = await tx.query<any>(
+      'SELECT * FROM billing_payments WHERE id = $1 AND company_id = $2 FOR UPDATE',
+      [paymentId, companyId],
+    );
+    const payment = paymentRes.rows[0];
+    if (!payment) throw notFound('PAYMENT_NOT_FOUND', 'Payment not found');
+    if (payment.status !== 'recorded') throw conflict('DOCUMENT_STATUS_INVALID', 'Cancelled payment');
+    const invoiceRes = await tx.query<any>(
+      `SELECT * FROM billing_documents
+        WHERE id = $1 AND company_id = $2 AND kind = 'invoice' FOR UPDATE`,
+      [input.invoiceId, companyId],
+    );
+    const invoice = invoiceRes.rows[0];
+    if (!invoice) throw notFound('DOCUMENT_NOT_FOUND', 'Invoice not found');
+    if (!['issued', 'partially_paid'].includes(invoice.status)) {
+      throw conflict('ALLOCATION_INVALID', 'The invoice is not open for payment');
+    }
+    if (invoice.customer_id !== payment.customer_id) {
+      throw badRequest('ALLOCATION_INVALID', 'The invoice belongs to another customer');
+    }
+    if (invoice.currency !== payment.currency) {
+      throw badRequest('CURRENCY_MISMATCH', 'The payment and invoice currencies differ');
+    }
+    if (allocationDate < payment.payment_date) {
+      throw badRequest('ALLOCATION_INVALID', 'An allocation cannot predate the payment');
+    }
+    const active = await tx.query<any>(
+      `SELECT COALESCE(SUM(amount), 0) AS total FROM billing_payment_allocations
+        WHERE payment_id = $1 AND cancelled_at IS NULL`,
+      [paymentId],
+    );
+    const available = parseAmount(payment.amount) - parseAmount(active.rows[0]?.total ?? '0');
+    if (value > available) {
+      throw new AppError('ALLOCATION_EXCEEDS_PAYMENT', 409, 'The allocation exceeds the unallocated payment amount', {
+        available: formatAmount(available > 0n ? available : 0n),
+        requested: formatAmount(value),
+      });
+    }
+    const paid = await tx.query<any>(
+      `SELECT COALESCE(SUM(amount), 0) AS total FROM billing_payment_allocations
+        WHERE invoice_id = $1 AND cancelled_at IS NULL`,
+      [invoice.id],
+    );
+    const credited = await tx.query<any>(
+      `SELECT COALESCE(SUM(total_amount), 0) AS total FROM billing_documents
+        WHERE company_id = $1 AND kind = 'credit_note' AND source_document_id = $2
+          AND status = 'issued'`,
+      [companyId, invoice.id],
+    );
+    const outstanding =
+      parseAmount(invoice.total_amount) - parseAmount(paid.rows[0]?.total ?? '0') - parseAmount(credited.rows[0]?.total ?? '0');
+    if (value > outstanding) {
+      throw new AppError('ALLOCATION_EXCEEDS_INVOICE', 409, 'The allocation exceeds the invoice outstanding', {
+        outstanding: formatAmount(outstanding > 0n ? outstanding : 0n),
+        requested: formatAmount(value),
+      });
+    }
+    const priorUnallocated = parseAmount(payment.unallocated_amount);
+    const reclassAmount = payment.accounting_entry_id
+      ? (value < priorUnallocated ? value : priorUnallocated)
+      : 0n;
+    const existing = await tx.query<any>(
+      `SELECT id, cancelled_at FROM billing_payment_allocations
+        WHERE payment_id = $1 AND invoice_id = $2 FOR UPDATE`,
+      [paymentId, invoice.id],
+    );
+    if (existing.rows[0]?.cancelled_at === null) {
+      throw conflict('ALLOCATION_EXISTS', 'This payment is already allocated to this invoice');
+    }
+    let allocationId: string;
+    if (existing.rows[0]) {
+      const updated = await tx.query<any>(
+        `UPDATE billing_payment_allocations
+            SET amount = $2, allocated_date = $3, cancelled_at = NULL, cancelled_by = NULL,
+                cancellation_reason = NULL, reclass_amount = $4
+          WHERE id = $1 RETURNING id`,
+        [existing.rows[0].id, formatAmount(value), allocationDate, formatAmount(reclassAmount)],
+      );
+      allocationId = updated.rows[0].id;
+    } else {
+      const inserted = await tx.query<any>(
+        `INSERT INTO billing_payment_allocations
+           (payment_id, invoice_id, company_id, amount, allocated_date, reclass_amount)
+         VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+        [paymentId, invoice.id, companyId, formatAmount(value), allocationDate, formatAmount(reclassAmount)],
+      );
+      allocationId = inserted.rows[0].id;
+    }
+    await refreshBillingPaymentUnallocated(tx, companyId, paymentId);
+    await refreshInvoiceBalance(tx, companyId, invoice.id);
+    await logDocumentEvent(tx, {
+      companyId,
+      documentId: invoice.id,
+      action: 'payment.allocated',
+      userId,
+      details: { paymentId, allocationId, amount: formatAmount(value), allocationDate, reason: input.reason ?? null },
+    });
+    await writeAudit(tx, {
+      companyId,
+      userId,
+      action: 'billing.payment.allocate',
+      entityType: 'billing_payment_allocation',
+      entityId: allocationId,
+      details: { paymentId, invoiceId: invoice.id, amount: formatAmount(value), allocationDate },
+    });
+    return { allocationId, reclassRequired: reclassAmount > 0n };
+  });
+  const payment = (await db.query<any>('SELECT * FROM billing_payments WHERE id = $1', [paymentId])).rows[0];
+  const invoice = (await loadDocument(db, companyId, input.invoiceId)).document;
+  return { payment, invoice, allocationId: result.allocationId, reclassRequired: result.reclassRequired };
+}
+
+export async function cancelBillingPaymentAllocation(
+  db: Db,
+  companyId: string,
+  userId: string,
+  paymentId: string,
+  allocationId: string,
+  reason: string,
+): Promise<{ payment: any; invoice: any }> {
+  if (!reason.trim()) throw badRequest('VALIDATION_ERROR', 'A cancellation reason is required');
+  const invoiceId = await db.transaction(async (tx) => {
+    const allocation = await tx.query<any>(
+      `SELECT * FROM billing_payment_allocations
+        WHERE id = $1 AND payment_id = $2 AND company_id = $3 FOR UPDATE`,
+      [allocationId, paymentId, companyId],
+    );
+    if (!allocation.rows[0]) throw notFound('ALLOCATION_NOT_FOUND', 'Allocation not found');
+    if (allocation.rows[0].cancelled_at) return allocation.rows[0].invoice_id as string;
+    if (allocation.rows[0].reclass_entry_id) {
+      throw conflict('ALLOCATION_RECLASS_POSTED', 'Reverse the reclassification entry before cancelling this allocation');
+    }
+    await tx.query(
+      `UPDATE billing_payment_allocations
+          SET cancelled_at = now(), cancelled_by = $2, cancellation_reason = $3
+        WHERE id = $1`,
+      [allocationId, userId, reason.trim()],
+    );
+    await refreshBillingPaymentUnallocated(tx, companyId, paymentId);
+    await refreshInvoiceBalance(tx, companyId, allocation.rows[0].invoice_id);
+    await logDocumentEvent(tx, {
+      companyId,
+      documentId: allocation.rows[0].invoice_id,
+      action: 'payment.allocation_cancelled',
+      userId,
+      details: { paymentId, allocationId, amount: allocation.rows[0].amount, reason: reason.trim() },
+    });
+    await writeAudit(tx, {
+      companyId,
+      userId,
+      action: 'billing.payment.allocation.cancel',
+      entityType: 'billing_payment_allocation',
+      entityId: allocationId,
+      details: { paymentId, reason: reason.trim() },
+    });
+    return allocation.rows[0].invoice_id as string;
+  });
+  return {
+    payment: (await db.query<any>('SELECT * FROM billing_payments WHERE id = $1', [paymentId])).rows[0],
+    invoice: (await loadDocument(db, companyId, invoiceId)).document,
+  };
 }
 
 export async function logDocumentEvent(
