@@ -262,4 +262,10 @@ anglais comme demandé.
 - Aucun test de charge : taille des fichiers, nombre de documents, concurrence OCR.
 - Aucune règle de TVA mauricienne, aucun numéro de compte obligatoire, aucune durée de
   conservation et aucune conformité MRA ne sont affirmés.
+- **GitHub Pages** : le workflow `pages.yml` continue de ne lister que les anciennes branches de
+  démonstration ; `arena/984fcb7c-mauritius-compta` n’y a **pas** été ajoutée et aucune publication
+  n’a été déclenchée. Après une fusion approuvée, la démo officielle devra être construite avec
+  `npm run build:demo` et les contrôles de bundle pourront être complétés par `Scan & Import`,
+  `Importer un relevé MCB`, `PLH-2210` (document photographié fictif) et `ACME OFFICE SUPPLIES LTD`
+  (facture fictive). Ces adaptations n’ont volontairement pas été appliquées ici.
 - Aucune fusion, aucun déploiement OVH, aucune publication Pages, aucun accès aux autres dépôts.
