@@ -255,6 +255,7 @@ Exécutés localement le 1er novembre 2026 :
 | `npx vitest run apps/api/tests/mission22.test.ts` | **13/13** |
 | `VITE_BUILD_COMMIT=deadbee npm run build:demo` | build OK |
 | Contrôles `grep` du bundle (version, commit, OCR, MCB, mappings, pont stock) | OK |
+| CI GitHub de la PR nº 7 (run `41260154181` / `41260154182`) | typecheck, tests web, tests API PostgreSQL, migrations et build démo : **succès** ; `Deploy to GitHub Pages` : **ignoré** (PR, hors `main`) |
 
 Nouveaux tests :
 
@@ -264,9 +265,11 @@ Nouveaux tests :
   facture client émise → mouvements de stock proposés, refus d’une quantité supérieure
   à la quantité facturée.
 
-La CI GitHub n’a pas encore exécuté cette branche au moment de la rédaction ; le
-workflow PR ne déploiera rien. Aucun test E2E Playwright, aucun test sur Samsung
-Android physique, aucun test sur Chrome Windows.
+La CI GitHub a exécuté la branche sur la PR en brouillon : les quatre contrôles
+(typecheck/tests/build, tests API PostgreSQL, migrations, build démo) sont au vert et
+le déploiement Pages est ignoré, car une PR ne peut pas remplacer la démo publique.
+Aucun test E2E Playwright, aucun test sur Samsung Android physique, aucun test sur
+Chrome Windows.
 
 ## 10. Limitations et décisions nécessaires
 
