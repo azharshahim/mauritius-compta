@@ -269,7 +269,11 @@ Points vérifiés :
 | dont mission 36 | **9 + 3 + 16 = 28 tests réussis** |
 | `npm run test -w @mc/api` | **35 fichiers réussis, 1 fichier ignoré ; 521 tests réussis, 11 ignorés** |
 | `npm run build` | **réussi** (web + API) ; avertissement de taille de bundle Vite (1,25 Mo), non bloquant |
-| CI GitHub Actions | à lancer après le commit ; aucun échec lié à la mission 36 n'est attendu |
+| CI GitHub Actions — `Typecheck, tests and build` | **réussi** (3 min 47 s) |
+| CI — `API tests against real PostgreSQL` | **réussi** (1 min 44 s) |
+| CI — `Migrations against real PostgreSQL` | **réussi** (31 s) |
+| CI — `Build demo bundle` | **réussi** (2 min 4 s) |
+| CI — `Deploy to GitHub Pages` | **ignoré** (PR, pas de déploiement) |
 
 **Échecs intermédiaires et corrections :**
 
@@ -338,9 +342,10 @@ Aucun test n'a été marqué `skip` ou supprimé pour faire passer la mission.
 ## 14. Livraison
 
 - Branche créée depuis `main`, **aucune fusion**.
-- **PR en brouillon** à ouvrir ; Actions à lancer ; échecs liés à corriger.
+- **PR nº17 en brouillon** ouverte ; Actions lancées et vertes ; aucun échec lié à la mission.
 - **Aucune publication, aucun déploiement, aucun accès au VPS.**
 - **Attente de validation explicite** avant toute fusion.
 
-**État final :** implémentation et documentation terminées, tests locaux verts,
-validation professionnelle et revue indépendante encore requises.
+**État final :** implémentation et documentation terminées, tests locaux et CI verts,
+PR nº17 en brouillon. Validation professionnelle et revue indépendante encore requises.
+Aucune fusion, aucune publication, aucun déploiement.
