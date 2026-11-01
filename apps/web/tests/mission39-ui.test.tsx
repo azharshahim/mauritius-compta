@@ -197,7 +197,9 @@ describe('mission 39 — Back, breadcrumb and browser history', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^Back$/ }));
     await waitFor(() => expect(window.location.hash).toBe('#/accounting/assets'));
-    expect(screen.getByRole('tab', { name: /^Register$/ }).getAttribute('aria-selected')).toBe('true');
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: /^Register$/ }).getAttribute('aria-selected')).toBe('true'),
+    );
   });
 
   it('preserves a tab/filter query when the in-app Back returns to the screen', async () => {
@@ -208,7 +210,9 @@ describe('mission 39 — Back, breadcrumb and browser history', () => {
     await screen.findByRole('heading', { name: /^Sales Invoices$/ });
     fireEvent.click(screen.getByRole('button', { name: /^Back$/ }));
     await waitFor(() => expect(window.location.hash).toBe('#/accounting/purchases?tab=invoices'));
-    expect(screen.getByRole('tab', { name: /Bills|Factures/i }).getAttribute('aria-selected')).toBe('true');
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: /Bills|Factures/i }).getAttribute('aria-selected')).toBe('true'),
+    );
   });
 
   it('uses the module parent on a direct URL instead of leaving COMPTAI', async () => {
