@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../../api';
-import { demoEnabled } from '../../demo';
+import { demoEnabled } from '../../demo/mode';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
 import { useAsync } from '../../hooks';
@@ -31,6 +31,7 @@ interface PreviewResponse {
     bankName?: string | null; accountNumber?: string | null;
     periodStart?: string | null; periodEnd?: string | null; currency?: string | null;
     profileKey?: 'mcb' | 'generic';
+    detectedBankKey?: 'mcb' | 'sbm' | 'absa' | 'maubank' | 'generic';
   };
   extraction: { method: string; pageCount: number; warnings: string[] };
 }
@@ -195,6 +196,9 @@ export default function BankMcbPage() {
             </div>
             <div className="form-grid">
               <Field label={t('bankPdf.bankName')}><div>{preview.mcb.bankName ?? '—'}</div></Field>
+              <Field label={t('bankPdf.detectedBank')}>
+                <div>{preview.mcb.detectedBankKey ? preview.mcb.detectedBankKey.toUpperCase() : '—'}</div>
+              </Field>
               <Field label={t('bankPdf.accountNumber')}><div className="mono">{preview.mcb.accountNumber ?? '—'}</div></Field>
               <Field label={t('bankPdf.period')}>
                 <div>{preview.mcb.periodStart ?? '—'} → {preview.mcb.periodEnd ?? '—'}</div>

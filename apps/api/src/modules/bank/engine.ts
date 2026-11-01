@@ -85,8 +85,8 @@ export interface BankImportOptions {
   closingBalance?: string | null;
 }
 
-const MAX_LABEL = 240;
-const MAX_REFERENCE = 120;
+const MAX_LABEL = 2000;
+const MAX_REFERENCE = 240;
 
 function finding(
   severity: BankFinding['severity'],

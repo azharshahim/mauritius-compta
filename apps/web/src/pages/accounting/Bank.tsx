@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../../api';
-import { demoEnabled } from '../../demo';
+import { demoEnabled } from '../../demo/mode';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
 import { ACCOUNTING_UPLOAD_ACCEPT, validateAccountingUpload } from '../../lib/upload';
 import { Badge, Button, Card, EmptyState, ErrorBanner, Field, Spinner } from '../../components/ui';
+import { AppIcon } from '../../components/AppIcon';
 import type { BankPreview, BankFinding } from '../../../../api/src/modules/bank/engine';
 import type { AccountSuggestion, MatchSuggestion } from '../../../../api/src/modules/bank/reconcile';
 import type { BankColumnSuggestion, BankFieldDef } from '../../../../api/src/modules/bank/profiles';
@@ -935,6 +936,16 @@ export default function BankPage() {
     }
   };
 
+  const requestedTransaction = searchParams.get('transactionId');
+  useEffect(() => {
+    if (tab === 'transactions' && accountId && requestedTransaction) {
+      void openTxn(requestedTransaction);
+    }
+    // `openTxn` is intentionally read from the current render; the query value
+    // is the only trigger, otherwise reloading the detail would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, accountId, requestedTransaction]);
+
   const confirmBilling = async () => {
     if (!detail || !selectedPayment || !reviewed) return;
     setBusy(true);
@@ -1455,7 +1466,15 @@ export default function BankPage() {
       )}
 
       {tab === 'transactions' && (
-        <Card title={tr.transactions}>
+        <Card
+          title={tr.transactions}
+          actions={
+            <Link className="btn btn-sm" to={`/accounting/banking/bulk-reconciliation?bankAccountId=${encodeURIComponent(accountId)}`}>
+              <AppIcon name="reconciliation" size={15} />{' '}
+              {locale === 'fr' ? 'Rapprochement groupé' : 'Bulk reconciliation'}
+            </Link>
+          }
+        >
           <div className="bank-form">
             <Field label={tr.importFor}>
               <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>

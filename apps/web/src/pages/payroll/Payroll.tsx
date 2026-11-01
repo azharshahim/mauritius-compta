@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { api, downloadExport } from '../../api';
-import { demoEnabled } from '../../demo';
+import { demoEnabled } from '../../demo/mode';
 import DeclarationsPanel from './Declarations';
 import AccountingTransferPanel from './AccountingTransfer';
 import { useI18n } from '../../i18n';

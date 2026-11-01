@@ -7,8 +7,9 @@ import { clientIp } from '../../lib/http.js';
 import { writeAudit } from '../../lib/audit.js';
 import { requireCompany } from '../../lib/tenant.js';
 import {
-  approveProposal, documentFile, generateProposal, getDocument, listDocuments,
-  partyCandidates, rejectProposal, updateDocument, uploadDocument,
+  approveProposal, documentFile, generateProposal, getDocument, listDocumentRules,
+  listDocuments, partyCandidates, reextractDocument, rejectProposal, updateDocument,
+  updateDocumentRule, uploadDocument,
 } from './service.js';
 
 const financialYear = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish();
@@ -28,7 +29,18 @@ const UpdateSchema = z.object({
   subtotal: z.union([z.string(), z.number()]).nullish(),
   vat_total: z.union([z.string(), z.number()]).nullish(),
   total_amount: z.union([z.string(), z.number()]).nullish(),
+  document_type: z.enum(['invoice', 'credit_note', 'unknown']).optional(),
+  discount_total: z.union([z.string(), z.number()]).nullish(),
+  purchase_order: z.string().trim().max(80).nullish(),
+  payment_terms: z.string().trim().max(200).nullish(),
+  tax_ids: z.object({
+    supplierBrn: z.string().trim().max(30).nullish(),
+    supplierVat: z.string().trim().max(30).nullish(),
+    customerBrn: z.string().trim().max(30).nullish(),
+    customerVat: z.string().trim().max(30).nullish(),
+  }).strict().nullish(),
 }).strict();
+const ReextractSchema = z.object({ apply: z.boolean().optional() }).strict();
 const ApprovalSchema = z.object({
   confirm: z.literal(true),
   partyId: z.string().uuid().nullish(),
@@ -44,6 +56,12 @@ const ApprovalSchema = z.object({
   })).min(2).max(200),
 }).strict();
 const RejectSchema = z.object({ reason: z.string().trim().min(3).max(500) });
+const RuleUpdateSchema = z.object({
+  accountId: z.string().uuid().optional(),
+  isActive: z.boolean().optional(),
+}).strict().refine((value) => value.accountId !== undefined || value.isActive !== undefined, {
+  message: 'At least one rule field is required',
+});
 
 export function documentRoutes(app: FastifyInstance, db: Db, config: Config) {
   const base = '/companies/:companyId/documents';
@@ -64,6 +82,36 @@ export function documentRoutes(app: FastifyInstance, db: Db, config: Config) {
     await requireCompany(db, req.user!.id, companyId, 'viewer');
     const q = req.query as { status?: string };
     return { documents: await listDocuments(db, companyId, q.status) };
+  });
+
+  // Static routes must be declared before `/:documentId`.
+  app.get(`${base}/rules`, async (req) => {
+    const { companyId } = req.params as { companyId: string };
+    await requireCompany(db, req.user!.id, companyId, 'viewer');
+    return { rules: await listDocumentRules(db, companyId) };
+  });
+
+  app.patch(`${base}/rules/:ruleId`, async (req) => {
+    const { companyId, ruleId } = req.params as { companyId: string; ruleId: string };
+    await requireCompany(db, req.user!.id, companyId, 'accountant');
+    const body = parse(RuleUpdateSchema, req.body);
+    const rule = await updateDocumentRule(db, companyId, ruleId, body);
+    await writeAudit(db, { companyId, userId: req.user!.id, action: 'document.rule.update',
+      entityType: 'document_mapping', entityId: ruleId,
+      details: { accountId: body.accountId ?? null, isActive: body.isActive ?? null }, ip: clientIp(req) });
+    return { rule };
+  });
+
+  app.post(`${base}/:documentId/reextract`, async (req) => {
+    const { companyId, documentId } = req.params as { companyId: string; documentId: string };
+    await requireCompany(db, req.user!.id, companyId, 'accountant');
+    const body = parse(ReextractSchema, req.body ?? {});
+    const result = await reextractDocument(db, config, { userId: req.user!.id, companyId }, documentId, body.apply === true);
+    await writeAudit(db, { companyId, userId: req.user!.id, action: 'document.reextract',
+      entityType: 'document', entityId: documentId,
+      details: { applied: result.applied, method: result.extraction.method, changedFields: result.changedFields },
+      ip: clientIp(req) });
+    return result;
   });
 
   app.get(`${base}/:documentId`, async (req) => {

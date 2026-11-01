@@ -130,7 +130,7 @@ describe('MCB statement parser', () => {
     const result = parseMcbStatement(GENERIC_TEXT.join('\n'));
     expect(result.profileKey).toBe('generic');
     expect(result.bankName).toBe('State Bank of Mauritius');
-    expect(result.accountNumber).toBe('012345678901');
+    expect(result.accountNumber).toBe('****8901');
     expect(result.periodStart).toBe('2026-02-01');
     expect(result.periodEnd).toBe('2026-02-28');
     expect(result.currency).toBe('MUR');
@@ -333,6 +333,54 @@ describe('documents, chart and MCB API', () => {
     expect(Number(after.rows[0]!.count)).toBe(2);
   });
 
+  it('supervises classification rules and only applies them after repeated approvals', async () => {
+    const rules = await api(ctx, cookie, 'GET', `${base()}/documents/rules`);
+    expect(rules.statusCode).toBe(200);
+    expect(rules.json().rules.length).toBeGreaterThanOrEqual(2);
+    const rule = rules.json().rules.find((row: any) => /paper/i.test(row.keyword_key));
+    expect(rule).toBeTruthy();
+    expect(rule.usage_count).toBe(1);
+    expect(rule.is_active).toBe(true);
+
+    const rent = accountByCode(accounts, '6100').id;
+    const changed = await api(ctx, cookie, 'PATCH', `${base()}/documents/rules/${rule.id}`, { accountId: rent });
+    expect(changed.statusCode).toBe(200);
+    expect(changed.json().rule.account_code).toBe('6100');
+
+    const invalid = await api(ctx, cookie, 'PATCH', `${base()}/documents/rules/${rule.id}`,
+      { accountId: accountByCode(accounts, '2000').id });
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.json().error.code).toBe('DOCUMENT_RULE_ACCOUNT_INVALID');
+
+    const disabled = await api(ctx, cookie, 'PATCH', `${base()}/documents/rules/${rule.id}`, { isActive: false });
+    expect(disabled.json().rule.is_active).toBe(false);
+    const audit = await ctx.db.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM audit_log
+        WHERE company_id=$1 AND action='document.rule.update' AND entity_id=$2`,
+      [company, rule.id],
+    );
+    expect(Number(audit.rows[0]!.count)).toBeGreaterThanOrEqual(2);
+    const isolated = await api(ctx, otherCookie, 'PATCH',
+      `${base(otherCompany)}/documents/rules/${rule.id}`, { isActive: true });
+    expect(isolated.statusCode).toBe(404);
+
+    // Two identical human approvals are the threshold for applying a rule.
+    await ctx.db.query(
+      `UPDATE document_mappings SET usage_count = 2, is_active = true WHERE id = $1`, [rule.id]);
+    const nextLines = INVOICE_LINES.map((line) => line
+      .replace('INV-2026-101', 'INV-2026-103').replace('12 Feb 2026', '14 Feb 2026'));
+    const pdf = await makePdf(nextLines);
+    const uploaded = await api(ctx, cookie, 'POST', `${base()}/documents`, {
+      fileName: 'fictitious-acme-rule.pdf', contentBase64: pdf.toString('base64'),
+      declaredMime: 'application/pdf', kind: 'purchase',
+    });
+    expect(uploaded.statusCode).toBe(201);
+    const proposed = await api(ctx, cookie, 'POST', `${base()}/documents/${uploaded.json().document.id}/proposal`);
+    expect(proposed.statusCode).toBe(201);
+    const expenseLine = proposed.json().proposal.lines.find((line: any) => /A4 paper box/i.test(line.description));
+    expect(expenseLine.accountId).toBe(rent);
+  });
+
   it('isolates documents between companies', async () => {
     const other = await api(ctx, otherCookie, 'GET', `${base(otherCompany)}/documents`);
     expect(other.statusCode).toBe(200);
@@ -371,7 +419,7 @@ describe('documents, chart and MCB API', () => {
     expect(preview.statusCode).toBe(200);
     expect(preview.json().mcb.profileKey).toBe('generic');
     expect(preview.json().mcb.bankName).toBe('State Bank of Mauritius');
-    expect(preview.json().mcb.accountNumber).toBe('012345678901');
+    expect(preview.json().mcb.accountNumber).toBe('****8901');
     expect(preview.json().preview.preview.transactions).toHaveLength(3);
     expect(preview.json().source.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(preview.json().source.fileName).toBe('sbm-fictif.pdf');

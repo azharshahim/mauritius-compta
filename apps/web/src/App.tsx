@@ -35,6 +35,8 @@ import MigrationPage from './pages/cabinet/Migration';
 import BankPage from './pages/accounting/Bank';
 import BankMcbPage from './pages/accounting/BankMcb';
 import ScanImportPage from './pages/documents/ScanImport';
+import BulkImportPage from './pages/documents/BulkImport';
+import BulkReconciliationPage from './pages/accounting/BulkReconciliation';
 import BillingOverviewPage from './pages/billing/Overview';
 import BillingCustomersPage from './pages/billing/Customers';
 import BillingDocumentsPage from './pages/billing/Documents';
@@ -48,6 +50,8 @@ import { NAV_GROUPS, groupIsActive, isNavItemActive } from './navigation';
 import { Spinner } from './components/ui';
 import { DemoBanner } from './components/DemoBanner';
 import { AssistantLauncher } from './components/AssistantLauncher';
+import { AppIcon } from './components/AppIcon';
+import { BrandMark } from './components/BrandMark';
 
 const ACCESS_WEIGHT: Record<string, number> = { none: 0, read: 1, write: 2, admin: 3 };
 
@@ -55,6 +59,9 @@ export default function App() {
   const { t, locale, setLocale } = useI18n();
   const { user, initialized, companies, company, setCompany, logout } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
+    localStorage.getItem('mc.theme') === 'dark' ? 'dark' : 'light',
+  );
   const location = useLocation();
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
     const active = NAV_GROUPS.find((group) => groupIsActive(group, location.pathname, location.search));
@@ -77,6 +84,11 @@ export default function App() {
   }, [location.pathname, location.search]);
 
   useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('mc.theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
     const active = NAV_GROUPS.find((group) => groupIsActive(group, location.pathname, location.search));
     if (!active) return;
     setOpenGroups((previous) => (previous.has(active.key) ? previous : new Set(previous).add(active.key)));
@@ -88,7 +100,13 @@ export default function App() {
       if (event.key === 'Escape') setMenuOpen(false);
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // Prevent the page behind the Android drawer from scrolling while it is
+    // open; the drawer's own navigation remains scrollable.
+    document.body.classList.add('nav-open');
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.classList.remove('nav-open');
+    };
   }, [menuOpen]);
 
   if (!initialized) {
@@ -125,11 +143,12 @@ export default function App() {
           onClick={() => setMenuOpen((v) => !v)}
           aria-label={t('nav.menu')}
           aria-expanded={menuOpen}
+          aria-controls="app-sidebar"
         >
-          ☰
+          <AppIcon name="menu" />
         </button>
         <div className="brand-inline">
-          <div className="brand-mark">M</div>
+          <BrandMark />
           <div>
             <div className="brand-name">{t('suite.name')}</div>
             <div className="brand-tag">{t('suite.tagline')}</div>
@@ -164,12 +183,40 @@ export default function App() {
           <option value="fr">FR</option>
           <option value="en">EN</option>
         </select>
+        <button
+          className="btn btn-ghost theme-toggle"
+          onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+          aria-label={t(theme === 'dark' ? 'common.lightMode' : 'common.darkMode')}
+          title={t(theme === 'dark' ? 'common.lightMode' : 'common.darkMode')}
+        >
+          <AppIcon name={theme === 'dark' ? 'sun' : 'moon'} />
+        </button>
         <button className="btn btn-ghost" onClick={() => void logout()}>
-          {t('nav.logout')}
+          <AppIcon name="logout" />
+          <span className="btn-label">{t('nav.logout')}</span>
         </button>
       </header>
 
-      <aside className={`sidebar ${menuOpen ? 'open' : ''}`} aria-label={t('nav.menu')}>
+      <aside
+        className={`sidebar ${menuOpen ? 'open' : ''}`}
+        id="app-sidebar"
+        aria-label={t('nav.menu')}
+      >
+        <div className="sidebar-brand">
+          <BrandMark size={38} />
+          <div>
+            <div className="brand-name">{t('suite.name')}</div>
+            <div className="brand-tag">{t('suite.tagline')}</div>
+          </div>
+          <button
+            type="button"
+            className="icon-btn sidebar-close mobile-only"
+            onClick={closeMenu}
+            aria-label={t('common.close')}
+          >
+            <AppIcon name="close" size={20} />
+          </button>
+        </div>
         <div className="sidebar-title">{t('nav.menu')}</div>
         <nav className="nav" onClick={closeMenu}>
           {visibleGroups.map((group) => {
@@ -184,9 +231,11 @@ export default function App() {
                   aria-controls={`nav-group-${group.key}`}
                   onClick={() => toggleGroup(group.key)}
                 >
-                  <span className="nav-group-icon" aria-hidden="true">{group.icon}</span>
+                  <span className="nav-group-icon"><AppIcon name={group.icon} size={16} /></span>
                   <span className="nav-label">{t(group.labelKey)}</span>
-                  <span className={`nav-chevron ${isOpen ? 'open' : ''}`} aria-hidden="true">⌄</span>
+                  <span className={`nav-chevron ${isOpen ? 'open' : ''}`} aria-hidden="true">
+                    <AppIcon name="chevron" size={15} />
+                  </span>
                 </button>
                 {isOpen && (
                   <div className="nav-group-items" id={`nav-group-${group.key}`}>
@@ -199,7 +248,7 @@ export default function App() {
                           `nav-item ${isNavItemActive(item, location.pathname, location.search) ? 'active' : ''}`
                         }
                       >
-                        <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+                        <span className="nav-icon"><AppIcon name={item.icon} size={17} /></span>
                         <span className="nav-label">{t(item.key)}</span>
                         {item.prepared && <span className="pill">{t('module.prepared')}</span>}
                       </NavLink>
@@ -241,6 +290,9 @@ export default function App() {
             <Route path="/documents" element={<ScanImportPage />} />
             <Route path="/accounting/journals/purchases/import" element={<ScanImportPage mode="purchase" />} />
             <Route path="/accounting/journals/sales/import" element={<ScanImportPage mode="sale" />} />
+            <Route path="/accounting/journals/purchases/import/bulk" element={<BulkImportPage mode="purchase" />} />
+            <Route path="/accounting/banking/bulk-reconciliation" element={<BulkReconciliationPage />} />
+            <Route path="/accounting/journals/sales/import/bulk" element={<BulkImportPage mode="sale" />} />
 
             {/* Accounting (existing V0.1 screens, unchanged behaviour) */}
             <Route path="/accounting" element={<DashboardPage />} />

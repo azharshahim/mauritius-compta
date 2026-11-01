@@ -17,6 +17,17 @@ export interface DemoDocument {
   party_name: string | null; invoice_number: string | null; invoice_date: string | null;
   due_date: string | null; currency: string | null; subtotal: string | null;
   vat_total: string | null; total_amount: string | null; duplicate_of: string | null;
+  document_type?: 'invoice' | 'credit_note' | 'unknown';
+  discount_total?: string | null;
+  tax_ids?: {
+    supplierBrn?: string | null; supplierVat?: string | null;
+    customerBrn?: string | null; customerVat?: string | null;
+  };
+  purchase_order?: string | null;
+  payment_terms?: string | null;
+  field_confidence?: Record<string, number>;
+  uncertain_fields?: string[];
+  extraction_quality?: Record<string, unknown>;
   created_at: string; approved_at?: string | null;
 }
 export interface DemoDocumentLine {
@@ -43,7 +54,16 @@ export interface DemoMission23State {
   documents: DemoDocument[];
   documentLines: DemoDocumentLine[];
   proposals: DemoDocProposal[];
-  mappings: { kind: string; party_key: string; keyword_key: string; account_id: string }[];
+  mappings: {
+    id: string;
+    kind: string;
+    party_key: string;
+    keyword_key: string;
+    account_id: string;
+    usage_count: number;
+    last_used_at: string;
+    is_active: boolean;
+  }[];
   mcbImports: string[];
 }
 
@@ -172,6 +192,53 @@ const FIXTURE_DOCS: Omit<DemoDocument, 'company_id' | 'id' | 'created_at'>[] = [
   },
 ];
 
+const DEMO_TAX_IDS = {
+  supplierBrn: 'C12345678901',
+  supplierVat: 'VAT20345678',
+  customerBrn: 'C98765432109',
+  customerVat: 'VAT20987654',
+};
+
+/**
+ * Mission 29/30 — add the verification fields expected by the current screens.
+ * Idempotent so an existing browser demo state can be upgraded in place without
+ * changing its accounting data.
+ */
+function withVerificationFields(doc: DemoDocument, index: number): DemoDocument {
+  const confidence = Number(doc.confidence ?? 0);
+  const lowConfidence = confidence > 0 && confidence < 0.8;
+  return {
+    ...doc,
+    document_type: doc.document_type ?? 'invoice',
+    discount_total: doc.discount_total ?? null,
+    tax_ids: doc.tax_ids ?? (index === 0 || index === 5 ? DEMO_TAX_IDS : {}),
+    purchase_order: doc.purchase_order ?? (index === 0 ? 'PO-7788' : null),
+    payment_terms: doc.payment_terms ?? (index === 0 ? 'Net 30 days' : null),
+    field_confidence: doc.field_confidence ?? {
+      supplierName: confidence || 0.9,
+      invoiceNumber: lowConfidence ? 0.58 : 0.92,
+      invoiceDate: lowConfidence ? 0.62 : 0.9,
+      currency: confidence || 0.9,
+      total: confidence || 0.9,
+      vatTotal: confidence || 0.9,
+    },
+    uncertain_fields: doc.uncertain_fields
+      ?? (lowConfidence ? ['invoiceNumber', 'invoiceDate'] : []),
+    extraction_quality: doc.extraction_quality ?? {
+      method: doc.extraction_method,
+      confidence: Number(confidence.toFixed(4)),
+      pageCount: doc.page_count,
+      demoFixture: true,
+      warnings: doc.warnings,
+    },
+  };
+}
+
+export function upgradeDemoMission23(state: DemoState): void {
+  if (!state.mission23) return;
+  state.mission23.documents = state.mission23.documents.map(withVerificationFields);
+}
+
 export function seedDemoMission23(state: DemoState): void {
   for (const account of state.accounts as (DemoAccount & {
     name_en?: string | null; name_fr?: string | null; posting_allowed?: boolean;
@@ -185,15 +252,23 @@ export function seedDemoMission23(state: DemoState): void {
   }
   if (state.mission23) {
     // Upgrade an existing mission 23 state without duplicating documents.
+    state.mission23.mappings = (state.mission23.mappings ?? []).map((mapping, index) => ({
+      ...mapping,
+      id: mapping.id ?? `demo-rule-upgrade-${index + 1}`,
+      usage_count: mapping.usage_count ?? 2,
+      last_used_at: mapping.last_used_at ?? NOW,
+      is_active: mapping.is_active ?? true,
+    }));
+    upgradeDemoMission23(state);
     return;
   }
   const company = state.companies[0];
   const other = state.companies[1];
   if (!company) return;
-  const documents: DemoDocument[] = FIXTURE_DOCS.map((doc, index) => ({
+  const documents: DemoDocument[] = FIXTURE_DOCS.map((doc, index) => withVerificationFields({
     ...doc, id: `demo-doc-${index + 1}`, company_id: company.id, created_at: NOW,
     duplicate_of: index === 5 ? 'demo-doc-1' : null,
-  }));
+  }, index));
   const account = (code: string) => state.accounts.find((a) => a.company_id === company.id && a.code === code);
   const journal = (type: string) => state.journals.find((j) => j.company_id === company.id && j.type === type);
   const line = (code: string, description: string, debit: string, credit: string): DemoProposalLine => {
@@ -243,6 +318,19 @@ export function seedDemoMission23(state: DemoState): void {
       total_amount: l.totalAmount, quantity: null, unit_price: null,
     }));
   }
+  const expenseAccount = account('5000');
+  const mappings: DemoMission23State['mappings'] = expenseAccount ? [
+    {
+      id: 'demo-rule-1', kind: 'purchase', party_key: 'acme office supplies',
+      keyword_key: 'paper box', account_id: expenseAccount.id, usage_count: 2,
+      last_used_at: NOW, is_active: true,
+    },
+    {
+      id: 'demo-rule-2', kind: 'purchase', party_key: 'acme office supplies',
+      keyword_key: 'printer toner', account_id: expenseAccount.id, usage_count: 1,
+      last_used_at: NOW, is_active: true,
+    },
+  ] : [];
   state.mission23 = {
     schema: 1, seq: documents.length,
     profile: {
@@ -251,7 +339,7 @@ export function seedDemoMission23(state: DemoState): void {
       ...(other ? { [other.id]: { template_type: 'firm_chart', status: 'AWAITING FIRM CONFIRMATION',
         source_name: 'plan-cabinet-demo.xlsx (fictif)', imported_at: NOW, notes: 'Plan importé du cabinet fictif.' } } : {}),
     },
-    documents, documentLines: lines, proposals, mappings: [], mcbImports: [],
+    documents, documentLines: lines, proposals, mappings, mcbImports: [],
   } as DemoMission23State;
 }
 
@@ -275,6 +363,15 @@ function docView(state: DemoMission23State, s: DemoState, doc: DemoDocument) {
       .sort((a, b) => b.created_at.localeCompare(a.created_at)),
   };
 }
+function demoNormalise(value: string): string {
+  return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\b(ltd|limited|ltée|sarl|sas|sa|inc|co|company)\b/g, '')
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+}
+function demoKeyword(value: string): string {
+  return demoNormalise(value).split(' ').filter((word) => word.length > 2).slice(0, 3).join(' ');
+}
+
 function proposalFor(s: DemoState, state: DemoMission23State, doc: DemoDocument): DemoDocProposal {
   const account = (code: string) => accountOf(s, doc.company_id, code);
   const make = (code: string, description: string, debit: string, credit: string): DemoProposalLine => {
@@ -347,9 +444,11 @@ function mcbPreview(s: DemoState, companyId: string, payload: Record<string, any
       profile: 'MCB Savings Regular Account — fictional demonstration extract',
       compatibilityNote: 'Demonstration fixture only. Compatibility with real MCB statements is not asserted.',
       bankName: 'Mauritius Commercial Bank (fictif)',
+      // Fictional MCB account used by the demo only (never a real customer account).
       accountNumber: '000123456789',
       periodStart: '2026-01-01', periodEnd: '2026-01-31', currency: account.currency,
       profileKey: 'mcb',
+      detectedBankKey: 'mcb',
     },
     extraction: { method: 'pdf_text', pageCount: 2,
       warnings: ['MODE DÉMONSTRATION : extraction préenregistrée, aucun OCR réel exécuté.'] },
@@ -431,6 +530,30 @@ export function handleDemoMission23(
     return { profile: state.profile[companyId] };
   }
 
+  if (rest === '/documents/rules' && method === 'GET') {
+    return {
+      rules: state.mappings.map((mapping) => {
+        const chart = s.accounts.find((a) => a.id === mapping.account_id && a.company_id === companyId);
+        return { ...mapping, account_code: chart?.code ?? null, account_name: chart?.name ?? null };
+      }),
+    };
+  }
+  const ruleMatch = /^\/documents\/rules\/([^/]+)$/.exec(rest);
+  if (ruleMatch && method === 'PATCH') {
+    const mapping = state.mappings.find((row) => row.id === ruleMatch[1]);
+    if (!mapping) throw new ApiError(404, 'DOCUMENT_RULE_NOT_FOUND', 'Règle de classement introuvable');
+    if (payload.accountId !== undefined) {
+      const account = s.accounts.find((a) => a.id === payload.accountId && a.company_id === companyId && a.is_active);
+      const expected = mapping.kind === 'purchase' ? 'expense' : 'revenue';
+      if (!account || account.type !== expected) {
+        throw new ApiError(400, 'DOCUMENT_RULE_ACCOUNT_INVALID', 'Compte incompatible avec la règle');
+      }
+      mapping.account_id = String(payload.accountId);
+    }
+    if (payload.isActive !== undefined) mapping.is_active = Boolean(payload.isActive);
+    const chart = s.accounts.find((a) => a.id === mapping.account_id && a.company_id === companyId);
+    return { rule: { ...mapping, account_code: chart?.code ?? null, account_name: chart?.name ?? null } };
+  }
   if (rest === '/documents' && method === 'GET') {
     return { documents: state.documents.filter((d) => d.company_id === companyId)
       .sort((a, b) => b.created_at.localeCompare(a.created_at)) };
@@ -468,8 +591,23 @@ export function handleDemoMission23(
     if (suffix === '' && method === 'GET') return docView(state, s, doc);
     if (suffix === '/file' && method === 'GET') throw new ApiError(404, 'DEMO_FILE_UNAVAILABLE', 'Fichier non stocké dans la démonstration');
     if (suffix === '' && method === 'PATCH') {
-      for (const key of ["party_name", "invoice_number", "invoice_date", "due_date", "currency", "subtotal", "vat_total", "total_amount"] as const) {
+      for (const key of ["party_name", "invoice_number", "invoice_date", "due_date", "currency", "subtotal", "vat_total", "total_amount", "document_type", "discount_total", "purchase_order", "payment_terms"] as const) {
         if (payload[key] !== undefined) (doc as any)[key] = payload[key] || null;
+      }
+      if (payload.tax_ids && typeof payload.tax_ids === 'object') {
+        doc.tax_ids = { ...(doc.tax_ids ?? {}), ...payload.tax_ids };
+      }
+      // A human correction removes the field from the uncertainty list.
+      if (Array.isArray(doc.uncertain_fields)) {
+        const corrected = Object.keys(payload).map((key) =>
+          key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()));
+        doc.uncertain_fields = doc.uncertain_fields.filter((field) => !corrected.some((key) =>
+          key === field || (key === 'partyName' && field === 'supplierName') ||
+          (key === 'vat_total' && field === 'vatTotal') ||
+          (key === 'total_amount' && field === 'total') ||
+          (key === 'discount_total' && field === 'discountTotal') ||
+          (key === 'document_type' && field === 'documentType') ||
+          (key === 'purchase_order' && field === 'purchaseOrder')));
       }
       return { document: doc };
     }
@@ -522,6 +660,31 @@ export function handleDemoMission23(
           debit: String(l.debit ?? '0'), credit: String(l.credit ?? '0'),
           txn_currency: proposal.currency, txn_amount: String(l.debit || l.credit), fx_rate: '1' } as any);
       });
+      // Learning is recorded but only applied by the engine from the second
+      // identical approval onward. Disabling a rule is always possible.
+      const partyKey = demoNormalise(doc.party_name ?? '');
+      if (partyKey) {
+        for (const l of lines) {
+          const account = accounts.get(l.accountId);
+          if (!account || !['expense', 'revenue'].includes(account.type)) continue;
+          const keyword = demoKeyword(String(l.description ?? ''));
+          if (!keyword) continue;
+          const existing = state.mappings.find((mapping) =>
+            mapping.kind === doc.kind && mapping.party_key === partyKey && mapping.keyword_key === keyword);
+          if (existing) {
+            existing.account_id = account.id;
+            existing.usage_count += 1;
+            existing.last_used_at = NOW;
+            existing.is_active = true;
+          } else {
+            state.mappings.push({
+              id: `demo-rule-${state.seq}-${state.mappings.length + 1}`,
+              kind: doc.kind, party_key: partyKey, keyword_key: keyword,
+              account_id: account.id, usage_count: 1, last_used_at: NOW, is_active: true,
+            });
+          }
+        }
+      }
       proposal.status = 'APPROVED'; proposal.draft_entry_id = entryId;
       doc.status = 'APPROVED'; doc.approved_at = NOW;
       return { proposalId: proposal.id, status: 'APPROVED',

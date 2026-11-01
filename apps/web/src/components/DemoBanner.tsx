@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useI18n } from '../i18n';
-import { demoEnabled, isDemoVolatile, resetDemo } from '../demo';
+import { demoEnabled } from '../demo/mode';
 import { APP_VERSION, SHORT_COMMIT } from '../version';
 
 /**
@@ -15,11 +15,25 @@ export function DemoBanner({ login = false }: { login?: boolean }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [volatile, setVolatile] = useState(false);
+
+  // Runtime is loaded only in an opt-in demo build; the real application has
+  // no import path that can execute fictional data.
+  useEffect(() => {
+    if (!demoEnabled) return;
+    let active = true;
+    void import('../demo/runtime').then(({ isDemoVolatile }) => {
+      if (active) setVolatile(isDemoVolatile());
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
   if (!demoEnabled) return null;
 
-  const reset = () => {
+  const reset = async () => {
     if (!window.confirm(t('demo.resetConfirm'))) return;
     setBusy(true);
+    const { resetDemo } = await import('../demo/runtime');
     resetDemo();
     window.location.hash = '#/';
     window.location.reload();
@@ -54,7 +68,7 @@ export function DemoBanner({ login = false }: { login?: boolean }) {
             </button>
           </div>
           <p>{t('demo.text')}</p>
-          {isDemoVolatile() && <p className="muted small">{t('demo.volatile')}</p>}
+          {volatile && <p className="muted small">{t('demo.volatile')}</p>}
           <p className="muted small">{t('demo.noNetwork')}</p>
           <p className="muted small mono">
             {t('app.version')} {APP_VERSION} · {t('app.commit')} {SHORT_COMMIT}

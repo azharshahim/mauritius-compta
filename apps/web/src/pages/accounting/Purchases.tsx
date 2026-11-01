@@ -5,6 +5,7 @@ import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
 import { Badge, Button, Card, EmptyState, ErrorBanner, Field, Modal, Spinner } from '../../components/ui';
 import { money, toScaled4 } from '../../format';
+import { AppIcon } from '../../components/AppIcon';
 
 /**
  * Comptabilité → Achats & Fournisseurs (mission 11).
@@ -669,9 +670,14 @@ export default function PurchasesPage() {
                     <Button variant="ghost" onClick={() => setCreditOpen(true)}>{L('Affecter un avoir', 'Allocate a credit note')}</Button>
                   )}
                   {tab === 'invoices' && (
-                    <Link className="btn" to="/accounting/journals/purchases/import">
-                      ⇪ {L('Importer une facture d’achat', 'Import purchase invoice')}
-                    </Link>
+                    <>
+                      <Link className="btn" to="/accounting/journals/purchases/import">
+                        <AppIcon name="import" /> {L('Importer une facture d’achat', 'Import purchase invoice')}
+                      </Link>
+                      <Link className="btn" to="/accounting/journals/purchases/import/bulk">
+                        <AppIcon name="importCloud" /> {L('Import groupé', 'Bulk import')}
+                      </Link>
+                    </>
                   )}
                   <Button onClick={() => { setDocKind(tab === 'invoices' ? 'invoice' : 'credit_note'); setDocOpen(true); }}>
                     {L('Nouveau document', 'New document')}

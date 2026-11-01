@@ -14,13 +14,21 @@ import { pdf as renderPdf } from 'pdf-to-img';
 import { createWorker } from 'tesseract.js';
 
 const require = createRequire(import.meta.url);
-export const MAX_PAGES = 5;
+export const MAX_PAGES = 10;
 const MIN_TEXT_PER_PAGE = 40;
+
+export interface ExtractionPage {
+  text: string;
+  confidence: number | null;
+}
 
 export interface ExtractionResult {
   text: string;
   method: 'pdf_text' | 'ocr_image' | 'ocr_pdf';
   pageCount: number;
+  /** Mean OCR confidence (1 for embedded PDF text); 0 when no text was read. */
+  confidence: number;
+  pages: ExtractionPage[];
   warnings: string[];
 }
 
@@ -124,33 +132,43 @@ export async function extractDocument(
     const parsed = await pdfText(new Uint8Array(buffer));
     const digits = parsed.text.replace(/\s/g, '');
     if (digits.length >= MIN_TEXT_PER_PAGE * Math.min(parsed.pageCount, MAX_PAGES)) {
+      const pageTexts = parsed.text.split('\n\n');
+      const warnings = parsed.pageCount > MAX_PAGES
+        ? [`Only the first ${MAX_PAGES} pages of ${parsed.pageCount} were read.`]
+        : [];
+      if (parsed.emptyPages > 0) {
+        warnings.push(`${parsed.emptyPages} page(s) contain little embedded text; verify that no page is missing.`);
+      }
       return {
         text: parsed.text,
         method: 'pdf_text',
         pageCount: parsed.pageCount,
-        warnings: parsed.pageCount > MAX_PAGES
-          ? [`Only the first ${MAX_PAGES} pages of ${parsed.pageCount} were read.`]
-          : [],
+        confidence: 1,
+        pages: pageTexts.map((page) => ({ text: page, confidence: 1 })),
+        warnings,
       };
     }
     const warnings = ['The PDF contains little or no embedded text; pages were rendered and OCR was used.'];
     if (parsed.pageCount > MAX_PAGES) warnings.push(`Only the first ${MAX_PAGES} pages were OCR processed.`);
     const document = await renderPdf(buffer, { scale: 2 });
-    const pages: string[] = [];
+    const pages: ExtractionPage[] = [];
     let confidence = 0;
     let count = 0;
     for await (const page of document) {
       if (count >= MAX_PAGES) break;
       const ocr = await ocrImage(page);
-      pages.push(ocr.text);
+      pages.push({ text: ocr.text, confidence: ocr.confidence });
       confidence += ocr.confidence;
       count += 1;
     }
+    const mean = confidence / Math.max(count, 1);
     return {
-      text: pages.join('\n\n'),
+      text: pages.map((page) => page.text).join('\n\n'),
       method: 'ocr_pdf',
       pageCount: parsed.pageCount,
-      warnings: [...warnings, `Mean OCR confidence: ${Math.round((confidence / Math.max(count, 1)) * 100)}%.`],
+      confidence: mean,
+      pages,
+      warnings: [...warnings, `Mean OCR confidence: ${Math.round(mean * 100)}%.`],
     };
   }
   const ocr = await ocrImage(buffer);
@@ -158,6 +176,8 @@ export async function extractDocument(
     text: ocr.text,
     method: 'ocr_image',
     pageCount: 1,
+    confidence: ocr.confidence,
+    pages: [{ text: ocr.text, confidence: ocr.confidence }],
     warnings: [`Mean OCR confidence: ${Math.round(ocr.confidence * 100)}%. Review every field.`],
   };
 }

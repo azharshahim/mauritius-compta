@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Badge, Button, Card, Field } from '../../components/ui';
 import { useI18n } from '../../i18n';
+import { AppIcon, type IconName } from '../../components/AppIcon';
 
 /**
  * Mission 25 — MRA e-Invoicing, information screen only.
@@ -20,14 +21,14 @@ const PREPARATION_STEPS = [
   ['einv.step.production', 'einv.step.productionText'],
 ] as const;
 
-const FEATURES = [
-  ['✎', 'einv.feature.issue', 'einv.feature.issueText'],
-  ['⇪', 'einv.feature.transmit', 'einv.feature.transmitText'],
-  ['◷', 'einv.feature.status', 'einv.feature.statusText'],
-  ['✓', 'einv.feature.ack', 'einv.feature.ackText'],
-  ['⚠', 'einv.feature.errors', 'einv.feature.errorsText'],
-  ['⇄', 'einv.feature.reconciliation', 'einv.feature.reconciliationText'],
-] as const;
+const FEATURES: readonly [IconName, string, string][] = [
+  ['edit', 'einv.feature.issue', 'einv.feature.issueText'],
+  ['import', 'einv.feature.transmit', 'einv.feature.transmitText'],
+  ['aging', 'einv.feature.status', 'einv.feature.statusText'],
+  ['validate', 'einv.feature.ack', 'einv.feature.ackText'],
+  ['alert', 'einv.feature.errors', 'einv.feature.errorsText'],
+  ['reconciliation', 'einv.feature.reconciliation', 'einv.feature.reconciliationText'],
+];
 
 const TECHNICAL_ITEMS = [
   ['einv.technical.auth', 'einv.technical.authText'],
@@ -143,7 +144,7 @@ export default function MraEInvoicingPage() {
         <div className="mra-feature-grid">
           {FEATURES.map(([icon, title, text]) => (
             <article className="mra-feature" key={title}>
-              <span className="mra-feature-icon" aria-hidden="true">{icon}</span>
+              <span className="mra-feature-icon"><AppIcon name={icon} size={20} /></span>
               <h3>{t(title)}</h3>
               <p>{t(text)}</p>
               <Badge kind="neutral">{t('einv.unavailable')}</Badge>

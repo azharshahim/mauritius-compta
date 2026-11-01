@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useI18n } from '../i18n';
+import { AppIcon } from './AppIcon';
 
 export function Card({
   title,
@@ -61,14 +62,16 @@ export function Field({
   children,
   hint,
   error,
+  className,
 }: {
   label: string;
   children: ReactNode;
   hint?: string;
   error?: string;
+  className?: string;
 }) {
   return (
-    <label className="field">
+    <label className={`field${className ? ` ${className}` : ''}`}>
       <span className="field-label">{label}</span>
       {children}
       {hint && !error && <span className="field-hint">{hint}</span>}

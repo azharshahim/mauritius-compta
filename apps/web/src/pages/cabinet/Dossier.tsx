@@ -4,6 +4,7 @@ import { useI18n } from '../../i18n';
 import { useSession, type Company } from '../../store';
 import { useAsync } from '../../hooks';
 import { Badge, Card, EmptyState, Spinner } from '../../components/ui';
+import { AppIcon } from '../../components/AppIcon';
 import { date, dateTime } from '../../format';
 
 interface Member {
@@ -125,13 +126,13 @@ export default function DossierPage() {
         <Card title={t('cabinet.dossier.links')}>
           <div className="link-list">
             <Link className={`btn ${canOpen('accounting') ? '' : 'disabled'}`} to="/accounting">
-              📒 {t('cabinet.dossier.goAccounting')}
+              <AppIcon name="accounting" /> {t('cabinet.dossier.goAccounting')}
             </Link>
             <Link className={`btn ${canOpen('billing') ? '' : 'disabled'}`} to="/billing">
-              🧾 {t('cabinet.dossier.goBilling')}
+              <AppIcon name="sales" /> {t('cabinet.dossier.goBilling')}
             </Link>
             <Link className={`btn ${canOpen('payroll') ? '' : 'disabled'}`} to="/payroll">
-              👥 {t('cabinet.dossier.goPayroll')}
+              <AppIcon name="payroll" /> {t('cabinet.dossier.goPayroll')}
             </Link>
           </div>
           <p className="page-sub" style={{ marginTop: 12 }}>

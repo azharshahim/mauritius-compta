@@ -1,5 +1,5 @@
 /**
- * Mauritius Business Suite - module registry.
+ * COMPTAI - module registry.
  *
  * Four spaces share one company repository and one PostgreSQL database, but
  * each keeps its own business code, permissions and tables. This file only

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useI18n } from '../i18n';
+import { AppIcon } from './AppIcon';
 import { Spinner } from './ui';
 
 /**
@@ -93,7 +94,7 @@ export default function AssistantPanel({
     >
       <header className="assistant-head">
         <div>
-          <strong>✨ {t('assistant.title')}</strong>
+          <strong><AppIcon name="assistant" size={16} /> {t('assistant.title')}</strong>
           <div className="assistant-context">{contextLabel}</div>
         </div>
         <div className="assistant-head-actions">

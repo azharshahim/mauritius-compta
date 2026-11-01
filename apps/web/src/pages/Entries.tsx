@@ -16,6 +16,7 @@ import {
   Spinner,
 } from '../components/ui';
 import { addAmounts, date, defaultEntryDate, money, sameAmount, toScaled4 } from '../format';
+import { AppIcon } from '../components/AppIcon';
 
 interface Journal {
   id: string;
@@ -348,7 +349,7 @@ export default function EntriesPage({
         {journalType === 'bank' ? (
           <div className="page-head-actions">
             <Link className="btn" to={importPath}>
-              ⇪ {t(importKey!)}
+              <AppIcon name="import" /> {t(importKey!)}
             </Link>
             <Button variant="primary" onClick={() => openEditor()} disabled={journals.length === 0}>
               + {t('journal.addEntry')}
@@ -358,11 +359,16 @@ export default function EntriesPage({
           <>
             {importKey && (
               <Link className="btn" to={importPath}>
-                ⇪ {t(importKey)}
+                <AppIcon name="import" /> {t(importKey)}
+              </Link>
+            )}
+            {(journalType === 'purchases' || journalType === 'sales') && (
+              <Link className="btn" to={`${importPath}/bulk`}>
+                <AppIcon name="importCloud" /> {t('journal.importBulk')}
               </Link>
             )}
             <Button variant="primary" onClick={() => openEditor()} disabled={journals.length === 0}>
-              + {t('journal.addEntry')}
+              <AppIcon name="plus" /> {t('journal.addEntry')}
             </Button>
           </>
         )}

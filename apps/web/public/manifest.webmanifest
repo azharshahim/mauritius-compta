@@ -1,0 +1,73 @@
+{
+  "id": "./",
+  "name": "COMPTAI",
+  "short_name": "COMPTAI",
+  "description": "COMPTAI — comptabilité mauricienne bilingue FR/EN, cabinet et entreprise.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b2545",
+  "theme_color": "#0b2545",
+  "categories": [
+    "business",
+    "finance",
+    "productivity"
+  ],
+  "icons": [
+    {
+      "src": "icons/comptai-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/comptai-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/comptai-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/comptai-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Comptabilité",
+      "short_name": "Comptabilité",
+      "description": "Tableau de bord comptable",
+      "url": "./#/accounting",
+      "icons": [
+        {
+          "src": "icons/comptai-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Banque et trésorerie",
+      "short_name": "Banque",
+      "description": "Comptes, imports et rapprochement bancaire",
+      "url": "./#/accounting/banking",
+      "icons": [
+        {
+          "src": "icons/comptai-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}

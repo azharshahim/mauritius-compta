@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useI18n } from '../i18n';
 import { errorMessage, useSession } from '../store';
 import { Button, ErrorBanner } from '../components/ui';
-import { DEMO_EMAIL, DEMO_PASSWORD, demoEnabled } from '../demo';
+import { DEMO_EMAIL, DEMO_PASSWORD, demoEnabled } from '../demo/mode';
+import { BrandMark } from '../components/BrandMark';
 
 export default function LoginPage() {
   const { t } = useI18n();
@@ -37,7 +38,7 @@ export default function LoginPage() {
     <div className="auth-wrap">
       <section className="auth-hero">
         <div className="brand">
-          <div className="brand-mark">M</div>
+          <BrandMark />
           <div>
             <div className="brand-name" style={{ fontSize: '1.1rem' }}>
               {t('app.name')}
@@ -73,7 +74,11 @@ export default function LoginPage() {
               <p className="page-sub" style={{ marginTop: 0 }}>
                 {t('login.subtitle')}
               </p>
-              {demoEnabled && <div className="banner banner-info">{t('demo.loginHint')}</div>}
+              {demoEnabled && (
+                <div className="banner banner-info">
+                  {t('demo.loginHint')} <code>{DEMO_EMAIL} / {DEMO_PASSWORD}</code>
+                </div>
+              )}
               <ErrorBanner message={error} />
               {notice && <div className="banner banner-info">{t(notice)}</div>}
         <form onSubmit={submit}>
@@ -130,7 +135,9 @@ export default function LoginPage() {
               </div>
             </div>
           </div>
-          <p className="auth-foot">{t('login.demoHint')}</p>
+          {demoEnabled && (
+            <p className="auth-foot">{t('login.demoHint')} <code>{DEMO_EMAIL} / {DEMO_PASSWORD}</code></p>
+          )}
         </div>
       </section>
     </div>

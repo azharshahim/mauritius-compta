@@ -1,7 +1,9 @@
-# Mauritius Compta
+# COMPTAI
+
+> **Nom provisoire.** COMPTAI est le nom de travail de l’application, anciennement « Mauritius Compta » / « Mauritius Business Suite ». Sa disponibilité juridique et commerciale reste à vérifier avant toute commercialisation.
 
 **Suite de gestion mauricienne bilingue (FR/EN)** — version **0.1.1** du cœur comptable,
-étendue en **Mauritius Business Suite** (mission 4) : espaces **Cabinet**, **Comptabilité**,
+étendue en **COMPTAI** (mission 4) : espaces **Cabinet**, **Comptabilité**,
 **Facturation** et **Paie & RH**.
 
 > **État des modules** — Cabinet : opérationnel (dossiers, tâches, collaborateurs,
@@ -69,7 +71,7 @@
 11. [Documentation](#11-documentation)
 12. [Sécurité et secrets](#12-sécurité-et-secrets)
 13. [Limites réglementaires et fonctionnelles](#13-limites-réglementaires-et-fonctionnelles)
-14. [Mauritius Business Suite](#14-mauritius-business-suite)
+14. [COMPTAI](#14-comptai)
 15. [Intelligence artificielle](#15-intelligence-artificielle)
 16. [Dépannage](#16-dépannage)
 17. [Indépendance et licence](#17-indépendance-et-licence)
@@ -449,6 +451,8 @@ données, **ni** secret, **ni** donnée réelle.
 | [`docs/accounting-ai-agent-roadmap.md`](docs/accounting-ai-agent-roadmap.md) | Feuille de route de l'agent comptable, modes, risques, paie supervisée |
 | [`docs/mra-e-invoicing-roadmap.md`](docs/mra-e-invoicing-roadmap.md) | MRA e-Invoicing : sources officielles, six volets de préparation, points confirmés / à vérifier / hypothèses |
 | [`docs/mission-25-report.md`](docs/mission-25-report.md) | Rapport de mission 25 (écran À venir, vérification de publication, tests) |
+| [`docs/mission-29-report.md`](docs/mission-29-report.md) | Rapport de mission 29 (OCR, extraction bancaire, tests synthétiques, limites) |
+| [`docs/preproduction-audit-checklist.md`](docs/preproduction-audit-checklist.md) | Checklist d’audit avant production (statuts prouvés, portes de sortie) |
 | [`docs/ai-tool-permissions.md`](docs/ai-tool-permissions.md) | Matrice outil × module × permission, anti-injection |
 | [`docs/company-settings.md`](docs/company-settings.md) | Référentiel unique des paramètres société |
 | [`docs/vat-configuration.md`](docs/vat-configuration.md) | Traitements TVA, vérification humaine, historique |
@@ -487,7 +491,7 @@ données, **ni** secret, **ni** donnée réelle.
 - Pas d'immutabilité légale horodatée (pas de scellement cryptographique de type piste
   d'audit infalsifiable) : le journal d'audit applicatif n'est pas un dispositif certifié.
 
-## 14. Mauritius Business Suite
+## 14. COMPTAI
 
 Cinq espaces partagent un seul référentiel de sociétés et une seule base PostgreSQL, avec
 des permissions et des tables séparées par module :
@@ -504,8 +508,10 @@ des permissions et des tables séparées par module :
   `viewer` (+ `owner`/`admin` historiques) — voir
   [`docs/permissions-matrix.md`](docs/permissions-matrix.md).
 - Les anciennes URL (`/entries`, `/companies`, …) redirigent : aucun signet n'est cassé.
+- **Mission 30** : identité **COMPTAI** provisoire (logo, favicon, icônes PWA 192/512, icône maskable Android, manifeste, raccourcis Windows/Android, écran de lancement généré par le manifeste), **menu latéral Android corrigé** (voile, fermeture explicite, défilement interne, zones sûres), **Banque et trésorerie remontée juste après Comptabilité**, séparation explicite démonstration/réel et démonstration actualisée avec les champs de vérification de la mission 29. Voir [`docs/mission-30-report.md`](docs/mission-30-report.md).
+- **Mission 29** : extraction documentaire plus contrôlable — identifiants fiscaux, remises, avoirs, confiance par champ, ré-extraction auditée, détection bancaire explicite et compte masqué, vérification côte à côte. **Aucun taux de fiabilité général n’est annoncé** et aucun format SBM/Absa/MauBank n’est présenté comme certifié. Voir [`docs/mission-29-report.md`](docs/mission-29-report.md) et la [`checklist d’audit avant production`](docs/preproduction-audit-checklist.md).
 - **Mission 27** : import direct d’un **relevé bancaire depuis le Journal de banque** (PDF, CSV, TSV, XLSX via les lecteurs existants), compte bancaire conservé, prévisualisation enrichie, retour contextualisé au journal et explication des opérations non comptabilisées. Voir [`docs/mission-27-report.md`](docs/mission-27-report.md).
-- **Mission 26** : navigation par **huit groupes repliables** (Accueil, Comptabilité, Facturation, Paie et RH, Gestion avancée, Banque et trésorerie, États financiers, Cabinet et administration), imports de factures d’achat et de vente depuis les journaux, lecteur de relevés bancaires PDF, accueil allégé et Documents en consultation. Voir [`docs/mission-26-report.md`](docs/mission-26-report.md).
+- **Mission 26** : navigation par **huit groupes repliables** (Accueil, Comptabilité, Banque et trésorerie, Facturation, Paie et RH, Gestion avancée, États financiers, Cabinet et administration ; ordre ajusté en mission 30), imports de factures d’achat et de vente depuis les journaux, lecteur de relevés bancaires PDF, accueil allégé et Documents en consultation. Voir [`docs/mission-26-report.md`](docs/mission-26-report.md).
 - **Mission 25** : écran bilingue **MRA e-Invoicing — À venir** (route stable
   `/billing/e-invoicing`, six fonctions annoncées non disponibles, paramètres futurs inactifs,
   aucun appel réseau, aucune inscription ni certification), feuille de route

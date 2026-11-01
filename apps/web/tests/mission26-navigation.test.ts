@@ -12,10 +12,10 @@ describe('cabinet navigation (mission 26)', () => {
     expect(NAV_GROUPS.map((group) => group.key)).toEqual([
       'home',
       'accounting',
+      'bank',
       'billing',
       'payroll',
       'advanced',
-      'bank',
       'reports',
       'administration',
     ]);
@@ -33,10 +33,12 @@ describe('cabinet navigation (mission 26)', () => {
     }
   });
 
-  it('keeps bank and financial statements below the operational groups', () => {
-    const bank = NAV_GROUPS.findIndex((group) => group.key === 'bank');
-    const reports = NAV_GROUPS.findIndex((group) => group.key === 'reports');
-    expect(bank).toBeGreaterThan(NAV_GROUPS.findIndex((group) => group.key === 'billing'));
+  it('places bank and cash management immediately after accounting (mission 30)', () => {
+    const keys = NAV_GROUPS.map((group) => group.key);
+    const accounting = keys.indexOf('accounting');
+    const bank = keys.indexOf('bank');
+    const reports = keys.indexOf('reports');
+    expect(bank).toBe(accounting + 1);
     expect(reports).toBeGreaterThan(bank);
   });
 

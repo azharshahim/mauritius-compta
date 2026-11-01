@@ -8,7 +8,7 @@ export type Locale = 'fr' | 'en';
 type Dict = Record<string, string>;
 
 const fr: Dict = {
-  'app.name': 'Mauritius Compta',
+  'app.name': 'COMPTAI',
   'app.tagline': 'Comptabilité mauricienne bilingue',
   'app.version': 'Version',
   'nav.dashboard': 'Tableau de bord',
@@ -58,6 +58,8 @@ const fr: Dict = {
   'common.no': 'Non',
   'common.add': 'Ajouter',
   'common.remove': 'Retirer',
+  'common.darkMode': 'Passer en mode sombre',
+  'common.lightMode': 'Passer en mode clair',
   'common.language': 'Langue',
   'common.company': 'Société',
   'common.selectCompany': 'Sélectionner une société',
@@ -76,8 +78,7 @@ const fr: Dict = {
   'demo.reset': 'Réinitialiser la démo',
   'demo.resetConfirm':
     'Réinitialiser les données de démonstration ? Vos saisies locales seront effacées.',
-  'demo.loginHint':
-    'Identifiants de démonstration pré-remplis : demo@mauritius-compta.test / DemoPassw0rd2026',
+  'demo.loginHint': 'Identifiants de démonstration pré-remplis (données fictives) :',
   'demo.pdfNote':
     'En démonstration, le bouton PDF ouvre l’impression du navigateur (Enregistrer au format PDF). Le PDF officiel est généré par le serveur.',
   'login.title': 'Connexion',
@@ -90,8 +91,7 @@ const fr: Dict = {
   'login.fullName': 'Nom complet',
   'login.haveAccount': 'Déjà un compte ? Se connecter',
   'login.noAccount': 'Pas de compte ? Créer un compte',
-  'login.demoHint':
-    'Démonstration locale : demo@mauritius-compta.test / DemoPassw0rd2026 (données fictives)',
+  'login.demoHint': 'Démonstration locale uniquement — données fictives.',
   'dashboard.title': 'Tableau de bord',
   'dashboard.revenue': 'Produits (période)',
   'dashboard.expenses': 'Charges (période)',
@@ -268,7 +268,7 @@ const fr: Dict = {
   'error.VALIDATION_ERROR': 'Certaines données sont invalides.',
 
   // ---------------------------------------------------------------- suite
-  'suite.name': 'Mauritius Business Suite',
+  'suite.name': 'COMPTAI',
   'suite.tagline': 'Cabinet · Comptabilité · Facturation · Paie',
   'module.cabinet': 'Cabinet',
   'module.accounting': 'Comptabilité',
@@ -285,6 +285,7 @@ const fr: Dict = {
   'nav.group.bank': 'Banque et trésorerie',
   'nav.group.reports': 'États financiers',
   'nav.group.administration': 'Cabinet et administration',
+  'nav.accounting.dashboard': 'Tableau de bord comptable',
   'nav.journals.all': 'Journaux comptables',
   'nav.journals.purchases': 'Journal des achats',
   'nav.journals.sales': 'Journal des ventes',
@@ -296,6 +297,7 @@ const fr: Dict = {
   'nav.payroll.overview': 'Tableau de bord Paie',
   'nav.bank.accounts': 'Comptes bancaires',
   'nav.bank.import': 'Import des relevés',
+  'nav.bank.bulkReconciliation': 'Rapprochement groupé',
   'nav.bank.reconciliation': 'Rapprochement bancaire',
   'nav.bank.operations': 'Opérations bancaires',
   'nav.bank.pdf': 'Relevés PDF (banque)',
@@ -303,6 +305,7 @@ const fr: Dict = {
   'nav.reports.profitLoss': 'Compte de résultat',
   'nav.reports.other': 'Autres rapports',
   'journal.addEntry': 'Ajouter une écriture',
+  'journal.importBulk': 'Import groupé',
   'journal.importPurchase': 'Importer une facture d’achat',
   'journal.importSale': 'Importer une facture de vente',
   'journal.importBank': 'Importer un relevé bancaire',
@@ -364,7 +367,7 @@ const fr: Dict = {
   'einv.kicker': 'Facturation électronique mauricienne',
   'einv.heroTitle': 'Une intégration future, préparée sans précipitation.',
   'einv.heroText':
-    'La MRA déploie progressivement la fiscalisation électronique des factures. Mauritius Compta documente ici le cadre officiel et la préparation nécessaire. Aucun raccordement, aucune transmission et aucune déclaration ne sont effectués.',
+    'La MRA déploie progressivement la fiscalisation électronique des factures. COMPTAI documente ici le cadre officiel et la préparation nécessaire. Aucun raccordement, aucune transmission et aucune déclaration ne sont effectués.',
   'einv.heroNote':
     'Aucune inscription MRA, aucune certification et aucun identifiant officiel ne sont acquis.',
   'einv.openBilling': 'Ouvrir la facturation classique',
@@ -523,7 +526,7 @@ const fr: Dict = {
     'Elle demeure le seul système de facturation opérationnel dans cette version et son comportement est inchangé.',
   'einv.classicLink': 'Ouvrir les factures',
   'einv.noCertification':
-    'Mauritius Compta n’est ni enregistré, ni certifié, ni agréé comme fournisseur de solution MRA. Aucune conformité n’est revendiquée.',
+    'COMPTAI n’est ni enregistré, ni certifié, ni agréé comme fournisseur de solution MRA. Aucune conformité n’est revendiquée.',
   'nav.payroll.employees': 'Salariés',
   'nav.payroll.contracts': 'Contrats',
   'nav.payroll.time': 'Temps & présences',
@@ -1388,7 +1391,7 @@ const fr: Dict = {
   'migration.back': 'Retour',
   'migration.rows': 'lignes',
   'migration.difference': 'Écart',
-  'migration.targetField': 'Champ Mauritius Business Suite',
+  'migration.targetField': 'Champ COMPTAI',
   'migration.sourceColumn': 'Colonne source',
   'migration.confidence': 'Détection',
   'migration.notMapped': '— Non associé —',
@@ -1733,7 +1736,7 @@ const fr: Dict = {
   'docs.purchase': 'Facture d’achat',
   'docs.sale': 'Facture de vente',
   'docs.drop': 'Glissez un fichier, choisissez-le ou prenez une photo',
-  'docs.formats': 'PDF, JPG ou PNG · 8 Mo maximum · 5 pages analysées au plus',
+  'docs.formats': 'PDF, JPG ou PNG · 8 Mo maximum · 10 pages analysées au plus',
   'docs.extracting': 'Extraction en cours…',
   'docs.upload': 'Importer et analyser',
   'docs.privacy': 'Le fichier reste isolé dans la société active. Aucune donnée n’est envoyée à un service externe.',
@@ -1763,6 +1766,21 @@ const fr: Dict = {
   'docs.vat': 'TVA',
   'docs.total': 'Total TTC',
   'docs.currency': 'Devise',
+  'docs.originalDocument': 'Document original',
+  'docs.documentType': 'Type de document',
+  'docs.invoice': 'Facture',
+  'docs.creditNote': 'Avoir',
+  'docs.unknown': 'Non déterminé',
+  'docs.notSpecified': 'Non renseignée',
+  'docs.discount': 'Remise',
+  'docs.purchaseOrder': 'Référence commande',
+  'docs.vatId': 'N° TVA',
+  'docs.customerBrn': 'BRN client',
+  'docs.customerVat': 'N° TVA client',
+  'docs.uncertainHint': 'Les champs surlignés doivent être contrôlés ; une valeur absente n’est jamais inventée.',
+  'docs.reextract': 'Relancer l’extraction',
+  'docs.reextractConfirm': 'Relancer l’extraction remplacera les champs extraits de ce document non proposé. Continuer ?',
+  'docs.reextractDone': 'Extraction relancée ; {n} champ(s) ont changé. Vérifiez-les avant de générer une proposition.',
   'docs.net': 'HT',
   'docs.saveCorrections': 'Enregistrer les corrections',
   'docs.generate': 'Générer la proposition',
@@ -1793,6 +1811,7 @@ const fr: Dict = {
   'bankPdf.scopeNote': 'Le lecteur MCB est le chemin prioritaire. Les autres mises en page ne sont acceptées que si les soldes et les colonnes sont reconnus ; sinon l’import est bloqué.',
   'bankPdf.metadataNote': 'Banque, compte et période sont lus dans le document. Vérifiez-les avant de confirmer.',
   'bankPdf.bankName': 'Banque détectée',
+  'bankPdf.detectedBank': 'Profil de banque détecté',
   'bankPdf.accountNumber': 'Numéro de compte',
   'bankPdf.period': 'Période du relevé',
   'bankPdf.currency': 'Devise',
@@ -1906,8 +1925,12 @@ const fr: Dict = {
   'error.DOCUMENT_TYPE_NOT_ALLOWED': 'Format non accepté : utilisez un PDF, un JPG ou un PNG.',
   'error.DOCUMENT_EXTRACTION_FAILED': 'Le document n’a pas pu être extrait. Vérifiez sa qualité ou saisissez les champs manuellement.',
   'error.DOCUMENT_DUPLICATE': 'Ce document est identique à un fichier déjà importé.',
+  'error.DOCUMENT_RULE_NOT_FOUND': 'Cette règle de classement n’existe plus.',
+  'error.DOCUMENT_RULE_ACCOUNT_INVALID': 'Le compte choisi n’est pas un compte de charge ou de produit actif compatible avec cette règle.',
   'error.DOCUMENT_FINAL': 'Ce document a déjà été approuvé ou refusé : il ne peut plus être modifié.',
   'error.DOCUMENT_TOTAL_MISSING': 'Un total HT, TVA ou TTC est nécessaire pour préparer la proposition.',
+  'error.DOCUMENT_CURRENCY_MISSING': 'Choisissez la devise du document avant de préparer une proposition.',
+  'error.DOCUMENT_NOT_REEXTRACTABLE': 'Seul un document extrait et non encore proposé peut être ré-extrait.',
   'error.DOCUMENT_AMOUNT_INVALID': 'Un montant corrigé n’est pas un décimal valide.',
   'error.PROPOSAL_NOT_BALANCED': 'La proposition n’est pas équilibrée : débits et crédits doivent être égaux.',
   'error.PROPOSAL_ACCOUNT_INVALID': 'Choisissez un compte actif autorisé à la saisie dans cette société.',
@@ -1954,7 +1977,7 @@ const fr: Dict = {
 };
 
 const en: Dict = {
-  'app.name': 'Mauritius Compta',
+  'app.name': 'COMPTAI',
   'app.tagline': 'Bilingual Mauritian accounting',
   'app.version': 'Version',
   'nav.dashboard': 'Dashboard',
@@ -2004,6 +2027,8 @@ const en: Dict = {
   'common.no': 'No',
   'common.add': 'Add',
   'common.remove': 'Remove',
+  'common.darkMode': 'Switch to dark mode',
+  'common.lightMode': 'Switch to light mode',
   'common.language': 'Language',
   'common.company': 'Company',
   'common.selectCompany': 'Select a company',
@@ -2021,8 +2046,7 @@ const en: Dict = {
     'Local storage unavailable: your entries will be lost when the tab is closed.',
   'demo.reset': 'Reset demo',
   'demo.resetConfirm': 'Reset the demonstration data? Your local entries will be erased.',
-  'demo.loginHint':
-    'Demo credentials are pre-filled: demo@mauritius-compta.test / DemoPassw0rd2026',
+  'demo.loginHint': 'Demo credentials are pre-filled (fictitious data):',
   'demo.pdfNote':
     'In the demo, the PDF button opens the browser print dialog (Save as PDF). The official PDF is generated by the server.',
   'login.title': 'Sign in',
@@ -2035,8 +2059,7 @@ const en: Dict = {
   'login.fullName': 'Full name',
   'login.haveAccount': 'Already have an account? Sign in',
   'login.noAccount': 'No account? Create one',
-  'login.demoHint':
-    'Local demo: demo@mauritius-compta.test / DemoPassw0rd2026 (fictitious data)',
+  'login.demoHint': 'Local demonstration only — fictitious data.',
   'dashboard.title': 'Dashboard',
   'dashboard.revenue': 'Revenue (period)',
   'dashboard.expenses': 'Expenses (period)',
@@ -2207,7 +2230,7 @@ const en: Dict = {
   'error.VALIDATION_ERROR': 'Some data is invalid.',
 
   // ---------------------------------------------------------------- suite
-  'suite.name': 'Mauritius Business Suite',
+  'suite.name': 'COMPTAI',
   'suite.tagline': 'Cabinet · Accounting · Billing · Payroll',
   'module.cabinet': 'Cabinet',
   'module.accounting': 'Accounting',
@@ -2224,6 +2247,7 @@ const en: Dict = {
   'nav.group.bank': 'Bank & treasury',
   'nav.group.reports': 'Financial statements',
   'nav.group.administration': 'Firm & administration',
+  'nav.accounting.dashboard': 'Accounting dashboard',
   'nav.journals.all': 'Accounting journals',
   'nav.journals.purchases': 'Purchases journal',
   'nav.journals.sales': 'Sales journal',
@@ -2235,6 +2259,7 @@ const en: Dict = {
   'nav.payroll.overview': 'Payroll dashboard',
   'nav.bank.accounts': 'Bank accounts',
   'nav.bank.import': 'Statement import',
+  'nav.bank.bulkReconciliation': 'Bulk reconciliation',
   'nav.bank.reconciliation': 'Bank reconciliation',
   'nav.bank.operations': 'Bank operations',
   'nav.bank.pdf': 'PDF statements (bank)',
@@ -2242,6 +2267,7 @@ const en: Dict = {
   'nav.reports.profitLoss': 'Profit and loss',
   'nav.reports.other': 'Other reports',
   'journal.addEntry': 'Add entry',
+  'journal.importBulk': 'Bulk import',
   'journal.importPurchase': 'Import purchase invoice',
   'journal.importSale': 'Import sales invoice',
   'journal.importBank': 'Import bank statement',
@@ -2303,7 +2329,7 @@ const en: Dict = {
   'einv.kicker': 'Mauritian electronic invoicing',
   'einv.heroTitle': 'A future integration, prepared carefully.',
   'einv.heroText':
-    'The MRA is rolling out electronic invoice fiscalisation in phases. Mauritius Compta documents the official framework and the preparation required here. No connection, transmission or return is performed.',
+    'The MRA is rolling out electronic invoice fiscalisation in phases. COMPTAI documents the official framework and the preparation required here. No connection, transmission or return is performed.',
   'einv.heroNote':
     'No MRA registration, certification or official credential has been obtained.',
   'einv.openBilling': 'Open classic billing',
@@ -2462,7 +2488,7 @@ const en: Dict = {
     'It remains the only operational billing system in this version and its behaviour is unchanged.',
   'einv.classicLink': 'Open invoices',
   'einv.noCertification':
-    'Mauritius Compta is not registered, certified or approved as an MRA solution provider. No compliance is claimed.',
+    'COMPTAI is not registered, certified or approved as an MRA solution provider. No compliance is claimed.',
   'nav.payroll.employees': 'Employees',
   'nav.payroll.contracts': 'Contracts',
   'nav.payroll.time': 'Time & attendance',
@@ -3324,7 +3350,7 @@ const en: Dict = {
   'migration.back': 'Back',
   'migration.rows': 'rows',
   'migration.difference': 'Difference',
-  'migration.targetField': 'Mauritius Business Suite field',
+  'migration.targetField': 'COMPTAI field',
   'migration.sourceColumn': 'Source column',
   'migration.confidence': 'Detection',
   'migration.notMapped': '— Not mapped —',
@@ -3670,7 +3696,7 @@ const en: Dict = {
   'docs.purchase': 'Purchase invoice',
   'docs.sale': 'Sales invoice',
   'docs.drop': 'Drag a file, choose one or take a photo',
-  'docs.formats': 'PDF, JPG or PNG · 8 MB maximum · up to 5 pages analysed',
+  'docs.formats': 'PDF, JPG or PNG · 8 MB maximum · up to 10 pages analysed',
   'docs.extracting': 'Extracting…',
   'docs.upload': 'Upload and analyse',
   'docs.privacy': 'The file stays isolated in the active company. No data is sent to an external service.',
@@ -3700,6 +3726,21 @@ const en: Dict = {
   'docs.vat': 'VAT',
   'docs.total': 'Gross total',
   'docs.currency': 'Currency',
+  'docs.originalDocument': 'Original document',
+  'docs.documentType': 'Document type',
+  'docs.invoice': 'Invoice',
+  'docs.creditNote': 'Credit note',
+  'docs.unknown': 'Undetermined',
+  'docs.notSpecified': 'Not specified',
+  'docs.discount': 'Discount',
+  'docs.purchaseOrder': 'Purchase order',
+  'docs.vatId': 'VAT no.',
+  'docs.customerBrn': 'Customer BRN',
+  'docs.customerVat': 'Customer VAT no.',
+  'docs.uncertainHint': 'Highlighted fields must be checked; a missing value is never guessed.',
+  'docs.reextract': 'Re-run extraction',
+  'docs.reextractConfirm': 'Re-running extraction will replace the extracted fields of this unproposed document. Continue?',
+  'docs.reextractDone': 'Extraction re-run; {n} field(s) changed. Review them before generating a proposal.',
   'docs.net': 'Net',
   'docs.saveCorrections': 'Save corrections',
   'docs.generate': 'Generate proposal',
@@ -3730,6 +3771,7 @@ const en: Dict = {
   'bankPdf.scopeNote': 'The MCB reader is the primary path. Other layouts are accepted only when balances and columns are recognised; otherwise the import is blocked.',
   'bankPdf.metadataNote': 'Bank, account and period are read from the document. Check them before confirming.',
   'bankPdf.bankName': 'Detected bank',
+  'bankPdf.detectedBank': 'Detected bank profile',
   'bankPdf.accountNumber': 'Account number',
   'bankPdf.period': 'Statement period',
   'bankPdf.currency': 'Currency',
@@ -3846,8 +3888,12 @@ const en: Dict = {
   'error.DOCUMENT_TYPE_NOT_ALLOWED': 'Unsupported format: use a PDF, JPG or PNG file.',
   'error.DOCUMENT_EXTRACTION_FAILED': 'The document could not be extracted. Check its quality or enter the fields manually.',
   'error.DOCUMENT_DUPLICATE': 'This document is identical to a file already imported.',
+  'error.DOCUMENT_RULE_NOT_FOUND': 'This classification rule no longer exists.',
+  'error.DOCUMENT_RULE_ACCOUNT_INVALID': 'The selected account is not an active expense or revenue account compatible with this rule.',
   'error.DOCUMENT_FINAL': 'This document has already been approved or rejected and can no longer be edited.',
   'error.DOCUMENT_TOTAL_MISSING': 'A net, VAT or gross total is required to prepare the proposal.',
+  'error.DOCUMENT_CURRENCY_MISSING': 'Choose the document currency before preparing a proposal.',
+  'error.DOCUMENT_NOT_REEXTRACTABLE': 'Only an extracted document that has not been proposed can be re-extracted.',
   'error.DOCUMENT_AMOUNT_INVALID': 'One of the corrected amounts is not a valid decimal.',
   'error.PROPOSAL_NOT_BALANCED': 'The proposal is not balanced: debits and credits must be equal.',
   'error.PROPOSAL_ACCOUNT_INVALID': 'Choose an active account that allows posting in this company.',
@@ -3912,7 +3958,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem('mc.locale', locale);
     document.documentElement.lang = locale;
-    document.title = locale === 'fr' ? 'Mauritius Compta' : 'Mauritius Compta';
+    document.title = locale === 'fr' ? 'COMPTAI' : 'COMPTAI';
   }, [locale]);
 
   const setLocale = useCallback((l: Locale) => setLocaleState(l), []);

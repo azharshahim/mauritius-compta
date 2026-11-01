@@ -1,4 +1,5 @@
 import type { ModuleKey } from './modules';
+import type { IconName } from './components/AppIcon';
 
 /**
  * Mission 26 — cabinet-oriented navigation.
@@ -10,7 +11,7 @@ import type { ModuleKey } from './modules';
 export interface NavItem {
   to: string;
   key: string;
-  icon: string;
+  icon: IconName;
   /** Module whose access level gates the entry (authorisation stays server-side). */
   module: ModuleKey;
   /** Only match the exact path (used for parent screens). */
@@ -24,7 +25,7 @@ export interface NavItem {
 export interface NavGroup {
   key: string;
   labelKey: string;
-  icon: string;
+  icon: IconName;
   items: NavItem[];
 }
 
@@ -32,47 +33,84 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     key: 'home',
     labelKey: 'nav.group.home',
-    icon: '⌂',
+    icon: 'dashboard',
     items: [
-      { to: '/cabinet', key: 'nav.cabinet.dashboard', icon: '▦', module: 'cabinet', end: true },
-      { to: '/cabinet/companies', key: 'nav.cabinet.dossiers', icon: '🗂', module: 'cabinet' },
-      { to: '/cabinet/tasks', key: 'nav.cabinet.tasks', icon: '✓', module: 'cabinet' },
+      { to: '/cabinet', key: 'nav.cabinet.dashboard', icon: 'dashboard', module: 'cabinet', end: true },
+      { to: '/cabinet/companies', key: 'nav.cabinet.dossiers', icon: 'cabinet', module: 'cabinet' },
+      { to: '/cabinet/tasks', key: 'nav.cabinet.tasks', icon: 'tasks', module: 'cabinet' },
     ],
   },
   {
     key: 'accounting',
     labelKey: 'nav.group.accounting',
-    icon: '📒',
+    icon: 'accounting',
     items: [
-      { to: '/accounting/journals', key: 'nav.journals.all', icon: '▤', module: 'accounting', end: true },
-      { to: '/accounting/journals/purchases', key: 'nav.journals.purchases', icon: '🛒', module: 'accounting' },
-      { to: '/accounting/journals/sales', key: 'nav.journals.sales', icon: '🧾', module: 'accounting' },
-      { to: '/accounting/journals/bank', key: 'nav.journals.bank', icon: '🏦', module: 'accounting' },
-      { to: '/accounting/journals/general', key: 'nav.journals.general', icon: '✎', module: 'accounting' },
-      { to: '/accounting/accounts', key: 'nav.accounts', icon: '≡', module: 'accounting' },
-      { to: '/accounting/ledger', key: 'nav.ledger', icon: '▤', module: 'accounting' },
-      { to: '/accounting/trial-balance', key: 'nav.trialBalance', icon: '⊞', module: 'accounting' },
-      { to: '/accounting/lettering', key: 'nav.accounting.lettering', icon: '🔗', module: 'accounting' },
-      { to: '/documents', key: 'nav.documents.archives', icon: '📄', module: 'documents', end: true },
+      { to: '/accounting', key: 'nav.accounting.dashboard', icon: 'dashboard', module: 'accounting', end: true },
+      { to: '/accounting/journals', key: 'nav.journals.all', icon: 'journals', module: 'accounting', end: true },
+      { to: '/accounting/journals/purchases', key: 'nav.journals.purchases', icon: 'purchases', module: 'accounting' },
+      { to: '/accounting/journals/sales', key: 'nav.journals.sales', icon: 'sales', module: 'accounting' },
+      { to: '/accounting/journals/bank', key: 'nav.journals.bank', icon: 'bank', module: 'accounting' },
+      { to: '/accounting/journals/general', key: 'nav.journals.general', icon: 'ledger', module: 'accounting' },
+      { to: '/accounting/accounts', key: 'nav.accounts', icon: 'accounts', module: 'accounting' },
+      { to: '/accounting/ledger', key: 'nav.ledger', icon: 'ledger', module: 'accounting' },
+      { to: '/accounting/trial-balance', key: 'nav.trialBalance', icon: 'trial', module: 'accounting' },
+      { to: '/accounting/lettering', key: 'nav.accounting.lettering', icon: 'lettering', module: 'accounting' },
+      { to: '/documents', key: 'nav.documents.archives', icon: 'documents', module: 'documents', end: true },
+    ],
+  },
+  {
+    key: 'bank',
+    labelKey: 'nav.group.bank',
+    icon: 'bank',
+    items: [
+      { to: '/accounting/banking', key: 'nav.bank.accounts', icon: 'bank', module: 'accounting', end: true },
+      {
+        to: '/accounting/banking',
+        key: 'nav.bank.import',
+        icon: 'import',
+        module: 'accounting',
+        search: { tab: 'import' },
+      },
+      {
+        to: '/accounting/banking',
+        key: 'nav.bank.reconciliation',
+        icon: 'reconciliation',
+        module: 'accounting',
+        search: { tab: 'transactions' },
+      },
+      {
+        to: '/accounting/banking/bulk-reconciliation',
+        key: 'nav.bank.bulkReconciliation',
+        icon: 'reconciliation',
+        module: 'accounting',
+      },
+      {
+        to: '/accounting/banking',
+        key: 'nav.bank.operations',
+        icon: 'settings',
+        module: 'accounting',
+        search: { tab: 'rules' },
+      },
+      { to: '/accounting/banking/pdf', key: 'nav.bank.pdf', icon: 'documents', module: 'accounting' },
     ],
   },
   {
     key: 'billing',
     labelKey: 'nav.group.billing',
-    icon: '🧾',
+    icon: 'sales',
     items: [
-      { to: '/billing', key: 'nav.billing.dashboard', icon: '▦', module: 'billing', end: true },
-      { to: '/billing/customers', key: 'nav.billing.customers', icon: '👤', module: 'billing' },
-      { to: '/accounting/purchases', key: 'nav.billing.suppliers', icon: '🏭', module: 'accounting', search: { tab: 'suppliers' } },
-      { to: '/billing/quotes', key: 'nav.billing.quotes', icon: '📝', module: 'billing' },
-      { to: '/billing/invoices', key: 'nav.billing.invoicesClients', icon: '🧾', module: 'billing' },
-      { to: '/billing/credit-notes', key: 'nav.billing.creditNotes', icon: '↩', module: 'billing' },
-      { to: '/billing/payments', key: 'nav.billing.payments', icon: '💰', module: 'billing' },
-      { to: '/billing/aging', key: 'nav.billing.aging', icon: '⏳', module: 'billing' },
+      { to: '/billing', key: 'nav.billing.dashboard', icon: 'dashboard', module: 'billing', end: true },
+      { to: '/billing/customers', key: 'nav.billing.customers', icon: 'customers', module: 'billing' },
+      { to: '/accounting/purchases', key: 'nav.billing.suppliers', icon: 'suppliers', module: 'accounting', search: { tab: 'suppliers' } },
+      { to: '/billing/quotes', key: 'nav.billing.quotes', icon: 'quotes', module: 'billing' },
+      { to: '/billing/invoices', key: 'nav.billing.invoicesClients', icon: 'invoices', module: 'billing' },
+      { to: '/billing/credit-notes', key: 'nav.billing.creditNotes', icon: 'creditNotes', module: 'billing' },
+      { to: '/billing/payments', key: 'nav.billing.payments', icon: 'payments', module: 'billing' },
+      { to: '/billing/aging', key: 'nav.billing.aging', icon: 'aging', module: 'billing' },
       {
         to: '/billing/e-invoicing',
         key: 'nav.billing.eInvoicing',
-        icon: '🔗',
+        icon: 'eInvoicing',
         module: 'billing',
         prepared: true,
       },
@@ -81,83 +119,53 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     key: 'payroll',
     labelKey: 'nav.group.payroll',
-    icon: '👥',
+    icon: 'payroll',
     items: [
-      { to: '/payroll', key: 'nav.payroll.overview', icon: '▦', module: 'payroll', end: true },
-      { to: '/payroll/employees', key: 'nav.payroll.employees', icon: '👤', module: 'payroll' },
-      { to: '/payroll/contracts', key: 'nav.payroll.contracts', icon: '📄', module: 'payroll' },
-      { to: '/payroll/payslips', key: 'nav.payroll.payslips', icon: '🧾', module: 'payroll' },
-      { to: '/payroll/declarations', key: 'nav.payroll.declarations', icon: '📤', module: 'payroll', prepared: true },
-      { to: '/payroll/transfer', key: 'nav.payroll.transfer', icon: '➡', module: 'payroll' },
-      { to: '/payroll/leave', key: 'nav.payroll.leave', icon: '🗓', module: 'payroll' },
-      { to: '/payroll/periods', key: 'nav.payroll.periods', icon: '📅', module: 'payroll' },
+      { to: '/payroll', key: 'nav.payroll.overview', icon: 'gauge', module: 'payroll', end: true },
+      { to: '/payroll/employees', key: 'nav.payroll.employees', icon: 'payroll', module: 'payroll' },
+      { to: '/payroll/contracts', key: 'nav.payroll.contracts', icon: 'contracts', module: 'payroll' },
+      { to: '/payroll/payslips', key: 'nav.payroll.payslips', icon: 'documents', module: 'payroll' },
+      { to: '/payroll/declarations', key: 'nav.payroll.declarations', icon: 'declarations', module: 'payroll', prepared: true },
+      { to: '/payroll/transfer', key: 'nav.payroll.transfer', icon: 'transfer', module: 'payroll' },
+      { to: '/payroll/leave', key: 'nav.payroll.leave', icon: 'leave', module: 'payroll' },
+      { to: '/payroll/periods', key: 'nav.payroll.periods', icon: 'periods', module: 'payroll' },
     ],
   },
   {
     key: 'advanced',
     labelKey: 'nav.group.advanced',
-    icon: '⚙',
+    icon: 'settings2',
     items: [
-      { to: '/accounting/assets', key: 'nav.accounting.assets', icon: '🏢', module: 'accounting' },
-      { to: '/accounting/inventory', key: 'nav.accounting.inventory', icon: '📦', module: 'accounting' },
-      { to: '/accounting/accruals', key: 'nav.accounting.accruals', icon: '⏳', module: 'accounting' },
-      { to: '/accounting/provisions', key: 'nav.accounting.provisions', icon: '⚖️', module: 'accounting' },
-      { to: '/accounting/multi-currency', key: 'nav.accounting.multiCurrency', icon: '💱', module: 'accounting' },
-      { to: '/accounting/equity', key: 'nav.accounting.equity', icon: '🏛', module: 'accounting' },
-      { to: '/accounting/financial-years', key: 'nav.accounting.financialYears', icon: '🗓️', module: 'accounting' },
-    ],
-  },
-  {
-    key: 'bank',
-    labelKey: 'nav.group.bank',
-    icon: '🏦',
-    items: [
-      { to: '/accounting/banking', key: 'nav.bank.accounts', icon: '🏦', module: 'accounting', end: true },
-      {
-        to: '/accounting/banking',
-        key: 'nav.bank.import',
-        icon: '⇪',
-        module: 'accounting',
-        search: { tab: 'import' },
-      },
-      {
-        to: '/accounting/banking',
-        key: 'nav.bank.reconciliation',
-        icon: '⇄',
-        module: 'accounting',
-        search: { tab: 'transactions' },
-      },
-      {
-        to: '/accounting/banking',
-        key: 'nav.bank.operations',
-        icon: '⚙',
-        module: 'accounting',
-        search: { tab: 'rules' },
-      },
-      { to: '/accounting/banking/pdf', key: 'nav.bank.pdf', icon: '📄', module: 'accounting' },
+      { to: '/accounting/assets', key: 'nav.accounting.assets', icon: 'assets', module: 'accounting' },
+      { to: '/accounting/inventory', key: 'nav.accounting.inventory', icon: 'inventory', module: 'accounting' },
+      { to: '/accounting/accruals', key: 'nav.accounting.accruals', icon: 'accruals', module: 'accounting' },
+      { to: '/accounting/provisions', key: 'nav.accounting.provisions', icon: 'provisions', module: 'accounting' },
+      { to: '/accounting/multi-currency', key: 'nav.accounting.multiCurrency', icon: 'currency', module: 'accounting' },
+      { to: '/accounting/equity', key: 'nav.accounting.equity', icon: 'equity', module: 'accounting' },
+      { to: '/accounting/financial-years', key: 'nav.accounting.financialYears', icon: 'fiscalYears', module: 'accounting' },
     ],
   },
   {
     key: 'reports',
     labelKey: 'nav.group.reports',
-    icon: '▥',
+    icon: 'statements',
     items: [
-      { to: '/accounting/statements/balance-sheet', key: 'nav.reports.balanceSheet', icon: '▥', module: 'accounting' },
-      { to: '/accounting/statements/profit-loss', key: 'nav.reports.profitLoss', icon: '📈', module: 'accounting' },
-      { to: '/accounting/statements', key: 'nav.reports.other', icon: '📑', module: 'accounting', end: true },
+      { to: '/accounting/statements/balance-sheet', key: 'nav.reports.balanceSheet', icon: 'balanceSheet', module: 'accounting' },
+      { to: '/accounting/statements/profit-loss', key: 'nav.reports.profitLoss', icon: 'profitLoss', module: 'accounting' },
+      { to: '/accounting/statements', key: 'nav.reports.other', icon: 'reports', module: 'accounting', end: true },
     ],
   },
   {
     key: 'administration',
     labelKey: 'nav.group.administration',
-    icon: '⚙',
+    icon: 'settings',
     items: [
-      { to: '/cabinet/team', key: 'nav.cabinet.team', icon: '👥', module: 'cabinet' },
-      { to: '/cabinet/ai-assistant', key: 'nav.cabinet.ai', icon: '✨', module: 'cabinet' },
-      { to: '/cabinet/ai-proposals', key: 'nav.cabinet.aiProposals', icon: '🧠', module: 'cabinet' },
-      { to: '/cabinet/settings/ai', key: 'nav.cabinet.aiSettings', icon: '⚙', module: 'cabinet' },
-      { to: '/cabinet/migration', key: 'nav.cabinet.migration', icon: '⇪', module: 'cabinet' },
-      { to: '/accounting/settings', key: 'nav.settings', icon: '⚙', module: 'accounting' },
+      { to: '/cabinet/team', key: 'nav.cabinet.team', icon: 'customers', module: 'cabinet' },
+      { to: '/cabinet/ai-assistant', key: 'nav.cabinet.ai', icon: 'assistant', module: 'cabinet' },
+      { to: '/cabinet/ai-proposals', key: 'nav.cabinet.aiProposals', icon: 'ai', module: 'cabinet' },
+      { to: '/cabinet/settings/ai', key: 'nav.cabinet.aiSettings', icon: 'settings', module: 'cabinet' },
+      { to: '/cabinet/migration', key: 'nav.cabinet.migration', icon: 'import', module: 'cabinet' },
+      { to: '/accounting/settings', key: 'nav.settings', icon: 'settings', module: 'accounting' },
     ],
   },
 ];
