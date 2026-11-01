@@ -6,6 +6,7 @@ import {
 } from './helpers.js';
 import { parseInvoiceText } from '../src/modules/documents/parse-invoice.js';
 import { parseMcbStatement } from '../src/modules/bank/mcb.js';
+import { bankLabelSuggestion } from '../src/modules/bank/engine.js';
 import { extractDocument, terminateOcr } from '../src/modules/documents/extract.js';
 
 /**
@@ -32,6 +33,16 @@ const INVOICE_LINES = [
   'Printer toner 2 2,500.00 5,000.00 750.00 5,750.00',
   'Subtotal: MUR 15,000.00', 'VAT (15%): MUR 2,250.00', 'Total Due: MUR 17,250.00',
   'Currency: MUR',
+];
+const GENERIC_TEXT = [
+  'State Bank of Mauritius', 'Statement of Account', 'Account Number: 012345678901',
+  'Statement Period: 01 Feb 2026 to 28 Feb 2026', 'Currency: MUR',
+  'Opening Balance 10,000.00', '',
+  'Transaction Date Value Date Transaction Details Debit Credit Balance',
+  '02 Feb 2026 02 Feb 2026 Supplier payment 1,000.00 9,000.00',
+  '10 Feb 2026 10 Feb 2026 Customer receipt 500.00 9,500.00',
+  '28 Feb 2026 28 Feb 2026 Bank charges 200.00 9,300.00',
+  'Closing Balance 9,300.00',
 ];
 const MCB_TEXT = [
   'MCB', 'Mauritius Commercial Bank', 'Statement of Account', 'Savings Regular Account',
@@ -109,6 +120,41 @@ describe('MCB statement parser', () => {
     expect(result.rows[1]!.debit).toBe('2450.5000');
     expect(result.rows[2]!.credit).toBe('5000.0000');
     expect(result.warnings).toHaveLength(0);
+    expect(result.profileKey).toBe('mcb');
+    expect(result.bankName).toBe('Mauritius Commercial Bank');
+    expect(result.periodStart).toBe('2026-01-01');
+    expect(result.periodEnd).toBe('2026-01-31');
+  });
+
+  it('recognises a non-MCB bank only through the cautious generic profile', () => {
+    const result = parseMcbStatement(GENERIC_TEXT.join('\n'));
+    expect(result.profileKey).toBe('generic');
+    expect(result.bankName).toBe('State Bank of Mauritius');
+    expect(result.accountNumber).toBe('012345678901');
+    expect(result.periodStart).toBe('2026-02-01');
+    expect(result.periodEnd).toBe('2026-02-28');
+    expect(result.currency).toBe('MUR');
+    expect(result.rows).toHaveLength(3);
+    expect(result.rows[0]!.debit).toBe('1000.0000');
+    expect(result.rows[1]!.credit).toBe('500.0000');
+    expect(result.warnings.some((warning) => warning.code.startsWith('MCB_'))).toBe(false);
+  });
+
+  it('suggests salary, charges, supplier and customer natures without deciding', () => {
+    expect(bankLabelSuggestion('PAYROLL SALARIES JAN 2026', -50000n)?.kind).toBe('salary');
+    expect(bankLabelSuggestion('SERVICE CHARGES', -125n)?.kind).toBe('fees');
+    expect(bankLabelSuggestion('PAYMENT SUPPLIER ACME', -1000n)?.kind).toBe('supplier');
+    expect(bankLabelSuggestion('CLIENT RECEIPT FA-001', 2500n)?.kind).toBe('client');
+    expect(bankLabelSuggestion('JUICE', -1200n)).toBeNull();
+    expect(bankLabelSuggestion('SALARY', -1n)?.messageFr).toContain('à vérifier');
+  });
+
+  it('refuses to guess debit/credit when a generic statement has no opening balance', () => {
+    const result = parseMcbStatement(
+      GENERIC_TEXT.filter((line) => !line.startsWith('Opening Balance')).join('\n'),
+    );
+    expect(result.profileKey).toBe('generic');
+    expect(result.warnings.some((warning) => warning.code === 'BANK_PDF_OPENING_MISSING')).toBe(true);
   });
 
   it('detects a broken balance continuity without changing amounts', () => {
@@ -312,5 +358,37 @@ describe('documents, chart and MCB API', () => {
     expect(again.statusCode).toBe(200);
     expect(again.json().imported).toBe(0);
     expect(again.json().reimport).toBe(true);
+  }, 30_000);
+
+  it('reads a non-MCB PDF through the generic route and stores the source hash', async () => {
+    const pdf = await makePdf(GENERIC_TEXT);
+    const body = { bankAccountId, fileName: 'sbm-fictif.pdf', contentBase64: pdf.toString('base64') };
+    const rejected = await api(ctx, cookie, 'POST', `${base()}/bank/mcb/preview`, body);
+    expect(rejected.statusCode).toBe(400);
+    expect(rejected.json().error?.code ?? rejected.json().code).toBe('BANK_MCB_PROFILE_UNRECOGNISED');
+
+    const preview = await api(ctx, cookie, 'POST', `${base()}/bank/pdf/preview`, body);
+    expect(preview.statusCode).toBe(200);
+    expect(preview.json().mcb.profileKey).toBe('generic');
+    expect(preview.json().mcb.bankName).toBe('State Bank of Mauritius');
+    expect(preview.json().mcb.accountNumber).toBe('012345678901');
+    expect(preview.json().preview.preview.transactions).toHaveLength(3);
+    expect(preview.json().source.sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(preview.json().source.fileName).toBe('sbm-fictif.pdf');
+
+    const imported = await api(ctx, cookie, 'POST', `${base()}/bank/pdf/import`, {
+      ...body, confirm: true,
+    });
+    expect(imported.statusCode).toBe(201);
+    expect(imported.json().imported).toBe(3);
+    expect(imported.json().source.fileName).toBe('sbm-fictif.pdf');
+    const stored = await ctx.db.query<{ summary: any; file_name: string }>(
+      `SELECT summary, file_name FROM bank_imports
+        WHERE company_id=$1 AND file_name=$2 ORDER BY created_at DESC LIMIT 1`,
+      [company, 'sbm-fictif.pdf']);
+    expect(stored.rows[0]!.file_name).toBe('sbm-fictif.pdf');
+    expect(stored.rows[0]!.summary.source.fileName).toBe('sbm-fictif.pdf');
+    expect(stored.rows[0]!.summary.source.sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(stored.rows[0]!.summary.source.storageKey).toContain('bank-statements/');
   }, 30_000);
 });

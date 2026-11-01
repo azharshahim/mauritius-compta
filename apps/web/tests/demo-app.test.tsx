@@ -9,6 +9,7 @@ import App from '../src/App';
 import { I18nProvider } from '../src/i18n';
 import { SessionProvider } from '../src/store';
 import { resetDemo } from '../src/demo';
+import { navGroup, navLink } from './nav';
 
 function renderApp(hash = '#/') {
   window.location.hash = hash;
@@ -22,13 +23,6 @@ function renderApp(hash = '#/') {
     </I18nProvider>,
   );
 }
-
-const navLink = (name: RegExp) => {
-  const nav = document.querySelector('.nav') as HTMLElement;
-  return within(nav).getByRole('link', { name });
-};
-
-const moduleTab = (name: RegExp) => screen.getByRole('button', { name });
 
 const tableText = async (name: string | RegExp) => {
   await waitFor(() => expect(document.querySelector('.table-wrap table')).toBeTruthy());
@@ -74,11 +68,13 @@ describe('demo build (jsdom)', () => {
 
   it('exposes the suite modules and keeps the accounting screens', async () => {
     await login();
-    expect(moduleTab(/Cabinet/)).toBeTruthy();
-    expect(moduleTab(/Documents/)).toBeTruthy();
-    expect(moduleTab(/Comptabilité/)).toBeTruthy();
-    expect(moduleTab(/Facturation/)).toBeTruthy();
-    expect(moduleTab(/Paie & RH/)).toBeTruthy();
+    expect(navGroup(/^Accueil$/)).toBeTruthy();
+    expect(navGroup(/^Comptabilité$/)).toBeTruthy();
+    expect(navGroup(/^Facturation$/)).toBeTruthy();
+    expect(navGroup(/^Paie et RH$/)).toBeTruthy();
+    expect(navGroup(/^Banque et trésorerie$/)).toBeTruthy();
+    expect(navGroup(/^États financiers$/)).toBeTruthy();
+    expect(navGroup(/^Cabinet et administration$/)).toBeTruthy();
 
     fireEvent.click(navLink(/Dossiers clients/));
     await screen.findByRole('heading', { name: /Dossiers clients/i });
@@ -86,18 +82,17 @@ describe('demo build (jsdom)', () => {
     expect(await tableText(/Case Noyale Retail Ltd \(DEMO\)/)).toBeTruthy();
     expect(window.location.hash).toBe('#/cabinet/companies');
 
-    // Accounting space: the V0.1 screens are still there, unchanged.
-    fireEvent.click(moduleTab(/Comptabilité/));
-    await screen.findByRole('heading', { name: /Tableau de bord/i });
-    fireEvent.click(navLink(/Écritures/));
-    await screen.findByRole('heading', { name: /Écritures/ });
+    // Accounting space: the V0.1 screens are still there, reachable through
+    // the collapsible journals group.
+    fireEvent.click(navLink(/Journaux comptables/));
+    await screen.findByRole('heading', { name: /Journaux comptables/ });
     // Mission 19 adds entries to the shared demo ledger: the invoice asserted
     // here now lives on the second page of the paginated journal.
     fireEvent.click(screen.getByRole('button', { name: '›' }));
     expect(await screen.findByText(/Facture de vente fictive FA-2025-001/)).toBeTruthy();
-    expect(window.location.hash).toBe('#/accounting/entries');
+    expect(window.location.hash).toBe('#/accounting/journals');
 
-    fireEvent.click(navLink(/Balance/));
+    fireEvent.click(navLink(/Balance générale/));
     await screen.findByRole('heading', { name: /Balance générale/ });
     expect(await screen.findByText(/Balance équilibrée/)).toBeTruthy();
 
@@ -164,7 +159,7 @@ describe('demo build (jsdom)', () => {
 
   it('opens billing and the payroll preparation screens', async () => {
     await login();
-    fireEvent.click(moduleTab(/Facturation/));
+    fireEvent.click(navLink(/Tableau de bord Facturation/));
     await screen.findByRole('heading', { name: /^Facturation$/i });
     expect(await screen.findByText(/Créances ouvertes/i)).toBeTruthy();
     expect(screen.queryByText(/préparée mais pas encore opérationnelle/i)).toBeNull();
@@ -176,7 +171,7 @@ describe('demo build (jsdom)', () => {
     fireEvent.click(navLink(/Balance âgée/i));
     await screen.findByRole('heading', { name: /^Balance âgée$/i });
 
-    fireEvent.click(moduleTab(/Paie & RH/));
+    fireEvent.click(navLink(/Tableau de bord Paie/));
     await screen.findByRole('heading', { name: /Paie & RH/i });
     expect(await screen.findByText(/PAYE, CSG, NSF et Training Levy sont calculés à partir de règles officielles sourcées/i)).toBeTruthy();
     expect(screen.queryByText(/bulletin généré/i)).toBeNull();

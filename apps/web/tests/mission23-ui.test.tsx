@@ -52,7 +52,7 @@ describe('mission 23 — scan et import (démo)', () => {
   it('liste les documents fictifs, le doublon et avoue l’extraction préenregistrée', async () => {
     await loginAndSelect();
     window.location.hash = '#/documents';
-    expect(await screen.findByRole('heading', { name: /Scan et import de documents/i })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: /Documents — consultation et archives/i })).toBeTruthy();
     expect(await screen.findByText(/résultats d’extraction affichés sont préenregistrés/i)).toBeTruthy();
     expect((await screen.findAllByText(/INV-2026-101/)).length).toBeGreaterThanOrEqual(1);
     expect((await screen.findAllByText(/Doublon possible/)).length).toBeGreaterThanOrEqual(1);

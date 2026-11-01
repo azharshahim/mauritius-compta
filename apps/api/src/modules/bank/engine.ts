@@ -42,6 +42,12 @@ export interface BankTransactionDraft {
   action: 'import' | 'skip';
   duplicate: boolean;
   duplicateOfRow: number | null;
+  /** Deterministic, non-authoritative hint derived from the bank label. */
+  suggestion: {
+    kind: 'salary' | 'fees' | 'supplier' | 'client';
+    messageFr: string;
+    messageEn: string;
+  } | null;
 }
 
 export interface BankPreview {
@@ -158,6 +164,46 @@ export function bankFingerprint(input: {
     input.currency,
     external ? '' : input.balance === null || input.balance === undefined ? '' : formatScaled(input.balance),
   ]);
+}
+
+/**
+ * Suggests a likely nature from the bank wording only. This is deliberately a
+ * hint, never an automatic categorisation: the human still chooses the account.
+ */
+export function bankLabelSuggestion(
+  label: string,
+  signedAmount: bigint,
+): BankTransactionDraft['suggestion'] {
+  const text = label.toLowerCase();
+  if (/\b(salaire|salaires|salary|salaries|wage|wages|paie|payroll)\b/.test(text)) {
+    return {
+      kind: 'salary',
+      messageFr: 'Suggestion : transfert de salaires — à vérifier',
+      messageEn: 'Suggestion: salary transfer — verify',
+    };
+  }
+  if (/\b(frais|charges|commission|fees?|service charge|bank charge)\b/.test(text)) {
+    return {
+      kind: 'fees',
+      messageFr: 'Suggestion : frais bancaires — à vérifier',
+      messageEn: 'Suggestion: bank charges — verify',
+    };
+  }
+  if (signedAmount < 0n && /\b(fournisseur|supplier|paiement|payment|virement|transfer)\b/.test(text)) {
+    return {
+      kind: 'supplier',
+      messageFr: 'Suggestion : paiement fournisseur — à vérifier',
+      messageEn: 'Suggestion: supplier payment — verify',
+    };
+  }
+  if (signedAmount > 0n && /\b(client|receipt|recu|reçu|encaissement|deposit|remittance)\b/.test(text)) {
+    return {
+      kind: 'client',
+      messageFr: 'Suggestion : encaissement client — à vérifier',
+      messageEn: 'Suggestion: customer receipt — verify',
+    };
+  }
+  return null;
 }
 
 export function buildBankPreview(
@@ -405,6 +451,7 @@ export function buildBankPreview(
       action,
       duplicate,
       duplicateOfRow,
+      suggestion: bankLabelSuggestion(label || reference || '', signed.amount),
     });
   });
 

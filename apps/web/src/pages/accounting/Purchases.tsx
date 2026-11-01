@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../../api';
 import { useI18n } from '../../i18n';
 import { errorMessage, useSession } from '../../store';
@@ -667,6 +667,11 @@ export default function PurchasesPage() {
                 <div className="page-actions">
                   {tab === 'credit-notes' && (
                     <Button variant="ghost" onClick={() => setCreditOpen(true)}>{L('Affecter un avoir', 'Allocate a credit note')}</Button>
+                  )}
+                  {tab === 'invoices' && (
+                    <Link className="btn" to="/accounting/journals/purchases/import">
+                      ⇪ {L('Importer une facture d’achat', 'Import purchase invoice')}
+                    </Link>
                   )}
                   <Button onClick={() => { setDocKind(tab === 'invoices' ? 'invoice' : 'credit_note'); setDocOpen(true); }}>
                     {L('Nouveau document', 'New document')}

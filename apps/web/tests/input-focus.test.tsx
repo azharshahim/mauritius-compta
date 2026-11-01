@@ -20,6 +20,7 @@ import App from '../src/App';
 import { I18nProvider } from '../src/i18n';
 import { SessionProvider } from '../src/store';
 import { resetDemo } from '../src/demo';
+import { clickNavLink, navLink } from './nav';
 
 function renderApp() {
   window.location.hash = '#/';
@@ -42,8 +43,7 @@ async function login() {
 
 /** Navigate through the sidebar, exactly like a user on a phone. */
 async function goTo(label: RegExp) {
-  const nav = document.querySelector('.nav') as HTMLElement;
-  fireEvent.click(within(nav).getByRole('link', { name: label }));
+  fireEvent.click(navLink(label));
   await waitFor(() => expect(document.querySelector('.page h1')).toBeTruthy());
 }
 
@@ -157,10 +157,9 @@ describe('Android keyboard: focus is never stolen while typing', () => {
 
   it('keeps focus in the accounting entry editor (reference, description, amount)', async () => {
     await login();
-    fireEvent.click(screen.getByRole('button', { name: /Comptabilité/ }));
-    await waitFor(() => expect(window.location.hash).toContain('/accounting'));
-    await goTo(/Écritures/);
-    const dialog = await openModal(/Nouvelle écriture/);
+    clickNavLink(/Journaux comptables/);
+    await waitFor(() => expect(window.location.hash).toContain('/accounting/journals'));
+    const dialog = await openModal(/Ajouter une écriture/);
     const reference = within(dialog).getAllByRole('textbox')[0]! as HTMLInputElement;
     typeChars(reference, 'FA-2026-001');
     const amounts = Array.from(dialog.querySelectorAll('input[inputmode="decimal"]')) as HTMLInputElement[];
@@ -169,10 +168,8 @@ describe('Android keyboard: focus is never stolen while typing', () => {
 
   it('keeps focus in the chart of accounts search and creation form', async () => {
     await login();
-    const tab = screen.getByRole('button', { name: /Comptabilité/ });
-    fireEvent.click(tab);
-    await waitFor(() => expect(window.location.hash).toContain('/accounting'));
-    await goTo(/Plan comptable/);
+    clickNavLink(/Plan comptable/);
+    await waitFor(() => expect(window.location.hash).toContain('/accounting/accounts'));
     typeChars(screen.getByPlaceholderText(/Rechercher un code ou un nom/i) as HTMLInputElement, '6100');
     const dialog = await openModal(/Nouveau compte/);
     typeChars(within(dialog).getAllByRole('textbox')[0]! as HTMLInputElement, 'Fournitures');
@@ -180,9 +177,8 @@ describe('Android keyboard: focus is never stolen while typing', () => {
 
   it('keeps focus in the accounting settings form', async () => {
     await login();
-    fireEvent.click(screen.getByRole('button', { name: /Comptabilité/ }));
-    await waitFor(() => expect(window.location.hash).toContain('/accounting'));
-    await goTo(/Paramètres/);
+    clickNavLink(/^Paramètres$/);
+    await waitFor(() => expect(window.location.hash).toContain('/accounting/settings'));
     const inputs = Array.from(document.querySelectorAll('.page input')).filter(
       (i) => !(i as HTMLInputElement).disabled && (i as HTMLInputElement).type !== 'hidden',
     ) as HTMLInputElement[];

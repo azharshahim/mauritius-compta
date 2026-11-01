@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api, ApiError } from '../../api';
 import { demoEnabled } from '../../demo';
 import { useI18n } from '../../i18n';
@@ -41,6 +42,7 @@ const L = {
     dayFirst: 'Dates au format JJ/MM/AAAA',
     preview: 'Analyser le fichier',
     confirmImport: 'Confirmer l’import',
+    pdfStatement: 'Importer un relevé PDF',
     summary: 'Synthèse',
     importable: 'opérations importables',
     duplicates: 'doublons ignorés',
@@ -179,6 +181,7 @@ const L = {
     dayFirst: 'Dates as DD/MM/YYYY',
     preview: 'Analyse the file',
     confirmImport: 'Confirm import',
+    pdfStatement: 'Import a PDF statement',
     summary: 'Summary',
     importable: 'importable transactions',
     duplicates: 'duplicates skipped',
@@ -1205,8 +1208,12 @@ export default function BankPage() {
             </Field>
           </div>
           <p className="muted small">
-            {locale === 'fr' ? 'Formats réels' : 'Supported formats'} : CSV, TSV/TXT, XLSX ·{' '}
+            {locale === 'fr' ? 'Formats réels' : 'Supported formats'} : CSV, TSV/TXT, XLSX · PDF{' '}
+            {locale === 'fr' ? 'via le lecteur de relevés' : 'via the statement reader'} ·{' '}
             {catalogue?.limits.maxRows ?? 5000} {locale === 'fr' ? 'lignes' : 'rows'}
+          </p>
+          <p>
+            <Link className="btn" to="/accounting/banking/pdf">📄 {tr.pdfStatement}</Link>
           </p>
           <p className="muted small">{tr.androidHint}</p>
           <div className="bank-import-history">
@@ -1293,7 +1300,14 @@ export default function BankPage() {
                     {preview.preview.transactions.map((txn) => (
                       <tr key={`${txn.rowNumber}-${txn.fingerprint}`} className={txn.action === 'skip' ? 'muted-row' : ''}>
                         <td>{txn.txnDate}</td>
-                        <td>{txn.label}</td>
+                        <td>
+                          {txn.label}
+                          {txn.suggestion && (
+                            <div className="page-sub">
+                              {locale === 'fr' ? txn.suggestion.messageFr : txn.suggestion.messageEn}
+                            </div>
+                          )}
+                        </td>
                         <td>{txn.reference ?? '—'}</td>
                         <td className={txn.amount.startsWith('-') ? 'amount-out' : 'amount-in'}>{txn.amount}</td>
                       </tr>

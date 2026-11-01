@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useI18n } from './i18n';
 import { APP_VERSION, SHORT_COMMIT } from './version';
 import { useSession } from './store';
@@ -43,7 +43,8 @@ import BillingAgingPage from './pages/billing/Aging';
 import MraEInvoicingPage from './pages/billing/MraEInvoicing';
 import PayrollPage from './pages/payroll/Payroll';
 import PayslipViewPage from './pages/payroll/PayslipView';
-import { MODULES, LEGACY_REDIRECTS, moduleByPath, type ModuleKey } from './modules';
+import { LEGACY_REDIRECTS, type ModuleKey } from './modules';
+import { NAV_GROUPS, groupIsActive, isNavItemActive } from './navigation';
 import { Spinner } from './components/ui';
 import { DemoBanner } from './components/DemoBanner';
 import { AssistantLauncher } from './components/AssistantLauncher';
@@ -55,13 +56,31 @@ export default function App() {
   const { user, initialized, companies, company, setCompany, logout } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
-  const navigate = useNavigate();
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
+    const active = NAV_GROUPS.find((group) => groupIsActive(group, location.pathname, location.search));
+    return new Set(active ? [active.key] : ['home']);
+  });
+
+  const toggleGroup = (key: string) => {
+    setOpenGroups((previous) => {
+      const next = new Set(previous);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   // Hooks must run before any early return: the drawer is closed on navigation
   // and with the Escape key.
   useEffect(() => {
     setMenuOpen(false);
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    const active = NAV_GROUPS.find((group) => groupIsActive(group, location.pathname, location.search));
+    if (!active) return;
+    setOpenGroups((previous) => (previous.has(active.key) ? previous : new Set(previous).add(active.key)));
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -88,11 +107,15 @@ export default function App() {
   }
 
   const closeMenu = () => setMenuOpen(false);
-  const active = moduleByPath(location.pathname);
   const modules = (company as { modules?: Record<ModuleKey, string> } | null)?.modules;
 
   const moduleAllowed = (key: ModuleKey) =>
     key === 'cabinet' || !modules || ACCESS_WEIGHT[modules[key] ?? 'read']! > 0;
+
+  const visibleGroups = NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => moduleAllowed(item.module)),
+  })).filter((group) => group.items.length > 0);
 
   return (
     <div className="app-shell">
@@ -146,40 +169,46 @@ export default function App() {
         </button>
       </header>
 
-      <nav className="module-tabs" aria-label={t('nav.modules')}>
-        {MODULES.map((m) => {
-          const allowed = moduleAllowed(m.key);
-          return (
-            <button
-              key={m.key}
-              type="button"
-              className={`module-tab ${active.key === m.key ? 'active' : ''}`}
-              onClick={() => {
-                const first = m.items[0];
-                if (allowed && first) navigate(first.to);
-              }}
-              disabled={!allowed}
-              title={allowed ? t(m.labelKey) : t('module.locked')}
-              aria-current={active.key === m.key ? 'page' : undefined}
-            >
-              <span aria-hidden="true">{m.icon}</span> {t(m.labelKey)}
-            </button>
-          );
-        })}
-      </nav>
-
-      <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
-        <div className="sidebar-title">{t(active.labelKey)}</div>
+      <aside className={`sidebar ${menuOpen ? 'open' : ''}`} aria-label={t('nav.menu')}>
+        <div className="sidebar-title">{t('nav.menu')}</div>
         <nav className="nav" onClick={closeMenu}>
-          {active.items.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end}>
-              <span className="nav-icon" aria-hidden="true">
-                {item.icon}
-              </span>
-              <span className="nav-label">{t(item.key)}</span>
-              {item.prepared && <span className="pill">{t('module.prepared')}</span>}
-            </NavLink>
-          ))}
+          {visibleGroups.map((group) => {
+            const activeGroup = groupIsActive(group, location.pathname, location.search);
+            const isOpen = openGroups.has(group.key);
+            return (
+              <div className={`nav-group ${activeGroup ? 'active-group' : ''}`} key={group.key}>
+                <button
+                  type="button"
+                  className="nav-group-toggle"
+                  aria-expanded={isOpen}
+                  aria-controls={`nav-group-${group.key}`}
+                  onClick={() => toggleGroup(group.key)}
+                >
+                  <span className="nav-group-icon" aria-hidden="true">{group.icon}</span>
+                  <span className="nav-label">{t(group.labelKey)}</span>
+                  <span className={`nav-chevron ${isOpen ? 'open' : ''}`} aria-hidden="true">⌄</span>
+                </button>
+                {isOpen && (
+                  <div className="nav-group-items" id={`nav-group-${group.key}`}>
+                    {group.items.map((item) => (
+                      <NavLink
+                        key={`${item.to}-${item.key}`}
+                        to={item.search ? `${item.to}?${new URLSearchParams(item.search).toString()}` : item.to}
+                        end={item.end}
+                        className={() =>
+                          `nav-item ${isNavItemActive(item, location.pathname, location.search) ? 'active' : ''}`
+                        }
+                      >
+                        <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+                        <span className="nav-label">{t(item.key)}</span>
+                        {item.prepared && <span className="pill">{t('module.prepared')}</span>}
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
         <div className="sidebar-foot">
           {t('app.version')} {APP_VERSION} · {t('app.commit')} {SHORT_COMMIT}
@@ -207,16 +236,26 @@ export default function App() {
             <Route path="/cabinet/ai-proposals" element={<AiProposalsPage />} />
             <Route path="/cabinet/settings/ai" element={<AiSettingsPage />} />
 
-            {/* Documents (mission 23): native intake and OCR proposals */}
+            {/* Documents (mission 23): intake stays available for consultation,
+                but the accounting journals are now the primary entry points. */}
             <Route path="/documents" element={<ScanImportPage />} />
+            <Route path="/accounting/journals/purchases/import" element={<ScanImportPage mode="purchase" />} />
+            <Route path="/accounting/journals/sales/import" element={<ScanImportPage mode="sale" />} />
 
             {/* Accounting (existing V0.1 screens, unchanged behaviour) */}
             <Route path="/accounting" element={<DashboardPage />} />
             <Route path="/accounting/accounts" element={<AccountsPage />} />
             <Route path="/accounting/entries" element={<EntriesPage />} />
+            <Route path="/accounting/journals" element={<EntriesPage titleKey="nav.journals.all" />} />
+            <Route path="/accounting/journals/purchases" element={<EntriesPage journalType="purchases" titleKey="nav.journals.purchases" />} />
+            <Route path="/accounting/journals/sales" element={<EntriesPage journalType="sales" titleKey="nav.journals.sales" />} />
+            <Route path="/accounting/journals/bank" element={<EntriesPage journalType="bank" titleKey="nav.journals.bank" />} />
+            <Route path="/accounting/journals/general" element={<EntriesPage journalType="general" titleKey="nav.journals.general" />} />
             <Route path="/accounting/ledger" element={<LedgerPage />} />
             <Route path="/accounting/trial-balance" element={<TrialBalancePage />} />
             <Route path="/accounting/statements" element={<StatementsPage />} />
+            <Route path="/accounting/statements/balance-sheet" element={<StatementsPage view="balance-sheet" />} />
+            <Route path="/accounting/statements/profit-loss" element={<StatementsPage view="profit-loss" />} />
             <Route path="/accounting/equity" element={<EquityPage />} />
             <Route path="/accounting/settings" element={<SettingsPage />} />
             <Route path="/accounting/settings/company" element={<CompanySettingsPage />} />
@@ -228,6 +267,7 @@ export default function App() {
             <Route path="/accounting/multi-currency" element={<MultiCurrencyPage />} />
             <Route path="/accounting/banking" element={<BankPage />} />
             <Route path="/accounting/banking/mcb" element={<BankMcbPage />} />
+            <Route path="/accounting/banking/pdf" element={<BankMcbPage />} />
             <Route path="/accounting/assets" element={<FixedAssetsPage />} />
             <Route path="/accounting/financial-years" element={<FinancialYearsPage />} />
             <Route path="/accounting/inventory" element={<InventoryPage />} />

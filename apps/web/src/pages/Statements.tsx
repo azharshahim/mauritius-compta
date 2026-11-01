@@ -74,7 +74,9 @@ function Section({
   );
 }
 
-export default function StatementsPage() {
+export type StatementsView = 'balance-sheet' | 'profit-loss';
+
+export default function StatementsPage({ view }: { view?: StatementsView } = {}) {
   const { t, locale } = useI18n();
   const { company } = useSession();
   const [from, setFrom] = useState('');
@@ -95,7 +97,7 @@ export default function StatementsPage() {
     <>
       <div className="page-head">
         <div className="grow">
-          <h1>{t('st.title')}</h1>
+          <h1>{view === 'balance-sheet' ? t('nav.reports.balanceSheet') : view === 'profit-loss' ? t('nav.reports.profitLoss') : t('st.title')}</h1>
           <div className="page-sub">
             {data?.from ?? company.financial_year_start} → {data?.to ?? company.financial_year_end} ·{' '}
             {company.presentation_currency}
@@ -121,7 +123,8 @@ export default function StatementsPage() {
           <Spinner />
         ) : (
           data && (
-            <div className="grid grid-2">
+            <div className={view ? '' : 'grid grid-2'}>
+              {view !== 'balance-sheet' && (
               <div>
                 <h2 style={{ marginBottom: 8 }}>{t('st.pl')}</h2>
                 <div className="table-wrap">
@@ -137,6 +140,8 @@ export default function StatementsPage() {
                   </table>
                 </div>
               </div>
+              )}
+              {view !== 'profit-loss' && (
               <div>
                 <h2 style={{ marginBottom: 8 }}>{t('st.sofp')}</h2>
                 <div style={{ marginBottom: 8 }}>
@@ -172,6 +177,7 @@ export default function StatementsPage() {
                   </table>
                 </div>
               </div>
+              )}
             </div>
           )
         )}

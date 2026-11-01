@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../api';
 import { demoEnabled } from '../../demo';
 import { useI18n } from '../../i18n';
@@ -41,6 +41,10 @@ interface DocumentDetail {
 }
 interface Account { id: string; code: string; name: string; name_en: string | null; name_fr: string | null; type: string; is_active: boolean }
 interface Journal { id: string; code: string; name: string; type: string }
+interface BillingInvoice {
+  id: string; number: string | null; customerName: string;
+  status: string; currency: string; total: string; accountingEntryId?: string | null;
+}
 
 function readBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -55,11 +59,11 @@ function fmt(value: string | null | undefined): string {
   return Number(value).toLocaleString('en-MU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export default function ScanImportPage() {
+export default function ScanImportPage({ mode }: { mode?: 'purchase' | 'sale' } = {}) {
   const { t, locale } = useI18n();
   const { company } = useSession();
   const navigate = useNavigate();
-  const [kind, setKind] = useState<'purchase' | 'sale'>('purchase');
+  const [kind, setKind] = useState<'purchase' | 'sale'>(mode ?? 'purchase');
   const [file, setFile] = useState<File | null>(null);
   const [localUrl, setLocalUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -78,6 +82,9 @@ export default function ScanImportPage() {
   const [rejecting, setRejecting] = useState(false);
   const [partyId, setPartyId] = useState('');
   const [rejectReason, setRejectReason] = useState('');
+  const [billingDocumentId, setBillingDocumentId] = useState('');
+  const [structuredBusy, setStructuredBusy] = useState(false);
+  const [structuredMessage, setStructuredMessage] = useState<string | null>(null);
 
   const { data: list, loading: listLoading, reload: reloadList } = useAsync<{ documents: DocumentListRow[] } | null>(
     () => company ? api.get(`/companies/${company.id}/documents`) : Promise.resolve(null),
@@ -91,9 +98,18 @@ export default function ScanImportPage() {
     () => company ? api.get(`/companies/${company.id}/journals`) : Promise.resolve(null),
     [company?.id],
   );
+  const { data: billingData, reload: reloadBilling } = useAsync<{ documents: BillingInvoice[] } | null>(
+    () => company && mode === 'sale'
+      ? api.get(`/companies/${company.id}/billing/documents?kind=invoice&status=issued`)
+      : Promise.resolve(null),
+    [company?.id, mode],
+  );
   const accounts = accountsData?.accounts ?? [];
   const journals = journalsData?.journals ?? [];
+  const billingInvoices = (billingData?.documents ?? []).filter((doc) => !doc.accountingEntryId);
   const accountLabel = (a: Account) => `${a.code} — ${(locale === 'en' ? a.name_en : a.name_fr) || a.name}`;
+
+  useEffect(() => { if (mode) setKind(mode); }, [mode]);
 
   useEffect(() => () => { if (localUrl) URL.revokeObjectURL(localUrl); }, [localUrl]);
 
@@ -228,6 +244,23 @@ export default function ScanImportPage() {
     finally { setBusy(false); }
   };
 
+  const proposeFromBilling = async () => {
+    if (!company || !billingDocumentId) return;
+    setStructuredBusy(true); setError(null); setStructuredMessage(null);
+    try {
+      const result = await api.post<{ proposal: { reference: string | null }; reused: boolean }>(
+        `/companies/${company.id}/ai/entry-proposals/from-billing`,
+        { documentId: billingDocumentId },
+      );
+      setStructuredMessage(
+        t(result.reused ? 'journal.structuredReused' : 'journal.structuredReady')
+          .replace('{ref}', result.proposal.reference ?? '—'),
+      );
+      await reloadBilling();
+    } catch (err) { setError(errorMessage(err, t('common.error')).message); }
+    finally { setStructuredBusy(false); }
+  };
+
   const proposal = detail?.proposals.find((p) => p.status === 'PROPOSED') ?? detail?.proposals[0] ?? null;
   const previewUrl = demoEnabled ? localUrl : fileUrl;
   const totals = useMemo(() => {
@@ -240,10 +273,25 @@ export default function ScanImportPage() {
     <>
       <div className="page-head">
         <div className="grow">
-          <h1>{t('docs.title')}</h1>
-          <div className="page-sub">{t('docs.subtitle')}</div>
+          {mode && (
+            <Link className="page-sub" to={`/accounting/journals/${mode === 'purchase' ? 'purchases' : 'sales'}`}>
+              ← {t(mode === 'purchase' ? 'nav.journals.purchases' : 'nav.journals.sales')}
+            </Link>
+          )}
+          <h1>{mode === 'purchase' ? t('journal.importPurchaseTitle') : mode === 'sale' ? t('journal.importSaleTitle') : t('docs.title')}</h1>
+          <div className="page-sub">{mode ? t('journal.importSubtitle') : t('docs.subtitle')}</div>
         </div>
       </div>
+      {!mode && (
+        <Card title={t('docs.primaryEntries')}>
+          <p className="page-sub">{t('docs.consultationNote')}</p>
+          <div className="page-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <Link className="btn" to="/accounting/journals/purchases/import">🛒 {t('journal.importPurchase')}</Link>
+            <Link className="btn" to="/accounting/journals/sales/import">🧾 {t('journal.importSale')}</Link>
+            <Link className="btn" to="/accounting/banking/pdf">🏦 {t('nav.bank.pdf')}</Link>
+          </div>
+        </Card>
+      )}
       <DemoNotice />
       {demoEnabled && <Card><p className="page-sub" style={{ margin: 0 }}>{t('docs.demoPreRecorded')}</p></Card>}
       <ErrorBanner message={error} />
@@ -252,16 +300,18 @@ export default function ScanImportPage() {
       <div className="docs-layout">
         <Card>
           <h2>{t('docs.new')}</h2>
-          <div className="form-row">
-            <label className="inline">
-              <input type="radio" checked={kind === 'purchase'} onChange={() => setKind('purchase')} />
-              {t('docs.purchase')}
-            </label>
-            <label className="inline">
-              <input type="radio" checked={kind === 'sale'} onChange={() => setKind('sale')} />
-              {t('docs.sale')}
-            </label>
-          </div>
+          {!mode && (
+            <div className="form-row">
+              <label className="inline">
+                <input type="radio" checked={kind === 'purchase'} onChange={() => setKind('purchase')} />
+                {t('docs.purchase')}
+              </label>
+              <label className="inline">
+                <input type="radio" checked={kind === 'sale'} onChange={() => setKind('sale')} />
+                {t('docs.sale')}
+              </label>
+            </div>
+          )}
           <label className={`dropzone ${file ? 'has-file' : ''}`}>
             <input type="file" accept="application/pdf,image/jpeg,image/png"
               onChange={(e) => void choose(e.target.files?.[0] ?? null)} />
@@ -298,6 +348,39 @@ export default function ScanImportPage() {
         </Card>
 
         <div>
+          {mode === 'sale' && (
+            <Card title={t('journal.structuredTitle')}>
+              <p className="page-sub">{t('journal.structuredNote')}</p>
+              <div className="form-row">
+                <select
+                  aria-label={t('journal.structuredSelect')}
+                  value={billingDocumentId}
+                  onChange={(e) => setBillingDocumentId(e.target.value)}
+                  style={{ minWidth: 220 }}
+                >
+                  <option value="">{t('journal.structuredSelect')}</option>
+                  {billingInvoices.map((doc) => (
+                    <option key={doc.id} value={doc.id}>
+                      {doc.number ?? '—'} — {doc.customerName} · {doc.total} {doc.currency}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  variant="primary"
+                  disabled={!billingDocumentId || structuredBusy}
+                  onClick={() => void proposeFromBilling()}
+                >
+                  {structuredBusy ? t('common.loading') : t('journal.structuredAction')}
+                </Button>
+              </div>
+              {structuredMessage && (
+                <p className="alert alert-success" style={{ marginTop: 10 }}>
+                  {structuredMessage}{' '}
+                  <Link to="/cabinet/ai-proposals">{t('journal.structuredOpen')}</Link>
+                </p>
+              )}
+            </Card>
+          )}
           {!detail ? (
             <Card><EmptyState title={t('docs.select')} /></Card>
           ) : (
@@ -480,7 +563,9 @@ export default function ScanImportPage() {
                   {proposal.status === 'APPROVED' && proposal.draft_entry_id && (
                     <div style={{ marginTop: 12 }}>
                       <p>{t('docs.draftCreated').replace('{no}', '')}</p>
-                      <Button onClick={() => navigate(`/accounting/entries${draftEntryNo ? `?search=${encodeURIComponent(draftEntryNo)}` : ''}`)}>{t('docs.openEntries')}</Button>
+                      <Button onClick={() => navigate(
+                        `${mode === 'purchase' ? '/accounting/journals/purchases' : mode === 'sale' ? '/accounting/journals/sales' : '/accounting/entries'}${draftEntryNo ? `?search=${encodeURIComponent(draftEntryNo)}` : ''}`,
+                      )}>{t('docs.openEntries')}</Button>
                     </div>
                   )}
                 </Card>

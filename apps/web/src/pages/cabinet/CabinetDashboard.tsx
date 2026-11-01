@@ -46,6 +46,16 @@ interface CabinetDashboard {
   }[];
 }
 
+interface CompanyOverview {
+  kpis: { draftEntries: number };
+}
+
+interface DocumentRow {
+  id: string;
+  kind: 'purchase' | 'sale' | 'unknown';
+  status: string;
+}
+
 export default function CabinetDashboardPage() {
   const { t, locale } = useI18n();
   const { company } = useSession();
@@ -53,16 +63,28 @@ export default function CabinetDashboardPage() {
     () => api.get<CabinetDashboard>('/cabinet/dashboard'),
     [company?.id],
   );
+  const { data: overview } = useAsync<CompanyOverview | null>(
+    () => (company ? api.get<CompanyOverview>(`/companies/${company.id}/dashboard`) : Promise.resolve(null)),
+    [company?.id],
+  );
+  const { data: documents } = useAsync<{ documents: DocumentRow[] } | null>(
+    () => (company ? api.get<{ documents: DocumentRow[] }>(`/companies/${company.id}/documents`) : Promise.resolve(null)),
+    [company?.id],
+  );
 
   if (loading) return <Spinner label={t('common.loading')} />;
   if (error) return <EmptyState title={t('common.error')}>{error}</EmptyState>;
   if (!data) return <EmptyState title={t('cabinet.dashboard.title')} />;
 
+  const drafts = overview?.kpis.draftEntries ?? 0;
+  const pendingDocuments = (documents?.documents ?? []).filter(
+    (doc) => doc.status === 'EXTRACTED' || doc.status === 'PROPOSED',
+  ).length;
+
+  // Six essential indicators only. The remaining cabinet counters are kept in a
+  // collapsed details block so the home screen stays usable on a phone.
   const kpis: { key: string; label: string; value: number; tone?: 'danger' | 'warning' }[] = [
-    { key: 'clients', label: t('cabinet.kpi.clients'), value: data.metrics.clients },
     { key: 'active', label: t('cabinet.kpi.active'), value: data.metrics.active },
-    { key: 'archived', label: t('cabinet.kpi.archived'), value: data.metrics.archived },
-    { key: 'toReview', label: t('cabinet.kpi.toReview'), value: data.metrics.toReview },
     { key: 'openTasks', label: t('cabinet.kpi.openTasks'), value: data.metrics.openTasks },
     {
       key: 'overdue',
@@ -76,7 +98,13 @@ export default function CabinetDashboardPage() {
       value: data.metrics.dueSoon,
       tone: data.metrics.dueSoon > 0 ? 'warning' : undefined,
     },
-    { key: 'collaborators', label: t('cabinet.kpi.collaborators'), value: data.metrics.collaborators },
+    { key: 'drafts', label: t('home.drafts'), value: drafts, tone: drafts > 0 ? 'warning' : undefined },
+    {
+      key: 'documents',
+      label: t('home.pendingDocuments'),
+      value: pendingDocuments,
+      tone: pendingDocuments > 0 ? 'warning' : undefined,
+    },
   ];
 
   return (
@@ -91,6 +119,29 @@ export default function CabinetDashboardPage() {
         </Link>
       </div>
 
+      <div className="context-strip">
+        <div>
+          <span>{t('home.activeCompany')}</span>
+          <strong>{company?.name ?? t('common.none')}</strong>
+        </div>
+        <div>
+          <span>{t('home.financialYear')}</span>
+          <strong>
+            {company ? `${date(company.financial_year_start, locale)} → ${date(company.financial_year_end, locale)}` : '—'}
+          </strong>
+        </div>
+        <div>
+          <span>{t('home.currency')}</span>
+          <strong>{company?.functional_currency ?? '—'}</strong>
+        </div>
+        <div>
+          <span>{t('common.status')}</span>
+          <Badge kind={company?.status === 'active' ? 'success' : 'neutral'}>
+            {company ? t(`companies.${company.status}`) : '—'}
+          </Badge>
+        </div>
+      </div>
+
       <div className="kpi-grid">
         {kpis.map((k) => (
           <div key={k.key} className={`kpi ${k.tone ? `kpi-${k.tone}` : ''}`}>
@@ -99,6 +150,26 @@ export default function CabinetDashboardPage() {
           </div>
         ))}
       </div>
+
+      <Card title={t('home.quickAccess')}>
+        <div className="quick-links">
+          <Link to="/accounting/journals/purchases">{t('nav.journals.purchases')}</Link>
+          <Link to="/accounting/journals/sales">{t('nav.journals.sales')}</Link>
+          <Link to="/accounting/journals/bank">{t('nav.journals.bank')}</Link>
+          <Link to="/billing/invoices">{t('nav.billing.invoices')}</Link>
+          <Link to="/accounting/trial-balance">{t('nav.trialBalance')}</Link>
+          <Link to="/accounting/banking?tab=transactions">{t('nav.bank.reconciliation')}</Link>
+        </div>
+        <details style={{ marginTop: 12 }}>
+          <summary className="page-sub">{t('home.moreIndicators')}</summary>
+          <div className="quick-links" style={{ marginTop: 8 }}>
+            <span>{t('cabinet.kpi.clients')} : <strong>{data.metrics.clients}</strong></span>
+            <span>{t('cabinet.kpi.archived')} : <strong>{data.metrics.archived}</strong></span>
+            <span>{t('cabinet.kpi.toReview')} : <strong>{data.metrics.toReview}</strong></span>
+            <span>{t('cabinet.kpi.collaborators')} : <strong>{data.metrics.collaborators}</strong></span>
+          </div>
+        </details>
+      </Card>
 
       <div className="split">
         <Card title={t('cabinet.upcoming')}>
@@ -132,66 +203,6 @@ export default function CabinetDashboardPage() {
                         </Link>
                       </td>
                       <td>{task.assignee_name ?? t('cabinet.tasks.unassigned')}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
-
-        <Card title={t('cabinet.tasksByCategory')}>
-          {data.tasksByCategory.length === 0 ? (
-            <p className="muted">{t('cabinet.noUpcoming')}</p>
-          ) : (
-            <ul className="bar-list">
-              {data.tasksByCategory.map((row) => {
-                const max = Math.max(...data.tasksByCategory.map((r) => r.count), 1);
-                return (
-                  <li key={row.category}>
-                    <span className="bar-label">{t(`cabinet.tasks.category.${row.category}`)}</span>
-                    <span className="bar" style={{ width: `${(row.count / max) * 100}%` }} />
-                    <span className="bar-value">{row.count}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </Card>
-      </div>
-
-      <div className="split">
-        <Card title={t('cabinet.dossiers')}>
-          {data.dossiers.length === 0 ? (
-            <p className="muted">{t('cabinet.companies.empty')}</p>
-          ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t('cabinet.company')}</th>
-                    <th>{t('cabinet.companies.clientCode')}</th>
-                    <th>{t('cabinet.status')}</th>
-                    <th>{t('cabinet.tasks.title')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.dossiers.map((d) => (
-                    <tr key={d.id}>
-                      <td>
-                        <Link to={`/cabinet/companies/${d.id}`}>
-                          <strong>{d.name}</strong>
-                        </Link>
-                      </td>
-                      <td className="mono">{d.client_code ?? '—'}</td>
-                      <td>
-                        <Badge kind={d.status === 'active' ? 'success' : 'neutral'}>
-                          {t(`companies.${d.status}`)}
-                        </Badge>
-                      </td>
-                      <td>
-                        {d.open_tasks} {t('cabinet.openTasksShort')}
-                      </td>
                     </tr>
                   ))}
                 </tbody>

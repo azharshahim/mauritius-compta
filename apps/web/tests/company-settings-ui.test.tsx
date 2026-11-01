@@ -11,6 +11,7 @@ import App from '../src/App';
 import { I18nProvider } from '../src/i18n';
 import { SessionProvider } from '../src/store';
 import { resetDemo } from '../src/demo';
+import { clickNavLink, navLink } from './nav';
 
 function renderApp() {
   window.location.hash = '#/';
@@ -30,12 +31,7 @@ async function openSettings() {
   fireEvent.click(await screen.findByRole('button', { name: /Se connecter/i }));
   await screen.findByRole('heading', { name: /Tableau de bord Cabinet/i });
 
-  fireEvent.click(screen.getByRole('button', { name: /Cabinet/i }));
-  const nav = document.querySelector('.nav') as HTMLElement;
-  const companiesLink = Array.from(nav.querySelectorAll('a')).find((a) =>
-    /Dossiers/i.test(a.textContent ?? ''),
-  )!;
-  fireEvent.click(companiesLink);
+  fireEvent.click(navLink(/Dossiers clients/));
 
   const dossier = await screen.findByRole('link', { name: /Lagon Bleu/i });
   fireEvent.click(dossier);
@@ -91,11 +87,7 @@ describe('paramètres société (démo)', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Se connecter/i }));
     await screen.findByRole('heading', { name: /Tableau de bord Cabinet/i });
 
-    fireEvent.click(screen.getByRole('button', { name: /Comptabilité/i }));
-    const nav = document.querySelector('.nav') as HTMLElement;
-    fireEvent.click(
-      Array.from(nav.querySelectorAll('a')).find((a) => /Paramètres/i.test(a.textContent ?? ''))!,
-    );
+    clickNavLink(/^Paramètres$/);
     const link = await screen.findByRole('link', {
       name: /Ouvrir les paramètres de la société/i,
     });

@@ -1,5 +1,61 @@
 # Journal des versions
 
+## Mission 26 — ergonomie cabinet, journaux et imports PDF (1er novembre 2026)
+
+> PR en brouillon, aucune fusion, aucun déploiement d’une branche Arena, aucune donnée
+> réelle, aucun envoi MRA, aucun changement OVH. Les modules 1 à 25 restent en place.
+
+### Ajouté
+
+- Navigation par **huit groupes repliables** (Accueil, Comptabilité, Facturation, Paie et RH,
+  Gestion avancée, Banque et trésorerie, États financiers, Cabinet et administration), avec
+  ouverture du groupe actif, cibles tactiles de 44 px, défilement indépendant et fermeture du
+  tiroir après navigation. Les routes existantes sont conservées.
+- Journaux dédiés `/accounting/journals`, `…/purchases`, `…/sales`, `…/bank` et `…/general`,
+  réutilisant l’écran d’écritures et son filtre par journal.
+- Imports **facture d’achat** `/accounting/journals/purchases/import` et **facture de vente**
+  `/accounting/journals/sales/import`, avec accès depuis Achats, Facturation et Documents.
+  Le moteur OCR de la mission 23 reste le seul moteur ; la validation humaine crée uniquement
+  un **brouillon**.
+- Parcours sans OCR pour une facture de vente déjà créée dans Facturation : proposition
+  déterministe depuis les données structurées, refus des doublons déjà comptabilisés.
+- Lecteur de **relevés PDF** `/accounting/banking/pdf` : PDF texte ou scanné, profil MCB
+  prioritaire, lecture générique prudente des autres banques, métadonnées (banque, compte,
+  période, devise), dates de valeur, contrôle des soldes, doublons, suggestions de nature et
+  case de vérification humaine. Le PDF source est haché et conservé côté serveur lors de
+  l’import confirmé.
+- Accueil allégé : société active, exercice, six indicateurs essentiels, documents en attente,
+  écritures à valider et accès rapides discrets vers les journaux.
+- Documents redevient un écran de consultation/archivage ; les entrées principales pointent
+  vers les journaux et le lecteur bancaire.
+
+### Modifié
+
+- Suppression des anciens onglets de modules au profit des groupes repliables.
+- `GET /bank/profiles` déclare désormais le PDF texte/scanné et le profil MCB prioritaire,
+  sans prétendre à un format bancaire universel.
+- Workflow Pages : contrôles de bundle pour les libellés de navigation et d’import de la
+  mission 26.
+
+### Tests
+
+- Typecheck API + web, build production et build démonstration.
+- Suite web : **261/261** (dont navigation mission 26 et parcours d’import en démonstration).
+- Suite API sur PGlite : **477/477** (11 tests PostgreSQL réels ignorés sans
+  `TEST_DATABASE_URL`), dont extracteur PDF générique, métadonnées, refus du profil MCB
+  incorrect et conservation du hash source.
+- Aucun test sur appareil physique Android ou Chrome Windows, aucun E2E navigateur.
+
+### Non livré / limites
+
+- Aucun envoi MRA, aucune donnée réelle, aucun changement OVH, aucune migration.
+- Les PDF testés sont **générés** (factures et relevés fictifs) ; aucun relevé bancaire réel
+  n’a été fourni. Le lecteur générique ne remplace pas un connecteur bancaire.
+- Un PDF scanné de relevé est accepté par le même extracteur OCR, mais la qualité de la
+  reconstruction des colonnes dépend du scan ; l’import est bloqué si les soldes ou les
+  colonnes restent ambigus.
+- Aucun tableau des flux de trésorerie n’est ajouté : cet état n’existe pas encore.
+
 ## Mission 25 — MRA e-Invoicing « À venir » et vérification de publication (1er novembre 2026)
 
 > PR en brouillon, aucune fusion, aucun déploiement d’une branche Arena, aucune donnée

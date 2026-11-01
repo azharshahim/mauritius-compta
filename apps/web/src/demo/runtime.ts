@@ -6323,7 +6323,7 @@ export function demoRequest<T>(method: Method, rawPath: string, body?: unknown):
     }
 
     // -------------------- documents, charts, MCB (mission 23)
-    if (rest.startsWith('/documents') || rest.startsWith('/chart-of-accounts') || rest.startsWith('/bank/mcb')) {
+    if (rest.startsWith('/documents') || rest.startsWith('/chart-of-accounts') || rest.startsWith('/bank/mcb') || rest.startsWith('/bank/pdf')) {
       const member = s.members.find(
         (m) => m.company_id === companyId && m.user_id === requireUser().id,
       );

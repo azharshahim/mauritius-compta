@@ -12,6 +12,7 @@ import App from '../src/App';
 import { I18nProvider } from '../src/i18n';
 import { SessionProvider } from '../src/store';
 import { resetDemo } from '../src/demo';
+import { clickNavLink } from './nav';
 
 function renderApp(hash = '#/') {
   window.location.hash = hash;
@@ -57,8 +58,13 @@ describe('assistant IA universel (démo)', () => {
     const pill = screen.getByRole('button', { name: /Assistant IA/i });
     expect(pill).toBeTruthy();
 
-    for (const label of [/Comptabilité/i, /Facturation/i, /Paie/i, /Cabinet/i]) {
-      fireEvent.click(screen.getByRole('button', { name: label }));
+    for (const label of [
+      /Journaux comptables/,
+      /Tableau de bord Facturation/,
+      /Tableau de bord Paie/,
+      /^Tableau de bord Cabinet$/,
+    ]) {
+      clickNavLink(label);
       await waitFor(() =>
         expect(screen.getByRole('button', { name: /Assistant IA/i })).toBeTruthy(),
       );
@@ -108,9 +114,7 @@ describe('assistant IA universel (démo)', () => {
 
   it('ne vole jamais le focus à une saisie en cours (règle Android/Samsung)', async () => {
     await login();
-    fireEvent.click(screen.getByRole('button', { name: /Comptabilité/i }));
-    const nav = document.querySelector('.nav') as HTMLElement;
-    fireEvent.click(withinNav(nav, /Paramètres/i));
+    clickNavLink(/^Paramètres$/);
 
     const titleInput = (await screen.findByLabelText(/Nom complet/i)) as HTMLInputElement;
     titleInput.focus();
@@ -124,9 +128,3 @@ describe('assistant IA universel (démo)', () => {
     expect(document.activeElement).not.toBe(composer);
   });
 });
-
-function withinNav(nav: HTMLElement, name: RegExp) {
-  const link = Array.from(nav.querySelectorAll('a')).find((a) => name.test(a.textContent ?? ''));
-  if (!link) throw new Error('Navigation link not found');
-  return link;
-}

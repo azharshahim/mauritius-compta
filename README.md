@@ -495,8 +495,8 @@ des permissions et des tables séparées par module :
 | Espace | Route | État |
 |---|---|---|
 | Cabinet | `/cabinet` | **opérationnel** : tableau de bord, dossiers clients, fiche dossier, tâches & échéances, collaborateurs |
-| Documents | `/documents` | **opérationnel** : import PDF/JPG/PNG, extraction PDF native, **OCR réel** sur images et PDF scannés, corrections, propositions d’écriture équilibrées, validation humaine, historique ; aucune comptabilisation automatique |
-| Comptabilité | `/accounting` | **opérationnel** : fonctions V0.1.1 (plan comptable bilingue, écritures, grand livre, balance, états financiers, périodes, devises, audit) + **Banque & rapprochement** (import CSV/TSV/XLSX, **import MCB PDF dédié**, rapprochement humain, propositions, rapport) + **Achats & Fournisseurs** (fournisseurs, factures d'achat, avoirs, règlements, échéancier par devise) |
+| Documents | `/documents` | **consultation et archivage** : les imports démarrent désormais depuis le journal concerné ; l’écran garde la recherche, l’historique, les corrections, les propositions équilibrées et la validation humaine. Aucune comptabilisation automatique |
+| Comptabilité | `/accounting` | **opérationnel** : journaux dédiés (achats, ventes, banque, opérations diverses), plan comptable bilingue, écritures, grand livre, balance, états financiers, périodes, devises, audit + **Banque & rapprochement** (CSV/TSV/XLSX et **relevés PDF texte/scannés**, MCB prioritaire, autres banques en lecture prudente, rapprochement humain) + **Achats & Fournisseurs** |
 | Facturation | `/billing` | **opérationnel** : clients, devis, factures, avoirs, encaissements, balance âgée, PDF serveur ; **MRA e-Invoicing — À venir** : écran informatif, intégration non activée, aucune connexion MRA |
 | Paie & RH | `/payroll` | **préparation et simulation** : salariés, contrats, temps, congés, variables, périodes, PAYE/CSG/NSF/levy sourcés, EDF, AR 2026, bulletins de simulation imprimables un par un, déclarations MRA en préparation interne ; revue experte en attente, aucun bulletin final, aucune soumission MRA |
 
@@ -504,6 +504,7 @@ des permissions et des tables séparées par module :
   `viewer` (+ `owner`/`admin` historiques) — voir
   [`docs/permissions-matrix.md`](docs/permissions-matrix.md).
 - Les anciennes URL (`/entries`, `/companies`, …) redirigent : aucun signet n'est cassé.
+- **Mission 26** : navigation par **huit groupes repliables** (Accueil, Comptabilité, Facturation, Paie et RH, Gestion avancée, Banque et trésorerie, États financiers, Cabinet et administration), imports de factures d’achat et de vente depuis les journaux, lecteur de relevés bancaires PDF, accueil allégé et Documents en consultation. Voir [`docs/mission-26-report.md`](docs/mission-26-report.md).
 - **Mission 25** : écran bilingue **MRA e-Invoicing — À venir** (route stable
   `/billing/e-invoicing`, six fonctions annoncées non disponibles, paramètres futurs inactifs,
   aucun appel réseau, aucune inscription ni certification), feuille de route
@@ -511,9 +512,9 @@ des permissions et des tables séparées par module :
   publication Mission 24 sur GitHub Pages. Voir [`docs/mission-25-report.md`](docs/mission-25-report.md).
 - **Mission 23** : plan comptable bilingue avec trois profils (`PENDING PROFESSIONAL VALIDATION`,
   `AWAITING FIRM CONFIRMATION`, plan propre à la société), import CSV/XLSX avec mapping et
-  prévisualisation, OCR natif (Tesseract local, sans service externe) et importeur MCB
-  Savings Regular Account limité au jeu fictif initial. Aucun numéro de compte mauricien n’est
-  présenté comme obligatoire. Voir [`docs/mission-23-report.md`](docs/mission-23-report.md).
+  prévisualisation, OCR natif (Tesseract local, sans service externe), importeur MCB
+  Savings Regular Account et, depuis la mission 26, lecteur PDF générique prudent pour les
+  autres banques. Aucun numéro de compte mauricien n’est présenté comme obligatoire. Voir [`docs/mission-23-report.md`](docs/mission-23-report.md).
 - **Mission 24** : audit et correction FR/EN (1 605 clés par langue, glossaire centralisé,
   64 codes d'erreur traduits), édition des stocks et pont facture → mouvements de stock,
   mappings comptables lisibles, navigation OCR → écritures et MCB → rapprochement,

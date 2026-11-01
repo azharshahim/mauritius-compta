@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, qs } from '../api';
 import { useI18n } from '../i18n';
@@ -95,7 +95,16 @@ const newLine = (): EditableLine => ({
   credit: '',
 });
 
-export default function EntriesPage() {
+export type JournalType = 'purchases' | 'sales' | 'bank' | 'general';
+
+export default function EntriesPage({
+  journalType,
+  titleKey,
+}: {
+  /** Restricts the list to one journal type; used by the dedicated journal routes. */
+  journalType?: JournalType;
+  titleKey?: string;
+} = {}) {
   const { t, locale } = useI18n();
   const { company } = useSession();
   const [searchParams] = useSearchParams();
@@ -159,6 +168,23 @@ export default function EntriesPage() {
   const journals = meta?.journals ?? [];
   const accounts = meta?.accounts ?? [];
   const functional = company?.functional_currency ?? 'MUR';
+  const journalForType = journalType ? journals.find((j) => j.type === journalType) : undefined;
+  const pageTitle = titleKey ? t(titleKey) : t('entries.title');
+
+  useEffect(() => {
+    if (!journalType) return;
+    setJournalId(journalForType?.id ?? '');
+    setOffset(0);
+  }, [journalType, journalForType?.id]);
+
+  const importKey = journalType === 'purchases'
+    ? 'journal.importPurchase'
+    : journalType === 'sales'
+      ? 'journal.importSale'
+      : null;
+  const importPath = journalType === 'purchases'
+    ? '/accounting/journals/purchases/import'
+    : '/accounting/journals/sales/import';
   const isForeign = currency !== functional;
 
   // Exact decimal arithmetic: the balance indicator never relies on floats.
@@ -191,7 +217,7 @@ export default function EntriesPage() {
       );
     } else {
       setEditingId(null);
-      setJournal(journals[0]?.id ?? '');
+      setJournal(journalForType?.id ?? journals[0]?.id ?? '');
       setEntryDate(defaultEntryDate(meta?.periods ?? []));
       setReference('');
       setDescription('');
@@ -306,13 +332,19 @@ export default function EntriesPage() {
     <>
       <div className="page-head">
         <div className="grow">
-          <h1>{t('entries.title')}</h1>
+          <h1>{pageTitle}</h1>
           <div className="page-sub">
-            {data?.total ?? 0} {t('entries.title').toLowerCase()} · {functional}
+            {data?.total ?? 0} {locale === 'fr' ? 'écritures' : 'entries'} · {functional}
+            {journalType ? ` · ${t('journal.filtered')}` : ''}
           </div>
         </div>
+        {importKey && (
+          <Link className="btn" to={importPath}>
+            ⇪ {t(importKey)}
+          </Link>
+        )}
         <Button variant="primary" onClick={() => openEditor()} disabled={journals.length === 0}>
-          + {t('entries.new')}
+          + {t('journal.addEntry')}
         </Button>
       </div>
 
