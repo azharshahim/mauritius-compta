@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { api, ApiError, setApiLocale } from './api';
-import { useI18n, type Locale } from './i18n';
+import { dictionaries, translateError, useI18n, type Locale } from './i18n';
 
 export interface User {
   id: string;
@@ -177,8 +177,26 @@ export function useSession(): SessionValue {
   return ctx;
 }
 
+/**
+ * Server error codes are translated in the browser, so a French user never sees
+ * an English validation message (and vice versa). Unknown codes keep the
+ * server message, which is already localised by the API locale header.
+ */
+function currentTranslator(key: string): string {
+  let stored: string | null = null;
+  try {
+    stored = typeof localStorage === 'undefined' ? null : localStorage.getItem('mc.locale');
+  } catch {
+    // Storage can be blocked (private mode); fall back to French, never crash an error banner.
+  }
+  const locale: Locale = stored === 'en' ? 'en' : 'fr';
+  return dictionaries[locale][key] ?? dictionaries.fr[key] ?? key;
+}
+
 export function errorMessage(err: unknown, fallback: string): { code: string; message: string } {
-  if (err instanceof ApiError) return { code: err.code, message: err.message };
+  if (err instanceof ApiError) {
+    return { code: err.code, message: translateError(err.code, err.message, currentTranslator) };
+  }
   if (err instanceof Error) return { code: 'ERROR', message: err.message };
   return { code: 'ERROR', message: fallback };
 }

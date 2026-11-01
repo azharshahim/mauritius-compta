@@ -110,7 +110,7 @@ export default function LoginPage() {
                     autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                   />
                   {mode === 'register' && (
-                    <span className="field-hint">10+ characters, letters and digits.</span>
+                    <span className="field-hint">{t('login.passwordHint')}</span>
                   )}
                 </label>
                 <Button type="submit" variant="primary" disabled={busy} className="btn-block">

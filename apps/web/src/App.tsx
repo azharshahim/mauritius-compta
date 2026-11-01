@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useI18n } from './i18n';
+import { APP_VERSION, SHORT_COMMIT } from './version';
 import { useSession } from './store';
 import { api } from './api';
 import LoginPage from './pages/Login';
@@ -180,7 +181,7 @@ export default function App() {
           ))}
         </nav>
         <div className="sidebar-foot">
-          {t('app.version')}
+          {t('app.version')} {APP_VERSION} · {t('app.commit')} {SHORT_COMMIT}
           <br />
           {user.email}
         </div>

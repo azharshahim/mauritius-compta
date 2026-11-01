@@ -110,7 +110,7 @@ const L = {
     advancedReport: 'Traçabilité détaillée',
     advancedInvoices: 'Factures et restants dus',
     advancedAllocations: 'Affectations confirmées',
-    advancedOpen: 'Transactions ouvertes',
+    advancedOpen: 'Transactions ouvertes', allocated: 'affecté',
     advancedPartial: 'Partiellement affectées',
     advancedInvoiceStatus: 'Statut de paiement',
     advancedOutstanding: 'Restant dû',
@@ -248,7 +248,7 @@ const L = {
     advancedReport: 'Detailed traceability',
     advancedInvoices: 'Invoices and outstanding balances',
     advancedAllocations: 'Confirmed allocations',
-    advancedOpen: 'Open transactions',
+    advancedOpen: 'Open transactions', allocated: 'allocated',
     advancedPartial: 'Partially allocated',
     advancedInvoiceStatus: 'Payment status',
     advancedOutstanding: 'Outstanding',
@@ -1954,7 +1954,7 @@ export default function BankPage() {
                     </div>
                     <div className="bank-count">
                       <strong>{advanced.summary.allocatedTotal}</strong>
-                      <span>{tr.amount} affecté</span>
+                      <span>{tr.amount} {tr.allocated}</span>
                     </div>
                     <div className="bank-count">
                       <strong>{advanced.summary.postedPaymentCount}</strong>

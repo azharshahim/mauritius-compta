@@ -1,12 +1,31 @@
+import { execSync } from 'node:child_process';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 const demoMode = process.env.VITE_DEMO_MODE === 'true';
 
+function commit(): string {
+  if (process.env.VITE_BUILD_COMMIT) return process.env.VITE_BUILD_COMMIT;
+  try {
+    return execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+  } catch {
+    return 'local';
+  }
+}
+
+const version = process.env.npm_package_version ?? '0.1.1';
+const buildCommit = commit();
+const buildDate = process.env.VITE_BUILD_DATE ?? new Date().toISOString();
+
 export default defineConfig({
   // GitHub Pages serves the project under /<repository>/ ; the API build keeps '/'.
   base: demoMode ? '/mauritius-compta/' : '/',
   plugins: [react()],
+  define: {
+    __APP_VERSION__: JSON.stringify(version),
+    __BUILD_COMMIT__: JSON.stringify(buildCommit),
+    __BUILD_DATE__: JSON.stringify(buildDate),
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,

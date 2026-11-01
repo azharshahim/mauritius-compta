@@ -61,15 +61,10 @@ export default function PreparedPage({ module }: { module: 'billing' | 'payroll'
           </p>
           {module === 'payroll' && <p className="page-sub">{t('prepared.payrollNoData')}</p>}
           {module === 'payroll' && (
-            <p className="page-sub">
-              PAYE, CSG, NSF : <strong>non implémenté</strong> — règles officielles non validées.
-            </p>
+            <p className="page-sub"><strong>{t('prepared.notAvailable')}</strong> — {t('prepared.payrollNotImplemented')}</p>
           )}
           {module === 'billing' && (
-            <p className="page-sub">
-              TVA & MRA e-invoicing : <strong>non implémenté</strong> — aucune conformité
-              revendiquée.
-            </p>
+            <p className="page-sub"><strong>{t('prepared.notAvailable')}</strong> — {t('prepared.billingNotImplemented')}</p>
           )}
           {error && <p className="page-sub">{error}</p>}
         </Card>

@@ -152,7 +152,7 @@ export default function BillingCustomersPage() {
       <Card>
         <div className="filters">
           <Field label={t('common.search')}>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="BRN, nom…" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('billing.customers.searchPlaceholder')} />
           </Field>
           <label className="inline">
             <input
