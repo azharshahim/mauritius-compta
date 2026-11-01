@@ -6,13 +6,23 @@
  * used by the rest of the application. The account balances are never copied
  * into this file, so a reviewer can always trace a figure back to its report.
  */
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAsync } from '../hooks';
 import { useI18n } from '../i18n';
 import { useSession } from '../store';
 import { Badge, Card, DemoNotice, EmptyState, ErrorBanner, Spinner } from '../components/ui';
 import { money } from '../format';
+import {
+  GUIDED_TOUR_LINKS,
+  GUIDED_TOUR_STEPS,
+  clearGuidedTour,
+  guidedTourStepFromQuery,
+  readGuidedTour,
+  startGuidedTour,
+  writeGuidedTour,
+} from '../guidedTour';
 
 type Locale = 'fr' | 'en';
 
@@ -413,9 +423,41 @@ const QUICK_LINKS: { key: string; to: string }[] = [
 ];
 
 export default function GuidedDemoPage() {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const tr = D[locale];
   const { company } = useSession();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const stepParam = searchParams.get('step');
+  const [currentStep, setCurrentStep] = useState(() =>
+    guidedTourStepFromQuery(stepParam, readGuidedTour().step),
+  );
+
+  // `?step=` is the only external input. The effect must not depend on the
+  // selected step itself: opening a step link writes `active=true` just before
+  // the route changes, and a state-driven effect would immediately clear it.
+  useEffect(() => {
+    if (stepParam === null) return;
+    const next = guidedTourStepFromQuery(stepParam, currentStep);
+    setCurrentStep(next);
+    // Back on the tour page means "not navigating a destination": keep the
+    // position, but hide the contextual tour controls.
+    writeGuidedTour(false, next);
+    const target = document.getElementById(`demo-step-${next}`);
+    target?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    // currentStep is intentionally not a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepParam]);
+
+  const selectStep = (next: number) => {
+    const clamped = Math.min(GUIDED_TOUR_STEPS - 1, Math.max(0, next));
+    setCurrentStep(clamped);
+    writeGuidedTour(false, clamped);
+    const params = new URLSearchParams(searchParams);
+    params.set('step', String(clamped + 1));
+    setSearchParams(params, { replace: true });
+    const target = document.getElementById(`demo-step-${clamped}`);
+    target?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+  };
   const { data, loading, error } = useAsync<GuidedData | null>(async () => {
     if (!company) return null;
     const base = `/companies/${company.id}`;
@@ -469,6 +511,7 @@ export default function GuidedDemoPage() {
     // statically would pull the whole fictional backend into the main bundle.
     const { resetDemo } = await import('../demo/runtime');
     resetDemo();
+    clearGuidedTour();
     localStorage.removeItem('mc.companyId');
     window.location.hash = '#/demo';
     window.location.reload();
@@ -585,7 +628,15 @@ export default function GuidedDemoPage() {
           <p className="muted small">{tr.quickIntro}</p>
           <div className="demo-quick-links">
             {QUICK_LINKS.map((link) => (
-              <Link key={link.key} to={link.to} className="demo-quick-link">
+              <Link
+                key={link.key}
+                to={link.to}
+                className="demo-quick-link"
+                onClick={() => {
+                  const index = GUIDED_TOUR_LINKS.indexOf(link.to as (typeof GUIDED_TOUR_LINKS)[number]);
+                  startGuidedTour(index >= 0 ? index : currentStep);
+                }}
+              >
                 {link.key}
               </Link>
             ))}
@@ -595,16 +646,59 @@ export default function GuidedDemoPage() {
 
       <Card title={tr.scenarioTitle} >
         <p className="muted small">{tr.scenarioIntro}</p>
+        <div className="demo-tour-controls">
+          <div className="demo-tour-position">
+            <strong>
+              {t('demo.tour.current')} · {t('demo.tour.step')} {currentStep + 1} {t('demo.tour.of')}{' '}
+              {GUIDED_TOUR_STEPS}
+            </strong>
+            <span className="muted small">{t('demo.tour.saved')}</span>
+          </div>
+          <div className="demo-tour-buttons">
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => selectStep(currentStep - 1)}
+              disabled={currentStep <= 0}
+            >
+              {t('demo.tour.previous')}
+            </button>
+            <span className="muted small">
+              {currentStep + 1} / {GUIDED_TOUR_STEPS}
+            </span>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => selectStep(currentStep + 1)}
+              disabled={currentStep >= GUIDED_TOUR_STEPS - 1}
+            >
+              {t('demo.tour.next')}
+            </button>
+          </div>
+        </div>
         <ol className="demo-steps">
-          {STEPS[locale].map((step) => (
-            <li key={step.title} className="demo-step">
+          {STEPS[locale].map((stepData, index) => (
+            <li
+              key={stepData.title}
+              id={`demo-step-${index}`}
+              className={`demo-step ${index === currentStep ? 'is-current' : ''}`}
+              aria-current={index === currentStep ? 'step' : undefined}
+            >
               <div className="demo-step-body">
-                <strong>{step.title}</strong>
-                <p>{step.action}</p>
-                <p className="muted small"><b>{tr.expected}:</b> {step.expected}</p>
+                <strong>{stepData.title}</strong>
+                <p>{stepData.action}</p>
+                <p className="muted small"><b>{tr.expected}:</b> {stepData.expected}</p>
                 <div className="demo-step-links">
-                  {step.links.map((link) => (
-                    <Link key={link.to + link.label} to={link.to} className="btn btn-ghost btn-sm">
+                  {stepData.links.map((link) => (
+                    <Link
+                      key={link.to + link.label}
+                      to={link.to}
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => {
+                        setCurrentStep(index);
+                        startGuidedTour(index);
+                      }}
+                    >
                       {link.label}
                     </Link>
                   ))}

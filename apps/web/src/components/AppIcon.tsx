@@ -2,6 +2,7 @@ import type { LucideIcon, LucideProps } from 'lucide-react';
 import {
   AlertCircle,
   ArrowDownToLine,
+  ArrowLeft,
   ArrowLeftRight,
   BadgeCheck,
   BadgeDollarSign,
@@ -105,6 +106,7 @@ const ICONS = {
   sun: Sun,
   moon: Moon,
   chevron: ChevronDown,
+  back: ArrowLeft,
   plus: Plus,
   addFile: FilePlus2,
   logout: LogOut,

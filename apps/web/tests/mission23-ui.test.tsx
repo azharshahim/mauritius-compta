@@ -76,7 +76,7 @@ describe('mission 23 — aperçu du relevé MCB (démo)', () => {
     window.location.hash = '#/accounting/banking/mcb';
     expect(await screen.findByRole('heading', { name: /Importer un relevé MCB/i })).toBeTruthy();
     expect(await screen.findByText(/préenregistrés et fictifs/i)).toBeTruthy();
-    const account = screen.getByRole('combobox', { name: /Compte bancaire/i }) as HTMLSelectElement;
+    const account = await screen.findByRole('combobox', { name: /Compte bancaire/i }) as HTMLSelectElement;
     fireEvent.change(account, { target: { value: account.options[1]!.value } });
     const file = new File(['%PDF-1.4 fictif'], 'mcb-fictif.pdf', { type: 'application/pdf' });
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;

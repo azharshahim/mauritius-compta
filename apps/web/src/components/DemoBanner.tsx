@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useI18n } from '../i18n';
 import { demoEnabled } from '../demo/mode';
 import { APP_VERSION, SHORT_COMMIT } from '../version';
+import { clearGuidedTour } from '../guidedTour';
 
 /**
  * Permanent demonstration marker (mission 9, point L).
@@ -28,6 +29,17 @@ export function DemoBanner({ login = false }: { login?: boolean }) {
     return () => { active = false; };
   }, []);
 
+  // Mission 39: the explanatory popover is a real dialog surface and must be
+  // dismissible from the keyboard, not only with its × button.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
   if (!demoEnabled) return null;
 
   const reset = async () => {
@@ -35,6 +47,7 @@ export function DemoBanner({ login = false }: { login?: boolean }) {
     setBusy(true);
     const { resetDemo } = await import('../demo/runtime');
     resetDemo();
+    clearGuidedTour();
     window.location.hash = '#/';
     window.location.reload();
   };

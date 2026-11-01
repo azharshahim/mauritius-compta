@@ -47,14 +47,17 @@ import BillingAgingPage from './pages/billing/Aging';
 import MraEInvoicingPage from './pages/billing/MraEInvoicing';
 import PayrollPage from './pages/payroll/Payroll';
 import PayslipViewPage from './pages/payroll/PayslipView';
-import { LEGACY_REDIRECTS, type ModuleKey } from './modules';
+import { LEGACY_REDIRECTS, moduleByPath, type ModuleKey } from './modules';
 import { NAV_GROUPS, groupIsActive, isNavItemActive } from './navigation';
 import { Spinner } from './components/ui';
 import { DemoBanner } from './components/DemoBanner';
 import { AssistantLauncher } from './components/AssistantLauncher';
+import { ContextualNav } from './components/ContextualNav';
+import { MobileQuickNav } from './components/MobileQuickNav';
 import { AppIcon } from './components/AppIcon';
 import { BrandMark } from './components/BrandMark';
 import { demoEnabled } from './demo/mode';
+import { useViewportMode } from './responsive';
 
 const ACCESS_WEIGHT: Record<string, number> = { none: 0, read: 1, write: 2, admin: 3 };
 
@@ -69,6 +72,11 @@ export default function App() {
   const { t, locale, setLocale } = useI18n();
   const { user, initialized, companies, company, setCompany, logout } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [compactOpen, setCompactOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem('mc.nav.collapsed') === '1',
+  );
+  const viewport = useViewportMode();
   const [theme, setTheme] = useState<'light' | 'dark'>(() =>
     localStorage.getItem('mc.theme') === 'dark' ? 'dark' : 'light',
   );
@@ -77,6 +85,14 @@ export default function App() {
     const active = NAV_GROUPS.find((group) => groupIsActive(group, location.pathname, location.search));
     return new Set(active ? [active.key] : ['home']);
   });
+
+  // Compact mode defaults to a 72 px icon rail. Clicking a group opens the
+  // temporary full menu on that group instead of forcing a second hamburger
+  // click; a manually collapsed wide sidebar behaves the same way.
+  const railActive =
+    viewport === 'compact' ? !compactOpen : viewport === 'wide' && sidebarCollapsed;
+  const drawerOpen =
+    viewport === 'mobile' ? menuOpen : viewport === 'compact' ? compactOpen : false;
 
   const toggleGroup = (key: string) => {
     setOpenGroups((previous) => {
@@ -91,7 +107,16 @@ export default function App() {
   // and with the Escape key.
   useEffect(() => {
     setMenuOpen(false);
+    setCompactOpen(false);
   }, [location.pathname, location.search]);
+
+  // A breakpoint change must not leave an invisible overlay mounted: the
+  // opened group list and the wide collapse preference survive, the transient
+  // drawer does not.
+  useEffect(() => {
+    setMenuOpen(false);
+    setCompactOpen(false);
+  }, [viewport]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -105,19 +130,22 @@ export default function App() {
   }, [location.pathname, location.search]);
 
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!drawerOpen) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false);
+      if (event.key === 'Escape') {
+        setMenuOpen(false);
+        setCompactOpen(false);
+      }
     };
     window.addEventListener('keydown', onKey);
-    // Prevent the page behind the Android drawer from scrolling while it is
-    // open; the drawer's own navigation remains scrollable.
+    // Prevent the page behind the Android drawer or the temporary compact menu
+    // from scrolling; the menu itself remains scrollable.
     document.body.classList.add('nav-open');
     return () => {
       window.removeEventListener('keydown', onKey);
       document.body.classList.remove('nav-open');
     };
-  }, [menuOpen]);
+  }, [drawerOpen]);
 
   if (!initialized) {
     return <Spinner label={t('common.loading')} />;
@@ -134,7 +162,33 @@ export default function App() {
     );
   }
 
-  const closeMenu = () => setMenuOpen(false);
+  const closeMenu = () => {
+    setMenuOpen(false);
+    setCompactOpen(false);
+  };
+  // The header button always opens the full menu. Closing is the explicit
+  // close control (or Escape/backdrop), which avoids a second tap on "Menu"
+  // hiding a drawer the user just opened.
+  const toggleCompactMenu = () => {
+    if (viewport === 'mobile') setMenuOpen(true);
+    else setCompactOpen(true);
+  };
+  const toggleWideCollapse = () => {
+    setSidebarCollapsed((value) => {
+      const next = !value;
+      localStorage.setItem('mc.nav.collapsed', next ? '1' : '0');
+      return next;
+    });
+  };
+  const toggleGroupFromRail = (key: string) => {
+    if (railActive && !drawerOpen) {
+      if (viewport === 'compact') setCompactOpen(true);
+      if (viewport === 'wide' && sidebarCollapsed) setSidebarCollapsed(false);
+      setOpenGroups((previous) => (previous.has(key) ? previous : new Set(previous).add(key)));
+      return;
+    }
+    toggleGroup(key);
+  };
   const modules = (company as { modules?: Record<ModuleKey, string> } | null)?.modules;
 
   const moduleAllowed = (key: ModuleKey) =>
@@ -146,13 +200,14 @@ export default function App() {
   })).filter((group) => group.items.length > 0);
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell view-${viewport} ${railActive ? 'nav-rail' : ''}`}>
       <header className="topbar">
         <button
-          className="btn btn-ghost mobile-only"
-          onClick={() => setMenuOpen((v) => !v)}
+          className="btn btn-ghost nav-toggle"
+          onClick={toggleCompactMenu}
           aria-label={t('nav.menu')}
-          aria-expanded={menuOpen}
+          title={viewport === 'mobile' ? t('nav.openMenu') : t('nav.expandSidebar')}
+          aria-expanded={viewport === 'mobile' ? menuOpen : compactOpen}
           aria-controls="app-sidebar"
         >
           <AppIcon name="menu" />
@@ -208,27 +263,43 @@ export default function App() {
       </header>
 
       <aside
-        className={`sidebar ${menuOpen ? 'open' : ''}`}
+        className={`sidebar ${drawerOpen ? 'open' : ''} ${viewport === 'compact' ? 'compact' : ''} ${
+          viewport === 'wide' && sidebarCollapsed ? 'collapsed' : ''
+        }`}
         id="app-sidebar"
         aria-label={t('nav.menu')}
       >
         <div className="sidebar-brand">
           <BrandMark size={38} />
-          <div>
+          <div className="sidebar-brand-text">
             <div className="brand-name">{t('suite.name')}</div>
             <div className="brand-tag">{t('suite.tagline')}</div>
           </div>
           <button
             type="button"
-            className="icon-btn sidebar-close mobile-only"
+            className="icon-btn sidebar-close"
             onClick={closeMenu}
             aria-label={t('common.close')}
+            title={t('nav.closeMenu')}
           >
             <AppIcon name="close" size={20} />
           </button>
         </div>
+        {viewport === 'wide' && (
+          <div className="sidebar-tools">
+            <button
+              type="button"
+              className="icon-btn sidebar-collapse"
+              onClick={toggleWideCollapse}
+              aria-label={sidebarCollapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}
+              title={sidebarCollapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}
+            >
+              <AppIcon name="chevron" size={17} className={sidebarCollapsed ? 'flip' : ''} />
+            </button>
+          </div>
+        )}
         <div className="sidebar-title">{t('nav.menu')}</div>
-        <nav className="nav" onClick={closeMenu}>
+        <nav className="nav" onClick={(event) => { if ((event.target as HTMLElement).closest('a')) closeMenu(); }}>
           {visibleGroups.map((group) => {
             const activeGroup = groupIsActive(group, location.pathname, location.search);
             const isOpen = openGroups.has(group.key);
@@ -239,10 +310,11 @@ export default function App() {
                   className="nav-group-toggle"
                   aria-expanded={isOpen}
                   aria-controls={`nav-group-${group.key}`}
-                  onClick={() => toggleGroup(group.key)}
+                  title={t(group.labelKey)}
+                  onClick={() => toggleGroupFromRail(group.key)}
                 >
                   <span className="nav-group-icon"><AppIcon name={group.icon} size={16} /></span>
-                  <span className="nav-label">{t(group.labelKey)}</span>
+                  <span className={railActive ? 'sr-only' : 'nav-label'}>{t(group.labelKey)}</span>
                   <span className={`nav-chevron ${isOpen ? 'open' : ''}`} aria-hidden="true">
                     <AppIcon name="chevron" size={15} />
                   </span>
@@ -276,9 +348,10 @@ export default function App() {
         </div>
       </aside>
 
-      {menuOpen && <div className="drawer-backdrop" onClick={closeMenu} aria-hidden="true" />}
+      {drawerOpen && <div className="drawer-backdrop" onClick={closeMenu} aria-hidden="true" />}
 
       <div className="main">
+        <ContextualNav canAccess={(to) => moduleAllowed(moduleByPath(to).key)} />
         <main className="page" key={location.pathname}>
           <Routes>
             <Route path="/" element={<Navigate to="/cabinet" replace />} />
@@ -370,6 +443,13 @@ export default function App() {
       {/* Assistant IA universel : pastille flottante sur tous les écrans des
           quatre modules, montée hors des routes pour survivre à la navigation
           et ne jamais perdre une saisie en cours. */}
+      {viewport === 'mobile' && (
+        <MobileQuickNav
+          canAccounting={moduleAllowed('accounting')}
+          canBanking={moduleAllowed('accounting')}
+          onOpenMenu={() => setMenuOpen(true)}
+        />
+      )}
       <AssistantLauncher />
     </div>
   );
