@@ -148,6 +148,27 @@ screenshots were generated. The mobile light banking and desktop dark purchases
 captures were downloaded and visually inspected: readable layouts and theme
 palette, with the correct client shown in the company selector.
 
+### Final delivery CI and intermittent-test follow-up
+
+The report-only delivery `b96b02f57420d52b05e4c8fa2691bca774ba9be9` also
+passed every PR gate: [quality/PostgreSQL](https://github.com/azharshahim/mauritius-compta/actions/runs/41365894988),
+[demo/separation](https://github.com/azharshahim/mauritius-compta/actions/runs/41365895060),
+[Chromium + migration compatibility](https://github.com/azharshahim/mauritius-compta/actions/runs/41365894957).
+Pages deployment was skipped. Its only diff against `ff4917c` is this report.
+
+One parallel **push-triggered** run on `ff4917c` initially failed a Web test
+inside the job named “API tests against real PostgreSQL” (that job runs root
+`npm test`, including Web). The API suite itself passed. The failing assertion
+was `demo-app.test.tsx`, assistant suggestion journey: heading “Assistant
+comptable” was not found within Testing Library's asynchronous wait. That
+same file passed locally, 11/11, and the PR-triggered full suite passed. Only
+the failed job was re-run; [attempt 2 succeeded](https://github.com/azharshahim/mauritius-compta/actions/runs/41365213188/attempts/2).
+No product code, expected amount or timeout was changed to get that retry green.
+Timing sensitivity under CI load is a plausible inference, not a proven root
+cause. Keep this intermittent jsdom navigation assertion as a residual test
+stability risk; a future repeat must be investigated rather than hidden by
+blanket retries. The independent Chromium onboarding/module journeys passed.
+
 ## Functional and security scope
 
 The integrated API/Web suites retain equity closing, fixed assets, inventory,
