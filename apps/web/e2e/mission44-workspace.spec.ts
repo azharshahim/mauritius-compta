@@ -39,8 +39,9 @@ test.describe('mission 44 — cabinet portfolio and guided creation', () => {
     await expect(portfolio.getByText(/Belle Mare Hospitality Ltd \(DEMO\)/).filter({ visible: true })).toBeVisible();
     await expect(portfolio.getByText(/Case Noyale Retail Ltd \(DEMO\)/).filter({ visible: true })).toHaveCount(0);
     await page.getByLabel(/Rechercher un client|Search a client/).fill('');
-    await page.getByLabel(/Secteur d’activité|Business sector/).selectOption('trading_retail');
-    await expect(portfolio.getByText(/Case Noyale Retail Ltd \(DEMO\)/).filter({ visible: true })).toBeVisible();
+    await page.getByLabel(/Secteur d’activité|Business sector/).selectOption('hospitality_tourism');
+    await expect(portfolio.getByText(/Belle Mare Hospitality Ltd \(DEMO\)/).filter({ visible: true })).toBeVisible();
+    await expect(portfolio.getByText(/Case Noyale Retail Ltd \(DEMO\)/)).toHaveCount(0);
   });
 
   test('six steps, draft save and resume', async ({ page }) => {
