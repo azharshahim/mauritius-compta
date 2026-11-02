@@ -1,11 +1,10 @@
 name: Integration browser journeys
 on:
-  push:
-    branches: [integration/m42-m43-m44]
   pull_request:
     branches: [main]
+    paths: ['apps/**', 'scripts/**', 'package.json', 'package-lock.json', '.github/workflows/integration-e2e.yml']
 concurrency:
-  group: integration-${{ github.head_ref || github.ref_name }}
+  group: integration-browser-${{ github.ref }}
   cancel-in-progress: true
 permissions:
   contents: read
