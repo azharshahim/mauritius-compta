@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { GLOSSARY } from './glossary';
+import { M44_EN, M44_FR } from './i18n-m44';
 
 export type Locale = 'fr' | 'en';
 
@@ -424,6 +425,7 @@ const fr: Dict = {
   'nav.cabinet.tasks': 'Tâches & échéances',
   'nav.cabinet.team': 'Collaborateurs',
   'nav.accounting.purchases': 'Achats et dépenses',
+  'nav.accounting.controls': 'Contrôles comptables',
   'nav.accounting.lettering': 'Lettrage',
   'nav.accounting.multiCurrency': 'Multidevises',
   'nav.accounting.equity': `Capitaux propres et ${GLOSSARY.retainedEarnings.fr.toLowerCase()}`,
@@ -1218,6 +1220,15 @@ const fr: Dict = {
   'billing.documents.outstanding': 'Reste dû',
   'billing.documents.vat': 'TVA',
   'billing.documents.posted': 'Comptabilisé',
+  'billing.documents.prepareAccounting': 'Préparer l’écriture',
+  'billing.documents.proposalReady': 'Proposition comptable préparée. Aucune écriture créée.',
+  'billing.documents.proposalReused': 'Proposition comptable existante réutilisée. Aucune écriture créée.',
+  'billing.documents.validateProposal': 'Valider la proposition',
+  'billing.documents.proposalValidated': 'Proposition validée. Aucune écriture créée.',
+  'billing.documents.postEntry': 'Comptabiliser',
+  'billing.documents.postConfirm':
+    'Comptabiliser cette proposition ? Une écriture équilibrée sera créée dans le grand livre. Cette action est humaine et définitive.',
+  'billing.documents.postedNotice': 'Écriture comptabilisée :',
   'billing.documents.postedEntry': 'Une écriture comptable est rattachée à ce document.',
   'billing.documents.pdfButton': 'Tenter le PDF',
   'billing.documents.pdfDemo':
@@ -1242,6 +1253,26 @@ const fr: Dict = {
   'billing.payments.noOpenInvoice': 'Aucune facture ouverte pour ce client.',
   'billing.payments.allocatedTo': 'Factures réglées',
   'billing.payments.none': 'Aucune affectation',
+  'billing.payments.allocate': 'Affecter',
+  'billing.payments.allocateTitle': 'Affectation tardive d’un encaissement',
+  'billing.payments.invoiceToAllocate': 'Facture à affecter',
+  'billing.payments.chooseInvoice': 'Choisir une facture ouverte…',
+  'billing.payments.allocationDate': 'Date d’affectation',
+  'billing.payments.allocateDateRule': 'La date d’affectation ne peut pas précéder la date du règlement. Une affectation ne crée jamais d’écriture comptable.',
+  'billing.payments.allocateInvalid': 'Choisissez une facture et un montant positif inférieur ou égal au restant non affecté.',
+  'billing.payments.allocateConfirm': 'Confirmer l’affectation de ce montant à la facture sélectionnée ?',
+  'billing.payments.allocateAction': 'Confirmer l’affectation',
+  'billing.payments.allocated': 'Affectation enregistrée.',
+  'billing.payments.allocatedReclass': 'Affectation enregistrée. Le règlement est déjà comptabilisé : une proposition de reclassement séparée est requise et devra être validée par un humain avant toute écriture.',
+  'billing.payments.noOpenInvoiceSameCurrency': 'Aucune facture ouverte dans la même devise pour ce client.',
+  'billing.payments.cancelAllocation': 'Annuler l’affectation',
+  'billing.payments.cancelAllocationTitle': 'Annulation d’une affectation',
+  'billing.payments.cancelAllocationHelp': 'L’affectation à la facture {invoice} sera annulée (suppression logique) ; son montant redevient non affecté. Aucune écriture comptable n’est passée automatiquement.',
+  'billing.payments.cancelReason': 'Motif de l’annulation',
+  'billing.payments.cancelAllocationConfirm': 'Annuler l’affectation',
+  'billing.payments.allocationCancelled': 'Affectation annulée ; le montant redevient non affecté.',
+  'billing.payments.allocationCancelledBadge': 'Annulée',
+  'billing.payments.reactivate': 'Réactiver',
   'billing.payments.noPosting': 'Un encaissement ne crée jamais d’écriture comptable à lui seul.',
   'billing.payments.exceeds': 'Les affectations dépassent le montant reçu.',
   'billing.method.bank_transfer': 'Virement bancaire',
@@ -1898,6 +1929,20 @@ const fr: Dict = {
   'docs.rejectReason': 'Motif du refus',
   'docs.confirmReject': 'Confirmer le refus',
   'docs.draftCreated': 'Écriture brouillon {no} créée. Elle reste à comptabiliser.',
+  'docs.createPurchaseInvoice': 'Créer la facture fournisseur',
+  'docs.createPurchaseInvoiceConfirm':
+    'Créer une facture d’achat à partir de ce document approuvé ? Aucune écriture ne sera comptabilisée automatiquement.',
+  'docs.createPurchaseInvoiceDone': 'Facture fournisseur {no} créée et validée. La comptabilisation reste une action distincte.',
+  'docs.createPurchaseInvoiceExisting': 'Ce document est déjà lié à la facture fournisseur {no}. Aucun doublon n’a été créé.',
+  'docs.createPurchaseInvoiceHint':
+    'La proposition OCR approuvée peut devenir une facture d’achat. La conversion ne comptabilise rien.',
+  'docs.posting.not_ready': 'OCR à compléter',
+  'docs.posting.ready': 'Prêt à comptabiliser',
+  'docs.posting.linked': 'Facture fournisseur liée',
+  'docs.posting.posted': 'Comptabilisé',
+  'docs.linkedPurchaseInvoice': 'Facture liée :',
+  'docs.openPurchaseInvoices': 'Ouvrir les factures fournisseurs',
+  'docs.createPurchaseInvoiceLinked': 'Facture fournisseur liée : {no}',
   'docs.openEntries': 'Ouvrir les écritures',
   'docs.uploaded': 'Document importé et analysé.',
   'docs.saved': 'Corrections enregistrées.',
@@ -2484,6 +2529,7 @@ const en: Dict = {
   'nav.cabinet.tasks': 'Tasks & Deadlines',
   'nav.cabinet.team': 'Team Members',
   'nav.accounting.purchases': 'Purchases & Expenses',
+  'nav.accounting.controls': 'Accounting Controls',
   'nav.accounting.lettering': 'Open-Item Matching',
   'nav.accounting.multiCurrency': 'Multi-Currency',
   'nav.accounting.equity': `Equity & ${GLOSSARY.retainedEarnings.en}`,
@@ -3277,6 +3323,15 @@ const en: Dict = {
   'billing.documents.outstanding': 'Outstanding',
   'billing.documents.vat': 'VAT',
   'billing.documents.posted': 'Posted',
+  'billing.documents.prepareAccounting': 'Prepare entry',
+  'billing.documents.proposalReady': 'Accounting proposal prepared. No entry created.',
+  'billing.documents.proposalReused': 'Existing accounting proposal reused. No entry created.',
+  'billing.documents.validateProposal': 'Validate proposal',
+  'billing.documents.proposalValidated': 'Proposal validated. No entry created.',
+  'billing.documents.postEntry': 'Post entry',
+  'billing.documents.postConfirm':
+    'Post this proposal? A balanced entry will be created in the general ledger. This is a human, final action.',
+  'billing.documents.postedNotice': 'Entry posted:',
   'billing.documents.postedEntry': 'An accounting entry is linked to this document.',
   'billing.documents.pdfButton': 'Try PDF',
   'billing.documents.pdfDemo':
@@ -3301,6 +3356,26 @@ const en: Dict = {
   'billing.payments.noOpenInvoice': 'No open invoice for this customer.',
   'billing.payments.allocatedTo': 'Settled invoices',
   'billing.payments.none': 'No allocation',
+  'billing.payments.allocate': 'Allocate',
+  'billing.payments.allocateTitle': 'Late allocation of a receipt',
+  'billing.payments.invoiceToAllocate': 'Invoice to allocate',
+  'billing.payments.chooseInvoice': 'Choose an open invoice…',
+  'billing.payments.allocationDate': 'Allocation date',
+  'billing.payments.allocateDateRule': 'The allocation date cannot precede the payment date. An allocation never creates an accounting entry.',
+  'billing.payments.allocateInvalid': 'Choose an invoice and a positive amount not exceeding the unallocated balance.',
+  'billing.payments.allocateConfirm': 'Confirm allocating this amount to the selected invoice?',
+  'billing.payments.allocateAction': 'Confirm allocation',
+  'billing.payments.allocated': 'Allocation recorded.',
+  'billing.payments.allocatedReclass': 'Allocation recorded. The payment is already posted: a separate reclassification proposal is required and must be validated by a human before any entry.',
+  'billing.payments.noOpenInvoiceSameCurrency': 'No open invoice in the same currency for this customer.',
+  'billing.payments.cancelAllocation': 'Cancel allocation',
+  'billing.payments.cancelAllocationTitle': 'Cancel an allocation',
+  'billing.payments.cancelAllocationHelp': 'The allocation to invoice {invoice} will be cancelled (soft delete); its amount becomes unallocated again. No accounting entry is posted automatically.',
+  'billing.payments.cancelReason': 'Cancellation reason',
+  'billing.payments.cancelAllocationConfirm': 'Cancel allocation',
+  'billing.payments.allocationCancelled': 'Allocation cancelled; the amount is unallocated again.',
+  'billing.payments.allocationCancelledBadge': 'Cancelled',
+  'billing.payments.reactivate': 'Reactivate',
   'billing.payments.noPosting': 'A payment never creates an accounting entry on its own.',
   'billing.payments.exceeds': 'Allocations exceed the received amount.',
   'billing.method.bank_transfer': 'Bank transfer',
@@ -3956,6 +4031,20 @@ const en: Dict = {
   'docs.rejectReason': 'Rejection reason',
   'docs.confirmReject': 'Confirm rejection',
   'docs.draftCreated': 'Draft entry {no} created. It still has to be posted.',
+  'docs.createPurchaseInvoice': 'Create supplier invoice',
+  'docs.createPurchaseInvoiceConfirm':
+    'Create a purchase invoice from this approved document? No accounting entry will be posted automatically.',
+  'docs.createPurchaseInvoiceDone': 'Supplier invoice {no} created and validated. Posting remains a separate action.',
+  'docs.createPurchaseInvoiceExisting': 'This document is already linked to supplier invoice {no}. No duplicate was created.',
+  'docs.createPurchaseInvoiceHint':
+    'The approved OCR proposal can become a purchase invoice. The conversion posts nothing.',
+  'docs.createPurchaseInvoiceLinked': 'Linked supplier invoice: {no}',
+  'docs.posting.not_ready': 'OCR to complete',
+  'docs.posting.ready': 'Ready to post',
+  'docs.posting.linked': 'Supplier bill linked',
+  'docs.posting.posted': 'Posted',
+  'docs.linkedPurchaseInvoice': 'Linked bill:',
+  'docs.openPurchaseInvoices': 'Open supplier bills',
   'docs.openEntries': 'Open entries',
   'docs.uploaded': 'Document uploaded and analysed.',
   'docs.saved': 'Corrections saved.',
@@ -4135,12 +4224,24 @@ const en: Dict = {
 
 };
 
-export const dictionaries: Record<Locale, Dict> = { fr, en };
+/**
+ * Mission 44: the Accountant Workspace keys live in `i18n-m44.ts` and are
+ * merged here, so every consumer (and the FR/EN parity test) keeps seeing one
+ * flat catalogue.
+ */
+export const dictionaries: Record<Locale, Dict> = {
+  fr: { ...fr, ...M44_FR },
+  en: { ...en, ...M44_EN },
+};
 
 interface I18nContextValue {
   locale: Locale;
   setLocale: (l: Locale) => void;
-  t: (key: string) => string;
+  /**
+   * Mission 44: optional interpolation (`t('m44.drafts.step', { step: 3 })`
+   * resolves `Étape {step}`). Existing single-argument calls are unchanged.
+   */
+  t: (key: string, params?: Record<string, string | number>) => string;
 }
 
 const I18nContext = createContext<I18nContextValue | null>(null);
@@ -4159,7 +4260,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const setLocale = useCallback((l: Locale) => setLocaleState(l), []);
   const t = useCallback(
-    (key: string) => dictionaries[locale][key] ?? dictionaries.fr[key] ?? key,
+    (key: string, params?: Record<string, string | number>) => {
+      const raw = dictionaries[locale][key] ?? dictionaries.fr[key] ?? key;
+      if (!params) return raw;
+      return raw.replace(/\{(\w+)\}/g, (match, name: string) =>
+        params[name] !== undefined ? String(params[name]) : match,
+      );
+    },
     [locale],
   );
 

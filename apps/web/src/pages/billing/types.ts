@@ -115,6 +115,11 @@ export interface PaymentAllocation {
   amount: string;
   invoiceNumber?: string | null;
   customerName?: string | null;
+  allocatedDate?: string | null;
+  cancelledAt?: string | null;
+  cancellationReason?: string | null;
+  reclassEntryId?: string | null;
+  reclassAmount?: string;
 }
 
 export interface Payment {

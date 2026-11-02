@@ -1829,6 +1829,345 @@ export function handleDemoBank(
     return {};
   }
 
+  // ------------------------------------------------ Mission 43 periods (demo)
+  type DemoReconciliationPeriod = {
+    id: string;
+    company_id: string;
+    bank_account_id: string;
+    period_from: string;
+    period_to: string;
+    currency: string;
+    opening_bank: string | null;
+    closing_bank: string | null;
+    opening_ledger: string;
+    closing_ledger: string;
+    difference: string;
+    accepted_difference: string;
+    status: 'open' | 'validated' | 'reopened';
+    statement_hash: string;
+    matched_count: number;
+    partial_count: number;
+    unmatched_count: number;
+    excluded_count: number;
+    note: string | null;
+    validated_at: string | null;
+    reopened_at: string | null;
+    reopen_reason: string | null;
+    created_at: string;
+    updated_at: string;
+    events: { id: string; event: string; actor_name: string | null; note: string | null; created_at: string }[];
+  };
+  const periodState = state as DemoState & { bankReconciliationPeriods?: DemoReconciliationPeriod[] };
+  const periodList = () => (periodState.bankReconciliationPeriods ??= []);
+  const periodHash = (bankId: string, fromDate: string, toDate: string) =>
+    stableDigest([
+      'bank-period-v1',
+      bankId,
+      fromDate,
+      toDate,
+      ...state.bankTransactions
+        .filter((t) => t.bank_account_id === bankId && t.txn_date >= fromDate && t.txn_date <= toDate)
+        .sort((a, b) => (a.txn_date === b.txn_date ? a.id.localeCompare(b.id) : a.txn_date.localeCompare(b.txn_date)))
+        .flatMap((t) => [t.txn_date, t.amount, t.reference, t.balance, t.status]),
+    ]);
+  const snapshotPeriod = (period: DemoReconciliationPeriod, note?: string | null) => {
+    const report = buildDemoReport(state, company, period.bank_account_id, period.period_from, period.period_to);
+    period.opening_bank = report.openingBankBalance;
+    period.closing_bank = report.closingBankBalance;
+    period.opening_ledger = report.openingLedgerBalance;
+    period.closing_ledger = report.closingLedgerBalance;
+    period.difference = report.difference;
+    period.matched_count = report.matchedCount;
+    period.partial_count = report.partiallyMatchedCount;
+    period.unmatched_count = report.unmatchedCount;
+    period.excluded_count = report.excludedCount;
+    period.statement_hash = periodHash(period.bank_account_id, period.period_from, period.period_to);
+    if (note !== undefined) period.note = note;
+    period.updated_at = now();
+    return report;
+  };
+  const periodOf = (periodId: string) => {
+    const found = periodList().find((p) => p.id === periodId && p.company_id === companyId);
+    if (!found) throw new ApiError(404, 'BANK_PERIOD_NOT_FOUND', 'Période introuvable');
+    if (found.status === 'validated') {
+      const currentHash = periodHash(found.bank_account_id, found.period_from, found.period_to);
+      if (currentHash !== found.statement_hash) {
+        found.status = 'reopened';
+        found.reopened_at = now();
+        found.reopen_reason = 'Relevé modifié après validation';
+        found.events.push({ id: id(), event: 'period.reopened', actor_name: null, note: found.reopen_reason, created_at: now() });
+      }
+    }
+    return found;
+  };
+
+  if (path === '/periods' && method === 'GET') {
+    const bankId = query.get('bankAccountId');
+    if (!bankId) return { periods: [] };
+    return {
+      periods: periodList()
+        .filter((p) => p.company_id === companyId && p.bank_account_id === bankId)
+        .map((p) => ({ ...periodOf(p.id) }))
+        .sort((a, b) => b.period_to.localeCompare(a.period_to)),
+    };
+  }
+
+  if (path === '/periods' && method === 'POST') {
+    const bankId = String(payload.bankAccountId ?? '');
+    accountOf(state, companyId, bankId);
+    const fromDate = String(payload.from ?? '');
+    const toDate = String(payload.to ?? '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate) || !/^\d{4}-\d{2}-\d{2}$/.test(toDate) || fromDate > toDate) {
+      throw new ApiError(400, 'BANK_PERIOD_INVALID', 'Dates de période invalides');
+    }
+    let period = periodList().find(
+      (p) => p.company_id === companyId && p.bank_account_id === bankId && p.period_from === fromDate && p.period_to === toDate,
+    );
+    if (period?.status === 'validated') {
+      throw new ApiError(409, 'BANK_PERIOD_ALREADY_VALIDATED', 'Cette période est déjà validée');
+    }
+    if (!period) {
+      period = {
+        id: id(),
+        company_id: companyId,
+        bank_account_id: bankId,
+        period_from: fromDate,
+        period_to: toDate,
+        currency: accountOf(state, companyId, bankId).currency,
+        opening_bank: null,
+        closing_bank: null,
+        opening_ledger: '0.0000',
+        closing_ledger: '0.0000',
+        difference: '0.0000',
+        accepted_difference: '0.0000',
+        status: 'open',
+        statement_hash: '',
+        matched_count: 0,
+        partial_count: 0,
+        unmatched_count: 0,
+        excluded_count: 0,
+        note: null,
+        validated_at: null,
+        reopened_at: null,
+        reopen_reason: null,
+        created_at: now(),
+        updated_at: now(),
+        events: [],
+      };
+      periodList().push(period);
+      period.events.push({ id: id(), event: 'period.opened', actor_name: null, note: null, created_at: now() });
+    }
+    snapshotPeriod(period, payload.note === undefined ? undefined : payload.note === null ? null : String(payload.note));
+    return { period };
+  }
+
+  const periodMatch = path.match(/^\/periods\/([^/]+)(\/validate|\/reopen|\/report\.csv)?$/);
+  if (periodMatch && method === (periodMatch[2] === '/report.csv' ? 'GET' : 'POST')) {
+    const period = periodOf(periodMatch[1]!);
+    if (periodMatch[2] === '/validate') {
+      if (payload.confirm !== true) throw new ApiError(400, 'BANK_CONFIRMATION_REQUIRED', 'Confirmation humaine requise');
+      const report = snapshotPeriod(period);
+      if (report.closingBankBalance === null) {
+        throw new ApiError(400, 'BANK_PERIOD_NO_BANK_BALANCE', 'Un solde de clôture est requis');
+      }
+      if (report.unmatchedCount > 0 || report.partiallyMatchedCount > 0) {
+        throw new ApiError(409, 'BANK_PERIOD_UNMATCHED_TRANSACTIONS', 'Toutes les opérations doivent être rapprochées ou exclues');
+      }
+      if (report.ledgerUnmatchedCount > 0) {
+        throw new ApiError(409, 'BANK_PERIOD_UNMATCHED_LEDGER', 'Toutes les lignes comptables doivent être rapprochées');
+      }
+      const note = payload.note ? String(payload.note).trim() : '';
+      const accepted = payload.acceptedDifference ? fmt(parseAmount(payload.acceptedDifference) ?? 0n) : '0.0000';
+      if (period.difference !== '0.0000') {
+        if (note.length < 10) {
+          throw new ApiError(400, 'BANK_PERIOD_DIFFERENCE_UNEXPLAINED', 'Une note documentée est requise pour accepter un écart');
+        }
+        if (accepted !== period.difference) {
+          throw new ApiError(400, 'BANK_PERIOD_DIFFERENCE_UNEXPLAINED', 'L’écart accepté doit égaler l’écart observé');
+        }
+      } else if (accepted !== '0.0000') {
+        throw new ApiError(400, 'BANK_PERIOD_DIFFERENCE_INVALID', 'Un écart nul ne peut pas porter un écart accepté');
+      }
+      period.status = 'validated';
+      period.accepted_difference = accepted;
+      period.note = note || null;
+      period.validated_at = now();
+      period.reopened_at = null;
+      period.reopen_reason = null;
+      period.events.push({ id: id(), event: 'period.validated', actor_name: null, note: period.note, created_at: now() });
+      return { period };
+    }
+    if (periodMatch[2] === '/reopen') {
+      if (payload.confirm !== true) throw new ApiError(400, 'BANK_CONFIRMATION_REQUIRED', 'Confirmation humaine requise');
+      const reason = String(payload.reason ?? '').trim();
+      if (reason.length < 3) throw new ApiError(400, 'VALIDATION_ERROR', 'Motif requis');
+      if (period.status !== 'validated') {
+        throw new ApiError(409, 'BANK_PERIOD_NOT_VALIDATED', 'Seule une période validée peut être réouverte');
+      }
+      period.status = 'reopened';
+      period.reopened_at = now();
+      period.reopen_reason = reason;
+      period.events.push({ id: id(), event: 'period.reopened', actor_name: null, note: reason, created_at: now() });
+      return { period };
+    }
+    if (periodMatch[2] === '/report.csv') {
+      const fr = query.get('lang') === 'fr';
+      const rows = [
+        [fr ? 'Rapport de période bancaire validée' : 'Validated bank period report'],
+        [fr ? 'Période' : 'Period', period.period_from, period.period_to],
+        [fr ? 'Statut' : 'Status', period.status],
+        [fr ? 'Solde bancaire de clôture' : 'Closing bank balance', period.closing_bank],
+        [fr ? 'Solde comptable de clôture' : 'Closing ledger balance', period.closing_ledger],
+        [fr ? 'Écart' : 'Difference', period.difference],
+        [fr ? 'Écart accepté' : 'Accepted difference', period.accepted_difference],
+        [fr ? 'Empreinte du relevé' : 'Statement hash', period.statement_hash],
+        [fr ? 'Note' : 'Note', period.note],
+        [],
+        [fr ? 'Montants figés à la validation : aucun recalcul.' : 'Amounts frozen at validation: no recalculation.'],
+      ];
+      return rows.map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    }
+    return { period };
+  }
+
+  // ------------------------------------ Mission 43 C-04 (demo): receipt to payment
+  const createPaymentMatch = path.match(/^\/transactions\/([^/]+)\/billing-payment$/);
+  if (createPaymentMatch && method === 'POST') {
+    const txn = state.bankTransactions.find(
+      (t) => t.id === createPaymentMatch[1] && t.company_id === companyId,
+    );
+    if (!txn) throw new ApiError(404, 'BANK_TRANSACTION_NOT_FOUND', 'Transaction introuvable');
+    if (payload.confirm !== true) throw new ApiError(400, 'BANK_CONFIRMATION_REQUIRED', 'Confirmation humaine requise');
+    if (txn.status === 'cancelled' || txn.status === 'excluded') {
+      throw new ApiError(409, 'BANK_TRANSACTION_CLOSED', 'Transaction clôturée');
+    }
+    const txnAmount = parseAmount(txn.amount) ?? 0n;
+    if (txnAmount <= 0n) throw new ApiError(409, 'BANK_DIRECTION_MISMATCH', 'Un débit ne peut pas devenir un encaissement');
+    const already = state.bankMatches.find(
+      (m) => m.transaction_id === txn.id && m.status === 'confirmed' && m.billing_payment_id,
+    );
+    if (already) {
+      const existing = state.billingPayments.find((p) => p.id === already.billing_payment_id);
+      if (!existing) throw new ApiError(409, 'BANK_LINK_ALREADY_EXISTS', 'Lien existant introuvable');
+      return {
+        payment: { paymentId: existing.id, paymentNumber: existing.payment_no, amount: existing.amount },
+        transaction: txn,
+        idempotent: true,
+        entryCreated: false,
+      };
+    }
+    const customer = state.billingCustomers.find(
+      (c) => c.id === String(payload.customerId ?? '') && c.company_id === companyId,
+    );
+    if (!customer) throw new ApiError(404, 'CUSTOMER_NOT_FOUND', 'Client introuvable');
+    const requested = Array.isArray(payload.allocations) ? payload.allocations : [];
+    if (requested.length === 0) throw new ApiError(400, 'PAYMENT_NOT_ALLOCATED', 'Au moins une facture est requise');
+    let total = 0n;
+    const prepared: { invoice: DemoBillingDocument; amount: bigint }[] = [];
+    for (const request of requested) {
+      const invoice = state.billingDocuments.find(
+        (d) => d.id === request.invoiceId && d.company_id === companyId && d.kind === 'invoice',
+      );
+      if (!invoice) throw new ApiError(404, 'DOCUMENT_NOT_FOUND', 'Facture introuvable');
+      if (invoice.customer_id !== customer.id) throw new ApiError(400, 'ALLOCATION_INVALID', 'Facture d’un autre client');
+      if (!['issued', 'partially_paid'].includes(invoice.status)) {
+        throw new ApiError(409, 'ALLOCATION_INVALID', 'Facture non ouverte au règlement');
+      }
+      if (invoice.currency !== txn.currency) {
+        throw new ApiError(400, 'CURRENCY_MISMATCH', 'La devise doit être celle de la facture');
+      }
+      const value = parseAmount(request.amount) ?? 0n;
+      if (value <= 0n) throw new ApiError(400, 'ALLOCATION_INVALID', 'Affectation strictement positive');
+      const outstanding =
+        (parseAmount(invoice.total_amount) ?? 0n) -
+        (parseAmount(invoice.amount_paid) ?? 0n) -
+        (parseAmount(invoice.credited_amount) ?? 0n);
+      if (value > outstanding) throw new ApiError(409, 'ALLOCATION_EXCEEDS_INVOICE', 'Affectation supérieure au restant dû');
+      total += value;
+      prepared.push({ invoice, amount: value });
+    }
+    const allocatedAlready = state.bankMatches
+      .filter((m) => m.transaction_id === txn.id && m.status === 'confirmed')
+      .reduce((acc, m) => acc + (parseAmount(m.amount) ?? 0n), 0n);
+    if (total > txnAmount - allocatedAlready) {
+      throw new ApiError(409, 'BANK_AMOUNT_EXCEEDS_TRANSACTION', 'Montant supérieur au restant de la transaction');
+    }
+    if (txn.currency !== company.functional_currency && !payload.exchangeRate) {
+      throw new ApiError(400, 'EXCHANGE_RATE_REQUIRED', `Un taux est requis pour ${txn.currency}`);
+    }
+    const paymentDate = String(payload.paymentDate ?? txn.txn_date);
+    const year = company.functional_currency ? Number(paymentDate.slice(0, 4)) : 0;
+    const key = `BILL-payment-${year}`;
+    const no = (state.billingSequences[key] ?? 0) + 1;
+    state.billingSequences[key] = no;
+    const payment: DemoBillingPayment = {
+      id: id(),
+      company_id: companyId,
+      customer_id: customer.id,
+      payment_no: `REC-${year}-${String(no).padStart(4, '0')}`,
+      payment_date: paymentDate,
+      value_date: null,
+      amount: fmt(total),
+      currency: txn.currency,
+      exchange_rate: String(payload.exchangeRate ?? '1'),
+      method: 'bank_transfer',
+      reference: String(payload.reference ?? txn.reference ?? txn.label),
+      unallocated_amount: '0.0000',
+      status: 'recorded',
+      sequence_year: year,
+      sequence_no: no,
+      accounting_entry_id: null,
+      created_at: now(),
+    };
+    state.billingPayments.push(payment);
+    for (const item of prepared) {
+      state.billingAllocations.push({
+        id: id(),
+        payment_id: payment.id,
+        invoice_id: item.invoice.id,
+        company_id: companyId,
+        amount: fmt(item.amount),
+        allocated_date: paymentDate,
+      });
+      const paid = (parseAmount(item.invoice.amount_paid) ?? 0n) + item.amount;
+      item.invoice.amount_paid = fmt(paid);
+      item.invoice.payment_status = paid >= (parseAmount(item.invoice.total_amount) ?? 0n) ? 'paid' : 'partial';
+      item.invoice.status = paid >= (parseAmount(item.invoice.total_amount) ?? 0n) ? 'paid' : 'partially_paid';
+      item.invoice.updated_at = now();
+    }
+    state.bankMatches.push({
+      id: id(),
+      company_id: companyId,
+      bank_account_id: txn.bank_account_id,
+      transaction_id: txn.id,
+      entry_id: null,
+      entry_line_id: null,
+      billing_payment_id: payment.id,
+      billing_invoice_id: prepared.length === 1 ? prepared[0]!.invoice.id : null,
+      amount: fmt(total),
+      status: 'confirmed',
+      kind: 'invoice',
+      confidence: 1,
+      reasons: ['HUMAN_CONFIRMATION', 'ACCOUNTING_SEPARATE'],
+      note: payload.note ? String(payload.note) : null,
+      created_at: now(),
+      decided_at: now(),
+    });
+    const newAllocated = allocatedAlready + total;
+    txn.status = newAllocated >= txnAmount ? 'matched' : 'partially_matched';
+    return {
+      payment: { paymentId: payment.id, paymentNumber: payment.payment_no, amount: payment.amount },
+      transaction: txn,
+      idempotent: false,
+      entryCreated: false,
+      accountingNotice: {
+        code: 'POSTING_SEPARATE',
+        fr: 'Le règlement est enregistré mais aucune écriture comptable n’a été créée.',
+        en: 'The payment is recorded but no journal entry was created.',
+      },
+    };
+  }
+
   if (path === '/reconciliation-report' && method === 'GET') {
     const bankAccountId = query.get('bankAccountId');
     if (!bankAccountId) return { report: null };
@@ -2206,32 +2545,71 @@ export function buildDemoReport(
 ) {
   const account = accountOf(state, company.id, bankAccountId);
   const inRange = (date: string) => (!from || date >= from) && (!to || date <= to);
-  const txns = state.bankTransactions.filter((t) => t.bank_account_id === account.id && inRange(t.txn_date));
-  const matched = txns.filter((t) => t.status === 'matched').length;
-  const unmatched = txns.filter((t) => ['unmatched', 'proposed', 'review'].includes(t.status)).length;
-  const withBalance = txns
+  const all = state.bankTransactions.filter((t) => t.bank_account_id === account.id);
+  const active = all.filter((t) => t.status !== 'cancelled');
+  const txns = active.filter((t) => inRange(t.txn_date));
+  const count = (status: string) => txns.filter((t) => t.status === status).length;
+  const matched = count('matched');
+  const partial = count('partially_matched');
+  const excluded = count('excluded');
+  const unmatched = count('unmatched') + count('proposed') + count('review');
+  const prior = active.filter((t) => (from ? t.txn_date < from : false));
+  const priorWithBalance = prior
     .filter((t) => t.balance !== null)
     .sort((a, b) => (a.txn_date < b.txn_date ? -1 : 1));
-  const bankBalance = withBalance.at(-1)?.balance ?? null;
-  const ledger = state.lines
-    .filter((l) => l.company_id === company.id && l.account_id === account.account_id)
+  const inWithBalance = txns
+    .filter((t) => t.balance !== null)
+    .sort((a, b) => (a.txn_date < b.txn_date ? -1 : 1));
+  const firstIn = inWithBalance[0] ?? null;
+  const openingBank =
+    priorWithBalance.length > 0
+      ? parseAmount(priorWithBalance.at(-1)!.balance ?? '0') ?? 0n
+      : firstIn
+        ? (parseAmount(firstIn.balance ?? '0') ?? 0n) - (parseAmount(firstIn.amount) ?? 0n)
+        : null;
+  const closingBank =
+    inWithBalance.length > 0
+      ? parseAmount(inWithBalance.at(-1)!.balance ?? '0') ?? 0n
+      : openingBank;
+  const movement = txns.reduce((acc, t) => acc + (parseAmount(t.amount) ?? 0n), 0n);
+
+  const ledgerLines = state.lines.filter(
+    (l) => l.company_id === company.id && l.account_id === account.account_id,
+  );
+  const posted = (line: DemoLine) => {
+    const entry = state.entries.find((e) => e.id === line.entry_id);
+    return entry?.status === 'posted' ? entry : null;
+  };
+  const openingLedger = ledgerLines
     .filter((l) => {
-      const entry = state.entries.find((e) => e.id === l.entry_id);
-      return entry?.status === 'posted' && inRange(entry.entry_date);
+      const entry = posted(l);
+      return entry !== null && (!from || entry.entry_date < from);
     })
     .reduce((acc, l) => acc + (parseAmount(l.debit) ?? 0n) - (parseAmount(l.credit) ?? 0n), 0n);
-  const movement = txns.reduce((acc, t) => acc + (parseAmount(t.amount) ?? 0n), 0n);
-  const difference = (parseAmount(bankBalance ?? '0') ?? 0n) - ledger;
-  const ledgerUnmatched = state.lines.filter((l) => {
-    if (l.company_id !== company.id || l.account_id !== account.account_id) return false;
-    const entry = state.entries.find((e) => e.id === l.entry_id);
+  const ledgerMovement = ledgerLines
+    .filter((l) => {
+      const entry = posted(l);
+      return entry !== null && inRange(entry.entry_date);
+    })
+    .reduce((acc, l) => acc + (parseAmount(l.debit) ?? 0n) - (parseAmount(l.credit) ?? 0n), 0n);
+  const closingLedger = openingLedger + ledgerMovement;
+  const difference = closingBank !== null ? closingBank - closingLedger : null;
+
+  const ledgerUnmatchedLines = ledgerLines.filter((l) => {
+    const entry = posted(l);
     return (
-      entry?.status === 'posted' &&
+      entry !== null &&
+      inRange(entry.entry_date) &&
       !state.bankMatches.some((m) => m.entry_line_id === l.id && m.status === 'confirmed')
     );
-  }).length;
+  });
+  const ledgerUnmatched = ledgerUnmatchedLines.length;
+  const ledgerUnmatchedAmount = ledgerUnmatchedLines.reduce(
+    (acc, l) => acc + (parseAmount(l.debit) ?? 0n) - (parseAmount(l.credit) ?? 0n),
+    0n,
+  );
   const status =
-    bankBalance !== null && unmatched === 0 && ledgerUnmatched === 0 && difference === 0n
+    closingBank !== null && unmatched === 0 && ledgerUnmatched === 0 && difference === 0n
       ? 'reconciled'
       : 'differences';
   const confirmed = state.bankMatches
@@ -2247,18 +2625,32 @@ export function buildDemoReport(
   const lastDecision = confirmed.at(-1) ?? null;
   const chart = state.accounts.find((a) => a.id === account.account_id);
   const explanations: { code: string; fr: string; en: string }[] = [];
-  if (!bankBalance) {
+  if (closingBank === null) {
     explanations.push({
       code: 'NO_BANK_BALANCE',
-      fr: 'Aucun solde bancaire n’est fourni : le rapport ne peut pas conclure.',
-      en: 'No bank balance is available: the report cannot conclude.',
+      fr: 'Aucun solde de relevé n’est fourni : le rapport ne peut pas conclure.',
+      en: 'No statement balance is available: the report cannot conclude.',
     });
   }
   if (unmatched > 0) {
     explanations.push({
       code: 'UNMATCHED_BANK_TRANSACTIONS',
-      fr: `${unmatched} opération(s) non rapprochée(s) expliquent tout ou partie de l’écart.`,
-      en: `${unmatched} unreconciled transaction(s) explain all or part of the difference.`,
+      fr: `${unmatched} opération(s) non rapprochée(s) sur ${txns.length} expliquent tout ou partie de l’écart de clôture.`,
+      en: `${unmatched} unreconciled transaction(s) out of ${txns.length} explain all or part of the closing difference.`,
+    });
+  }
+  if (partial > 0) {
+    explanations.push({
+      code: 'PARTIALLY_MATCHED_BANK_TRANSACTIONS',
+      fr: `${partial} opération(s) ne sont que partiellement rapprochées : le rapprochement n’est pas complet.`,
+      en: `${partial} transaction(s) are only partially matched: reconciliation is not complete.`,
+    });
+  }
+  if (prior.length > 0) {
+    explanations.push({
+      code: 'PRIOR_TRANSACTIONS',
+      fr: `${prior.length} opération(s) antérieure(s) à la période sont reprises dans le solde d’ouverture.`,
+      en: `${prior.length} transaction(s) before the period are included in the opening balance.`,
     });
   }
   if (ledgerUnmatched > 0) {
@@ -2268,15 +2660,19 @@ export function buildDemoReport(
       en: `${ledgerUnmatched} ledger line(s) of the bank account are not reconciled: the report cannot conclude.`,
     });
   }
-  if (difference !== 0n) {
+  if (difference !== null && difference !== 0n) {
     explanations.push({
       code: 'BALANCE_DIFFERENCE',
-      fr: 'Le solde bancaire et le solde comptable diffèrent : rapprochement incomplet.',
-      en: 'The bank and ledger balances differ: reconciliation is incomplete.',
+      fr: 'Le solde bancaire de clôture et le solde comptable de clôture diffèrent : rapprochement incomplet.',
+      en: 'The closing bank balance and the closing ledger balance differ: reconciliation is incomplete.',
     });
   }
   if (status === 'reconciled') {
-    explanations.push({ code: 'RECONCILED', fr: 'Aucun écart inexpliqué.', en: 'No unexplained difference.' });
+    explanations.push({
+      code: 'RECONCILED',
+      fr: 'Aucun écart inexpliqué entre l’ouverture, les mouvements et la clôture.',
+      en: 'No unexplained difference between opening, movements and closing.',
+    });
   }
   return {
     companyId: company.id,
@@ -2289,13 +2685,23 @@ export function buildDemoReport(
     },
     ledgerAccount: { code: chart?.code ?? null, name: chart?.name ?? null },
     period: { from: from ?? null, to: to ?? null },
-    bankBalance,
-    ledgerBalance: fmt(ledger),
+    openingBankBalance: openingBank !== null ? fmt(openingBank) : null,
+    openingLedgerBalance: fmt(openingLedger),
     bankMovement: fmt(movement),
+    ledgerMovement: fmt(ledgerMovement),
+    closingBankBalance: closingBank !== null ? fmt(closingBank) : null,
+    closingLedgerBalance: fmt(closingLedger),
+    bankBalance: closingBank !== null ? fmt(closingBank) : null,
+    ledgerBalance: fmt(closingLedger),
+    difference: fmt(difference ?? 0n),
     matchedCount: matched,
+    partiallyMatchedCount: partial,
     unmatchedCount: unmatched,
+    excludedCount: excluded,
+    totalCount: txns.length,
     ledgerUnmatchedCount: ledgerUnmatched,
-    difference: fmt(difference),
+    ledgerUnmatchedAmount: fmt(ledgerUnmatchedAmount),
+    priorTransactionCount: prior.length,
     status,
     explanations,
     validatedAt: lastDecision?.decided_at ?? null,

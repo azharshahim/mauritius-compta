@@ -59,6 +59,7 @@ export const NAV_GROUPS: NavGroup[] = [
     labelKey: 'nav.group.clients',
     icon: 'cabinet',
     items: [
+      { to: '/cabinet/clients/new', key: 'm44.createClient', icon: 'plus', module: 'cabinet' },
       { to: '/cabinet/companies', key: 'nav.cabinet.dossiers', icon: 'cabinet', module: 'cabinet' },
       { to: '/cabinet/tasks', key: 'nav.cabinet.tasks', icon: 'tasks', module: 'cabinet' },
       { to: '/cabinet/team', key: 'nav.cabinet.team', icon: 'customers', module: 'cabinet' },

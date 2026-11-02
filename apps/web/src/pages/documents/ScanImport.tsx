@@ -19,6 +19,10 @@ interface DocumentListRow {
   tax_ids?: { supplierBrn?: string | null; supplierVat?: string | null; customerBrn?: string | null; customerVat?: string | null } | null;
   field_confidence?: Record<string, number> | null; uncertain_fields?: string[] | null;
   extraction_quality?: Record<string, unknown> | null;
+  purchase_document_id?: string | null;
+  purchase_document_no?: string | null;
+  posting_status?: 'not_ready' | 'ready' | 'linked' | 'posted' | null;
+  draft_entry_status?: string | null;
   created_at: string;
 }
 interface Extracted {
@@ -101,6 +105,8 @@ export default function ScanImportPage({ mode }: { mode?: 'purchase' | 'sale' } 
   const [billingDocumentId, setBillingDocumentId] = useState('');
   const [structuredBusy, setStructuredBusy] = useState(false);
   const [structuredMessage, setStructuredMessage] = useState<string | null>(null);
+  const [purchaseBusy, setPurchaseBusy] = useState(false);
+  const [purchaseMessage, setPurchaseMessage] = useState<string | null>(null);
 
   const { data: list, loading: listLoading, reload: reloadList } = useAsync<{ documents: DocumentListRow[] } | null>(
     () => company ? api.get(`/companies/${company.id}/documents`) : Promise.resolve(null),
@@ -301,6 +307,31 @@ export default function ScanImportPage({ mode }: { mode?: 'purchase' | 'sale' } 
     finally { setStructuredBusy(false); }
   };
 
+  const createPurchaseInvoice = async (approved: Proposal) => {
+    if (!detail) return;
+    if (!window.confirm(t('docs.createPurchaseInvoiceConfirm'))) return;
+    setPurchaseBusy(true); setError(null); setPurchaseMessage(null);
+    try {
+      const result = await api.post<{
+        purchaseDocument: { id: string; doc_no: string | null; status: string };
+        alreadyCreated: boolean;
+        draftEntryId: string | null;
+        note: string;
+      }>(`/companies/${company.id}/documents/proposals/${approved.id}/purchase-invoice`, {
+        confirm: true,
+        supplierId: approved.party_id ?? null,
+      });
+      const no = result.purchaseDocument.doc_no ?? result.purchaseDocument.id.slice(0, 8);
+      setPurchaseMessage(
+        t(result.alreadyCreated ? 'docs.createPurchaseInvoiceExisting' : 'docs.createPurchaseInvoiceDone')
+          .replace('{no}', no),
+      );
+      await loadDetail(detail.document.id);
+      await reloadList();
+    } catch (err) { setError(errorMessage(err, t('common.error')).message); }
+    finally { setPurchaseBusy(false); }
+  };
+
   const proposal = detail?.proposals.find((p) => p.status === 'PROPOSED') ?? detail?.proposals[0] ?? null;
   const previewUrl = demoEnabled ? localUrl : fileUrl;
   const uncertainFields = new Set(detail?.document.uncertain_fields ?? []);
@@ -394,6 +425,24 @@ export default function ScanImportPage({ mode }: { mode?: 'purchase' | 'sale' } 
                       <Badge kind={d.status === 'APPROVED' ? 'success' : d.status === 'DUPLICATE' || d.status === 'REJECTED' ? 'danger' : 'info'}>
                         {t(`docs.status.${d.status}`)}
                       </Badge>
+                      {d.posting_status && (
+                        <Badge
+                          kind={
+                            d.posting_status === 'posted'
+                              ? 'success'
+                              : d.posting_status === 'linked' || d.posting_status === 'ready'
+                                ? 'info'
+                                : 'neutral'
+                          }
+                        >
+                          {t(`docs.posting.${d.posting_status}`)}
+                        </Badge>
+                      )}
+                      {d.purchase_document_no && (
+                        <span className="page-sub">
+                          {t('docs.linkedPurchaseInvoice')} {d.purchase_document_no}
+                        </span>
+                      )}
                       <span>{fmt(d.total_amount)} {d.currency ?? ''}</span>
                     </span>
                   </button>
@@ -454,6 +503,15 @@ export default function ScanImportPage({ mode }: { mode?: 'purchase' | 'sale' } 
                   </div>
                   {detail.document.status === 'DUPLICATE' && (
                     <p className="warning-text">{t('docs.duplicate')}</p>
+                  )}
+                  {detail.document.purchase_document_id && (
+                    <p className="alert alert-success" role="status">
+                      {t('docs.createPurchaseInvoiceLinked').replace(
+                        '{no}',
+                        detail.document.purchase_document_no ?? detail.document.purchase_document_id.slice(0, 8),
+                      )}{' '}
+                      <Link to="/accounting/purchases?tab=invoices">{t('docs.openPurchaseInvoices')}</Link>
+                    </p>
                   )}
                   <div className="doc-view">
                     {previewUrl ? (
@@ -657,6 +715,25 @@ export default function ScanImportPage({ mode }: { mode?: 'purchase' | 'sale' } 
                       )}
                     </>
                   )}
+                  {proposal.status === 'APPROVED' && proposal.kind === 'purchase' && (
+                    <div style={{ marginTop: 12 }}>
+                      <p className="muted">{t('docs.createPurchaseInvoiceHint')}</p>
+                      {detail?.document.purchase_document_id ? (
+                        <Badge kind="success">
+                          {t('docs.createPurchaseInvoiceLinked').replace(
+                            '{no}',
+                            detail.document.purchase_document_no ?? detail.document.purchase_document_id.slice(0, 8),
+                          )}
+                        </Badge>
+                      ) : (
+                        <Button variant="primary" disabled={purchaseBusy}
+                          onClick={() => void createPurchaseInvoice(proposal)}>
+                          {t('docs.createPurchaseInvoice')}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                  {purchaseMessage && <p className="alert alert-info" role="status">{purchaseMessage}</p>}
                   {proposal.status === 'APPROVED' && proposal.draft_entry_id && (
                     <div style={{ marginTop: 12 }}>
                       <p>{t('docs.draftCreated').replace('{no}', '')}</p>

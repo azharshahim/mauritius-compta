@@ -28,10 +28,18 @@ import {
 } from './service.js';
 import {
   billingPaymentCandidates,
+  createBillingPaymentFromBankTransaction,
   linkBankBillingPayment,
   unlinkBankBillingPayment,
 } from './billing.js';
 import { bankReconciliationReport, bankReconciliationReportCsv } from './reports.js';
+import {
+  getReconciliationPeriod,
+  listReconciliationPeriods,
+  openReconciliationPeriod,
+  reopenReconciliationPeriod,
+  validateReconciliationPeriod,
+} from './periods.js';
 import { MCB_MAPPING, mcbRowsToCsv, parseMcbStatement } from './mcb.js';
 import { extractDocument } from '../documents/extract.js';
 import {
@@ -139,7 +147,13 @@ const ReasonSchema = z.object({ reason: z.string().max(500).nullish() }).strict(
 
 export function bankRoutes(app: FastifyInstance, db: Db, config: Config): void {
   const params = (req: { params: unknown }) =>
-    req.params as { companyId: string; transactionId?: string; proposalId?: string; ruleId?: string };
+    req.params as {
+      companyId: string;
+      transactionId?: string;
+      proposalId?: string;
+      ruleId?: string;
+      periodId?: string;
+    };
 
   app.get('/companies/:companyId/bank/profiles', async (req) => {
     const { companyId } = params(req);
@@ -440,6 +454,169 @@ export function bankRoutes(app: FastifyInstance, db: Db, config: Config): void {
       .header('content-type', 'text/csv; charset=utf-8')
       .header('content-disposition', 'attachment; filename="bank-reconciliation-advanced.csv"')
       .send(bankReconciliationReportCsv(report, locale));
+  });
+
+  // ------------------------------------------------- Bank receipt -> customer payment (C-04)
+  const PaymentFromBankSchema = z
+    .object({
+      confirm: z.literal(true),
+      customerId: z.string().uuid(),
+      allocations: z
+        .array(
+          z
+            .object({ invoiceId: z.string().uuid(), amount: z.string().regex(/^\d+(\.\d{1,4})?$/) })
+            .strict(),
+        )
+        .min(1)
+        .max(50),
+      paymentDate: z.string().trim().min(10).max(10).nullish(),
+      reference: z.string().trim().max(120).nullish(),
+      exchangeRate: z.string().trim().max(40).nullish(),
+      note: z.string().trim().max(2000).nullish(),
+    })
+    .strict();
+
+  app.post('/companies/:companyId/bank/transactions/:transactionId/billing-payment', async (req, reply) => {
+    const { companyId, transactionId } = params(req);
+    await requireCompany(db, req.user!.id, companyId, 'accountant');
+    const body = parse(PaymentFromBankSchema, req.body);
+    const created = await createBillingPaymentFromBankTransaction(
+      db,
+      { userId: req.user!.id, companyId, ip: req.ip },
+      transactionId!,
+      body,
+    );
+    return reply.code(created.idempotent ? 200 : 201).send({
+      payment: created.payment,
+      transaction: created.transaction,
+      match: created.match,
+      idempotent: created.idempotent,
+      entryCreated: false,
+      accountingNotice: {
+        code: 'POSTING_SEPARATE',
+        fr: 'Le règlement est enregistré mais aucune écriture comptable n’a été créée. Utilisez le moteur comptable existant pour la comptabilisation.',
+        en: 'The payment is recorded but no journal entry was created. Use the existing accounting engine to post it.',
+      },
+    });
+  });
+
+  // ------------------------------------------------- Reconciliation periods (Mission 43)
+  const PeriodSchema = z
+    .object({
+      bankAccountId: z.string().uuid(),
+      from: z.string().trim().min(10).max(10),
+      to: z.string().trim().min(10).max(10),
+      note: z.string().trim().max(2000).nullish(),
+    })
+    .strict();
+  const PeriodValidationSchema = z
+    .object({
+      confirm: z.literal(true),
+      note: z.string().trim().max(2000).nullish(),
+      acceptedDifference: z.string().trim().max(40).nullish(),
+    })
+    .strict();
+  const PeriodReopenSchema = z
+    .object({ confirm: z.literal(true), reason: z.string().trim().min(3).max(2000) })
+    .strict();
+
+  app.get('/companies/:companyId/bank/periods', async (req) => {
+    const { companyId } = params(req);
+    await requireCompany(db, req.user!.id, companyId, 'viewer');
+    const q = parse(ListQuerySchema, req.query);
+    if (!q.bankAccountId) return { periods: [] };
+    return {
+      periods: await listReconciliationPeriods(
+        db,
+        { userId: req.user!.id, companyId, ip: req.ip },
+        q.bankAccountId,
+        q.from,
+        q.to,
+      ),
+    };
+  });
+
+  app.post('/companies/:companyId/bank/periods', async (req, reply) => {
+    const { companyId } = params(req);
+    await requireCompany(db, req.user!.id, companyId, 'accountant');
+    const body = parse(PeriodSchema, req.body);
+    const period = await openReconciliationPeriod(db, { userId: req.user!.id, companyId, ip: req.ip }, body);
+    return reply.code(201).send({ period });
+  });
+
+  app.get('/companies/:companyId/bank/periods/:periodId', async (req) => {
+    const { companyId, periodId } = params(req);
+    await requireCompany(db, req.user!.id, companyId, 'viewer');
+    return {
+      period: await getReconciliationPeriod(db, { userId: req.user!.id, companyId, ip: req.ip }, periodId!),
+    };
+  });
+
+  app.post('/companies/:companyId/bank/periods/:periodId/validate', async (req) => {
+    const { companyId, periodId } = params(req);
+    await requireCompany(db, req.user!.id, companyId, 'accountant');
+    const body = parse(PeriodValidationSchema, req.body);
+    return {
+      period: await validateReconciliationPeriod(
+        db,
+        { userId: req.user!.id, companyId, ip: req.ip },
+        periodId!,
+        body,
+      ),
+    };
+  });
+
+  app.post('/companies/:companyId/bank/periods/:periodId/reopen', async (req) => {
+    const { companyId, periodId } = params(req);
+    await requireCompany(db, req.user!.id, companyId, 'accountant');
+    const body = parse(PeriodReopenSchema, req.body);
+    return {
+      period: await reopenReconciliationPeriod(
+        db,
+        { userId: req.user!.id, companyId, ip: req.ip },
+        periodId!,
+        body,
+      ),
+    };
+  });
+
+  app.get('/companies/:companyId/bank/periods/:periodId/report.csv', async (req, reply) => {
+    const { companyId, periodId } = params(req);
+    await requireCompany(db, req.user!.id, companyId, 'viewer');
+    const period = await getReconciliationPeriod(
+      db,
+      { userId: req.user!.id, companyId, ip: req.ip },
+      periodId!,
+    );
+    const fr = req.query && (req.query as { lang?: string }).lang === 'fr';
+    const stored = [
+      [fr ? 'Rapport de période bancaire validée' : 'Validated bank period report'],
+      [fr ? 'Période' : 'Period', period.period_from, period.period_to],
+      [fr ? 'Statut' : 'Status', period.status],
+      [fr ? 'Devise' : 'Currency', period.currency],
+      [fr ? 'Solde bancaire d’ouverture' : 'Opening bank balance', period.opening_bank],
+      [fr ? 'Solde bancaire de clôture' : 'Closing bank balance', period.closing_bank],
+      [fr ? 'Solde comptable d’ouverture' : 'Opening ledger balance', period.opening_ledger],
+      [fr ? 'Solde comptable de clôture' : 'Closing ledger balance', period.closing_ledger],
+      [fr ? 'Écart' : 'Difference', period.difference],
+      [fr ? 'Écart accepté' : 'Accepted difference', period.accepted_difference],
+      [fr ? 'Transactions rapprochées' : 'Matched transactions', period.matched_count],
+      [fr ? 'Transactions partiellement rapprochées' : 'Partially matched transactions', period.partial_count],
+      [fr ? 'Transactions non rapprochées' : 'Unmatched transactions', period.unmatched_count],
+      [fr ? 'Transactions exclues' : 'Excluded transactions', period.excluded_count],
+      [fr ? 'Empreinte du relevé' : 'Statement hash', period.statement_hash],
+      [fr ? 'Validé le' : 'Validated at', period.validated_at],
+      [fr ? 'Note' : 'Note', period.note],
+      [],
+      ...period.events.map((e) => [e.created_at, e.event, e.actor_name ?? '', e.note ?? '']),
+      [],
+      [fr ? 'Montants figés à la validation : aucun recalcul.' : 'Amounts frozen at validation: no recalculation.'],
+    ];
+    const csv = stored.map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    return reply
+      .header('content-type', 'text/csv; charset=utf-8')
+      .header('content-disposition', 'attachment; filename="bank-period.csv"')
+      .send(csv);
   });
 
   app.get('/companies/:companyId/bank/report.csv', async (req, reply) => {

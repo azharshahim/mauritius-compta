@@ -38,7 +38,12 @@ interface GuidedData {
   };
   fixedAssets: { balanced: boolean; difference: string };
   inventory: { balanced: boolean; totalDifference: string };
-  billing: { openReceivables: string; postedDocuments: number; payments: { count: number } };
+  billing: {
+    openReceivables: string | null;
+    openReceivablesByCurrency?: { currency: string; amount: string }[];
+    postedDocuments: number;
+    payments: { count: number; unallocated?: string | null; byCurrency?: { currency: string; count: number; unallocated: string }[] };
+  };
   purchases: { totalsByCurrency: { currency: string; outstanding: string }[] };
   bank: { name: string; status: string; unmatched: number; difference: string } | null;
   payroll: { status: string } | null;
@@ -75,6 +80,8 @@ const D = {
     balanced: 'Balanced',
     notBalanced: 'Not balanced',
     openReceivables: 'open receivables',
+    noOpenReceivables: 'no open receivable',
+    unallocatedPayments: 'unallocated payments',
     postedDocs: 'posted documents',
     outstanding: 'outstanding',
     unreconciled: 'unreconciled items',
@@ -136,6 +143,8 @@ const D = {
     balanced: 'Équilibré',
     notBalanced: 'Déséquilibré',
     openReceivables: 'créances ouvertes',
+    noOpenReceivables: 'aucune créance ouverte',
+    unallocatedPayments: 'règlements non affectés',
     postedDocs: 'documents comptabilisés',
     outstanding: 'restant dû',
     unreconciled: 'opérations non rapprochées',
@@ -546,7 +555,13 @@ export default function GuidedDemoPage() {
         {
           label: tr.salesLedger,
           state: 'info',
-          detail: `${money(data.billing.openReceivables, locale, company.functional_currency)} ${tr.openReceivables} · ${data.billing.postedDocuments} ${tr.postedDocs} · ${tr.workflowOnly}`,
+          detail: `${
+            (data.billing.openReceivablesByCurrency ?? []).length
+              ? data.billing.openReceivablesByCurrency!
+                  .map((row) => `${money(row.amount, locale, row.currency)} (${row.currency})`)
+                  .join(' · ')
+              : tr.noOpenReceivables
+          } ${tr.openReceivables} · ${data.billing.postedDocuments} ${tr.postedDocs} · ${tr.workflowOnly}`,
         },
         {
           label: tr.purchaseLedger,

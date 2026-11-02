@@ -10,6 +10,7 @@ import AccountsPage from './pages/Accounts';
 import EntriesPage from './pages/Entries';
 import LedgerPage from './pages/Ledger';
 import TrialBalancePage from './pages/TrialBalance';
+import AccountingControlsPage from './pages/accounting/Controls';
 import StatementsPage from './pages/Statements';
 import EquityPage from './pages/accounting/Equity';
 import FixedAssetsPage from './pages/accounting/FixedAssets';
@@ -23,6 +24,8 @@ import DataManagementPage from './pages/settings/DataManagement';
 import CompaniesPage from './pages/Companies';
 import DossierPage from './pages/cabinet/Dossier';
 import CabinetDashboardPage from './pages/cabinet/CabinetDashboard';
+import CreateClientPage from './pages/cabinet/CreateClient';
+import ClientWorkspacePage from './pages/cabinet/ClientWorkspace';
 import GuidedDemoPage from './pages/GuidedDemo';
 import TasksPage from './pages/cabinet/Tasks';
 import TeamPage from './pages/cabinet/Team';
@@ -359,6 +362,13 @@ export default function App() {
             {/* Cabinet */}
             <Route path="/cabinet" element={<CabinetDashboardPage />} />
             {demoEnabled && <Route path="/demo" element={<GuidedDemoPage />} />}
+            <Route path="/cabinet/clients/new" element={<CreateClientPage />} />
+            <Route
+              path="/cabinet/clients/:companyId/onboarding"
+              element={<ClientWorkspacePage sectionOverride="onboarding" />}
+            />
+            <Route path="/cabinet/clients/:companyId/workspace" element={<ClientWorkspacePage />} />
+            <Route path="/cabinet/clients/:companyId/workspace/:section" element={<ClientWorkspacePage />} />
             <Route path="/cabinet/companies" element={<CompaniesPage />} />
             <Route path="/cabinet/companies/:companyId" element={<DossierPage />} />
             <Route path="/cabinet/companies/:companyId/settings" element={<CompanySettingsPage />} />
@@ -389,6 +399,7 @@ export default function App() {
             <Route path="/accounting/journals/general" element={<EntriesPage journalType="general" titleKey="nav.journals.general" />} />
             <Route path="/accounting/ledger" element={<LedgerPage />} />
             <Route path="/accounting/trial-balance" element={<TrialBalancePage />} />
+            <Route path="/accounting/controls" element={<AccountingControlsPage />} />
             <Route path="/accounting/statements" element={<StatementsPage />} />
             <Route path="/accounting/statements/balance-sheet" element={<StatementsPage view="balance-sheet" />} />
             <Route path="/accounting/statements/profit-loss" element={<StatementsPage view="profit-loss" />} />

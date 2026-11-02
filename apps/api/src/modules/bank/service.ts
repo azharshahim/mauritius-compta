@@ -1116,13 +1116,33 @@ export interface BankReport {
   companyId: string;
   bankAccount: { id: string; name: string; bankName: string; currency: string; maskedReference: string | null };
   period: { from: string | null; to: string | null };
+  /**
+   * Period reconciliation (mission 43, C-01).
+   *
+   * Opening and closing balances are computed on both sides instead of
+   * comparing a cumulative statement balance with the movement of a short
+   * sub-period. `bankBalance`/`ledgerBalance` remain the closing balances for
+   * backward compatibility; `difference` is always closing bank minus closing
+   * ledger and is never forced to zero.
+   */
+  openingBankBalance: string | null;
+  openingLedgerBalance: string;
+  bankMovement: string;
+  ledgerMovement: string;
+  closingBankBalance: string | null;
+  closingLedgerBalance: string;
   bankBalance: string | null;
   ledgerBalance: string;
-  bankMovement: string;
-  matchedCount: number;
-  unmatchedCount: number;
-  ledgerUnmatchedCount: number;
   difference: string;
+  matchedCount: number;
+  partiallyMatchedCount: number;
+  unmatchedCount: number;
+  excludedCount: number;
+  totalCount: number;
+  ledgerUnmatchedCount: number;
+  ledgerUnmatchedAmount: string;
+  unmatchedAmount: string;
+  priorTransactionCount: number;
   status: 'reconciled' | 'differences';
   explanations: { code: string; fr: string; en: string }[];
   validatedAt: string | null;
@@ -1137,44 +1157,107 @@ export async function bankReport(
   to?: string | null,
 ): Promise<BankReport> {
   const account = await bankAccountOfCompany(db, companyId, bankAccountId);
-  const ledger = await db.query<{ balance: string }>(
+  const fromDate = from ?? null;
+  const toDate = to ?? null;
+
+  // Ledger opening balance: every posted line strictly before the period.
+  // Draft entries are deliberately excluded: they are not part of the ledger
+  // balance a bank statement can be reconciled against.
+  const ledgerOpening = await db.query<{ balance: string }>(
     `SELECT COALESCE(SUM(l.debit - l.credit), 0)::text AS balance
+       FROM journal_lines l JOIN journal_entries e ON e.id = l.entry_id
+      WHERE l.company_id = $1 AND l.account_id = $2 AND e.status = 'posted'
+        AND ($3::date IS NULL OR e.entry_date < $3)`,
+    [companyId, account.account_id, fromDate],
+  );
+  const ledgerMovement = await db.query<{ total: string }>(
+    `SELECT COALESCE(SUM(l.debit - l.credit), 0)::text AS total
        FROM journal_lines l JOIN journal_entries e ON e.id = l.entry_id
       WHERE l.company_id = $1 AND l.account_id = $2 AND e.status = 'posted'
         AND ($3::date IS NULL OR e.entry_date >= $3)
         AND ($4::date IS NULL OR e.entry_date <= $4)`,
-    [companyId, account.account_id, from ?? null, to ?? null],
+    [companyId, account.account_id, fromDate, toDate],
   );
-  const last = await db.query<{ balance: string | null }>(
+
+  // Bank opening balance:
+  //  - the last statement balance strictly before the period when available;
+  //  - otherwise the first in-period balance minus its movement, which is the
+  //    reconstructed opening of the first statement row.
+  const priorBalance = await db.query<{ balance: string }>(
     `SELECT balance::text FROM bank_transactions
       WHERE bank_account_id = $1 AND balance IS NOT NULL
-        AND ($2::date IS NULL OR txn_date >= $2) AND ($3::date IS NULL OR txn_date <= $3)
+        AND ($2::date IS NOT NULL AND txn_date < $2)
       ORDER BY txn_date DESC, created_at DESC LIMIT 1`,
-    [account.id, from ?? null, to ?? null],
+    [account.id, fromDate],
   );
+  const firstInPeriod = await db.query<{ balance: string; amount: string }>(
+    `SELECT balance::text, amount::text FROM bank_transactions
+      WHERE bank_account_id = $1 AND balance IS NOT NULL
+        AND ($2::date IS NULL OR txn_date >= $2)
+        AND ($3::date IS NULL OR txn_date <= $3)
+      ORDER BY txn_date ASC, created_at ASC LIMIT 1`,
+    [account.id, fromDate, toDate],
+  );
+  const lastInPeriod = await db.query<{ balance: string }>(
+    `SELECT balance::text FROM bank_transactions
+      WHERE bank_account_id = $1 AND balance IS NOT NULL
+        AND ($2::date IS NULL OR txn_date >= $2)
+        AND ($3::date IS NULL OR txn_date <= $3)
+      ORDER BY txn_date DESC, created_at DESC LIMIT 1`,
+    [account.id, fromDate, toDate],
+  );
+  const prior = priorBalance.rows[0]?.balance ?? null;
+  const first = firstInPeriod.rows[0] ?? null;
+  const openingBank = prior !== null
+    ? (parseAmount(prior) ?? 0n)
+    : first !== null
+      ? (parseAmount(first.balance) ?? 0n) - (parseAmount(first.amount) ?? 0n)
+      : null;
+  const last = lastInPeriod.rows[0]?.balance ?? null;
+  const closingBank = last !== null ? (parseAmount(last) ?? 0n) : openingBank;
+
   const movement = await db.query<{ total: string }>(
     `SELECT COALESCE(SUM(amount), 0)::text AS total FROM bank_transactions
-      WHERE bank_account_id = $1
+      WHERE bank_account_id = $1 AND status <> 'cancelled'
         AND ($2::date IS NULL OR txn_date >= $2) AND ($3::date IS NULL OR txn_date <= $3)`,
-    [account.id, from ?? null, to ?? null],
+    [account.id, fromDate, toDate],
   );
-  const counts = await db.query<{ matched: number; unmatched: number }>(
+  const counts = await db.query<{
+    matched: number;
+    partially_matched: number;
+    unmatched: number;
+    excluded: number;
+    total: number;
+    unmatched_amount: string;
+  }>(
     `SELECT
        count(*) FILTER (WHERE status = 'matched')::int AS matched,
-       count(*) FILTER (WHERE status IN ('unmatched', 'proposed', 'review'))::int AS unmatched
+       count(*) FILTER (WHERE status = 'partially_matched')::int AS partially_matched,
+       count(*) FILTER (WHERE status IN ('unmatched', 'proposed', 'review'))::int AS unmatched,
+       count(*) FILTER (WHERE status = 'excluded')::int AS excluded,
+       count(*) FILTER (WHERE status <> 'cancelled')::int AS total,
+       COALESCE(SUM(amount) FILTER (WHERE status IN ('unmatched', 'proposed', 'review')), 0)::text AS unmatched_amount
      FROM bank_transactions
       WHERE bank_account_id = $1
         AND ($2::date IS NULL OR txn_date >= $2) AND ($3::date IS NULL OR txn_date <= $3)`,
-    [account.id, from ?? null, to ?? null],
+    [account.id, fromDate, toDate],
   );
-  const ledgerUnmatched = await db.query<{ count: number }>(
-    `SELECT count(*)::int AS count FROM journal_lines l
+  const ledgerUnmatched = await db.query<{ count: number; total: string }>(
+    `SELECT count(*)::int AS count,
+            COALESCE(SUM(l.debit - l.credit), 0)::text AS total
+       FROM journal_lines l
        JOIN journal_entries e ON e.id = l.entry_id
       WHERE l.company_id = $1 AND l.account_id = $2 AND e.status = 'posted'
         AND ($3::date IS NULL OR e.entry_date >= $3)
         AND ($4::date IS NULL OR e.entry_date <= $4)
         AND NOT EXISTS (SELECT 1 FROM bank_matches m WHERE m.entry_line_id = l.id AND m.status = 'confirmed')`,
-    [companyId, account.account_id, from ?? null, to ?? null],
+    [companyId, account.account_id, fromDate, toDate],
+  );
+  const priorCount = await db.query<{ count: number }>(
+    `SELECT count(*)::int AS count FROM bank_transactions
+      WHERE bank_account_id = $1 AND status <> 'cancelled'
+        AND ($2::date IS NOT NULL AND txn_date < $2)`,
+    [account.id, fromDate],
   );
   const validation = await db.query<{ decided_at: string | null; decided_by: string | null }>(
     `SELECT max(m.decided_at)::text AS decided_at,
@@ -1184,55 +1267,77 @@ export async function bankReport(
        LEFT JOIN app_users u ON u.id = m.decided_by
       WHERE m.bank_account_id = $1 AND m.status = 'confirmed'
         AND ($2::date IS NULL OR t.txn_date >= $2) AND ($3::date IS NULL OR t.txn_date <= $3)`,
-    [account.id, from ?? null, to ?? null],
+    [account.id, fromDate, toDate],
   );
-  const ledgerBalance = formatAmount(parseAmount(ledger.rows[0]?.balance ?? '0') ?? 0n);
-  const bankBalance = last.rows[0]?.balance ?? null;
-  const difference = formatAmount(
-    (parseAmount(bankBalance ?? '0') ?? 0n) - (parseAmount(ledgerBalance) ?? 0n),
-  );
+
+  const openingLedger = parseAmount(ledgerOpening.rows[0]?.balance ?? '0') ?? 0n;
+  const ledgerMovementValue = parseAmount(ledgerMovement.rows[0]?.total ?? '0') ?? 0n;
+  const closingLedger = openingLedger + ledgerMovementValue;
+  const bankMovement = parseAmount(movement.rows[0]?.total ?? '0') ?? 0n;
+  const differenceValue = closingBank !== null ? closingBank - closingLedger : null;
   const unmatched = counts.rows[0]?.unmatched ?? 0;
+  const partiallyMatched = counts.rows[0]?.partially_matched ?? 0;
   const ledgerUnmatchedCount = ledgerUnmatched.rows[0]?.count ?? 0;
+  const priorTransactionCount = priorCount.rows[0]?.count ?? 0;
   const status: 'reconciled' | 'differences' =
-    bankBalance !== null && unmatched === 0 && ledgerUnmatchedCount === 0 && difference === '0.0000'
+    closingBank !== null &&
+    unmatched === 0 &&
+    ledgerUnmatchedCount === 0 &&
+    differenceValue === 0n
       ? 'reconciled'
       : 'differences';
+
   const explanations: BankReport['explanations'] = [];
-  if (!bankBalance) {
+  if (closingBank === null) {
     explanations.push({
       code: 'NO_BANK_BALANCE',
-      fr: 'Aucun solde bancaire n’est fourni : le rapport ne peut pas conclure à un rapprochement.',
-      en: 'No bank balance is available: the report cannot conclude a reconciliation.',
+      fr: 'Aucun solde de relevé n’est fourni pour la période : le rapport ne peut pas conclure à un rapprochement.',
+      en: 'No statement balance is available for the period: the report cannot conclude a reconciliation.',
     });
   }
   if (unmatched > 0) {
     explanations.push({
       code: 'UNMATCHED_BANK_TRANSACTIONS',
-      fr: `${unmatched} opération(s) bancaire(s) non rapprochée(s) expliquent tout ou partie de l’écart.`,
-      en: `${unmatched} unreconciled bank transaction(s) explain all or part of the difference.`,
+      fr: `${unmatched} opération(s) bancaire(s) non rapprochée(s) sur ${counts.rows[0]?.total ?? 0} expliquent tout ou partie de l’écart de clôture.`,
+      en: `${unmatched} unreconciled bank transaction(s) out of ${counts.rows[0]?.total ?? 0} explain all or part of the closing difference.`,
+    });
+  }
+  if (partiallyMatched > 0) {
+    explanations.push({
+      code: 'PARTIALLY_MATCHED_BANK_TRANSACTIONS',
+      fr: `${partiallyMatched} opération(s) ne sont que partiellement rapprochées : le rapprochement n’est pas complet.`,
+      en: `${partiallyMatched} transaction(s) are only partially matched: reconciliation is not complete.`,
+    });
+  }
+  if (priorTransactionCount > 0) {
+    explanations.push({
+      code: 'PRIOR_TRANSACTIONS',
+      fr: `${priorTransactionCount} opération(s) antérieure(s) à la période sont reprises dans le solde d’ouverture.`,
+      en: `${priorTransactionCount} transaction(s) before the period are included in the opening balance.`,
     });
   }
   if (ledgerUnmatchedCount > 0) {
     explanations.push({
       code: 'UNMATCHED_LEDGER_LINES',
-      fr: `${ledgerUnmatchedCount} ligne(s) comptable(s) du compte bancaire ne sont pas rapprochées : le rapport ne peut pas conclure.`,
-      en: `${ledgerUnmatchedCount} ledger line(s) of the bank account are not reconciled: the report cannot conclude.`,
+      fr: `${ledgerUnmatchedCount} ligne(s) comptable(s) postée(s) du compte bancaire ne sont pas rapprochées : le rapport ne peut pas conclure.`,
+      en: `${ledgerUnmatchedCount} posted ledger line(s) of the bank account are not reconciled: the report cannot conclude.`,
     });
   }
-  if (difference !== '0.0000') {
+  if (differenceValue !== null && differenceValue !== 0n) {
     explanations.push({
       code: 'BALANCE_DIFFERENCE',
-      fr: 'Le solde bancaire et le solde comptable diffèrent : un rapprochement complet reste à faire.',
-      en: 'The bank balance and the ledger balance differ: reconciliation is not complete.',
+      fr: 'Le solde bancaire de clôture et le solde comptable de clôture diffèrent : un rapprochement complet reste à faire.',
+      en: 'The closing bank balance and the closing ledger balance differ: reconciliation is not complete.',
     });
   }
   if (status === 'reconciled') {
     explanations.push({
       code: 'RECONCILED',
-      fr: 'Aucun écart inexpliqué sur la période sélectionnée.',
-      en: 'No unexplained difference over the selected period.',
+      fr: 'Aucun écart inexpliqué entre l’ouverture, les mouvements et la clôture de la période.',
+      en: 'No unexplained difference between opening, movements and closing balances of the period.',
     });
   }
+
   return {
     companyId,
     bankAccount: {
@@ -1242,14 +1347,25 @@ export async function bankReport(
       currency: account.currency,
       maskedReference: account.masked_reference,
     },
-    period: { from: from ?? null, to: to ?? null },
-    bankBalance,
-    ledgerBalance,
-    bankMovement: formatAmount(parseAmount(movement.rows[0]?.total ?? '0') ?? 0n),
+    period: { from: fromDate, to: toDate },
+    openingBankBalance: openingBank !== null ? formatAmount(openingBank) : null,
+    openingLedgerBalance: formatAmount(openingLedger),
+    bankMovement: formatAmount(bankMovement),
+    ledgerMovement: formatAmount(ledgerMovementValue),
+    closingBankBalance: closingBank !== null ? formatAmount(closingBank) : null,
+    closingLedgerBalance: formatAmount(closingLedger),
+    bankBalance: closingBank !== null ? formatAmount(closingBank) : null,
+    ledgerBalance: formatAmount(closingLedger),
+    difference: formatAmount(differenceValue ?? 0n),
     matchedCount: counts.rows[0]?.matched ?? 0,
+    partiallyMatchedCount: partiallyMatched,
     unmatchedCount: unmatched,
+    excludedCount: counts.rows[0]?.excluded ?? 0,
+    totalCount: counts.rows[0]?.total ?? 0,
     ledgerUnmatchedCount,
-    difference,
+    ledgerUnmatchedAmount: formatAmount(parseAmount(ledgerUnmatched.rows[0]?.total ?? '0') ?? 0n),
+    unmatchedAmount: formatAmount(parseAmount(counts.rows[0]?.unmatched_amount ?? '0') ?? 0n),
+    priorTransactionCount,
     status,
     explanations,
     validatedAt: validation.rows[0]?.decided_at ?? null,
@@ -1268,11 +1384,18 @@ export function bankReportCsv(report: BankReport, locale: 'fr' | 'en'): string {
     [fr ? 'Devise' : 'Currency', report.bankAccount.currency],
     [fr ? 'Du' : 'From', report.period.from],
     [fr ? 'Au' : 'To', report.period.to],
-    [fr ? 'Solde bancaire' : 'Bank balance', report.bankBalance],
-    [fr ? 'Solde comptable' : 'Ledger balance', report.ledgerBalance],
+    [fr ? 'Solde bancaire d’ouverture' : 'Opening bank balance', report.openingBankBalance],
+    [fr ? 'Solde comptable d’ouverture' : 'Opening ledger balance', report.openingLedgerBalance],
     [fr ? 'Mouvement bancaire' : 'Bank movement', report.bankMovement],
+    [fr ? 'Mouvement comptable' : 'Ledger movement', report.ledgerMovement],
+    [fr ? 'Solde bancaire de clôture' : 'Closing bank balance', report.closingBankBalance],
+    [fr ? 'Solde comptable de clôture' : 'Closing ledger balance', report.closingLedgerBalance],
     [fr ? 'Transactions rapprochées' : 'Matched transactions', report.matchedCount],
+    [fr ? 'Transactions partiellement rapprochées' : 'Partially matched transactions', report.partiallyMatchedCount],
     [fr ? 'Transactions non rapprochées' : 'Unmatched transactions', report.unmatchedCount],
+    [fr ? 'Transactions exclues' : 'Excluded transactions', report.excludedCount],
+    [fr ? 'Transactions de la période' : 'Transactions in period', report.totalCount],
+    [fr ? 'Opérations antérieures à la période' : 'Transactions before the period', report.priorTransactionCount],
     [fr ? 'Lignes comptables non rapprochées' : 'Unmatched ledger lines', report.ledgerUnmatchedCount],
     [fr ? 'Écart' : 'Difference', report.difference],
     [fr ? 'Statut' : 'Status', report.status],

@@ -49,8 +49,11 @@ describe('mission 38 — navigation without duplicates', () => {
       'reports',
       'settings',
     ]);
-    expect(items).toHaveLength(60);
+    // Mission 44 adds the Accountant Workspace entry "Create New Client" to the
+    // clients group: 60 → 61 destinations, same ten groups, no duplicate route.
+    expect(items).toHaveLength(61);
     expect(items.filter((entry) => entry.to === '/accounting/journals')).toEqual([]);
+    expect(items.filter((entry) => entry.to === '/cabinet/clients/new')).toHaveLength(1);
   });
 
   it('has no two sidebar entries pointing at the exact same destination', () => {
