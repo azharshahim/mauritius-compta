@@ -5,10 +5,18 @@ import { useI18n } from '../../i18n';
 import { useSession } from '../../store';
 import { useAsync } from '../../hooks';
 import { useViewportMode } from '../../responsive';
-import { Badge, Card, EmptyState, Spinner } from '../../components/ui';
+import { Badge, Card, EmptyState, KpiCard, Spinner } from '../../components/ui';
+import type { KpiTone } from '../../components/ui';
 import { AppIcon, type IconName } from '../../components/AppIcon';
 import { date, dateTime } from '../../format';
 import { statusKind, statusLabelKey, type WorkspaceClient, type WorkspacePayload } from '../../cabinet/workspace';
+
+function companyInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'CO';
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return `${parts[0]![0] ?? ''}${parts[1]![0] ?? ''}`.toUpperCase();
+}
 
 /**
  * Mission 44 — COMPTAI Cabinet, Accountant Workspace.
@@ -33,6 +41,16 @@ export default function CabinetDashboardPage() {
   const [status, setStatus] = useState('all');
   const [accountant, setAccountant] = useState('all');
   const [onlyAttention, setOnlyAttention] = useState(false);
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  const hasActiveFilters =
+    search.trim().length > 0 || sector !== 'all' || status !== 'all' || accountant !== 'all' || onlyAttention;
+  const resetFilters = () => {
+    setSearch('');
+    setSector('all');
+    setStatus('all');
+    setAccountant('all');
+    setOnlyAttention(false);
+  };
 
   const clients = useMemo(() => {
     const list = data?.clients ?? [];
@@ -61,47 +79,59 @@ export default function CabinetDashboardPage() {
   if (!data) return <EmptyState title={t('cabinet.dashboard.title')} />;
 
   const metrics = data.metrics;
-  const kpis: { key: string; label: string; value: number; tone?: 'danger' | 'warning'; hint?: string }[] = [
-    { key: 'total', label: t('m44.kpi.totalClients'), value: metrics.totalClients },
-    { key: 'active', label: t('m44.kpi.activeClients'), value: metrics.activeClients },
+  const kpis: { key: string; label: string; value: number; icon: IconName; tone: KpiTone; detail?: string }[] = [
+    { key: 'total', label: t('m44.kpi.totalClients'), value: metrics.totalClients, icon: 'cabinet', tone: 'primary' },
+    { key: 'active', label: t('m44.kpi.activeClients'), value: metrics.activeClients, icon: 'validate', tone: 'teal' },
     {
       key: 'drafts',
       label: t('home.drafts'),
       value: data.metricDetails.unpostedEntries,
-      tone: data.metricDetails.unpostedEntries > 0 ? 'warning' : undefined,
+      icon: 'journals',
+      tone: data.metricDetails.unpostedEntries > 0 ? 'warning' : 'primary',
     },
     {
       key: 'pendingDocuments',
       label: t('home.pendingDocuments'),
       value: data.metricDetails.pendingDocuments,
-      tone: data.metricDetails.pendingDocuments > 0 ? 'warning' : undefined,
+      icon: 'documents',
+      tone: data.metricDetails.pendingDocuments > 0 ? 'warning' : 'teal',
     },
-    { key: 'onboarding', label: t('m44.kpi.onboarding'), value: metrics.onboardingInProgress },
-    { key: 'reviews', label: t('m44.kpi.pendingReviews'), value: metrics.pendingReviews },
+    { key: 'onboarding', label: t('m44.kpi.onboarding'), value: metrics.onboardingInProgress, icon: 'tasks', tone: 'violet' },
+    { key: 'reviews', label: t('m44.kpi.pendingReviews'), value: metrics.pendingReviews, icon: 'audit', tone: 'violet' },
     {
       key: 'documents',
       label: t('m44.kpi.missingDocuments'),
       value: metrics.missingDocuments,
-      tone: metrics.missingDocuments > 0 ? 'warning' : undefined,
+      icon: 'ocr',
+      tone: metrics.missingDocuments > 0 ? 'warning' : 'primary',
     },
     {
       key: 'exceptions',
       label: t('m44.kpi.accountingExceptions'),
       value: metrics.accountingExceptions,
-      tone: metrics.accountingExceptions > 0 ? 'danger' : undefined,
-      hint: t('m44.kpi.accountingExceptions.hint'),
+      icon: 'alert',
+      tone: metrics.accountingExceptions > 0 ? 'danger' : 'teal',
+      detail:
+        metrics.accountingExceptions > 0
+          ? t('m44.kpi.exceptions.detail', {
+              unposted: data.metricDetails.unpostedEntries,
+              unbalanced: data.metricDetails.unbalancedEntries,
+            })
+          : undefined,
     },
     {
       key: 'tasks',
       label: t('cabinet.kpi.overdue'),
       value: metrics.overdueTasks,
-      tone: metrics.overdueTasks > 0 ? 'danger' : undefined,
+      icon: 'aging',
+      tone: metrics.overdueTasks > 0 ? 'danger' : 'primary',
     },
     {
       key: 'tax',
       label: t('m44.kpi.upcomingTax'),
       value: metrics.upcomingTaxTasks,
-      tone: metrics.upcomingTaxTasks > 0 ? 'warning' : undefined,
+      icon: 'periods',
+      tone: metrics.upcomingTaxTasks > 0 ? 'warning' : 'teal',
     },
   ];
 
@@ -123,6 +153,11 @@ export default function CabinetDashboardPage() {
           <Link className="btn btn-primary" to="/cabinet/clients/new">
             <AppIcon name="plus" size={16} /> {t('m44.createClient')}
           </Link>
+          {company && (
+            <Link className="btn" to={`/cabinet/clients/${company.id}/workspace`}>
+              <AppIcon name="cabinet" size={16} /> {t('m46.shell.openWorkspace')}
+            </Link>
+          )}
           <Link className="btn" to="/cabinet/tasks">
             {t('cabinet.tasks.new')}
           </Link>
@@ -154,18 +189,14 @@ export default function CabinetDashboardPage() {
 
       <div className="kpi-grid m44-kpis">
         {kpis.map((k) => (
-          <div key={k.key} className={`kpi ${k.tone ? `kpi-${k.tone}` : ''}`} title={k.hint}>
-            <div className="kpi-value">{k.value}</div>
-            <div className="kpi-label">{k.label}</div>
-            {k.key === 'exceptions' && metrics.accountingExceptions > 0 && (
-              <div className="m44-kpi-detail">
-                {t('m44.kpi.exceptions.detail', {
-                  unposted: data.metricDetails.unpostedEntries,
-                  unbalanced: data.metricDetails.unbalancedEntries,
-                })}
-              </div>
-            )}
-          </div>
+          <KpiCard
+            key={k.key}
+            label={k.label}
+            value={k.value}
+            detail={k.detail}
+            icon={k.icon}
+            tone={k.tone}
+          />
         ))}
       </div>
 
@@ -193,7 +224,38 @@ export default function CabinetDashboardPage() {
 
       <Card
         title={t('m44.clients.title')}
-        actions={<span className="page-sub">{t('m44.clients.count', { count: clients.length })}</span>}
+        actions={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span className="page-sub">
+              {t('m46.portfolio.showing')
+                .replace('{shown}', String(clients.length))
+                .replace('{total}', String(data.clients.length))}
+            </span>
+            {hasActiveFilters && (
+              <button type="button" className="btn btn-ghost btn-sm" onClick={resetFilters}>
+                <AppIcon name="close" size={14} /> {t('m46.portfolio.resetFilters')}
+              </button>
+            )}
+            {!isMobile && (
+              <div className="view-toggle" role="group" aria-label={t('m44.clients.title')}>
+                <button
+                  type="button"
+                  className={viewMode === 'table' ? 'active' : ''}
+                  onClick={() => setViewMode('table')}
+                >
+                  <AppIcon name="table" size={14} /> {t('m46.portfolio.viewTable')}
+                </button>
+                <button
+                  type="button"
+                  className={viewMode === 'cards' ? 'active' : ''}
+                  onClick={() => setViewMode('cards')}
+                >
+                  <AppIcon name="grid" size={14} /> {t('m46.portfolio.viewCards')}
+                </button>
+              </div>
+            )}
+          </div>
+        }
         className="m44-clients"
       >
         <div className="m44-filters">
@@ -259,108 +321,191 @@ export default function CabinetDashboardPage() {
         </div>
 
         {clients.length === 0 ? (
-          <EmptyState title={t('m44.clients.empty')}>
+          <EmptyState icon="cabinet" title={t('m44.clients.empty')}>
             <p className="page-sub">
               {data.clients.length === 0 ? t('m44.clients.emptyCabinet') : t('m44.clients.emptyFilters')}
             </p>
-            {data.clients.length === 0 && (
+            {data.clients.length === 0 ? (
               <Link className="btn btn-primary" to="/cabinet/clients/new">
                 <AppIcon name="plus" size={16} /> {t('m44.createClient')}
               </Link>
+            ) : (
+              <button type="button" className="btn btn-sm" onClick={resetFilters}>
+                {t('m46.portfolio.resetFilters')}
+              </button>
             )}
           </EmptyState>
         ) : (
           <>
-            {!isMobile && (
-            <div className="table-wrap m44-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t('m44.clients.col.name')}</th>
-                    <th>{t('m44.clients.col.brn')}</th>
-                    <th>{t('m44.clients.col.sector')}</th>
-                    <th>{t('m44.clients.col.accountant')}</th>
-                    <th>{t('m44.clients.col.onboarding')}</th>
-                    <th>{t('m44.clients.col.period')}</th>
-                    <th>{t('m44.clients.col.tasks')}</th>
-                    <th>{t('m44.clients.col.activity')}</th>
-                    <th>{t('common.actions')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {clients.map((client) => (
-                    <tr key={client.id}>
-                      <td>
+            {!isMobile && viewMode === 'table' && (
+              <div className="table-wrap m44-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{t('m44.clients.col.name')}</th>
+                      <th>{t('m44.clients.col.brn')}</th>
+                      <th>{t('m44.clients.col.sector')}</th>
+                      <th>{t('m44.clients.col.accountant')}</th>
+                      <th>{t('m44.clients.col.onboarding')}</th>
+                      <th>{t('m44.clients.col.period')}</th>
+                      <th>{t('m44.clients.col.tasks')}</th>
+                      <th>{t('m44.clients.col.activity')}</th>
+                      <th>{t('common.actions')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {clients.map((client) => (
+                      <tr key={client.id} className={company?.id === client.id ? 'company-row-current' : ''}>
+                        <td>
+                          <div className="m46-client-cell">
+                            <span className="company-avatar" aria-hidden="true">
+                              {companyInitials(client.name)}
+                            </span>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <Link to={`/cabinet/clients/${client.id}/workspace`}>
+                                  <strong>{client.name}</strong>
+                                </Link>
+                                {company?.id === client.id && (
+                                  <Badge kind="teal">{t('m46.portfolio.activeCompanyTag')}</Badge>
+                                )}
+                              </div>
+                              <div className="page-sub">
+                                {client.trade_name ? `${client.trade_name} · ` : ''}
+                                {client.client_code ?? '—'}
+                                {client.status === 'archived' && <> · {t('companies.archived')}</>}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="mono">{client.brn ?? '—'}</td>
+                        <td>
+                          <Badge kind={client.sector_label_key ? 'violet' : 'neutral'}>
+                            {client.sector_label_key ? t(client.sector_label_key) : t('m44.clients.noSector')}
+                          </Badge>
+                        </td>
+                        <td>{client.assigned_accountant_name ?? t('m44.clients.unassigned')}</td>
+                        <td>
+                          <Badge kind={statusKind(client.onboarding_status)}>
+                            {t(statusLabelKey(client.onboarding_status))}
+                          </Badge>
+                          <div className="m44-progress" title={t('m44.clients.progress', { percent: client.progress_percent })}>
+                            <span style={{ width: `${client.progress_percent}%` }} />
+                          </div>
+                          <div className="page-sub">
+                            {t('m44.clients.progress', { percent: client.progress_percent })}
+                            {client.missing_documents > 0 && (
+                              <> · {t('m44.clients.missing', { count: client.missing_documents })}</>
+                            )}
+                          </div>
+                        </td>
+                        <td className="mono">
+                          {date(client.financial_year_start, locale)}
+                          <div className="page-sub">{date(client.financial_year_end, locale)}</div>
+                        </td>
+                        <td>
+                          {client.open_tasks}
+                          {client.tax_tasks > 0 && (
+                            <div className="page-sub">
+                              {t('m44.clients.taxTasks', { count: client.tax_tasks })}
+                            </div>
+                          )}
+                          {client.blocked_steps.length > 0 && (
+                            <div className="page-sub m44-danger-text">{t('m44.clients.blocked')}</div>
+                          )}
+                        </td>
+                        <td className="mono">{client.last_activity_at ? dateTime(client.last_activity_at, locale) : '—'}</td>
+                        <td>
+                          <div className="m44-row-actions">
+                            <Link className="btn btn-sm btn-primary" to={`/cabinet/clients/${client.id}/workspace`}>
+                              {t('m44.clients.open')}
+                            </Link>
+                            <Link
+                              className="btn btn-sm"
+                              to={`/cabinet/clients/${client.id}/onboarding`}
+                            >
+                              {client.onboarding_status === 'approved'
+                                ? t('m44.clients.reviewOnboarding')
+                                : t('m44.clients.continueOnboarding')}
+                            </Link>
+                            <Link className="btn btn-sm" to={`/cabinet/tasks${qs({ companyId: client.id })}`}>
+                              {t('m44.clients.viewTasks')}
+                            </Link>
+                            {canWrite(client) && (
+                              <Link className="btn btn-sm" to={`/cabinet/companies/${client.id}`}>
+                                {t('m44.clients.editDetails')}
+                              </Link>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {!isMobile && viewMode === 'cards' && (
+              <ul className="m46-portfolio-grid">
+                {clients.map((client) => (
+                  <li
+                    key={client.id}
+                    className={`m46-portfolio-card${company?.id === client.id ? ' is-current' : ''}`}
+                  >
+                    <div className="m46-portfolio-card-top">
+                      <span className="company-avatar" aria-hidden="true">
+                        {companyInitials(client.name)}
+                      </span>
+                      <div className="m46-portfolio-card-title">
                         <Link to={`/cabinet/clients/${client.id}/workspace`}>
                           <strong>{client.name}</strong>
                         </Link>
-                        <div className="page-sub">
-                          {client.trade_name ? `${client.trade_name} · ` : ''}
-                          {client.client_code ?? '—'}
-                          {client.status === 'archived' && <> · {t('companies.archived')}</>}
-                        </div>
-                      </td>
-                      <td className="mono">{client.brn ?? '—'}</td>
-                      <td>{client.sector_label_key ? t(client.sector_label_key) : t('m44.clients.noSector')}</td>
-                      <td>{client.assigned_accountant_name ?? t('m44.clients.unassigned')}</td>
-                      <td>
-                        <Badge kind={statusKind(client.onboarding_status)}>
-                          {t(statusLabelKey(client.onboarding_status))}
+                        <span className="page-sub">
+                          {client.client_code ?? '—'} · {client.brn ?? '—'}
+                        </span>
+                      </div>
+                      <Badge kind={statusKind(client.onboarding_status)}>
+                        {t(statusLabelKey(client.onboarding_status))}
+                      </Badge>
+                    </div>
+                    <div className="m46-alert-chips">
+                      <Badge kind={client.sector_label_key ? 'violet' : 'neutral'}>
+                        {client.sector_label_key ? t(client.sector_label_key) : t('m44.clients.noSector')}
+                      </Badge>
+                      {client.missing_documents > 0 && (
+                        <Badge kind="warning">
+                          {t('m44.clients.missing', { count: client.missing_documents })}
                         </Badge>
-                        <div className="m44-progress" title={t('m44.clients.progress', { percent: client.progress_percent })}>
-                          <span style={{ width: `${client.progress_percent}%` }} />
-                        </div>
-                        <div className="page-sub">
-                          {t('m44.clients.progress', { percent: client.progress_percent })}
-                          {client.missing_documents > 0 && (
-                            <> · {t('m44.clients.missing', { count: client.missing_documents })}</>
-                          )}
-                        </div>
-                      </td>
-                      <td className="mono">
-                        {date(client.financial_year_start, locale)}
-                        <div className="page-sub">{date(client.financial_year_end, locale)}</div>
-                      </td>
-                      <td>
-                        {client.open_tasks}
-                        {client.tax_tasks > 0 && (
-                          <div className="page-sub">
-                            {t('m44.clients.taxTasks', { count: client.tax_tasks })}
-                          </div>
-                        )}
-                        {client.blocked_steps.length > 0 && (
-                          <div className="page-sub m44-danger-text">{t('m44.clients.blocked')}</div>
-                        )}
-                      </td>
-                      <td className="mono">{client.last_activity_at ? dateTime(client.last_activity_at, locale) : '—'}</td>
-                      <td>
-                        <div className="m44-row-actions">
-                          <Link className="btn btn-sm" to={`/cabinet/clients/${client.id}/workspace`}>
-                            {t('m44.clients.open')}
-                          </Link>
-                          <Link
-                            className="btn btn-sm"
-                            to={`/cabinet/clients/${client.id}/onboarding`}
-                          >
-                            {client.onboarding_status === 'approved'
-                              ? t('m44.clients.reviewOnboarding')
-                              : t('m44.clients.continueOnboarding')}
-                          </Link>
-                          <Link className="btn btn-sm" to={`/cabinet/tasks${qs({ companyId: client.id })}`}>
-                            {t('m44.clients.viewTasks')}
-                          </Link>
-                          {canWrite(client) && (
-                            <Link className="btn btn-sm" to={`/cabinet/companies/${client.id}`}>
-                              {t('m44.clients.editDetails')}
-                            </Link>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      )}
+                      {client.blocked_steps.length > 0 && (
+                        <Badge kind="danger">{t('m44.clients.blocked')}</Badge>
+                      )}
+                    </div>
+                    <div>
+                      <div className="m44-progress">
+                        <span style={{ width: `${client.progress_percent}%` }} />
+                      </div>
+                      <div className="page-sub">
+                        {t('m44.clients.progress', { percent: client.progress_percent })} ·{' '}
+                        {client.assigned_accountant_name ?? t('m44.clients.unassigned')}
+                      </div>
+                    </div>
+                    <div className="m44-row-actions">
+                      <Link className="btn btn-sm btn-primary" to={`/cabinet/clients/${client.id}/workspace`}>
+                        {t('m44.clients.open')}
+                      </Link>
+                      <Link className="btn btn-sm" to={`/cabinet/clients/${client.id}/onboarding`}>
+                        {client.onboarding_status === 'approved'
+                          ? t('m44.clients.reviewOnboarding')
+                          : t('m44.clients.continueOnboarding')}
+                      </Link>
+                      <Link className="btn btn-sm" to={`/cabinet/tasks${qs({ companyId: client.id })}`}>
+                        {t('m44.clients.viewTasks')}
+                      </Link>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             )}
 
             {isMobile && (
@@ -424,19 +569,21 @@ export default function CabinetDashboardPage() {
       </Card>
 
       <Card title={t('home.quickAccess')}>
-        <div className="quick-links">
+        <div className="dashboard-quick-grid">
           {([
             ['accounts', t('nav.accounts'), '/accounting/accounts'],
             ['journals', t('nav.entries'), '/accounting/entries'],
             ['ledger', t('nav.ledger'), '/accounting/ledger'],
             ['trial', t('nav.trialBalance'), '/accounting/trial-balance'],
+            ['audit', t('nav.accounting.controls'), '/accounting/controls'],
             ['reconciliation', t('nav.bank.reconciliation'), '/accounting/banking?tab=transactions'],
+            ['periods', t('nav.bank.periods'), '/accounting/banking?tab=report'],
             ['profitLoss', t('nav.reports.profitLoss'), '/accounting/statements/profit-loss'],
             ['balanceSheet', t('nav.reports.balanceSheet'), '/accounting/statements/balance-sheet'],
             ['check', t('nav.accounting.yearEndClosing'), '/accounting/financial-years?tab=checklist'],
           ] as [IconName, string, string][]).map(([icon, label, to]) => (
-            <Link to={to} key={to}>
-              <AppIcon name={icon} size={16} /> {label}
+            <Link className="dashboard-quick" to={to} key={to}>
+              <AppIcon name={icon} size={17} /> <span>{label}</span>
             </Link>
           ))}
         </div>

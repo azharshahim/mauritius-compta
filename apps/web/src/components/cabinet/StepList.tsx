@@ -1,4 +1,5 @@
 import { Badge } from '../ui';
+import { AppIcon } from '../AppIcon';
 import { useI18n } from '../../i18n';
 import { statusKind, statusLabelKey } from '../../cabinet/workspace';
 
@@ -32,10 +33,11 @@ export function StepList({
     <ol className={`m44-steps ${oneline ? 'm44-steps-oneline' : ''}`} aria-label={t('m44.steps.aria')}>
       {steps.map((step, index) => {
         const active = current === step.key;
+        const completed = step.status === 'completed';
         const content = (
           <>
             <span className="m44-step-index" aria-hidden="true">
-              {index + 1}
+              {completed ? <AppIcon name="check" size={14} /> : index + 1}
             </span>
             <span className="m44-step-text">
               <span className="m44-step-title">{t(`m44.step.${step.key}`)}</span>

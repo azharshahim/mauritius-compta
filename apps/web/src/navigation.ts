@@ -74,6 +74,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/accounting/entries', key: 'nav.entries', icon: 'journals', module: 'accounting' },
       { to: '/accounting/ledger', key: 'nav.ledger', icon: 'ledger', module: 'accounting' },
       { to: '/accounting/trial-balance', key: 'nav.trialBalance', icon: 'trial', module: 'accounting' },
+      { to: '/accounting/controls', key: 'nav.accounting.controls', icon: 'audit', module: 'accounting' },
       { to: '/accounting/accruals', key: 'nav.accounting.accruals', icon: 'accruals', module: 'accounting' },
       { to: '/accounting/provisions', key: 'nav.accounting.provisions', icon: 'provisions', module: 'accounting' },
       { to: '/accounting/multi-currency', key: 'nav.accounting.multiCurrency', icon: 'currency', module: 'accounting' },
@@ -107,6 +108,13 @@ export const NAV_GROUPS: NavGroup[] = [
         search: { tab: 'transactions' },
       },
       { to: '/accounting/banking', key: 'nav.bank.import', icon: 'import', module: 'accounting', search: { tab: 'import' } },
+      {
+        to: '/accounting/banking',
+        key: 'nav.bank.periods',
+        icon: 'periods',
+        module: 'accounting',
+        search: { tab: 'report' },
+      },
       {
         to: '/accounting/banking/bulk-reconciliation',
         key: 'nav.bank.bulkReconciliation',

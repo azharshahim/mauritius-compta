@@ -49,9 +49,10 @@ describe('mission 38 — navigation without duplicates', () => {
       'reports',
       'settings',
     ]);
-    // Mission 44 adds the Accountant Workspace entry "Create New Client" to the
-    // clients group: 60 → 61 destinations, same ten groups, no duplicate route.
-    expect(items).toHaveLength(61);
+    // Mission 44 adds "Create New Client" (60 → 61); Mission 46 exposes existing
+    // Accounting Controls (/accounting/controls) and Bank Periods (?tab=report)
+    // directly in the sidebar: 61 → 63 destinations, same ten groups, no duplicates.
+    expect(items).toHaveLength(63);
     expect(items.filter((entry) => entry.to === '/accounting/journals')).toEqual([]);
     expect(items.filter((entry) => entry.to === '/cabinet/clients/new')).toHaveLength(1);
   });
@@ -75,7 +76,7 @@ describe('mission 38 — navigation without duplicates', () => {
     }
 
     // Explicitly classified shared screens.
-    expect(groups.get('/accounting/banking')).toHaveLength(4);
+    expect(groups.get('/accounting/banking')).toHaveLength(5);
     expect(groups.get('/accounting/purchases')).toHaveLength(6);
     expect(groups.get('/accounting/financial-years')).toEqual(['', 'tab=checklist']);
     expect(groups.get('/accounting/settings')).toHaveLength(3);

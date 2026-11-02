@@ -222,20 +222,38 @@ export default function App() {
             <div className="brand-tag">{t('suite.tagline')}</div>
           </div>
         </div>
-        <select
-          aria-label={t('common.company')}
-          value={company?.id ?? ''}
-          onChange={(e) => setCompany(e.target.value)}
-          disabled={companies.length === 0}
-          className="company-select"
-        >
-          {companies.length === 0 && <option value="">{t('common.none')}</option>}
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <div className="topbar-workspace">
+          <span className="topbar-workspace-icon" aria-hidden="true">
+            <AppIcon name="cabinet" size={16} />
+          </span>
+          <select
+            aria-label={t('common.company')}
+            value={company?.id ?? ''}
+            onChange={(e) => setCompany(e.target.value)}
+            disabled={companies.length === 0}
+            className="company-select"
+          >
+            {companies.length === 0 && <option value="">{t('common.none')}</option>}
+            {companies.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          {company?.functional_currency && (
+            <span className="topbar-currency-pill">{company.functional_currency}</span>
+          )}
+          {company && (
+            <NavLink
+              to={`/cabinet/clients/${company.id}/workspace`}
+              className="workspace-jump"
+              title={t('m46.shell.openWorkspace')}
+            >
+              <AppIcon name="external" size={14} />
+              <span className="workspace-jump-label">{t('m46.shell.openWorkspace')}</span>
+            </NavLink>
+          )}
+        </div>
         <span className="grow" />
         <DemoBanner />
         <select
@@ -299,6 +317,17 @@ export default function App() {
             >
               <AppIcon name="chevron" size={17} className={sidebarCollapsed ? 'flip' : ''} />
             </button>
+          </div>
+        )}
+        {company && (
+          <div className="sidebar-suite-pill">
+            <span className="sidebar-suite-dot" aria-hidden="true" />
+            <div style={{ minWidth: 0 }}>
+              <span>{t('m46.shell.activeClient')}</span>
+              <strong>
+                {company.name} · {company.functional_currency}
+              </strong>
+            </div>
           </div>
         )}
         <div className="sidebar-title">{t('nav.menu')}</div>
