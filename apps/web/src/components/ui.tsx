@@ -2,55 +2,144 @@ import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useI18n } from '../i18n';
 import { AppIcon } from './AppIcon';
+import type { IconName } from './AppIcon';
+
+export type BadgeKind = 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'teal' | 'violet';
+export type KpiTone = 'primary' | 'teal' | 'violet' | 'success' | 'warning' | 'danger';
 
 export function Card({
   title,
+  subtitle,
   actions,
   children,
   className = '',
+  flush = false,
 }: {
   title?: ReactNode;
+  subtitle?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
   className?: string;
+  flush?: boolean;
 }) {
   return (
-    <section className={`card ${className}`}>
-      {(title || actions) && (
+    <section className={`card ${className}`.trim()}>
+      {(title || actions || subtitle) && (
         <header className="card-head">
-          <h2>{title}</h2>
+          <div className="card-head-main">
+            {title && <h2>{title}</h2>}
+            {subtitle && <p className="card-sub">{subtitle}</p>}
+          </div>
           {actions && <div className="card-actions">{actions}</div>}
         </header>
       )}
-      <div className="card-body">{children}</div>
+      <div className={`card-body${flush ? ' flush' : ''}`}>{children}</div>
     </section>
+  );
+}
+
+export function PageHeader({
+  kicker,
+  title,
+  subtitle,
+  meta,
+  actions,
+  className = '',
+}: {
+  kicker?: ReactNode;
+  title: ReactNode;
+  subtitle?: ReactNode;
+  meta?: ReactNode;
+  actions?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <header className={`page-head ${className}`.trim()}>
+      <div className="grow page-head-copy">
+        {kicker && <div className="m44-kicker">{kicker}</div>}
+        <h1>{title}</h1>
+        {subtitle && <p className="page-sub">{subtitle}</p>}
+        {meta && <div className="page-meta">{meta}</div>}
+      </div>
+      {actions && <div className="page-head-actions">{actions}</div>}
+    </header>
+  );
+}
+
+export function KpiCard({
+  label,
+  value,
+  detail,
+  icon,
+  tone = 'primary',
+  valueTone,
+  className = '',
+}: {
+  label: ReactNode;
+  value: ReactNode;
+  detail?: ReactNode;
+  icon?: IconName;
+  tone?: KpiTone;
+  valueTone?: 'positive' | 'negative';
+  className?: string;
+}) {
+  const toneClass =
+    tone === 'danger'
+      ? 'kpi-danger'
+      : tone === 'warning'
+        ? 'kpi-warning'
+        : tone === 'teal'
+          ? 'kpi-teal'
+          : tone === 'violet'
+            ? 'kpi-violet'
+            : tone === 'success'
+              ? 'kpi-success'
+              : '';
+  return (
+    <div className={`kpi ${toneClass} ${className}`.trim()}>
+      <div className="kpi-head">
+        <div className="kpi-label">{label}</div>
+        {icon && (
+          <span className="kpi-icon">
+            <AppIcon name={icon} size={17} />
+          </span>
+        )}
+      </div>
+      <div className={`kpi-value mono${valueTone ? ` ${valueTone}` : ''}`}>{value}</div>
+      {detail && <div className="m44-kpi-detail">{detail}</div>}
+    </div>
   );
 }
 
 export function Button({
   children,
   variant = 'default',
+  size,
   type = 'button',
   onClick,
   disabled,
   className = '',
   title,
+  ariaLabel,
 }: {
   children: ReactNode;
-  variant?: 'default' | 'primary' | 'danger' | 'ghost' | 'link';
+  variant?: 'default' | 'primary' | 'secondary' | 'danger' | 'ghost' | 'link';
+  size?: 'sm' | 'md';
   type?: 'button' | 'submit';
   onClick?: () => void;
   disabled?: boolean;
   className?: string;
   title?: string;
+  ariaLabel?: string;
 }) {
   return (
     <button
       type={type}
-      className={`btn btn-${variant} ${className}`}
+      className={`btn btn-${variant}${size === 'sm' ? ' btn-sm' : ''} ${className}`.trim()}
       onClick={onClick}
       disabled={disabled}
       title={title}
+      aria-label={ariaLabel}
     >
       {children}
     </button>
@@ -80,7 +169,7 @@ export function Field({
   );
 }
 
-export function Badge({ kind = 'neutral', children }: { kind?: 'neutral' | 'success' | 'warning' | 'danger' | 'info'; children: ReactNode }) {
+export function Badge({ kind = 'neutral', children }: { kind?: BadgeKind; children: ReactNode }) {
   return <span className={`badge badge-${kind}`}>{children}</span>;
 }
 
@@ -93,11 +182,52 @@ export function Spinner({ label }: { label?: string }) {
   );
 }
 
-export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
+export function EmptyState({
+  title,
+  icon,
+  action,
+  children,
+}: {
+  title: string;
+  icon?: IconName;
+  action?: ReactNode;
+  children?: ReactNode;
+}) {
   return (
     <div className="empty">
+      {icon && (
+        <div className="empty-icon">
+          <AppIcon name={icon} size={20} />
+        </div>
+      )}
       <p className="empty-title">{title}</p>
-      {children}
+      {children && <div className="empty-copy">{children}</div>}
+      {action && <div className="empty-actions">{action}</div>}
+    </div>
+  );
+}
+
+export function NoticeBanner({
+  kind = 'info',
+  title,
+  children,
+  actions,
+  className = '',
+}: {
+  kind?: 'info' | 'success' | 'warning' | 'danger';
+  title?: ReactNode;
+  children: ReactNode;
+  actions?: ReactNode;
+  className?: string;
+}) {
+  const alertClass = kind === 'info' ? 'alert-info' : kind === 'success' ? 'alert-success' : kind === 'warning' ? 'alert-warning' : 'alert-danger';
+  return (
+    <div className={`alert ${alertClass} notice-banner ${className}`.trim()} role={kind === 'danger' ? 'alert' : 'status'}>
+      <div className="notice-banner-main">
+        {title && <strong className="notice-banner-title">{title}</strong>}
+        <div>{children}</div>
+      </div>
+      {actions && <div className="notice-banner-actions">{actions}</div>}
     </div>
   );
 }

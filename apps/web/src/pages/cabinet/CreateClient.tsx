@@ -375,12 +375,50 @@ export default function CreateClientPage() {
   if (loading) return <Spinner label={t('common.loading')} />;
 
   const categories = [...new Set(KYC_TEMPLATE.map((item) => item.category))];
-  const stepStatuses = ONBOARDING_STEP_KEYS.map((key) => {
-    const index = ONBOARDING_STEP_KEYS.indexOf(key);
-    if (index < stepIndex) return { key, status: 'completed' };
-    if (index === stepIndex) return { key, status: 'in_progress' };
-    return { key, status: 'not_started' };
-  });
+  // Mission 46 fix: bind StepList directly to computeOnboardingProgress (`preview.steps`)
+  // instead of stepIndex cursor position, so step badges and "X of 6 steps" never diverge.
+  const stepStatuses = preview.steps.map((step) => ({
+    key: step.key,
+    status: step.status,
+  }));
+  const stepStatusMap = new Map(preview.steps.map((step) => [step.key, step.status]));
+
+  const missingRequiredItems: { key: string; label: string; step: string }[] = [];
+  if (!payload.company.name?.trim()) {
+    missingRequiredItems.push({
+      key: 'name',
+      label: t('m46.wizard.missingLegalName'),
+      step: 'company_information',
+    });
+  }
+  if (!payload.company.address?.trim()) {
+    missingRequiredItems.push({
+      key: 'address',
+      label: t('m46.wizard.missingAddress'),
+      step: 'company_information',
+    });
+  }
+  if (!payload.sector) {
+    missingRequiredItems.push({
+      key: 'sector',
+      label: t('m46.wizard.missingSector'),
+      step: 'sector',
+    });
+  }
+  if (!payload.financial.functionalCurrency) {
+    missingRequiredItems.push({
+      key: 'currency',
+      label: t('m46.wizard.missingCurrency'),
+      step: 'accounting_setup',
+    });
+  }
+
+  const formattedSavedTime = savedAt
+    ? new Date(savedAt).toLocaleTimeString(locale === 'fr' ? 'fr-MU' : 'en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : '';
 
   return (
     <>
@@ -391,6 +429,17 @@ export default function CreateClientPage() {
           <div className="page-sub">{t('m44.create.sub')}</div>
         </div>
         <div className="m44-head-actions">
+          <span className={`m46-draft-pill m44-saved${savedAt ? ' is-saved' : ''}`} role="status">
+            {saving ? (
+              t('m46.wizard.draftSaving')
+            ) : savedAt ? (
+              <>
+                <AppIcon name="check" size={14} /> {t('m44.create.saved')} · {formattedSavedTime}
+              </>
+            ) : (
+              t('m46.wizard.draftUnsaved')
+            )}
+          </span>
           <button className="btn" type="button" onClick={() => void saveDraft()} disabled={saving}>
             <AppIcon name="save" size={16} /> {saving ? t('common.saving') : t('m44.create.saveDraft')}
           </button>
@@ -401,6 +450,31 @@ export default function CreateClientPage() {
           >
             {t('common.cancel')}
           </button>
+        </div>
+      </div>
+
+      <div className="m46-wizard-banner">
+        <div className="m46-wizard-banner-main">
+          <span className="m46-wizard-step-counter">
+            {t('m46.wizard.stepOf')
+              .replace('{current}', String(stepIndex + 1))
+              .replace('{total}', String(ONBOARDING_STEP_KEYS.length))}
+          </span>
+          <strong>{t(`m44.step.${stepKey}`)}</strong>
+        </div>
+        <div className="m46-wizard-banner-progress">
+          <div className="m46-wizard-banner-progress-head">
+            <span>
+              {t('m44.create.progressDetail', {
+                done: preview.completedSteps,
+                total: preview.totalSteps,
+              })}
+            </span>
+            <span className="mono">{preview.percent}%</span>
+          </div>
+          <div className="m44-progress">
+            <span style={{ width: `${preview.percent}%` }} />
+          </div>
         </div>
       </div>
 
@@ -422,11 +496,6 @@ export default function CreateClientPage() {
               <p className="m44-danger-text">{t('m44.create.blockedPreview')}</p>
             )}
           </div>
-          {savedAt && (
-            <p className="page-sub m44-saved">
-              <AppIcon name="check" size={14} /> {t('m44.create.saved')}
-            </p>
-          )}
         </aside>
 
         <div className="m44-wizard-body">
@@ -842,25 +911,108 @@ export default function CreateClientPage() {
                 })}
               </p>
 
+              <div
+                className={`m46-readiness-box${missingRequiredItems.length === 0 ? ' is-ready' : ''}`}
+                role="region"
+                aria-label={
+                  missingRequiredItems.length === 0
+                    ? t('m46.wizard.readinessReadyTitle')
+                    : t('m46.wizard.readinessPendingTitle')
+                }
+              >
+                <div className="m46-readiness-head">
+                  <strong>
+                    <AppIcon
+                      name={missingRequiredItems.length === 0 ? 'validate' : 'alert'}
+                      size={16}
+                    />{' '}
+                    {missingRequiredItems.length === 0
+                      ? t('m46.wizard.readinessReadyTitle')
+                      : t('m46.wizard.readinessPendingTitle')}
+                  </strong>
+                  <Badge kind={missingRequiredItems.length === 0 ? 'success' : 'warning'}>
+                    {preview.percent}%
+                  </Badge>
+                </div>
+                <div className="page-sub">
+                  {missingRequiredItems.length === 0
+                    ? t('m46.wizard.readinessReadyBody')
+                    : t('m46.wizard.readinessPendingBody')}
+                </div>
+                {missingRequiredItems.length > 0 && (
+                  <ul className="m46-readiness-list">
+                    {missingRequiredItems.map((item) => (
+                      <li key={item.key}>
+                        <span>{item.label}</span>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={() => goTo(item.step)}
+                        >
+                          {t('m46.wizard.editStep')}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
               <div className="m44-review">
                 <section>
-                  <h3>{t('m44.review.company')}</h3>
+                  <div className="m46-review-section-head">
+                    <h3>{t('m44.review.company')}</h3>
+                    <Badge kind={statusKind(stepStatusMap.get('company_information') ?? 'not_started')}>
+                      {t(statusLabelKey(stepStatusMap.get('company_information') ?? 'not_started'))}
+                    </Badge>
+                  </div>
                   <dl>
                     <div>
                       <dt>{t('m44.field.registeredName')}</dt>
-                      <dd>{payload.company.name || '—'}</dd>
+                      <dd>
+                        {payload.company.name?.trim() ? (
+                          payload.company.name
+                        ) : (
+                          <span className="m46-missing-required">
+                            {t('m46.wizard.notProvidedRequired')}
+                          </span>
+                        )}
+                      </dd>
                     </div>
                     <div>
                       <dt>{t('m44.field.brn')}</dt>
-                      <dd className="mono">{payload.company.brn || '—'}</dd>
+                      <dd className="mono">
+                        {payload.company.brn?.trim() ? (
+                          payload.company.brn
+                        ) : (
+                          <span className="m46-missing-optional">
+                            {t('m46.wizard.notProvidedOptional')}
+                          </span>
+                        )}
+                      </dd>
                     </div>
                     <div>
                       <dt>{t('m44.field.address')}</dt>
-                      <dd>{payload.company.address || '—'}</dd>
+                      <dd>
+                        {payload.company.address?.trim() ? (
+                          payload.company.address
+                        ) : (
+                          <span className="m46-missing-required">
+                            {t('m46.wizard.notProvidedRequired')}
+                          </span>
+                        )}
+                      </dd>
                     </div>
                     <div>
                       <dt>{t('m44.field.contactEmail')}</dt>
-                      <dd>{payload.company.contactEmail || '—'}</dd>
+                      <dd>
+                        {payload.company.contactEmail?.trim() ? (
+                          payload.company.contactEmail
+                        ) : (
+                          <span className="m46-missing-optional">
+                            {t('m46.wizard.notProvidedOptional')}
+                          </span>
+                        )}
+                      </dd>
                     </div>
                   </dl>
                   <button className="btn btn-sm btn-link" type="button" onClick={() => goTo('company_information')}>
@@ -869,7 +1021,12 @@ export default function CreateClientPage() {
                 </section>
 
                 <section>
-                  <h3>{t('m44.review.kyc')}</h3>
+                  <div className="m46-review-section-head">
+                    <h3>{t('m44.review.kyc')}</h3>
+                    <Badge kind={statusKind(stepStatusMap.get('kyc') ?? 'not_started')}>
+                      {t(statusLabelKey(stepStatusMap.get('kyc') ?? 'not_started'))}
+                    </Badge>
+                  </div>
                   <p className="page-sub">
                     {t('m44.review.kycSummary', {
                       received: payload.kyc.checks.filter((c) =>
@@ -889,15 +1046,33 @@ export default function CreateClientPage() {
                 </section>
 
                 <section>
-                  <h3>{t('m44.review.sector')}</h3>
-                  <p>{sectorDefinition ? t(sectorDefinition.labelKey) : '—'}</p>
+                  <div className="m46-review-section-head">
+                    <h3>{t('m44.review.sector')}</h3>
+                    <Badge kind={statusKind(stepStatusMap.get('sector') ?? 'not_started')}>
+                      {t(statusLabelKey(stepStatusMap.get('sector') ?? 'not_started'))}
+                    </Badge>
+                  </div>
+                  <p>
+                    {sectorDefinition ? (
+                      t(sectorDefinition.labelKey)
+                    ) : (
+                      <span className="m46-missing-required">
+                        {t('m46.wizard.notProvidedRequired')}
+                      </span>
+                    )}
+                  </p>
                   <button className="btn btn-sm btn-link" type="button" onClick={() => goTo('sector')}>
                     {t('m44.review.edit')}
                   </button>
                 </section>
 
                 <section>
-                  <h3>{t('m44.review.setup')}</h3>
+                  <div className="m46-review-section-head">
+                    <h3>{t('m44.review.setup')}</h3>
+                    <Badge kind={statusKind(stepStatusMap.get('accounting_setup') ?? 'not_started')}>
+                      {t(statusLabelKey(stepStatusMap.get('accounting_setup') ?? 'not_started'))}
+                    </Badge>
+                  </div>
                   <dl>
                     <div>
                       <dt>{t('m44.field.financialYearStart')}</dt>
@@ -912,17 +1087,25 @@ export default function CreateClientPage() {
                     <div>
                       <dt>{t('m44.field.chartChoice')}</dt>
                       <dd>
-                        {payload.accountingSetup.chartChoice
-                          ? t(`m44.setup.chart.${String(payload.accountingSetup.chartChoice)}`)
-                          : '—'}
+                        {payload.accountingSetup.chartChoice ? (
+                          t(`m44.setup.chart.${String(payload.accountingSetup.chartChoice)}`)
+                        ) : (
+                          <span className="m46-missing-required">
+                            {t('m46.wizard.notProvidedRequired')}
+                          </span>
+                        )}
                       </dd>
                     </div>
                     <div>
                       <dt>{t('m44.field.taxRegistration')}</dt>
                       <dd>
-                        {payload.accountingSetup.taxRegistration
-                          ? t(`m44.setup.tax.${String(payload.accountingSetup.taxRegistration)}`)
-                          : '—'}
+                        {payload.accountingSetup.taxRegistration ? (
+                          t(`m44.setup.tax.${String(payload.accountingSetup.taxRegistration)}`)
+                        ) : (
+                          <span className="m46-missing-required">
+                            {t('m46.wizard.notProvidedRequired')}
+                          </span>
+                        )}
                       </dd>
                     </div>
                   </dl>
@@ -932,7 +1115,12 @@ export default function CreateClientPage() {
                 </section>
 
                 <section>
-                  <h3>{t('m44.review.modules')}</h3>
+                  <div className="m46-review-section-head">
+                    <h3>{t('m44.review.modules')}</h3>
+                    <Badge kind={statusKind(stepStatusMap.get('modules') ?? 'not_started')}>
+                      {t(statusLabelKey(stepStatusMap.get('modules') ?? 'not_started'))}
+                    </Badge>
+                  </div>
                   <ul className="m44-chip-list">
                     {payload.modules.map((code) => {
                       const module = MODULE_CATALOGUE.find((m) => m.code === code)!;
@@ -957,15 +1145,20 @@ export default function CreateClientPage() {
                 <button className="btn" type="button" onClick={previous}>
                   {t('m44.create.previous')}
                 </button>
-                <button
-                  className="btn btn-primary"
-                  type="button"
-                  onClick={() => void activate()}
-                  disabled={activating}
-                >
-                  <AppIcon name="validate" size={16} />
-                  {activating ? t('m44.create.activating') : t('m44.create.activate')}
-                </button>
+                <div className="m44-wizard-actions-right">
+                  <button className="btn" type="button" onClick={() => void saveDraft()} disabled={saving}>
+                    <AppIcon name="save" size={16} /> {t('m44.create.saveDraft')}
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    type="button"
+                    onClick={() => void activate()}
+                    disabled={activating}
+                  >
+                    <AppIcon name="validate" size={16} />
+                    {activating ? t('m44.create.activating') : t('m44.create.activate')}
+                  </button>
+                </div>
               </div>
               <p className="page-sub">{t('m44.review.legal')}</p>
             </Card>

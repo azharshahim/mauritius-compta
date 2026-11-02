@@ -59,6 +59,7 @@ const SECTION_LINKS: Record<string, SectionLink[]> = {
     { path: '/accounting/entries', labelKey: 'nav.entries' },
     { path: '/accounting/ledger', labelKey: 'nav.ledger' },
     { path: '/accounting/trial-balance', labelKey: 'nav.trialBalance' },
+    { path: '/accounting/controls', labelKey: 'nav.accounting.controls' },
     { path: '/accounting/accruals', labelKey: 'nav.accounting.accruals' },
     { path: '/accounting/provisions', labelKey: 'nav.accounting.provisions' },
     { path: '/accounting/financial-years', labelKey: 'nav.accounting.financialYears' },
@@ -86,6 +87,7 @@ const SECTION_LINKS: Record<string, SectionLink[]> = {
     { path: '/accounting/banking', labelKey: 'nav.bank.accounts' },
     { path: '/accounting/banking?tab=transactions', labelKey: 'nav.bank.reconciliation' },
     { path: '/accounting/banking?tab=import', labelKey: 'nav.bank.import' },
+    { path: '/accounting/banking?tab=report', labelKey: 'nav.bank.periods' },
     { path: '/accounting/banking/bulk-reconciliation', labelKey: 'nav.bank.bulkReconciliation' },
   ],
   payroll: [
@@ -123,7 +125,7 @@ const SECTION_LINKS: Record<string, SectionLink[]> = {
   ],
   ai: [
     { path: '/cabinet/ai-assistant', labelKey: 'nav.cabinet.ai' },
-    { path: '/cabinet/ai-settings', labelKey: 'nav.cabinet.aiSettings' },
+    { path: '/cabinet/settings/ai', labelKey: 'nav.cabinet.aiSettings' },
     { path: '/cabinet/ai-proposals', labelKey: 'nav.cabinet.aiProposals' },
   ],
 };
@@ -198,29 +200,44 @@ export default function ClientWorkspacePage({ sectionOverride }: { sectionOverri
   };
 
   const stepView = progress.steps.map((step) => ({ key: step.key, status: step.status }));
+  const initials = company.name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('') || 'CO';
 
   return (
     <>
-      <div className="page-head m44-client-head">
-        <div className="grow">
-          <div className="m44-kicker">{t('m44.workspace.kicker')}</div>
-          <h1>{company.name}</h1>
-          <div className="page-sub m44-client-meta">
-            <span className="mono">{company.brn ?? t('m44.ws.noBrn')}</span>
-            <span>{data.sector ? t(data.sector.labelKey) : t('m44.clients.noSector')}</span>
-            <span>
-              {t('m44.ws.financialYear')}: {date(company.financial_year_start, locale)} →{' '}
-              {date(company.financial_year_end, locale)}
-            </span>
-            <span>{company.functional_currency}</span>
-            <Badge kind={statusKind(onboarding.status)}>{t(statusLabelKey(onboarding.status))}</Badge>
-            <span>
-              {t('m44.ws.assigned')}:{' '}
-              {onboarding.assigned_accountant_id
-                ? data.members.find((m) => m.user_id === onboarding.assigned_accountant_id)?.full_name ??
-                  t('m44.clients.unassigned')
-                : t('m44.clients.unassigned')}
-            </span>
+      <div className="m46-ws-banner m44-client-head">
+        <div className="m46-ws-identity">
+          <span className="company-avatar company-avatar-lg" aria-hidden="true">
+            {initials}
+          </span>
+          <div className="m46-ws-identity-copy">
+            <div className="m44-kicker">{t('m44.workspace.kicker')}</div>
+            <h1>{company.name}</h1>
+            <div className="page-sub m44-client-meta">
+              <span className="mono">{company.brn ?? t('m44.ws.noBrn')}</span>
+              <Badge kind={data.sector ? 'violet' : 'neutral'}>
+                {data.sector ? t(data.sector.labelKey) : t('m44.clients.noSector')}
+              </Badge>
+              <Badge kind="teal">{company.functional_currency}</Badge>
+              <Badge kind={statusKind(onboarding.status)}>{t(statusLabelKey(onboarding.status))}</Badge>
+              {isActive && <Badge kind="info">{t('m46.portfolio.activeCompanyTag')}</Badge>}
+              <span>
+                {t('m44.ws.financialYear')}: {date(company.financial_year_start, locale)} →{' '}
+                {date(company.financial_year_end, locale)}
+              </span>
+              <span>
+                {t('m44.ws.assigned')}:{' '}
+                {onboarding.assigned_accountant_id
+                  ? data.members.find((m) => m.user_id === onboarding.assigned_accountant_id)?.full_name ??
+                    t('m44.clients.unassigned')
+                  : t('m44.clients.unassigned')}
+              </span>
+            </div>
           </div>
         </div>
         <div className="m44-head-actions">
@@ -232,6 +249,9 @@ export default function ClientWorkspacePage({ sectionOverride }: { sectionOverri
               {t('m44.ws.setActiveCompany', { name: company.name })}
             </button>
           )}
+          <button className="btn btn-primary" type="button" onClick={() => openInContext('/accounting')}>
+            <AppIcon name="accounting" size={16} /> {t('nav.group.accounting')}
+          </button>
           <Link className="btn" to={`/cabinet/tasks${qs({ companyId: company.id })}`}>
             {t('m44.clients.viewTasks')}
           </Link>

@@ -3,7 +3,8 @@ import { api } from '../api';
 import { useI18n } from '../i18n';
 import { useSession } from '../store';
 import { useAsync } from '../hooks';
-import { Badge, Card, DemoNotice, EmptyState, ErrorBanner, Spinner } from '../components/ui';
+import { Badge, Card, DemoNotice, EmptyState, ErrorBanner, KpiCard, Spinner } from '../components/ui';
+import type { KpiTone } from '../components/ui';
 import { AppIcon, type IconName } from '../components/AppIcon';
 import { date, money } from '../format';
 
@@ -219,14 +220,56 @@ export default function DashboardPage() {
   const imports = (data?.imports ?? []).slice(0, 5);
   const draftEntries = dashboard?.kpis.draftEntries ?? 0;
 
-  const kpis = dashboard
+  const kpis: { key: string; label: string; value: string; detail: string; icon: IconName; tone: KpiTone }[] = dashboard
     ? [
-        { key: 'revenue', label: tr.revenue, value: money(dashboard.kpis.revenue, locale, dashboard.kpis.currency), icon: 'sales' as const, tone: '' },
-        { key: 'expenses', label: tr.expenses, value: money(dashboard.kpis.expenses, locale, dashboard.kpis.currency), icon: 'purchases' as const, tone: '' },
-        { key: 'profit', label: tr.profit, value: money(dashboard.kpis.profit, locale, dashboard.kpis.currency), icon: 'profitLoss' as const, tone: '' },
-        { key: 'assets', label: tr.assets, value: money(dashboard.kpis.totalAssets, locale, dashboard.kpis.currency), icon: 'balanceSheet' as const, tone: '' },
-        { key: 'drafts', label: tr.drafts, value: String(draftEntries), icon: 'tasks' as const, tone: draftEntries > 0 ? 'kpi-warning' : '' },
-        { key: 'documents', label: tr.pendingDocs, value: String(pendingDocuments), icon: 'ocr' as const, tone: pendingDocuments > 0 ? 'kpi-warning' : '' },
+        {
+          key: 'revenue',
+          label: tr.revenue,
+          value: money(dashboard.kpis.revenue, locale, dashboard.kpis.currency),
+          detail: `${dashboard.kpis.currency} · ${dashboard.range.from} → ${dashboard.range.to}`,
+          icon: 'sales',
+          tone: 'primary',
+        },
+        {
+          key: 'expenses',
+          label: tr.expenses,
+          value: money(dashboard.kpis.expenses, locale, dashboard.kpis.currency),
+          detail: `${dashboard.kpis.currency} · ${dashboard.range.from} → ${dashboard.range.to}`,
+          icon: 'purchases',
+          tone: 'violet',
+        },
+        {
+          key: 'profit',
+          label: tr.profit,
+          value: money(dashboard.kpis.profit, locale, dashboard.kpis.currency),
+          detail: `${dashboard.kpis.postedEntries} ${tr.statusPosted.toLowerCase()}`,
+          icon: 'profitLoss',
+          tone: 'teal',
+        },
+        {
+          key: 'assets',
+          label: tr.assets,
+          value: money(dashboard.kpis.totalAssets, locale, dashboard.kpis.currency),
+          detail: `${dashboard.kpis.accounts} ${tr.quickAccounts.toLowerCase()}`,
+          icon: 'balanceSheet',
+          tone: dashboard.kpis.balancedSheet ? 'success' : 'danger',
+        },
+        {
+          key: 'drafts',
+          label: tr.drafts,
+          value: String(draftEntries),
+          detail: tr.verifyDrafts,
+          icon: 'tasks',
+          tone: draftEntries > 0 ? 'warning' : 'primary',
+        },
+        {
+          key: 'documents',
+          label: tr.pendingDocs,
+          value: String(pendingDocuments),
+          detail: tr.documentsCount,
+          icon: 'ocr',
+          tone: pendingDocuments > 0 ? 'warning' : 'teal',
+        },
       ]
     : [];
 
@@ -234,10 +277,12 @@ export default function DashboardPage() {
     { icon: 'purchases', label: tr.quickPurchases, to: '/accounting/journals/purchases' },
     { icon: 'sales', label: tr.quickSales, to: '/accounting/journals/sales' },
     { icon: 'bank', label: tr.quickBank, to: '/accounting/banking' },
+    { icon: 'periods', label: t('m46.dashboard.openBankPeriods'), to: '/accounting/banking?tab=report' },
+    { icon: 'audit', label: t('m46.dashboard.openControls'), to: '/accounting/controls' },
     { icon: 'documents', label: tr.quickDocuments, to: '/documents' },
-    { icon: 'statements', label: tr.quickReports, to: '/reports' },
+    { icon: 'statements', label: tr.quickReports, to: '/accounting/statements' },
     { icon: 'accounts', label: tr.quickAccounts, to: '/accounting/accounts' },
-    { icon: 'ledger', label: tr.quickEntries, to: '/entries' },
+    { icon: 'ledger', label: tr.quickEntries, to: '/accounting/entries' },
     { icon: 'settings', label: tr.quickSettings, to: '/accounting/settings' },
   ];
 
@@ -257,10 +302,16 @@ export default function DashboardPage() {
         <>
           <section className="dashboard-hero">
             <div>
-              <div className="page-sub">{company.name} · {tr.range} {dashboard.range.from} → {dashboard.range.to}</div>
+              <div className="m44-kicker">{tr.greeting}</div>
               <h1>{tr.title}</h1>
-              <div className="page-sub">{tr.greeting} · {company.functional_currency}</div>
-              <div style={{ marginTop: 10 }}>
+              <div className="page-sub">
+                {company.name} · {t('m46.dashboard.currencyNote').replace('{currency}', dashboard.kpis.currency)}
+              </div>
+              <div className="m46-context-pills">
+                <Badge kind="teal">{company.functional_currency}</Badge>
+                <Badge kind="info">
+                  <AppIcon name="periods" size={13} /> {tr.range} {dashboard.range.from} → {dashboard.range.to}
+                </Badge>
                 <Badge kind={dashboard.kpis.balancedSheet ? 'success' : 'danger'}>
                   <AppIcon name={dashboard.kpis.balancedSheet ? 'validate' : 'alert'} size={13} />{' '}
                   {dashboard.kpis.balancedSheet ? tr.balanceOk : tr.balanceKo}
@@ -274,18 +325,22 @@ export default function DashboardPage() {
               <Link className="btn" to="/accounting/banking/bulk-reconciliation">
                 <AppIcon name="reconciliation" /> {tr.reconcile}
               </Link>
+              <Link className="btn" to={`/cabinet/clients/${company.id}/workspace`}>
+                <AppIcon name="cabinet" /> {t('m46.shell.openWorkspace')}
+              </Link>
             </div>
           </section>
 
           <div className="dashboard-kpis">
             {kpis.map((kpi) => (
-              <div className={`kpi ${kpi.tone}`} key={kpi.key}>
-                <div className="kpi-head">
-                  <div className="kpi-label">{kpi.label}</div>
-                  <span className="kpi-icon"><AppIcon name={kpi.icon} size={17} /></span>
-                </div>
-                <div className="kpi-value">{kpi.value}</div>
-              </div>
+              <KpiCard
+                key={kpi.key}
+                label={kpi.label}
+                value={kpi.value}
+                detail={kpi.detail}
+                icon={kpi.icon}
+                tone={kpi.tone}
+              />
             ))}
           </div>
 
@@ -374,10 +429,9 @@ export default function DashboardPage() {
                 </ul>
               </Card>
 
-              <Card title={tr.reconciliation}>
-                <p className="page-sub">{tr.reconciliationHelp}</p>
+              <Card title={tr.reconciliation} subtitle={tr.reconciliationHelp}>
                 {accounts.length === 0 ? (
-                  <EmptyState title={tr.noAccounts} />
+                  <EmptyState icon="bank" title={tr.noAccounts} />
                 ) : (
                   <ul className="dashboard-list">
                     {accounts.slice(0, 5).map((account) => (
@@ -385,8 +439,9 @@ export default function DashboardPage() {
                         <span className="kpi-icon"><AppIcon name="bank" size={16} /></span>
                         <div className="dashboard-list-main">
                           <strong>{account.name}</strong>
-                          <span className="dashboard-list-meta">{account.bank_name} · {account.currency}</span>
+                          <span className="dashboard-list-meta">{account.bank_name}</span>
                         </div>
+                        <Badge kind="teal">{account.currency}</Badge>
                         <Badge kind={(account.unmatched_count ?? 0) > 0 ? 'warning' : 'success'}>
                           {account.unmatched_count ?? 0}
                         </Badge>
@@ -394,9 +449,14 @@ export default function DashboardPage() {
                     ))}
                   </ul>
                 )}
-                <Link className="btn btn-sm" to="/accounting/banking/bulk-reconciliation" style={{ marginTop: 10 }}>
-                  <AppIcon name="reconciliation" size={15} /> {tr.openReconciliation}
-                </Link>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                  <Link className="btn btn-sm" to="/accounting/banking/bulk-reconciliation">
+                    <AppIcon name="reconciliation" size={15} /> {tr.openReconciliation}
+                  </Link>
+                  <Link className="btn btn-sm" to="/accounting/banking?tab=report">
+                    <AppIcon name="periods" size={15} /> {t('m46.dashboard.openBankPeriods')}
+                  </Link>
+                </div>
               </Card>
 
               <Card title={tr.imports}>

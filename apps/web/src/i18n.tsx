@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react';
 import { GLOSSARY } from './glossary';
 import { M44_EN, M44_FR } from './i18n-m44';
+import { M46_EN, M46_FR } from './i18n-m46';
 
 export type Locale = 'fr' | 'en';
 
@@ -4230,8 +4231,8 @@ const en: Dict = {
  * flat catalogue.
  */
 export const dictionaries: Record<Locale, Dict> = {
-  fr: { ...fr, ...M44_FR },
-  en: { ...en, ...M44_EN },
+  fr: { ...fr, ...M44_FR, ...M46_FR },
+  en: { ...en, ...M44_EN, ...M46_EN },
 };
 
 interface I18nContextValue {
